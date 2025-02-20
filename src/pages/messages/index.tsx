@@ -13,7 +13,7 @@ function Messages() {
     <div className="flex flex-1 h-full relative">
       <ChatList
         className={classNames(
-          "sticky top-0 w-full md:w-64 md:h-screen overflow-y-auto border-r border-custom",
+          "sticky top-0 w-full md:w-80 md:h-screen overflow-y-auto border-r border-custom",
           {
             "hidden md:block": !isMessagesRoot,
             block: isMessagesRoot,

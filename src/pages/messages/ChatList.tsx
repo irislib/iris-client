@@ -56,8 +56,9 @@ const ChatListItem = ({id}: {id: string}) => {
             )}
           </div>
           <div className="flex flex-row items-center justify-between gap-2">
-            <span className="text-sm text-base-content/70 min-h-[1.25rem]">
-              {latest?.content?.slice(0, 20)}
+            <span className="text-sm truncate text-base-content/70 min-h-[1.25rem]">
+              {latest?.content &&
+                `${latest.content.slice(0, 30)}${latest.content.length > 30 ? "..." : ""}`}
             </span>
             {latest?.time && (!lastSeen || latest.time > lastSeen) && (
               <div className="indicator-item badge badge-primary badge-xs"></div>
