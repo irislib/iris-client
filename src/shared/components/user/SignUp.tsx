@@ -5,6 +5,7 @@ import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {bytesToHex} from "@noble/hashes/utils"
 import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
+import {useUserStore} from "@/stores/user"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
 
@@ -16,6 +17,10 @@ export default function SignUp({onClose}: SignUpProps) {
   const [newUserName, setNewUserName] = useState("")
   const [, setShowLoginDialog] = useLocalState("home/showLoginDialog", false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const setPublicKey = useUserStore((state) => state.setPublicKey)
+  const setPrivateKey = useUserStore((state) => state.setPrivateKey)
+  const setWalletConnect = useUserStore((state) => state.setWalletConnect)
+  const setCashuEnabled = useUserStore((state) => state.setCashuEnabled)
 
   useEffect(() => {
     if (inputRef.current) {
@@ -45,10 +50,14 @@ export default function SignUp({onClose}: SignUpProps) {
     const pk = getPublicKey(sk)
     const npub = nip19.npubEncode(pk)
     const privateKeyHex = bytesToHex(sk)
-    localState.get("user/privateKey").put(privateKeyHex)
-    localState.get("user/publicKey").put(pk)
-    localState.get("user/cashuEnabled").put(true)
-    localState.get("user/walletConnect").put(true)
+    
+    // Update user store directly
+    setPrivateKey(privateKeyHex)
+    setPublicKey(pk)
+    setCashuEnabled(true)
+    setWalletConnect(true)
+    
+    // Keep these for backward compatibility
     localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
     localStorage.setItem("cashu.ndk.pubkey", pk)
     const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)

@@ -17,6 +17,8 @@ interface UserState {
   cashuEnabled: boolean
   defaultZapAmount: number
   
+  hasHydrated: boolean
+  
   setPublicKey: (publicKey: string) => void
   setPrivateKey: (privateKey: string) => void
   setNip07Login: (nip07Login: boolean) => void
@@ -69,6 +71,7 @@ export const useUserStore = create<UserState>()(
       walletConnect: migrateFromLocalStorage("user/walletConnect", false),
       cashuEnabled: migrateFromLocalStorage("user/cashuEnabled", false),
       defaultZapAmount: migrateFromLocalStorage("user/defaultZapAmount", 21),
+      hasHydrated: false,
       
       setPublicKey: (publicKey) => set({publicKey}),
       setPrivateKey: (privateKey) => set({privateKey}),
@@ -92,10 +95,16 @@ export const useUserStore = create<UserState>()(
         walletConnect: false,
         cashuEnabled: false,
         defaultZapAmount: 21,
+        hasHydrated: false,
       }),
     }),
     {
       name: "user-storage", // Name for localStorage
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.hasHydrated = true
+        }
+      },
     }
   )
 )
