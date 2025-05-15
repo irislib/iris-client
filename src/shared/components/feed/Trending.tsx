@@ -135,7 +135,7 @@ export default function Trending({
           {"gap-8": small && contentType !== "hashtags"}
         )}
       >
-        {contentType === "hashtags" && <div data-testid="trending-text">TRENDING</div>}
+        <div className={contentType === "hashtags" ? "" : "hidden"}>TRENDING</div>
         {error && !sortedData.length ? (
           <div className="px-4">Error: {`${error}`}</div>
         ) : null}
