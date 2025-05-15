@@ -14,6 +14,7 @@ import {profileCache} from "@/utils/memcache"
 import AnimalName from "@/utils/AnimalName"
 import {trackEvent} from "@/utils/IrisAPI"
 import {ndk} from "@/utils/ndk"
+import {useUserStore} from "@/stores/user"
 
 const sessions = new Map<string, Session | undefined>()
 
@@ -47,8 +48,30 @@ export async function getSession(id: string): Promise<Session | undefined> {
   return undefined
 }
 
+function syncUserDataToLocalState() {
+  const userData = useUserStore.getState()
+  if (userData.publicKey) {
+    localState.get("user/publicKey").put(userData.publicKey)
+  }
+  if (userData.privateKey) {
+    localState.get("user/privateKey").put(userData.privateKey)
+  }
+}
+
 // function that gets all our sessions and subscribes to messages from them
 export function loadSessions() {
+  // Sync user data from zustand to localState
+  syncUserDataToLocalState()
+  
+  useUserStore.subscribe((state) => {
+    if (state.publicKey) {
+      localState.get("user/publicKey").put(state.publicKey)
+    }
+    if (state.privateKey) {
+      localState.get("user/privateKey").put(state.privateKey)
+    }
+  })
+
   return localState.get("sessions").on(async (sessionData) => {
     for (const [id, data] of Object.entries(sessionData || {})) {
       if (sessions.has(id) || !data) continue

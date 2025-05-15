@@ -7,9 +7,16 @@ import {Link} from "react-router"
 import {ndk} from "@/utils/ndk"
 
 export function ProfileSettings() {
+  const [publicKeyState, setPublicKeyState] = useState("")
   const myPubKey = useUserStore((state) => state.publicKey)
   
-  const existingProfile = useProfile(myPubKey)
+  useEffect(() => {
+    if (myPubKey) {
+      setPublicKeyState(myPubKey)
+    }
+  }, [myPubKey])
+  
+  const existingProfile = useProfile(publicKeyState)
 
   const user = useMemo(() => {
     if (!myPubKey) {

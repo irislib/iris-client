@@ -11,10 +11,6 @@ import {useSettingsStore} from "@/stores/settings"
 import {loadInvites} from "@/utils/chat/Invites"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
-import {initializeCompatibilityLayer} from "./utils/irisdb-compat"
-
-// Initialize compatibility layer before anything else
-initializeCompatibilityLayer()
 
 ndk() // init NDK & irisdb login flow
 
@@ -22,9 +18,48 @@ ndk() // init NDK & irisdb login flow
 const InitializeStore = () => {
   useEffect(() => {
     const currentState = useUserStore.getState()
-    useUserStore.setState({...currentState})
     
-    console.log("User store initialized:", currentState)
+    const publicKey = localStorage.getItem("localState/user/publicKey")
+    const privateKey = localStorage.getItem("localState/user/privateKey")
+    const nip07Login = localStorage.getItem("localState/user/nip07Login")
+    const relays = localStorage.getItem("localState/user/relays")
+    const mediaserver = localStorage.getItem("localState/user/mediaserver")
+    
+    if (publicKey && !currentState.publicKey) {
+      try {
+        const newState = {
+          ...currentState,
+          publicKey: JSON.parse(publicKey),
+          privateKey: privateKey ? JSON.parse(privateKey) : "",
+          nip07Login: nip07Login ? JSON.parse(nip07Login) : false,
+        }
+        
+        if (relays) {
+          newState.relays = JSON.parse(relays)
+        }
+        
+        if (mediaserver) {
+          newState.mediaserver = JSON.parse(mediaserver)
+        }
+        
+        useUserStore.setState(newState)
+        console.log("Migrated user data from localStorage to zustand")
+      } catch (error) {
+        console.error("Error migrating user data:", error)
+      }
+    }
+    
+    // Initialize chat modules if we have a public key
+    const state = useUserStore.getState()
+    if (state.publicKey) {
+      console.log("Initializing chat modules with existing user data")
+      loadSessions()
+      loadInvites()
+      subscribeToNotifications()
+      subscribeToDMNotifications()
+    }
+    
+    console.log("User store initialized:", useUserStore.getState())
   }, [])
   return null
 }
@@ -39,8 +74,12 @@ const AppWithInitialization = () => {
 }
 
 // Subscribe to public key changes from the user store
-useUserStore.subscribe((state, prevState) => {
-  if (state.publicKey && state.publicKey !== prevState.publicKey) {
+useUserStore.subscribe((state) => {
+  const prevPublicKey = localStorage.getItem("localState/user/publicKey")
+  const parsedPrevKey = prevPublicKey ? JSON.parse(prevPublicKey) : ""
+  
+  if (state.publicKey && state.publicKey !== parsedPrevKey) {
+    console.log("Public key changed, initializing chat modules")
     loadSessions()
     loadInvites()
     subscribeToNotifications()

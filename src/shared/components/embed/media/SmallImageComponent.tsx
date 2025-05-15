@@ -16,9 +16,9 @@ interface SmallImageComponentProps {
 function SmallImageComponent({match, event, size = 80}: SmallImageComponentProps) {
   const {content} = useSettingsStore()
   const [isBlurred, setIsBlurred] = useState(
-    content.blurNSFW && 
-    (!!event?.content.toLowerCase().includes("#nsfw") ||
-      event?.tags.some((t) => t[0] === "content-warning"))
+    content.blurNSFW &&
+      (!!event?.content.toLowerCase().includes("#nsfw") ||
+        event?.tags.some((t) => t[0] === "content-warning"))
   )
 
   const [hasError, setHasError] = useState(false)

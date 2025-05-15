@@ -17,6 +17,8 @@ export function loadInvites(): Unsubscribe {
   console.log("Loading invites")
   invites.clear() // Clear the existing map before repopulating
 
+  listen()
+
   localState.get("invites").put({}) // Ensure the invites object exists
   localState.get("invites").on(() => subscribeToDMNotifications())
   return localState.get("invites").forEach((link, path) => {
@@ -106,7 +108,6 @@ localState.get("user/publicKey").on(async (pk) => {
     listen()
 
     // Handle public invite
-    // TODO these always return undefined first? as they're not in memory at first?
     const existingPublicInvite = await localState
       .get("invites")
       .get("public")
@@ -142,6 +143,7 @@ async function maybeCreateInvite(
     console.log(`Found existing ${type} invite`)
     try {
       const invite = Invite.deserialize(existingInvite)
+      invites.set(type.toLowerCase(), invite)
       if (shouldPublish) {
         setTimeout(() => {
           publish(invite)
@@ -157,12 +159,29 @@ async function maybeCreateInvite(
 }
 
 function createNewInvite(type: "Public" | "Private", shouldPublish: boolean) {
-  console.log(`Creating ${type} invite`)
-  const invite = Invite.createNew(publicKey!, `${type} Invite`)
-  localState.get("invites").get(type.toLowerCase()).put(invite.serialize())
-  if (shouldPublish) {
-    publish(invite)
-    console.log(`Published ${type} invite`)
+  console.log(`Creating ${type} invite with publicKey:`, publicKey ? publicKey.substring(0, 8) + "..." : "none")
+  
+  if (!publicKey) {
+    console.error(`Cannot create ${type} invite: publicKey is missing`)
+    return
+  }
+  
+  try {
+    const invite = Invite.createNew(publicKey, `${type} Invite`)
+    console.log(`Successfully created ${type} invite object`)
+    
+    // Store in localState
+    localState.get("invites").get(type.toLowerCase()).put(invite.serialize())
+    console.log(`Stored ${type} invite in localState`)
+    
+    invites.set(type.toLowerCase(), invite)
+    
+    if (shouldPublish) {
+      publish(invite)
+      console.log(`Published ${type} invite`)
+    }
+  } catch (error) {
+    console.error(`Error creating ${type} invite:`, error)
   }
 }
 
