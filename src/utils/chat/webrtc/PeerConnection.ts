@@ -1,3 +1,4 @@
+import type {RTCSessionDescriptionInit, RTCIceCandidateInit} from "@/types/dom-types"
 import {EventEmitter} from "tseep"
 
 import {getCachedName, NDKEventFromRawEvent} from "@/utils/nostr"
@@ -69,7 +70,7 @@ export default class PeerConnection extends EventEmitter {
     this.setupPeerConnectionEvents()
   }
 
-  log(...args: any[]) {
+  log(...args: unknown[]) {
     console.log(this.peerId, ...args)
   }
 

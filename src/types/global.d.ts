@@ -1,6 +1,6 @@
 declare global {
   interface Window {
-    cf_turnstile_callback: any
+    cf_turnstile_callback?: (token: string) => void
     webln?: WebLNProvider
   }
 }

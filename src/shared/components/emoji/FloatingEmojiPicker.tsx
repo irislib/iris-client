@@ -1,6 +1,7 @@
 import {LoadingFallback} from "@/shared/components/LoadingFallback"
 import {useEffect, useRef, useState, lazy, Suspense} from "react"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
+import EmojiType from "@/types/emoji"
 import classNames from "classnames"
 
 const EmojiPicker = lazy(() => import("@emoji-mart/react"))
@@ -8,7 +9,7 @@ const EmojiPicker = lazy(() => import("@emoji-mart/react"))
 interface FloatingEmojiPickerProps {
   isOpen: boolean
   onClose: () => void
-  onEmojiSelect: (emoji: any) => void
+  onEmojiSelect: (emoji: EmojiType) => void
   position?: {
     clientY?: number
     openRight?: boolean
@@ -23,7 +24,7 @@ export const FloatingEmojiPicker = ({
   position,
   className,
 }: FloatingEmojiPickerProps) => {
-  const [emojiData, setEmojiData] = useState<any>(null)
+  const [emojiData, setEmojiData] = useState<Record<string, unknown> | null>(null)
   const [pickerDirection, setPickerDirection] = useState("up")
   const pickerRef = useRef<HTMLDivElement>(null)
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768

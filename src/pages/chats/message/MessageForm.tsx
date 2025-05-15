@@ -7,6 +7,7 @@ import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import {NDKEventFromRawEvent} from "@/utils/nostr"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiAttachment2} from "@remixicon/react"
+import EmojiType from "@/types/emoji"
 import {localState} from "irisdb/src"
 import {MessageType} from "./Message"
 
@@ -105,7 +106,7 @@ const MessageForm = ({
     setNewMessage(e.target.value)
   }
 
-  const handleEmojiClick = (emoji: any) => {
+  const handleEmojiClick = (emoji: EmojiType) => {
     setNewMessage((prev) => prev + emoji.native)
     inputRef.current?.focus()
   }

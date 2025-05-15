@@ -1,6 +1,7 @@
 import {INVITE_RESPONSE_KIND, MESSAGE_EVENT_KIND} from "nostr-double-ratchet/src"
 import {NDKTag, NDKEvent, NDKUser} from "@nostr-dev-kit/ndk"
 import {getZapAmount, getZappingUser} from "./nostr"
+import {useSettingsStore} from "@/stores/settings"
 import {getSessions} from "@/utils/chat/Sessions"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {getInvites} from "@/utils/chat/Invites"
@@ -126,7 +127,8 @@ async function getOrCreatePushSubscription() {
     subscriptionPromise = (async () => {
       const reg = await navigator.serviceWorker.ready
       let pushSubscription = await reg.pushManager.getSubscription()
-      const api = new IrisAPI()
+      const store = useSettingsStore.getState()
+      const api = new IrisAPI(store.notifications.server)
       const {vapid_public_key: vapidKey} = await api.getPushNotificationInfo()
 
       // Check if we need to resubscribe due to different vapid key
@@ -196,7 +198,8 @@ export const subscribeToDMNotifications = debounce(async () => {
     "#p": inviteRecipients,
   }
 
-  const api = new IrisAPI()
+  const store = useSettingsStore.getState()
+  const api = new IrisAPI(store.notifications.server)
   const currentSubscriptions = await api.getSubscriptions()
 
   // Create/update subscription for session authors
@@ -273,7 +276,8 @@ export const subscribeToNotifications = debounce(async () => {
       return
     }
 
-    const api = new IrisAPI()
+    const store = useSettingsStore.getState()
+    const api = new IrisAPI(store.notifications.server)
     const myKey = [...socialGraph().getUsersByFollowDistance(0)][0]
     const notificationFilter = {
       "#p": [myKey],
@@ -353,7 +357,8 @@ export const unsubscribeAll = async () => {
     return
   }
 
-  const api = new IrisAPI()
+  const store = useSettingsStore.getState()
+  const api = new IrisAPI(store.notifications.server)
   const currentSubscriptions = await api.getSubscriptions()
 
   // Delete all matching subscriptions simultaneously

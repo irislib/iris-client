@@ -1,16 +1,17 @@
 import {LoadingFallback} from "@/shared/components/LoadingFallback"
 import {lazy, Suspense, useEffect, useRef, useState} from "react"
 import {RiEmotionLine} from "@remixicon/react"
+import EmojiType from "@/types/emoji"
 
 const EmojiPicker = lazy(() => import("@emoji-mart/react"))
 
 interface EmojiButtonProps {
-  onEmojiSelect: (emoji: {native: string}) => void
+  onEmojiSelect: (emoji: EmojiType) => void
 }
 
 const EmojiButton = ({onEmojiSelect}: EmojiButtonProps) => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const [emojiData, setEmojiData] = useState<any>(null)
+  const [emojiData, setEmojiData] = useState<Record<string, unknown> | null>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {

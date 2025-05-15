@@ -12,7 +12,7 @@ export const acceptInvite = async (
   invite: string | Invite,
   myPubKey: string,
   myPrivKey?: string,
-  navigate?: (path: string, options?: any) => void
+  navigate?: (path: string, options?: {state?: Record<string, unknown>}) => void
 ) => {
   try {
     if (typeof invite === "string") {
