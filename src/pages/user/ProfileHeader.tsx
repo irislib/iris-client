@@ -1,7 +1,7 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {PublicKey} from "irisdb-nostr/src/Hex/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 import {Link, useNavigate} from "react-router"
+import {useUserStore} from "@/stores/user"
 
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
 import {FollowButton} from "@/shared/components/button/FollowButton.tsx"
@@ -29,8 +29,8 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
     () => (pubKey ? new PublicKey(pubKey).toString() : ""),
     [pubKey]
   )
-  const [myPubKey] = useLocalState("user/publicKey", "", String)
-  const [myPrivKey] = useLocalState("user/privateKey", "", String)
+  const myPubKey = useUserStore((state) => state.publicKey)
+  const myPrivKey = useUserStore((state) => state.privateKey)
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
   const [invite, setInvite] = useState<Invite | undefined>(undefined)
