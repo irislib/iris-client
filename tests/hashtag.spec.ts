@@ -8,5 +8,5 @@ test("can view trending content", async ({page}) => {
   
   await page.waitForLoadState("networkidle")
   
-  await expect(page.getByText("TRENDING", {exact: false})).toBeVisible({timeout: 10000})
+  await expect(page.getByText("Popular hashtags", {exact: false})).toBeVisible({timeout: 10000})
 })
