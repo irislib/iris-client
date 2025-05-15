@@ -11,6 +11,7 @@ import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import debounce from "lodash/debounce"
+import EmojiType from "@/types/emoji"
 import {localState} from "irisdb/src"
 import Icon from "../../Icons/Icon"
 import {ndk} from "@/utils/ndk"
@@ -51,7 +52,7 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
     }
   }
 
-  const handleEmojiSelect = async (emoji: any) => {
+  const handleEmojiSelect = async (emoji: EmojiType) => {
     if (!myPubKey) return
     try {
       await event.react(emoji.native)
