@@ -6,8 +6,11 @@ import {ChangeEvent} from "react"
 const WalletSettings = () => {
   const {isWalletConnect, balance} = useWalletBalance()
   const {
-    cashuEnabled, defaultZapAmount,
-    setWalletConnect, setCashuEnabled, setDefaultZapAmount
+    cashuEnabled,
+    defaultZapAmount,
+    setWalletConnect,
+    setCashuEnabled,
+    setDefaultZapAmount,
   } = useUserStore()
 
   const handleConnectWalletClick = async () => {

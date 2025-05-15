@@ -65,7 +65,7 @@ function watchLocalSettings(instance: NDK) {
         instance.signer = undefined
       }
     }
-    
+
     if (state.nip07Login !== prevState.nip07Login) {
       if (state.nip07Login) {
         nip07Signer = new NDKNip07Signer()
@@ -78,7 +78,7 @@ function watchLocalSettings(instance: NDK) {
         instance.signer = privateKeySigner
       }
     }
-    
+
     if (state.relays !== prevState.relays) {
       if (Array.isArray(state.relays)) {
         state.relays.forEach((url) => {
@@ -93,7 +93,7 @@ function watchLocalSettings(instance: NDK) {
         }
       }
     }
-    
+
     if (state.publicKey !== prevState.publicKey) {
       instance.activeUser = state.publicKey
         ? new NDKUser({hexpubkey: state.publicKey})
@@ -111,11 +111,11 @@ export function newUserLogin(name: string) {
   const sk = generateSecretKey() // `sk` is a Uint8Array
   const pk = getPublicKey(sk) // `pk` is a hex string
   const privateKeyHex = bytesToHex(sk)
-  
+
   const store = useUserStore.getState()
   store.setPrivateKey(privateKeyHex)
   store.setPublicKey(pk)
-  
+
   privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
   ndkInstance!.signer = privateKeySigner
   const profileEvent = new NDKEvent(ndkInstance!)
@@ -139,7 +139,7 @@ export function privateKeyLogin(privateKey: string) {
     privateKeySigner = new NDKPrivateKeySigner(hex)
     ndkInstance!.signer = privateKeySigner
     const publicKey = getPublicKey(bytes)
-    
+
     const store = useUserStore.getState()
     store.setPrivateKey(hex)
     store.setPublicKey(publicKey)

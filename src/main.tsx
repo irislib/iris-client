@@ -1,8 +1,8 @@
 import "@/index.css"
 
 import {RouterProvider} from "react-router"
-import ReactDOM from "react-dom/client"
 import {useUserStore} from "./stores/user"
+import ReactDOM from "react-dom/client"
 import {useEffect} from "react"
 
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
@@ -18,46 +18,46 @@ ndk() // init NDK & irisdb login flow
 const InitializeStore = () => {
   useEffect(() => {
     const currentState = useUserStore.getState()
-    
+
     const publicKey = localStorage.getItem("localState/user/publicKey")
     const privateKey = localStorage.getItem("localState/user/privateKey")
     const nip07Login = localStorage.getItem("localState/user/nip07Login")
     const relays = localStorage.getItem("localState/user/relays")
     const mediaserver = localStorage.getItem("localState/user/mediaserver")
-    
+
     if (publicKey && !currentState.publicKey) {
       try {
         const extractValue = (jsonString: string | null) => {
           if (!jsonString) return null
           try {
             const parsed = JSON.parse(jsonString)
-            return parsed && typeof parsed === 'object' && 'value' in parsed 
-              ? parsed.value 
+            return parsed && typeof parsed === "object" && "value" in parsed
+              ? parsed.value
               : parsed
           } catch (e) {
             console.error("Error parsing localStorage value:", e)
             return null
           }
         }
-        
+
         const newState = {
           ...currentState,
           publicKey: extractValue(publicKey),
           privateKey: extractValue(privateKey) || "",
           nip07Login: extractValue(nip07Login) || false,
         }
-        
+
         if (relays) {
           newState.relays = extractValue(relays) || []
         }
-        
+
         if (mediaserver) {
           newState.mediaserver = extractValue(mediaserver) || ""
         }
-        
+
         useUserStore.setState(newState)
         console.log("Migrated user data from localStorage to zustand")
-        
+
         localStorage.removeItem("localState/user/publicKey")
         localStorage.removeItem("localState/user/privateKey")
         localStorage.removeItem("localState/user/nip07Login")
@@ -67,7 +67,7 @@ const InitializeStore = () => {
         console.error("Error migrating user data:", error)
       }
     }
-    
+
     // Initialize chat modules if we have a public key
     const state = useUserStore.getState()
     if (state.publicKey) {
@@ -77,7 +77,7 @@ const InitializeStore = () => {
       subscribeToNotifications()
       subscribeToDMNotifications()
     }
-    
+
     console.log("User store initialized:", useUserStore.getState())
   }, [])
   return null
@@ -99,14 +99,13 @@ useUserStore.subscribe((state) => {
   if (prevPublicKey) {
     try {
       const parsed = JSON.parse(prevPublicKey)
-      parsedPrevKey = parsed && typeof parsed === 'object' && 'value' in parsed 
-        ? parsed.value 
-        : parsed
+      parsedPrevKey =
+        parsed && typeof parsed === "object" && "value" in parsed ? parsed.value : parsed
     } catch (e) {
       console.error("Error parsing prevPublicKey:", e)
     }
   }
-  
+
   if (state.publicKey && state.publicKey !== parsedPrevKey) {
     console.log("Public key changed, initializing chat modules")
     loadSessions()
@@ -122,9 +121,7 @@ document.title = CONFIG.appName
 const {appearance} = useSettingsStore.getState()
 document.documentElement.setAttribute("data-theme", appearance.theme)
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <AppWithInitialization />
-)
+ReactDOM.createRoot(document.getElementById("root")!).render(<AppWithInitialization />)
 
 // Subscribe to theme changes
 useSettingsStore.subscribe((state) => {

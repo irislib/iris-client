@@ -8,5 +8,7 @@ test("can view trending content", async ({page}) => {
 
   await page.waitForLoadState("networkidle")
 
-  await expect(page.getByRole("heading", {name: "Trending posts"})).toBeVisible({timeout: 10000})
+  await expect(page.getByRole("heading", {name: "Trending posts"})).toBeVisible({
+    timeout: 10000,
+  })
 })

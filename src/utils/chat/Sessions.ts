@@ -13,8 +13,8 @@ import {JsonObject, localState} from "irisdb/src"
 import {profileCache} from "@/utils/memcache"
 import AnimalName from "@/utils/AnimalName"
 import {trackEvent} from "@/utils/IrisAPI"
-import {ndk} from "@/utils/ndk"
 import {useUserStore} from "@/stores/user"
+import {ndk} from "@/utils/ndk"
 
 const sessions = new Map<string, Session | undefined>()
 
@@ -62,7 +62,7 @@ function syncUserDataToLocalState() {
 export function loadSessions() {
   // Sync user data from zustand to localState
   syncUserDataToLocalState()
-  
+
   useUserStore.subscribe((state) => {
     if (state.publicKey) {
       localState.get("user/publicKey").put(state.publicKey)

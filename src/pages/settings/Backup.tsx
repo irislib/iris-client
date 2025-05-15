@@ -1,7 +1,7 @@
 import CopyButton from "@/shared/components/button/CopyButton.tsx"
 import {hexToBytes} from "@noble/hashes/utils"
-import {nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
+import {nip19} from "nostr-tools"
 
 function Backup() {
   const privateKey = useUserStore((state) => state.privateKey)

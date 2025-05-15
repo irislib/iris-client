@@ -1,7 +1,7 @@
 import {useWebLNProvider} from "./useWebLNProvider"
 import {WebLNProvider} from "@/types/global"
-import {useState, useEffect} from "react"
 import {useUserStore} from "@/stores/user"
+import {useState, useEffect} from "react"
 
 export const useWalletBalance = () => {
   const isWalletConnect = useUserStore((state) => state.walletConnect)

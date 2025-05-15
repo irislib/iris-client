@@ -1,5 +1,5 @@
-import {useUserStore} from "@/stores/user"
 import {unsubscribeAll} from "@/utils/notifications"
+import {useUserStore} from "@/stores/user"
 import {MouseEvent, useState} from "react"
 import {useNavigate} from "react-router"
 import localforage from "localforage"
@@ -22,9 +22,9 @@ function Account() {
       } catch (e) {
         console.error("Error unsubscribing from push notifications:", e)
       }
-      
+
       reset()
-      
+
       localStorage.clear()
       localforage
         .clear()

@@ -3,8 +3,8 @@ import {useSubscriptionStatus} from "@/shared/hooks/useSubscriptionStatus"
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import {RiCheckboxCircleFill} from "@remixicon/react"
-import {useUserStore} from "@/stores/user"
 import IrisAPI, {Invoice} from "@/utils/IrisAPI"
+import {useUserStore} from "@/stores/user"
 import {useEffect, useState} from "react"
 
 type Duration = 3 | 12

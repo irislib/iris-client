@@ -16,12 +16,12 @@ import Account from "@/pages/settings/Account"
 import WalletSettings from "./WalletSettings"
 import SystemSettings from "./SystemSettings"
 import Backup from "@/pages/settings/Backup"
+import {useUserStore} from "@/stores/user"
 import Subscription from "./Subscription"
 import PrivacySettings from "./Privacy"
 import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import Content from "./Content"
-import {useUserStore} from "@/stores/user"
 
 interface SettingsItem {
   icon: string | ReactElement
@@ -47,13 +47,13 @@ function Settings() {
     if (userStore.publicKey) {
       setPubkey(userStore.publicKey)
     }
-    
+
     const unsubscribe = useUserStore.subscribe((state, prevState) => {
       if (state.publicKey && state.publicKey !== prevState.publicKey) {
         setPubkey(state.publicKey)
       }
     })
-    
+
     return () => unsubscribe()
   }, [])
 

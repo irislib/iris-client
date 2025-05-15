@@ -20,9 +20,10 @@ function useWindowWidth() {
 
 function RightColumn({children}: RightColumnProps) {
   const windowWidth = useWindowWidth()
-  
-  const isTestEnvironment = typeof window !== 'undefined' && window.location.href.includes('localhost:5173')
-  
+
+  const isTestEnvironment =
+    typeof window !== "undefined" && window.location.href.includes("localhost:5173")
+
   if (windowWidth < 1024 && !isTestEnvironment) {
     return null
   }

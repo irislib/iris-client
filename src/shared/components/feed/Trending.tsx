@@ -121,7 +121,8 @@ export default function Trending({
     })
   }, [])
 
-  const isTestEnvironment = typeof window !== 'undefined' && window.location.href.includes('localhost:5173')
+  const isTestEnvironment =
+    typeof window !== "undefined" && window.location.href.includes("localhost:5173")
   if (!isSocialGraphLoaded && !isTestEnvironment) {
     return null
   }

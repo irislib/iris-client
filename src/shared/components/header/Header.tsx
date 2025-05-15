@@ -1,11 +1,11 @@
-import {MOBILE_BREAKPOINT} from "@/shared/components/user/const.ts"
 import {ReactNode, useRef, useEffect, MouseEvent, useState} from "react"
+import {MOBILE_BREAKPOINT} from "@/shared/components/user/const.ts"
 import {RiMenuLine, RiArrowLeftLine} from "@remixicon/react"
 import NotificationButton from "./NotificationButton"
+import {useUserStore} from "@/stores/user"
 import {useNavigate} from "react-router"
 import {Avatar} from "../user/Avatar"
 import classNames from "classnames"
-import {useUserStore} from "@/stores/user"
 
 interface HeaderProps {
   title?: string

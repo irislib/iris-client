@@ -1,10 +1,10 @@
 import {SocialGraph, NostrEvent, SerializedSocialGraph} from "nostr-social-graph"
 import {NDKSubscription} from "@nostr-dev-kit/ndk"
+import {useUserStore} from "@/stores/user"
 import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
-import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 
 const DEFAULT_SOCIAL_GRAPH_ROOT =
@@ -146,14 +146,14 @@ export const socialGraphLoaded = new Promise((resolve) => {
   const currentPublicKey = useUserStore.getState().publicKey
   initializeInstance(currentPublicKey).then(() => {
     resolve(true)
-    
+
     if (currentPublicKey) {
       setupSubscription(currentPublicKey)
     } else {
       instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
     }
   })
-  
+
   useUserStore.subscribe((state, prevState) => {
     if (state.publicKey !== prevState.publicKey) {
       if (state.publicKey) {

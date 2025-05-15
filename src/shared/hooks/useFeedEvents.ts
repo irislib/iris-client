@@ -5,8 +5,8 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {shouldHideAuthor} from "@/utils/visibility"
 import socialGraph from "@/utils/socialGraph"
 import {feedCache} from "@/utils/memcache"
-import debounce from "lodash/debounce"
 import {useUserStore} from "@/stores/user"
+import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
 
 interface UseFeedEventsProps {

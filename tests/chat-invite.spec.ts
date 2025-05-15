@@ -15,10 +15,8 @@ test("can create and use private invite link to chat with self", async ({page}) 
 
   // Wait for any invite to be created
   await page.waitForTimeout(2000) // Give more time for the invite to be created
-  
-  const qrButton = page
-    .getByRole("button", {name: "Show QR Code"})
-    .first()
+
+  const qrButton = page.getByRole("button", {name: "Show QR Code"}).first()
   await qrButton.click()
 
   // Get the URL from the QR dialog

@@ -41,7 +41,7 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   } catch (error) {
     console.error("Error checking social graph:", error)
   }
-  
+
   const [localIsFollowing, setLocalIsFollowing] = useState(isFollowing)
 
   useEffect(() => {
