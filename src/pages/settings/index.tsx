@@ -21,6 +21,7 @@ import PrivacySettings from "./Privacy"
 import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import Content from "./Content"
+import {useUserStore} from "@/stores/user"
 
 interface SettingsItem {
   icon: string | ReactElement
@@ -41,14 +42,19 @@ function Settings() {
   const {isSubscriber, isLoading, tier} = useSubscriptionStatus(pubkey)
 
   useEffect(() => {
-    // Get the user's pubkey from local storage
-    const getPubkey = async () => {
-      const storedPubkey = localStorage.getItem("user/publicKey")
-      if (storedPubkey) {
-        setPubkey(storedPubkey)
-      }
+    // Get the user's pubkey from zustand store instead of localStorage
+    const userStore = useUserStore.getState()
+    if (userStore.publicKey) {
+      setPubkey(userStore.publicKey)
     }
-    getPubkey()
+    
+    const unsubscribe = useUserStore.subscribe((state, prevState) => {
+      if (state.publicKey && state.publicKey !== prevState.publicKey) {
+        setPubkey(state.publicKey)
+      }
+    })
+    
+    return () => unsubscribe()
   }, [])
 
   const renderSubscriptionIcon = () => {

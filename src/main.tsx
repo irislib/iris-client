@@ -11,6 +11,10 @@ import {useSettingsStore} from "@/stores/settings"
 import {loadInvites} from "@/utils/chat/Invites"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
+import {initializeCompatibilityLayer} from "./utils/irisdb-compat"
+
+// Initialize compatibility layer before anything else
+initializeCompatibilityLayer()
 
 ndk() // init NDK & irisdb login flow
 
@@ -19,6 +23,7 @@ const InitializeStore = () => {
   useEffect(() => {
     const currentState = useUserStore.getState()
     useUserStore.setState({...currentState})
+    
     console.log("User store initialized:", currentState)
   }, [])
   return null
