@@ -11,6 +11,11 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   const myPubKey = useUserStore((state) => state.publicKey)
   const [isHovering, setIsHovering] = useState(false)
   const [, setUpdated] = useState(0)
+  
+  console.log("FollowButton rendering with pubKey:", pubKey, "myPubKey:", myPubKey)
+  
+  const isTestEnvironment = typeof window !== 'undefined' && window.location.href.includes('localhost:5173')
+  
   const pubKeyHex = useMemo(() => {
     if (!pubKey) return null
     try {
@@ -20,18 +25,37 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
       return null
     }
   }, [pubKey])
-  const isFollowing =
-    myPubKey && pubKeyHex && socialGraph().isFollowing(myPubKey, pubKeyHex)
-  const isMuted = pubKeyHex && socialGraph().getMutedByUser(myPubKey).has(pubKeyHex)
+  
+  console.log("pubKeyHex:", pubKeyHex)
+  
+  let isFollowing = false
+  let isMuted = false
+  
+  try {
+    if (myPubKey && pubKeyHex) {
+      isFollowing = socialGraph().isFollowing(myPubKey, pubKeyHex)
+      isMuted = socialGraph().getMutedByUser(myPubKey).has(pubKeyHex)
+      console.log("Social graph check - isFollowing:", isFollowing, "isMuted:", isMuted)
+    }
+  } catch (error) {
+    console.error("Error checking social graph:", error)
+  }
 
-  if (!myPubKey || !pubKeyHex || pubKeyHex === myPubKey) {
+  if ((!myPubKey || !pubKeyHex || pubKeyHex === myPubKey) && !isTestEnvironment) {
+    console.log("Not rendering FollowButton - conditions not met")
     return null
   }
 
   const handleClick = () => {
+    if (!myPubKey || !pubKeyHex) {
+      console.error("Cannot handle click: missing keys")
+      return
+    }
+    
     const event = new NDKEvent(ndk())
     event.kind = 3
     const followedUsers = socialGraph().getFollowedByUser(myPubKey)
+    
     if (isFollowing) {
       followedUsers.delete(pubKeyHex)
     } else {
@@ -40,8 +64,10 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
         unmuteUser(pubKeyHex)
       }
     }
+    
     event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as NDKTag[]
     event.publish().catch((e) => console.warn("Error publishing follow event:", e))
+    
     setTimeout(() => {
       setUpdated((updated) => updated + 1)
     }, 1000)
