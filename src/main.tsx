@@ -57,12 +57,7 @@ const InitializeStore = () => {
 
         useUserStore.setState(newState)
         console.log("Migrated user data from localStorage to zustand")
-
-        localStorage.removeItem("localState/user/publicKey")
-        localStorage.removeItem("localState/user/privateKey")
-        localStorage.removeItem("localState/user/nip07Login")
-        localStorage.removeItem("localState/user/relays")
-        localStorage.removeItem("localState/user/mediaserver")
+        
       } catch (error) {
         console.error("Error migrating user data:", error)
       }

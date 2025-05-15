@@ -45,9 +45,8 @@ const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
             : parsedValue
 
         console.log(`Migrated ${key} from localStorage:`, extractedValue)
-
-        localStorage.removeItem(`localState/${key}`)
-
+        
+        
         return extractedValue
       } catch (error) {
         console.error(`Error parsing ${key} from localStorage:`, error)
