@@ -17,52 +17,6 @@ ndk() // init NDK & irisdb login flow
 // Initialize user store at app startup
 const InitializeStore = () => {
   useEffect(() => {
-    const currentState = useUserStore.getState()
-
-    const publicKey = localStorage.getItem("localState/user/publicKey")
-    const privateKey = localStorage.getItem("localState/user/privateKey")
-    const nip07Login = localStorage.getItem("localState/user/nip07Login")
-    const relays = localStorage.getItem("localState/user/relays")
-    const mediaserver = localStorage.getItem("localState/user/mediaserver")
-
-    if (publicKey && !currentState.publicKey) {
-      try {
-        const extractValue = (jsonString: string | null) => {
-          if (!jsonString) return null
-          try {
-            const parsed = JSON.parse(jsonString)
-            return parsed && typeof parsed === "object" && "value" in parsed
-              ? parsed.value
-              : parsed
-          } catch (e) {
-            console.error("Error parsing localStorage value:", e)
-            return null
-          }
-        }
-
-        const newState = {
-          ...currentState,
-          publicKey: extractValue(publicKey),
-          privateKey: extractValue(privateKey) || "",
-          nip07Login: extractValue(nip07Login) || false,
-        }
-
-        if (relays) {
-          newState.relays = extractValue(relays) || []
-        }
-
-        if (mediaserver) {
-          newState.mediaserver = extractValue(mediaserver) || ""
-        }
-
-        useUserStore.setState(newState)
-        console.log("Migrated user data from localStorage to zustand")
-        
-      } catch (error) {
-        console.error("Error migrating user data:", error)
-      }
-    }
-
     // Initialize chat modules if we have a public key
     const state = useUserStore.getState()
     if (state.publicKey) {

@@ -16,10 +16,7 @@ export default function SignUp({onClose}: SignUpProps) {
   const [newUserName, setNewUserName] = useState("")
   const [, setShowLoginDialog] = useLocalState("home/showLoginDialog", false)
   const inputRef = useRef<HTMLInputElement>(null)
-  const setPublicKey = useUserStore((state) => state.setPublicKey)
-  const setPrivateKey = useUserStore((state) => state.setPrivateKey)
-  const setWalletConnect = useUserStore((state) => state.setWalletConnect)
-  const setCashuEnabled = useUserStore((state) => state.setCashuEnabled)
+  const setState = useUserStore.setState
 
   useEffect(() => {
     if (inputRef.current) {
@@ -51,10 +48,12 @@ export default function SignUp({onClose}: SignUpProps) {
     const privateKeyHex = bytesToHex(sk)
 
     // Update user store directly
-    setPrivateKey(privateKeyHex)
-    setPublicKey(pk)
-    setCashuEnabled(true)
-    setWalletConnect(true)
+    setState({
+      privateKey: privateKeyHex,
+      publicKey: pk,
+      cashuEnabled: true,
+      walletConnect: true,
+    })
 
     // Keep these for backward compatibility
     localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)

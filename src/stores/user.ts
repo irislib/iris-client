@@ -45,8 +45,8 @@ const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
             : parsedValue
 
         console.log(`Migrated ${key} from localStorage:`, extractedValue)
-        
-        
+        // Clean up old storage after successful migration
+        localStorage.removeItem(`localState/${key}`)
         return extractedValue
       } catch (error) {
         console.error(`Error parsing ${key} from localStorage:`, error)
@@ -60,47 +60,81 @@ const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
 
 export const useUserStore = create<UserState>()(
   persist(
-    (set) => ({
-      publicKey: migrateFromLocalStorage("user/publicKey", ""),
-      privateKey: migrateFromLocalStorage("user/privateKey", ""),
-      nip07Login: migrateFromLocalStorage("user/nip07Login", false),
-      DHTPublicKey: migrateFromLocalStorage("user/DHTPublicKey", ""),
-      DHTPrivateKey: migrateFromLocalStorage("user/DHTPrivateKey", ""),
-      relays: migrateFromLocalStorage("user/relays", []),
-      mediaserver: migrateFromLocalStorage("user/mediaserver", ""),
-      walletConnect: migrateFromLocalStorage("user/walletConnect", false),
-      cashuEnabled: migrateFromLocalStorage("user/cashuEnabled", false),
-      defaultZapAmount: migrateFromLocalStorage("user/defaultZapAmount", 21),
-      hasHydrated: false,
+    (set) => {
+      // Initialize with default values first
+      const initialState = {
+        publicKey: "",
+        privateKey: "",
+        nip07Login: false,
+        DHTPublicKey: "",
+        DHTPrivateKey: "",
+        relays: [],
+        mediaserver: "",
+        walletConnect: false,
+        cashuEnabled: false,
+        defaultZapAmount: 21,
+        hasHydrated: false,
+      }
 
-      setPublicKey: (publicKey) => set({publicKey}),
-      setPrivateKey: (privateKey) => set({privateKey}),
-      setNip07Login: (nip07Login) => set({nip07Login}),
-      setDHTPublicKey: (DHTPublicKey) => set({DHTPublicKey}),
-      setDHTPrivateKey: (DHTPrivateKey) => set({DHTPrivateKey}),
-      setRelays: (relays) => set({relays}),
-      setMediaserver: (mediaserver) => set({mediaserver}),
-      setWalletConnect: (walletConnect) => set({walletConnect}),
-      setCashuEnabled: (cashuEnabled) => set({cashuEnabled}),
-      setDefaultZapAmount: (defaultZapAmount) => set({defaultZapAmount}),
+      // Perform migration after store is created
+      const migratedState = {
+        publicKey: migrateFromLocalStorage("user/publicKey", initialState.publicKey),
+        privateKey: migrateFromLocalStorage("user/privateKey", initialState.privateKey),
+        nip07Login: migrateFromLocalStorage("user/nip07Login", initialState.nip07Login),
+        DHTPublicKey: migrateFromLocalStorage(
+          "user/DHTPublicKey",
+          initialState.DHTPublicKey
+        ),
+        DHTPrivateKey: migrateFromLocalStorage(
+          "user/DHTPrivateKey",
+          initialState.DHTPrivateKey
+        ),
+        relays: migrateFromLocalStorage("user/relays", initialState.relays),
+        mediaserver: migrateFromLocalStorage(
+          "user/mediaserver",
+          initialState.mediaserver
+        ),
+        walletConnect: migrateFromLocalStorage(
+          "user/walletConnect",
+          initialState.walletConnect
+        ),
+        cashuEnabled: migrateFromLocalStorage(
+          "user/cashuEnabled",
+          initialState.cashuEnabled
+        ),
+        defaultZapAmount: migrateFromLocalStorage(
+          "user/defaultZapAmount",
+          initialState.defaultZapAmount
+        ),
+      }
 
-      reset: () =>
-        set({
-          publicKey: "",
-          privateKey: "",
-          nip07Login: false,
-          DHTPublicKey: "",
-          DHTPrivateKey: "",
-          relays: [],
-          mediaserver: "",
-          walletConnect: false,
-          cashuEnabled: false,
-          defaultZapAmount: 21,
-          hasHydrated: false,
-        }),
-    }),
+      // Set initial state with migrated values
+      set(migratedState)
+
+      // Define actions
+      const actions = {
+        setPublicKey: (publicKey: string) => set({publicKey}),
+        setPrivateKey: (privateKey: string) => set({privateKey}),
+        setNip07Login: (nip07Login: boolean) => set({nip07Login}),
+        setDHTPublicKey: (DHTPublicKey: string) => set({DHTPublicKey}),
+        setDHTPrivateKey: (DHTPrivateKey: string) => set({DHTPrivateKey}),
+        setRelays: (relays: string[]) => set({relays}),
+        setMediaserver: (mediaserver: string) => set({mediaserver}),
+        setWalletConnect: (walletConnect: boolean) => set({walletConnect}),
+        setCashuEnabled: (cashuEnabled: boolean) => set({cashuEnabled}),
+        setDefaultZapAmount: (defaultZapAmount: number) => set({defaultZapAmount}),
+        reset: () => set(initialState),
+      }
+
+      // Return combined state and actions
+      return {
+        ...migratedState,
+        hasHydrated: false,
+        ...actions,
+      }
+    },
     {
-      name: "user-storage", // Name for localStorage
+      name: "user-storage",
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.hasHydrated = true
