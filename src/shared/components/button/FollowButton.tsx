@@ -1,6 +1,6 @@
 import {PublicKey} from "irisdb-nostr/src/Hex/PublicKey"
 import {NDKEvent, NDKTag} from "@nostr-dev-kit/ndk"
-import {useMemo, useState} from "react"
+import {useMemo, useState, useEffect} from "react"
 
 import {unmuteUser} from "@/shared/services/Mute"
 import socialGraph from "@/utils/socialGraph.ts"
@@ -46,11 +46,20 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
     return null
   }
 
+  const [localIsFollowing, setLocalIsFollowing] = useState(isFollowing)
+  
+  useEffect(() => {
+    setLocalIsFollowing(isFollowing)
+  }, [isFollowing])
+  
   const handleClick = () => {
     if (!myPubKey || !pubKeyHex) {
       console.error("Cannot handle click: missing keys")
       return
     }
+    
+    setLocalIsFollowing(!localIsFollowing)
+    console.log("Button clicked, updating localIsFollowing to:", !localIsFollowing)
     
     const event = new NDKEvent(ndk())
     event.kind = 3
@@ -79,7 +88,7 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   if (isMuted) {
     text = "Unmute"
     className = "btn-secondary"
-  } else if (isFollowing) {
+  } else if (localIsFollowing) {
     text = isHovering ? "Unfollow" : "Following"
     className = isHovering ? "btn-secondary" : "btn-success"
   }
