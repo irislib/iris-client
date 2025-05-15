@@ -1,4 +1,5 @@
 import {useEffect, useMemo, useRef, useState, useCallback} from "react"
+import {serializeEvent, deserializeEvent} from "@/utils/nostr"
 import {eventComparator} from "../components/feed/utils"
 import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
@@ -37,13 +38,33 @@ export default function useFeedEvents({
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
   const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())
   const eventsRef = useRef(
-    feedCache.get(cacheKey) ||
-      new SortedMap(
+    (() => {
+      const cached = feedCache.get(cacheKey)
+      if (cached) {
+        const deserializedEvents = new SortedMap(
+          [],
+          sortFn
+            ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
+            : eventComparator
+        )
+
+        for (const [id, event] of cached.entries()) {
+          if (event) {
+            const serialized = serializeEvent(event)
+            const freshEvent = deserializeEvent(serialized)
+            deserializedEvents.set(id, freshEvent)
+          }
+        }
+
+        return deserializedEvents
+      }
+      return new SortedMap(
         [],
         sortFn
           ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
           : eventComparator
       )
+    })()
   )
   const oldestRef = useRef<number | undefined>(undefined)
   const initialLoadDoneRef = useRef<boolean>(eventsRef.current.size > 0)
@@ -177,9 +198,22 @@ export default function useFeedEvents({
   }, [JSON.stringify(localFilter)])
 
   useEffect(() => {
-    eventsRef.current.size &&
-      !feedCache.has(cacheKey) &&
-      feedCache.set(cacheKey, eventsRef.current)
+    if (eventsRef.current.size && !feedCache.has(cacheKey)) {
+      const eventsToCache = new SortedMap<string, NDKEvent>(
+        [],
+        sortFn
+          ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
+          : eventComparator
+      )
+
+      for (const [id, event] of eventsRef.current.entries()) {
+        if (event) {
+          eventsToCache.set(id, event)
+        }
+      }
+
+      feedCache.set(cacheKey, eventsToCache)
+    }
   }, [eventsRef.current.size])
 
   const loadMoreItems = () => {
