@@ -159,23 +159,26 @@ async function maybeCreateInvite(
 }
 
 function createNewInvite(type: "Public" | "Private", shouldPublish: boolean) {
-  console.log(`Creating ${type} invite with publicKey:`, publicKey ? publicKey.substring(0, 8) + "..." : "none")
-  
+  console.log(
+    `Creating ${type} invite with publicKey:`,
+    publicKey ? publicKey.substring(0, 8) + "..." : "none"
+  )
+
   if (!publicKey) {
     console.error(`Cannot create ${type} invite: publicKey is missing`)
     return
   }
-  
+
   try {
     const invite = Invite.createNew(publicKey, `${type} Invite`)
     console.log(`Successfully created ${type} invite object`)
-    
+
     // Store in localState
     localState.get("invites").get(type.toLowerCase()).put(invite.serialize())
     console.log(`Stored ${type} invite in localState`)
-    
+
     invites.set(type.toLowerCase(), invite)
-    
+
     if (shouldPublish) {
       publish(invite)
       console.log(`Published ${type} invite`)

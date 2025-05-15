@@ -4,21 +4,21 @@ import {create} from "zustand"
 interface UserState {
   publicKey: string
   privateKey: string
-  
+
   nip07Login: boolean
-  
+
   DHTPublicKey: string
   DHTPrivateKey: string
-  
+
   relays: string[]
   mediaserver: string
-  
+
   walletConnect: boolean
   cashuEnabled: boolean
   defaultZapAmount: number
-  
+
   hasHydrated: boolean
-  
+
   setPublicKey: (publicKey: string) => void
   setPrivateKey: (privateKey: string) => void
   setNip07Login: (nip07Login: boolean) => void
@@ -29,24 +29,25 @@ interface UserState {
   setWalletConnect: (walletConnect: boolean) => void
   setCashuEnabled: (cashuEnabled: boolean) => void
   setDefaultZapAmount: (defaultZapAmount: number) => void
-  
+
   reset: () => void
 }
 
-const migrateFromLocalStorage = (key: string, defaultValue: any): any => {
+const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
   try {
     const storedValue = localStorage.getItem(`localState/${key}`)
     if (storedValue) {
       try {
         const parsedValue = JSON.parse(storedValue)
-        const extractedValue = parsedValue && typeof parsedValue === 'object' && 'value' in parsedValue 
-          ? parsedValue.value 
-          : parsedValue
-        
+        const extractedValue =
+          parsedValue && typeof parsedValue === "object" && "value" in parsedValue
+            ? parsedValue.value
+            : parsedValue
+
         console.log(`Migrated ${key} from localStorage:`, extractedValue)
-        
+
         localStorage.removeItem(`localState/${key}`)
-        
+
         return extractedValue
       } catch (error) {
         console.error(`Error parsing ${key} from localStorage:`, error)
@@ -72,7 +73,7 @@ export const useUserStore = create<UserState>()(
       cashuEnabled: migrateFromLocalStorage("user/cashuEnabled", false),
       defaultZapAmount: migrateFromLocalStorage("user/defaultZapAmount", 21),
       hasHydrated: false,
-      
+
       setPublicKey: (publicKey) => set({publicKey}),
       setPrivateKey: (privateKey) => set({privateKey}),
       setNip07Login: (nip07Login) => set({nip07Login}),
@@ -83,20 +84,21 @@ export const useUserStore = create<UserState>()(
       setWalletConnect: (walletConnect) => set({walletConnect}),
       setCashuEnabled: (cashuEnabled) => set({cashuEnabled}),
       setDefaultZapAmount: (defaultZapAmount) => set({defaultZapAmount}),
-      
-      reset: () => set({
-        publicKey: "",
-        privateKey: "",
-        nip07Login: false,
-        DHTPublicKey: "",
-        DHTPrivateKey: "",
-        relays: [],
-        mediaserver: "",
-        walletConnect: false,
-        cashuEnabled: false,
-        defaultZapAmount: 21,
-        hasHydrated: false,
-      }),
+
+      reset: () =>
+        set({
+          publicKey: "",
+          privateKey: "",
+          nip07Login: false,
+          DHTPublicKey: "",
+          DHTPrivateKey: "",
+          relays: [],
+          mediaserver: "",
+          walletConnect: false,
+          cashuEnabled: false,
+          defaultZapAmount: 21,
+          hasHydrated: false,
+        }),
     }),
     {
       name: "user-storage", // Name for localStorage

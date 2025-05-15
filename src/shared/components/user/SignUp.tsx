@@ -3,9 +3,8 @@ import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {NDKEvent, NDKPrivateKeySigner} from "@nostr-dev-kit/ndk"
 import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {bytesToHex} from "@noble/hashes/utils"
-import {localState} from "irisdb/src"
-import {ndk} from "@/utils/ndk"
 import {useUserStore} from "@/stores/user"
+import {ndk} from "@/utils/ndk"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
 
@@ -50,13 +49,13 @@ export default function SignUp({onClose}: SignUpProps) {
     const pk = getPublicKey(sk)
     const npub = nip19.npubEncode(pk)
     const privateKeyHex = bytesToHex(sk)
-    
+
     // Update user store directly
     setPrivateKey(privateKeyHex)
     setPublicKey(pk)
     setCashuEnabled(true)
     setWalletConnect(true)
-    
+
     // Keep these for backward compatibility
     localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
     localStorage.setItem("cashu.ndk.pubkey", pk)

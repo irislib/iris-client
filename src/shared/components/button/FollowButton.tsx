@@ -11,11 +11,12 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   const myPubKey = useUserStore((state) => state.publicKey)
   const [isHovering, setIsHovering] = useState(false)
   const [, setUpdated] = useState(0)
-  
+
   console.log("FollowButton rendering with pubKey:", pubKey, "myPubKey:", myPubKey)
-  
-  const isTestEnvironment = typeof window !== 'undefined' && window.location.href.includes('localhost:5173')
-  
+
+  const isTestEnvironment =
+    typeof window !== "undefined" && window.location.href.includes("localhost:5173")
+
   const pubKeyHex = useMemo(() => {
     if (!pubKey) return null
     try {
@@ -25,12 +26,12 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
       return null
     }
   }, [pubKey])
-  
+
   console.log("pubKeyHex:", pubKeyHex)
-  
+
   let isFollowing = false
   let isMuted = false
-  
+
   try {
     if (myPubKey && pubKeyHex) {
       isFollowing = socialGraph().isFollowing(myPubKey, pubKeyHex)
@@ -40,31 +41,31 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   } catch (error) {
     console.error("Error checking social graph:", error)
   }
+  
+  const [localIsFollowing, setLocalIsFollowing] = useState(isFollowing)
+
+  useEffect(() => {
+    setLocalIsFollowing(isFollowing)
+  }, [isFollowing])
 
   if ((!myPubKey || !pubKeyHex || pubKeyHex === myPubKey) && !isTestEnvironment) {
     console.log("Not rendering FollowButton - conditions not met")
     return null
   }
 
-  const [localIsFollowing, setLocalIsFollowing] = useState(isFollowing)
-  
-  useEffect(() => {
-    setLocalIsFollowing(isFollowing)
-  }, [isFollowing])
-  
   const handleClick = () => {
     if (!myPubKey || !pubKeyHex) {
       console.error("Cannot handle click: missing keys")
       return
     }
-    
+
     setLocalIsFollowing(!localIsFollowing)
     console.log("Button clicked, updating localIsFollowing to:", !localIsFollowing)
-    
+
     const event = new NDKEvent(ndk())
     event.kind = 3
     const followedUsers = socialGraph().getFollowedByUser(myPubKey)
-    
+
     if (isFollowing) {
       followedUsers.delete(pubKeyHex)
     } else {
@@ -73,10 +74,10 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
         unmuteUser(pubKeyHex)
       }
     }
-    
+
     event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as NDKTag[]
     event.publish().catch((e) => console.warn("Error publishing follow event:", e))
-    
+
     setTimeout(() => {
       setUpdated((updated) => updated + 1)
     }, 1000)
