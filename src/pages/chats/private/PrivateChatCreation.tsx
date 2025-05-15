@@ -87,8 +87,20 @@ const PrivateChatCreation = () => {
     const input = e.target.value
     setInviteInput(input)
 
+    if (!input || !input.trim()) {
+      return;
+    }
+
     try {
+      console.log("Processing invite link:", input)
       const invite = Invite.fromUrl(input)
+      console.log("Invite parsed successfully")
+      
+      if (!myPubKey) {
+        console.error("No public key available")
+        return;
+      }
+      
       const encrypt = myPrivKey
         ? hexToBytes(myPrivKey)
         : async (plaintext: string, pubkey: string) => {
@@ -97,6 +109,8 @@ const PrivateChatCreation = () => {
             }
             throw new Error("No nostr extension or private key")
           }
+          
+      console.log("Accepting invite...")
       const {session, event} = await invite.accept(
         (filter, onEvent) => {
           const sub = ndk().subscribe(filter)
@@ -106,21 +120,30 @@ const PrivateChatCreation = () => {
         myPubKey,
         encrypt
       )
+      console.log("Invite accepted successfully")
 
       // Publish the event
       const e = NDKEventFromRawEvent(event)
-      e.publish()
+      await e.publish()
         .then((res) => console.log("published", res))
         .catch((e) => console.warn("Error publishing event:", e))
-      console.log("published event?", event)
+      console.log("published event", event)
 
       const sessionId = `${invite.inviter}:${session.name}`
+      console.log("Session ID:", sessionId)
+      
       // Save the session
       localState
-        .get(`sessions/${sessionId}/state`)
+        .get("sessions")
+        .get(sessionId)
+        .get("state")
         .put(serializeSessionState(session.state))
+      console.log("Session saved to localState")
 
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
       // Navigate to the new chat
+      console.log("Navigating to chat with session ID:", sessionId)
       navigate("/chats/chat", {state: {id: sessionId}})
     } catch (error) {
       console.error("Invalid invite link:", error)
