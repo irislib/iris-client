@@ -27,23 +27,42 @@ const InitializeStore = () => {
     
     if (publicKey && !currentState.publicKey) {
       try {
+        const extractValue = (jsonString: string | null) => {
+          if (!jsonString) return null
+          try {
+            const parsed = JSON.parse(jsonString)
+            return parsed && typeof parsed === 'object' && 'value' in parsed 
+              ? parsed.value 
+              : parsed
+          } catch (e) {
+            console.error("Error parsing localStorage value:", e)
+            return null
+          }
+        }
+        
         const newState = {
           ...currentState,
-          publicKey: JSON.parse(publicKey),
-          privateKey: privateKey ? JSON.parse(privateKey) : "",
-          nip07Login: nip07Login ? JSON.parse(nip07Login) : false,
+          publicKey: extractValue(publicKey),
+          privateKey: extractValue(privateKey) || "",
+          nip07Login: extractValue(nip07Login) || false,
         }
         
         if (relays) {
-          newState.relays = JSON.parse(relays)
+          newState.relays = extractValue(relays) || []
         }
         
         if (mediaserver) {
-          newState.mediaserver = JSON.parse(mediaserver)
+          newState.mediaserver = extractValue(mediaserver) || ""
         }
         
         useUserStore.setState(newState)
         console.log("Migrated user data from localStorage to zustand")
+        
+        localStorage.removeItem("localState/user/publicKey")
+        localStorage.removeItem("localState/user/privateKey")
+        localStorage.removeItem("localState/user/nip07Login")
+        localStorage.removeItem("localState/user/relays")
+        localStorage.removeItem("localState/user/mediaserver")
       } catch (error) {
         console.error("Error migrating user data:", error)
       }
@@ -76,7 +95,17 @@ const AppWithInitialization = () => {
 // Subscribe to public key changes from the user store
 useUserStore.subscribe((state) => {
   const prevPublicKey = localStorage.getItem("localState/user/publicKey")
-  const parsedPrevKey = prevPublicKey ? JSON.parse(prevPublicKey) : ""
+  let parsedPrevKey = ""
+  if (prevPublicKey) {
+    try {
+      const parsed = JSON.parse(prevPublicKey)
+      parsedPrevKey = parsed && typeof parsed === 'object' && 'value' in parsed 
+        ? parsed.value 
+        : parsed
+    } catch (e) {
+      console.error("Error parsing prevPublicKey:", e)
+    }
+  }
   
   if (state.publicKey && state.publicKey !== parsedPrevKey) {
     console.log("Public key changed, initializing chat modules")
