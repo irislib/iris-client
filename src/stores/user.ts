@@ -35,7 +35,13 @@ const migrateFromLocalStorage = (key: string, defaultValue: any): any => {
   try {
     const storedValue = localStorage.getItem(`localState/${key}`)
     if (storedValue) {
-      return JSON.parse(storedValue)
+      try {
+        const parsedValue = JSON.parse(storedValue)
+        console.log(`Migrated ${key} from localStorage:`, parsedValue)
+        return parsedValue
+      } catch (error) {
+        console.error(`Error parsing ${key} from localStorage:`, error)
+      }
     }
   } catch (error) {
     console.error(`Error migrating ${key} from localStorage:`, error)

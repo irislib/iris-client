@@ -7,8 +7,8 @@ import {Link} from "react-router"
 import {ndk} from "@/utils/ndk"
 
 export function ProfileSettings() {
-  const {publicKey: myPubKey} = useUserStore()
-
+  const myPubKey = useUserStore((state) => state.publicKey)
+  
   const existingProfile = useProfile(myPubKey)
 
   const user = useMemo(() => {

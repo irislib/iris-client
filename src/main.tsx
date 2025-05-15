@@ -3,6 +3,7 @@ import "@/index.css"
 import {RouterProvider} from "react-router"
 import ReactDOM from "react-dom/client"
 import {useUserStore} from "./stores/user"
+import {useEffect} from "react"
 
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
 import {loadSessions} from "@/utils/chat/Sessions"
@@ -12,6 +13,25 @@ import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
 
 ndk() // init NDK & irisdb login flow
+
+// Initialize user store at app startup
+const InitializeStore = () => {
+  useEffect(() => {
+    const currentState = useUserStore.getState()
+    useUserStore.setState({...currentState})
+    console.log("User store initialized:", currentState)
+  }, [])
+  return null
+}
+
+const AppWithInitialization = () => {
+  return (
+    <>
+      <InitializeStore />
+      <RouterProvider router={router} />
+    </>
+  )
+}
 
 // Subscribe to public key changes from the user store
 useUserStore.subscribe((state, prevState) => {
@@ -30,7 +50,7 @@ const {appearance} = useSettingsStore.getState()
 document.documentElement.setAttribute("data-theme", appearance.theme)
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <RouterProvider router={router} />
+  <AppWithInitialization />
 )
 
 // Subscribe to theme changes
