@@ -133,18 +133,28 @@ const PrivateChatCreation = () => {
       console.log("Session ID:", sessionId)
       
       // Save the session
-      localState
-        .get("sessions")
-        .get(sessionId)
-        .get("state")
-        .put(serializeSessionState(session.state))
-      console.log("Session saved to localState")
-
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // Navigate to the new chat
-      console.log("Navigating to chat with session ID:", sessionId)
-      navigate("/chats/chat", {state: {id: sessionId}})
+      try {
+        localState.get(`sessions/${sessionId}/state`).put(serializeSessionState(session.state))
+        console.log("Session saved to localState using direct path")
+        
+        localState
+          .get("sessions")
+          .get(sessionId)
+          .get("state")
+          .put(serializeSessionState(session.state))
+        console.log("Session also saved using nested approach")
+        
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        const savedSessions = getSessions()
+        console.log("Current sessions:", Array.from(savedSessions.keys()))
+        
+        // Navigate to the new chat
+        console.log("Navigating to chat with session ID:", sessionId)
+        navigate("/chats/chat", {state: {id: sessionId}})
+      } catch (error) {
+        console.error("Error saving session:", error)
+      }
     } catch (error) {
       console.error("Invalid invite link:", error)
       // Optionally, you can show an error message to the user here
