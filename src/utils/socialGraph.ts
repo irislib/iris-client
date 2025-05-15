@@ -4,7 +4,7 @@ import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
-import {localState} from "irisdb/src"
+import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 
 const DEFAULT_SOCIAL_GRAPH_ROOT =
@@ -143,35 +143,50 @@ const throttledRecalculate = throttle(
 )
 
 export const socialGraphLoaded = new Promise((resolve) => {
-  localState.get("user/publicKey").on(async (publicKey?: string) => {
-    await initializeInstance(publicKey)
+  const currentPublicKey = useUserStore.getState().publicKey
+  initializeInstance(currentPublicKey).then(() => {
     resolve(true)
-    if (publicKey) {
-      sub?.stop()
-      sub = ndk().subscribe({
-        kinds: [3, 10000],
-        authors: [publicKey],
-        limit: 1,
-      })
-      let latestTime = 0
-      sub?.on("event", (ev) => {
-        if (ev.kind === 10000) {
-          handleSocialGraphEvent(ev as NostrEvent)
-          return
-        }
-        if (typeof ev.created_at !== "number" || ev.created_at < latestTime) {
-          return
-        }
-        latestTime = ev.created_at
-        handleSocialGraphEvent(ev as NostrEvent)
-        queueMicrotask(() => getMissingFollowLists(publicKey))
-        throttledRecalculate()
-      })
+    
+    if (currentPublicKey) {
+      setupSubscription(currentPublicKey)
     } else {
       instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
     }
-  }, true)
+  })
+  
+  useUserStore.subscribe((state, prevState) => {
+    if (state.publicKey !== prevState.publicKey) {
+      if (state.publicKey) {
+        setupSubscription(state.publicKey)
+      } else {
+        instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
+      }
+    }
+  })
 })
+
+function setupSubscription(publicKey: string) {
+  sub?.stop()
+  sub = ndk().subscribe({
+    kinds: [3, 10000],
+    authors: [publicKey],
+    limit: 1,
+  })
+  let latestTime = 0
+  sub?.on("event", (ev) => {
+    if (ev.kind === 10000) {
+      handleSocialGraphEvent(ev as NostrEvent)
+      return
+    }
+    if (typeof ev.created_at !== "number" || ev.created_at < latestTime) {
+      return
+    }
+    latestTime = ev.created_at
+    handleSocialGraphEvent(ev as NostrEvent)
+    queueMicrotask(() => getMissingFollowLists(publicKey))
+    throttledRecalculate()
+  })
+}
 
 export const saveToFile = () => {
   const data = instance.serialize()

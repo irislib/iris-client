@@ -1,23 +1,23 @@
 import CopyButton from "@/shared/components/button/CopyButton.tsx"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {hexToBytes} from "@noble/hashes/utils"
 import {nip19} from "nostr-tools"
+import {useUserStore} from "@/stores/user"
 
 function Backup() {
-  const [myPrivateKey] = useLocalState("user/privateKey", "")
+  const privateKey = useUserStore((state) => state.privateKey)
 
   return (
     <div>
       <h1 className="text-2xl mb-4">Backup</h1>
       <div className="flex flex-col gap-4">
-        {myPrivateKey && (
+        {privateKey && (
           <div>
             <p>Backup your Nostr key</p>
             <small>Copy and securely store your secret key.</small>
             <div className="mt-2">
               <CopyButton
                 className="btn btn-primary"
-                copyStr={nip19.nsecEncode(hexToBytes(myPrivateKey))}
+                copyStr={nip19.nsecEncode(hexToBytes(privateKey))}
                 text="Copy secret key"
               />
             </div>

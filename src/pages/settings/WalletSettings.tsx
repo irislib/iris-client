@@ -1,16 +1,14 @@
 import {requestProvider, disconnect} from "@getalby/bitcoin-connect"
 import {useWalletBalance} from "@/shared/hooks/useWalletBalance"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useUserStore} from "@/stores/user"
 import {ChangeEvent} from "react"
 
 const WalletSettings = () => {
   const {isWalletConnect, balance} = useWalletBalance()
-  const [, setIsWalletConnect] = useLocalState("user/walletConnect", false)
-  const [cashuEnabled, setCashuEnabled] = useLocalState("user/cashuEnabled", false)
-  const [defaultZapAmount, setDefaultZapAmount] = useLocalState(
-    "user/defaultZapAmount",
-    21
-  )
+  const {
+    cashuEnabled, defaultZapAmount,
+    setWalletConnect, setCashuEnabled, setDefaultZapAmount
+  } = useUserStore()
 
   const handleConnectWalletClick = async () => {
     const {init} = await import("@getalby/bitcoin-connect-react")
@@ -20,12 +18,12 @@ const WalletSettings = () => {
       showBalance: false,
     })
     const provider = await requestProvider()
-    if (provider) setIsWalletConnect(true)
+    if (provider) setWalletConnect(true)
   }
 
   const handleDisconnectWalletClick = async () => {
     disconnect()
-    setIsWalletConnect(false)
+    setWalletConnect(false)
   }
 
   const handleDefaultZapAmountChange = (event: ChangeEvent<HTMLInputElement>) => {

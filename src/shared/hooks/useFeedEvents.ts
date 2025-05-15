@@ -6,12 +6,8 @@ import {shouldHideAuthor} from "@/utils/visibility"
 import socialGraph from "@/utils/socialGraph"
 import {feedCache} from "@/utils/memcache"
 import debounce from "lodash/debounce"
-import {localState} from "irisdb/src"
+import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
-
-// TODO fix useLocalState so initial state is properly set from memory
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
 
 interface UseFeedEventsProps {
   filters: NDKFilter
@@ -36,6 +32,7 @@ export default function useFeedEvents({
   mutes,
   sortLikedPosts = false,
 }: UseFeedEventsProps) {
+  const myPubKey = useUserStore((state) => state.publicKey)
   const [localFilter, setLocalFilter] = useState(filters)
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
   const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())

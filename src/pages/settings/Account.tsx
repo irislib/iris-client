@@ -1,17 +1,11 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useUserStore} from "@/stores/user"
 import {unsubscribeAll} from "@/utils/notifications"
-import {DEFAULT_RELAYS} from "@/utils/ndk"
 import {MouseEvent, useState} from "react"
 import {useNavigate} from "react-router"
 import localforage from "localforage"
 
 function Account() {
-  const [privateKey, setPrivateKey] = useLocalState("user/privateKey", "", String)
-  const [, setPublicKey] = useLocalState("user/publicKey", "", String)
-  const [, setDHTPrivateKey] = useLocalState("user/DHTPrivateKey", "", String)
-  const [, setDHTPublicKey] = useLocalState("user/DHTPublicKey", "", String)
-  const [, setRelays] = useLocalState("user/relays", [])
-  const [, setNip07Login] = useLocalState("user/nip07Login", false)
+  const {privateKey, reset} = useUserStore()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const navigate = useNavigate()
 
@@ -28,12 +22,9 @@ function Account() {
       } catch (e) {
         console.error("Error unsubscribing from push notifications:", e)
       }
-      setPublicKey("")
-      setPrivateKey("")
-      setDHTPublicKey("")
-      setDHTPrivateKey("")
-      setRelays(DEFAULT_RELAYS)
-      setNip07Login(false)
+      
+      reset()
+      
       localStorage.clear()
       localforage
         .clear()

@@ -2,7 +2,7 @@ import "@/index.css"
 
 import {RouterProvider} from "react-router"
 import ReactDOM from "react-dom/client"
-import {localState} from "irisdb/src"
+import {useUserStore} from "./stores/user"
 
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
 import {loadSessions} from "@/utils/chat/Sessions"
@@ -13,8 +13,9 @@ import {router} from "@/pages"
 
 ndk() // init NDK & irisdb login flow
 
-localState.get("user/publicKey").on((user) => {
-  if (user) {
+// Subscribe to public key changes from the user store
+useUserStore.subscribe((state, prevState) => {
+  if (state.publicKey && state.publicKey !== prevState.publicKey) {
     loadSessions()
     loadInvites()
     subscribeToNotifications()

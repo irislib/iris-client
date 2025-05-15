@@ -10,7 +10,7 @@ import NDK, {
 import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import NDKCacheAdapterDexie from "@nostr-dev-kit/ndk-cache-dexie"
 import {bytesToHex, hexToBytes} from "@noble/hashes/utils"
-import {localState} from "irisdb/src"
+import {useUserStore} from "@/stores/user"
 
 let ndkInstance: NDK | null = null
 let privateKeySigner: NDKPrivateKeySigner | undefined
@@ -50,56 +50,56 @@ export const ndk = (opts?: NDKConstructorParams): NDK => {
 }
 
 function watchLocalSettings(instance: NDK) {
-  localState.get("user/privateKey").on((privateKey?: string) => {
-    const havePrivateKey = privateKey && typeof privateKey === "string"
-    if (!privateKeySigner && havePrivateKey) {
-      try {
-        privateKeySigner = new NDKPrivateKeySigner(privateKey)
+  useUserStore.subscribe((state, prevState) => {
+    if (state.privateKey !== prevState.privateKey) {
+      const havePrivateKey = state.privateKey && typeof state.privateKey === "string"
+      if (!privateKeySigner && havePrivateKey) {
+        try {
+          privateKeySigner = new NDKPrivateKeySigner(state.privateKey)
+          instance.signer = privateKeySigner
+        } catch (e) {
+          console.error("Error setting private key signer:", e)
+        }
+      } else if (!havePrivateKey && privateKeySigner) {
+        privateKeySigner = undefined
+        instance.signer = undefined
+      }
+    }
+    
+    if (state.nip07Login !== prevState.nip07Login) {
+      if (state.nip07Login) {
+        nip07Signer = new NDKNip07Signer()
+        instance.signer = nip07Signer
+        nip07Signer.user().then((user) => {
+          useUserStore.getState().setPublicKey(user.pubkey)
+        })
+      } else if (nip07Signer) {
+        nip07Signer = undefined
         instance.signer = privateKeySigner
-      } catch (e) {
-        console.error(e)
       }
-    } else if (privateKeySigner && !havePrivateKey) {
-      privateKeySigner = undefined
-      instance.signer = undefined
     }
-  })
-
-  localState.get("user/nip07Login").on((nip07?: string) => {
-    if (nip07) {
-      nip07Signer = new NDKNip07Signer()
-      instance.signer = nip07Signer
-      nip07Signer.user().then((user) => {
-        localState.get("user/publicKey").put(user.pubkey)
-      })
-    } else if (nip07Signer) {
-      nip07Signer = undefined
-      instance.signer = undefined
-    }
-  })
-
-  localState.get("user/relays").on((relays?: string[]) => {
-    if (Array.isArray(relays)) {
-      relays.forEach((url) => {
-        if (!instance.pool.relays.has(url)) {
-          instance.pool.addRelay(new NDKRelay(url, undefined, instance))
-        }
-      })
-      for (const url of instance.pool.relays.keys()) {
-        if (!relays.includes(url)) {
-          instance.pool.removeRelay(url)
+    
+    if (state.relays !== prevState.relays) {
+      if (Array.isArray(state.relays)) {
+        state.relays.forEach((url) => {
+          if (!instance.pool.relays.has(url)) {
+            instance.pool.addRelay(new NDKRelay(url, undefined, instance))
+          }
+        })
+        for (const url of instance.pool.relays.keys()) {
+          if (!state.relays.includes(url)) {
+            instance.pool.removeRelay(url)
+          }
         }
       }
     }
+    
+    if (state.publicKey !== prevState.publicKey) {
+      instance.activeUser = state.publicKey
+        ? new NDKUser({hexpubkey: state.publicKey})
+        : undefined
+    }
   })
-
-  localState
-    .get("user/publicKey")
-    .on(
-      (k) =>
-        (instance.activeUser =
-          typeof k === "string" ? new NDKUser({hexpubkey: k}) : undefined)
-    )
 }
 
 /**
@@ -111,8 +111,11 @@ export function newUserLogin(name: string) {
   const sk = generateSecretKey() // `sk` is a Uint8Array
   const pk = getPublicKey(sk) // `pk` is a hex string
   const privateKeyHex = bytesToHex(sk)
-  localState.get("user/privateKey").put(privateKeyHex)
-  localState.get("user/publicKey").put(pk)
+  
+  const store = useUserStore.getState()
+  store.setPrivateKey(privateKeyHex)
+  store.setPublicKey(pk)
+  
   privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
   ndkInstance!.signer = privateKeySigner
   const profileEvent = new NDKEvent(ndkInstance!)
@@ -136,7 +139,9 @@ export function privateKeyLogin(privateKey: string) {
     privateKeySigner = new NDKPrivateKeySigner(hex)
     ndkInstance!.signer = privateKeySigner
     const publicKey = getPublicKey(bytes)
-    localState.get("user/privateKey").put(hex)
-    localState.get("user/publicKey").put(publicKey)
+    
+    const store = useUserStore.getState()
+    store.setPrivateKey(hex)
+    store.setPublicKey(publicKey)
   }
 }
