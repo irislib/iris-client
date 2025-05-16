@@ -1,8 +1,10 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useNotificationsStore} from "@/stores/notifications"
 
 export default function UnseenNotificationsBadge() {
-  const [latestNotification] = useLocalState("notifications/latest", 0, Number)
-  const [notificationsSeenAt] = useLocalState("notifications/seenAt", 0, Number)
+  const {latestNotification} = useNotificationsStore()
+  const notificationsSeenAt = useNotificationsStore(
+    (state) => state.notificationsSeenAt || 0
+  )
 
   return (
     <>

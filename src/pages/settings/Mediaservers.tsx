@@ -1,12 +1,8 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useUserStore} from "@/stores/user"
 import {ChangeEvent} from "react"
 
 function MediaServers() {
-  const [selectedServer, setSelectedServer] = useLocalState<string>(
-    "user/mediaserver",
-    "https://nostr.build/api/v2/nip96/upload",
-    String
-  )
+  const {mediaserver: selectedServer, setMediaserver: setSelectedServer} = useUserStore()
 
   function handleServerChange(e: ChangeEvent<HTMLSelectElement | HTMLInputElement>) {
     setSelectedServer(e.target.value)

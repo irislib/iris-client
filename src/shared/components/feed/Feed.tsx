@@ -3,7 +3,6 @@ import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
 
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import useHistoryState from "@/shared/hooks/useHistoryState"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import FeedItem from "../event/FeedItem/FeedItem"
 import {localState} from "irisdb/src"
 
@@ -15,6 +14,7 @@ import {DisplayAsSelector} from "./DisplayAsSelector"
 import NewEventsButton from "./NewEventsButton.tsx"
 import {useSettingsStore} from "@/stores/settings"
 import useMutes from "@/shared/hooks/useMutes.ts"
+import {useFeedStore} from "@/stores/feed"
 import MediaFeed from "./MediaFeed"
 
 interface FeedProps {
@@ -82,15 +82,12 @@ function Feed({
   )
   const [showEventsByUnknownUsers, setShowEventsByUnknownUsers] = useState(false)
 
-  const [persistedDisplayAs, setPersistedDisplayAs] = useLocalState(
-    "user/feedDisplayAs",
-    initialDisplayAs
-  )
+  const {feedDisplayAs: persistedDisplayAs, setFeedDisplayAs} = useFeedStore()
 
   // Use persisted value only when selector is shown, otherwise use initialDisplayAs
   const displayAs = showDisplayAsSelector ? persistedDisplayAs : initialDisplayAs
   const setDisplayAs = (value: "list" | "grid") => {
-    setPersistedDisplayAs(value)
+    setFeedDisplayAs(value)
   }
 
   const {

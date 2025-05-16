@@ -4,8 +4,7 @@ import {NDKEvent} from "@nostr-dev-kit/ndk"
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
 import NotificationPrompt from "@/shared/components/NotificationPrompt"
 import Trending from "@/shared/components/feed/Trending.tsx"
-import useHistoryState from "@/shared/hooks/useHistoryState"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useRefreshRouteSignal} from "@/stores/notifications"
 import {seenEventIds, feedCache} from "@/utils/memcache"
 import Header from "@/shared/components/header/Header"
 import Feed from "@/shared/components/feed/Feed.tsx"
@@ -14,6 +13,7 @@ import useFollows from "@/shared/hooks/useFollows"
 import {getEventReplyingTo} from "@/utils/nostr"
 import socialGraph from "@/utils/socialGraph"
 import {usePublicKey} from "@/stores/user"
+import {useFeedStore} from "@/stores/feed"
 
 const UNSEEN_CACHE_KEY = "unseenFeed"
 
@@ -33,8 +33,8 @@ const EmptyPlaceholder = ({follows, myPubKey}: {follows: string[]; myPubKey?: st
 function HomeFeedEvents() {
   const myPubKey = usePublicKey()
   const follows = useFollows(myPubKey, true) // to update on follows change
-  const [refreshSignal] = useLocalState("refreshRouteSignal", 0, Number) // update on login
-  const [activeTab, setActiveTab] = useHistoryState("unseen", "activeHomeTab")
+  const refreshSignal = useRefreshRouteSignal()
+  const {activeHomeTab: activeTab, setActiveHomeTab: setActiveTab} = useFeedStore()
   const [forceUpdate, setForceUpdate] = useState(0)
 
   const tabs = useMemo(

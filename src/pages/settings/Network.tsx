@@ -1,16 +1,40 @@
 import {FormEvent, useEffect, useMemo, useState} from "react"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {RiDeleteBinLine} from "@remixicon/react"
 
 import {DEFAULT_RELAYS, ndk as getNdk} from "@/utils/ndk"
+import {persist} from "zustand/middleware"
+import {create} from "zustand"
+
+interface NetworkState {
+  relays: string[]
+  setRelays: (relays: string[]) => void
+}
+
+export const useNetworkStore = create<NetworkState>()(
+  persist(
+    (set) => ({
+      relays: DEFAULT_RELAYS,
+      setRelays: (relays: string[]) => set({relays}),
+    }),
+    {
+      name: "network-storage",
+    }
+  )
+)
 
 export function Network() {
   const ndk = getNdk()
   const [ndkRelays, setNdkRelays] = useState(new Map(ndk.pool.relays))
-  const [connectToRelayUrls, setConnectToRelayUrls] = useLocalState(
-    "user/relays",
-    Array.from(ndk.pool.relays.keys())
-  )
+  const [connectToRelayUrls, setConnectToRelayUrls] = useState<string[]>([])
+  const {relays, setRelays} = useNetworkStore()
+
+  useEffect(() => {
+    if (relays && relays.length > 0) {
+      setConnectToRelayUrls(relays)
+    } else {
+      setConnectToRelayUrls(Array.from(ndk.pool.relays.keys()))
+    }
+  }, [relays])
   const [newRelayUrl, setNewRelayUrl] = useState("")
 
   useEffect(() => {
@@ -29,18 +53,23 @@ export function Network() {
     if (!url.startsWith("wss://") && !url.startsWith("ws://")) {
       url = `wss://${url}`
     }
-    setConnectToRelayUrls([...(connectToRelayUrls || []), url])
+    const newRelays = [...(connectToRelayUrls || []), url]
+    setConnectToRelayUrls(newRelays)
+    setRelays(newRelays)
     setNewRelayUrl("")
   }
 
   const removeRelay = (url: string) => {
-    setConnectToRelayUrls(
-      (connectToRelayUrls || Array.from(ndkRelays.keys())).filter((u) => u !== url)
+    const newRelays = (connectToRelayUrls || Array.from(ndkRelays.keys())).filter(
+      (u) => u !== url
     )
+    setConnectToRelayUrls(newRelays)
+    setRelays(newRelays)
   }
 
   const resetDefaults = () => {
     setConnectToRelayUrls(DEFAULT_RELAYS)
+    setRelays(DEFAULT_RELAYS)
   }
 
   const hasDefaultRelays = useMemo(

@@ -1,6 +1,6 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {ReactNode, MouseEventHandler} from "react"
 import Icon from "@/shared/components/Icons/Icon"
+import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import NavLink from "./NavLink"
 
@@ -27,7 +27,7 @@ export const NavItem = ({
   className,
   badge,
 }: NavItemProps) => {
-  const [, setIsSidebarOpen] = useLocalState("isSidebarOpen", false)
+  const {setIsSidebarOpen} = useUIStore()
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (e) => {
     setIsSidebarOpen(false)

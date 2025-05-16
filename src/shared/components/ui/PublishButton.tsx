@@ -1,11 +1,8 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {RiAddCircleLine, RiAddLine} from "@remixicon/react" // Import Plus icon from Remix Icons
+import {usePublicKey} from "@/stores/user"
+import {useUIStore} from "@/stores/ui"
 import classNames from "classnames" // Import classnames library
-import {localState} from "irisdb"
 import {useCallback} from "react"
-
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
 
 function PublishButton({
   className,
@@ -15,9 +12,13 @@ function PublishButton({
   showLabel?: boolean
 }) {
   // Add className prop
-  const [newPostOpen, setNewPostOpen] = useLocalState("home/newPostOpen", false)
+  const {newPostOpen, setNewPostOpen} = useUIStore()
+  const myPubKey = usePublicKey()
 
-  const handlePress = useCallback(() => setNewPostOpen(!newPostOpen), [newPostOpen])
+  const handlePress = useCallback(
+    () => setNewPostOpen(!newPostOpen),
+    [newPostOpen, setNewPostOpen]
+  )
 
   if (!myPubKey) return null
 

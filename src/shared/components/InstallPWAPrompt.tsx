@@ -1,9 +1,9 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {useEffect, useState} from "react"
+import {useUIStore} from "@/stores/ui"
 
 const InstallPWAPrompt = () => {
   const [showPrompt, setShowPrompt] = useState(false)
-  const [hidePrompt, setHidePrompt] = useLocalState("hidePWAPrompt", false)
+  const {hidePWAPrompt: hidePrompt, setHidePWAPrompt: setHidePrompt} = useUIStore()
   const [isAndroid, setIsAndroid] = useState(false)
 
   useEffect(() => {

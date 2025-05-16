@@ -1,7 +1,7 @@
 import {Outlet, useLocation, useNavigate, useNavigationType} from "react-router"
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import LoginDialog from "@/shared/components/user/LoginDialog"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useNotificationsStore} from "@/stores/notifications"
 import NavSideBar from "@/shared/components/nav/NavSideBar"
 import {useInviteFromUrl} from "../hooks/useInviteFromUrl"
 import {clearNotifications} from "@/utils/notifications"
@@ -12,6 +12,7 @@ import {useSettingsStore} from "@/stores/settings"
 import ErrorBoundary from "./ui/ErrorBoundary"
 import {trackEvent} from "@/utils/IrisAPI"
 import {useUserStore} from "@/stores/user"
+import {useUIStore} from "@/stores/ui"
 import {Helmet} from "react-helmet"
 import {useEffect} from "react"
 
@@ -23,13 +24,9 @@ interface ServiceWorkerMessage {
 }
 
 const Layout = () => {
-  const [newPostOpen, setNewPostOpen] = useLocalState("home/newPostOpen", false)
+  const {newPostOpen, setNewPostOpen, showLoginDialog, setShowLoginDialog} = useUIStore()
   const {privacy} = useSettingsStore()
-  const [goToNotifications] = useLocalState("goToNotifications", 0)
-  const [showLoginDialog, setShowLoginDialog] = useLocalState(
-    "home/showLoginDialog",
-    false
-  )
+  const {goToNotifications} = useNotificationsStore()
   const navigate = useNavigate()
   const navigationType = useNavigationType()
   const location = useLocation()

@@ -1,7 +1,7 @@
 import UnseenMessagesBadge from "@/shared/components/messages/UnseenMessagesBadge"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import Icon from "@/shared/components/Icons/Icon"
 import {MouseEventHandler} from "react"
+import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import NavLink from "./NavLink"
 
@@ -11,7 +11,7 @@ interface MessagesNavItemProps {
 }
 
 export const MessagesNavItem = ({to, onClick}: MessagesNavItemProps) => {
-  const [, setIsSidebarOpen] = useLocalState("isSidebarOpen", false)
+  const {setIsSidebarOpen} = useUIStore()
 
   const handleClick: MouseEventHandler<HTMLAnchorElement> = (e) => {
     setIsSidebarOpen(false)

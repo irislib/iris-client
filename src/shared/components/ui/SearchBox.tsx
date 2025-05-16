@@ -1,14 +1,13 @@
 import {MouseEvent as ReactMouseEvent, useEffect, useRef, useState} from "react"
-import {searchIndex, SearchResult} from "@/utils/profileSearch"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {shouldHideAuthor} from "@/utils/visibility"
+import {searchIndex} from "@/utils/profileSearch"
 import socialGraph from "@/utils/socialGraph"
 import {useNavigate} from "react-router"
 import classNames from "classnames"
 import {nip19} from "nostr-tools"
 import Icon from "../Icons/Icon"
-import {JsonValue} from "irisdb"
 import {ndk} from "@/utils/ndk"
 
 const NOSTR_REGEX = /(npub|note|nevent|naddr|nprofile)1[a-zA-Z0-9]{58,300}/gi
@@ -23,10 +22,6 @@ const DEFAULT_DISTANCE = 999 // Default distance for users not in social graph
 const FUSE_MULTIPLIER = 5 // Multiplier to emphasize text match
 const PREFIX_MATCH_BOOST = 1
 const SELF_PENALTY = 100 // Penalty for self in search results
-
-type CustomSearchResult = SearchResult & {
-  query?: string
-}
 
 // this component is used for global search in the Header.tsx
 // and for searching assignees in Issues & PRs
@@ -47,10 +42,7 @@ function SearchBox({
 }: SearchBoxProps) {
   const [searchResults, setSearchResults] = useState<CustomSearchResult[]>([])
   const [activeResult, setActiveResult] = useState<number>(0)
-  const [recentSearches, setRecentSearches] = useLocalState<CustomSearchResult[]>(
-    "recentSearches",
-    []
-  )
+  const {recentSearches, setRecentSearches} = useSearchStore()
   const [isFocused, setIsFocused] = useState(false)
   const [value, setValue] = useState<string>("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -211,15 +203,19 @@ function SearchBox({
   }, [])
 
   const addToRecentSearches = (result: CustomSearchResult) => {
-    const filtered = recentSearches.filter((item) => item.pubKey !== result.pubKey)
-    setRecentSearches([result, ...filtered].slice(0, maxResults) as unknown as JsonValue)
+    const filtered = recentSearches.filter(
+      (item: CustomSearchResult) => item.pubKey !== result.pubKey
+    )
+    setRecentSearches([result, ...filtered].slice(0, maxResults))
   }
 
   const removeFromRecentSearches = (pubKey: string, e: ReactMouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
-    const filtered = recentSearches.filter((item) => item.pubKey !== pubKey)
-    setRecentSearches(filtered as unknown as JsonValue)
+    const filtered = recentSearches.filter(
+      (item: CustomSearchResult) => item.pubKey !== pubKey
+    )
+    setRecentSearches(filtered)
     // Reset after a short delay
   }
 
@@ -232,12 +228,16 @@ function SearchBox({
       navigate(`/search/${query}`)
     } else {
       // First check if it's a recent search being clicked
-      const recentResult = recentSearches.find((r) => r.pubKey === pubKey)
+      const recentResult = recentSearches.find(
+        (r: CustomSearchResult) => r.pubKey === pubKey
+      )
       if (recentResult) {
         // Use setTimeout to delay the reordering until after the dropdown is hidden
         setTimeout(() => {
-          const filtered = recentSearches.filter((item) => item.pubKey !== pubKey)
-          setRecentSearches([recentResult, ...filtered] as unknown as JsonValue)
+          const filtered = recentSearches.filter(
+            (item: CustomSearchResult) => item.pubKey !== pubKey
+          )
+          setRecentSearches([recentResult, ...filtered])
         }, 0)
       } else {
         const selectedResult = searchResults.find((r) => r.pubKey === pubKey)
@@ -290,7 +290,7 @@ function SearchBox({
           ) : (
             <>
               <li className="menu-title text-sm px-4 py-2">Recent</li>
-              {recentSearches.map((result, index) => (
+              {recentSearches.map((result: CustomSearchResult, index: number) => (
                 <li
                   key={result.pubKey}
                   className={classNames("cursor-pointer rounded-md", {

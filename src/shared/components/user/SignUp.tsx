@@ -1,9 +1,9 @@
 import {ChangeEvent, KeyboardEvent, useEffect, useRef, useState} from "react"
 import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {NDKEvent, NDKPrivateKeySigner} from "@nostr-dev-kit/ndk"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {bytesToHex} from "@noble/hashes/utils"
 import {useUserStore} from "@/stores/user"
+import {useUIStore} from "@/stores/ui"
 import {ndk} from "@/utils/ndk"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
@@ -14,7 +14,7 @@ interface SignUpProps {
 
 export default function SignUp({onClose}: SignUpProps) {
   const [newUserName, setNewUserName] = useState("")
-  const [, setShowLoginDialog] = useLocalState("home/showLoginDialog", false)
+  const {setShowLoginDialog} = useUIStore()
   const inputRef = useRef<HTMLInputElement>(null)
   const setState = useUserStore.setState
 

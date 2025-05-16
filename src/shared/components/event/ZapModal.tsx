@@ -10,10 +10,11 @@ import {LnPayCb, NDKEvent, zapInvoiceFromEvent, NDKZapper} from "@nostr-dev-kit/
 import {RiCheckLine, RiFileCopyLine} from "@remixicon/react"
 import {decode} from "light-bolt11-decoder"
 
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {Avatar} from "@/shared/components/user/Avatar"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {Name} from "@/shared/components/user/Name"
+import {useUserStore} from "@/stores/user"
+import {useZapStore} from "@/stores/zap"
 import {ndk} from "@/utils/ndk"
 
 interface ZapModalProps {
@@ -23,10 +24,8 @@ interface ZapModalProps {
 }
 
 function ZapModal({onClose, event, setZapped}: ZapModalProps) {
-  const [defaultZapAmount, setDefaultZapAmount] = useLocalState(
-    "user/defaultZapAmount",
-    21
-  )
+  const {defaultZapAmount, setDefaultZapAmount} = useZapStore()
+  const {walletConnect: isWalletConnect} = useUserStore()
   const [copiedPaymentRequest, setCopiedPaymentRequest] = useState(false)
   const [noAddress, setNoAddress] = useState(false)
   const [showQRCode, setShowQRCode] = useState(false)
@@ -38,8 +37,6 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string>("")
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
-
-  const [isWalletConnect] = useLocalState("user/walletConnect", false)
   const [zapRefresh, setZapRefresh] = useState(false)
 
   const amounts: Record<string, string> = {

@@ -1,14 +1,12 @@
 import {subscribeToDMNotifications, subscribeToNotifications} from "@/utils/notifications"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useNotificationsStore} from "@/stores/notifications"
+import {useUserStore} from "@/stores/user"
 import {useEffect, useState} from "react"
 
 const NotificationPrompt = () => {
   const [showPrompt, setShowPrompt] = useState(false)
-  const [notificationsDeclined, setNotificationsDeclined] = useLocalState(
-    "notificationsDeclined",
-    false
-  )
-  const [myPubKey] = useLocalState("user/publicKey", "")
+  const {notificationsDeclined, setNotificationsDeclined} = useNotificationsStore()
+  const {publicKey: myPubKey} = useUserStore()
 
   useEffect(() => {
     setShowPrompt(

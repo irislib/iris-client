@@ -1,8 +1,6 @@
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {RiLoginBoxLine} from "@remixicon/react"
 import {useRef, useMemo} from "react"
 import classNames from "classnames"
-import {localState} from "irisdb"
 import NavLink from "./NavLink"
 
 import PublicKeyQRCodeButton from "../user/PublicKeyQRCodeButton"
@@ -12,18 +10,17 @@ import {MessagesNavItem} from "./MessagesNavItem"
 import PublishButton from "../ui/PublishButton"
 import ErrorBoundary from "../ui/ErrorBoundary"
 import {formatAmount} from "@/utils/utils"
+import {usePublicKey} from "@/stores/user"
 import {navItemsConfig} from "./navConfig"
 import {UserRow} from "../user/UserRow"
+import {useUIStore} from "@/stores/ui"
 import {NavItem} from "./NavItem"
-
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
 
 const NavSideBar = () => {
   const ref = useRef<HTMLDivElement>(null)
-  const [isSidebarOpen, setIsSidebarOpen] = useLocalState("isSidebarOpen", false)
-  const [, setShowLoginDialog] = useLocalState("home/showLoginDialog", false)
+  const {isSidebarOpen, setIsSidebarOpen, setShowLoginDialog} = useUIStore()
   const {balance} = useWalletBalance()
+  const myPubKey = usePublicKey()
 
   const navItems = useMemo(() => {
     const configItems = navItemsConfig(myPubKey)

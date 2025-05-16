@@ -1,17 +1,17 @@
 import {LnPayCb, NDKEvent, NDKZapper, NDKPaymentConfirmationLN} from "@nostr-dev-kit/ndk"
 import {useWebLNProvider} from "@/shared/hooks/useWebLNProvider"
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {RefObject, useEffect, useState, useRef} from "react"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import {getZappingUser} from "@/utils/nostr.ts"
 import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import {decode} from "light-bolt11-decoder"
+import {usePublicKey} from "@/stores/user"
+import {useZapStore} from "@/stores/zap"
 import Icon from "../../Icons/Icon.tsx"
 import ZapModal from "../ZapModal.tsx"
 import debounce from "lodash/debounce"
-import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
 
 const zapsByEventCache = new LRUCache<string, Map<string, NDKEvent[]>>({
@@ -23,12 +23,9 @@ interface FeedItemZapProps {
   feedItemRef: RefObject<HTMLDivElement | null>
 }
 
-// TODO fix useLocalState so initial state is properly set from memory, so we can use it instead of this
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
-
 function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
-  const [defaultZapAmount] = useLocalState("user/defaultZapAmount", undefined)
+  const myPubKey = usePublicKey()
+  const {defaultZapAmount} = useZapStore()
   const [isZapping, setIsZapping] = useState(false)
   const longPressTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [isLongPress, setIsLongPress] = useState(false)

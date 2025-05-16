@@ -6,7 +6,7 @@ import {
 import NotificationsFeedItem from "@/pages/notifications/NotificationsFeedItem"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import useHistoryState from "@/shared/hooks/useHistoryState"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
+import {useNotificationsStore} from "@/stores/notifications"
 import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
 import runningOstrich from "@/assets/running-ostrich.gif"
 import {getTag, getZappingUser} from "@/utils/nostr.ts"
@@ -117,7 +117,7 @@ function NotificationsFeed() {
     "displayCount"
   )
 
-  const [latestNotificationTime] = useLocalState("notifications/latest", 0, Number)
+  const {latestNotification: latestNotificationTime} = useNotificationsStore()
 
   const [initialNotificationsSeenAt, setInitialNotificationsSeenAt] =
     useState(notificationsSeenAt)
