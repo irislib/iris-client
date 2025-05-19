@@ -21,7 +21,7 @@ export default function SignUp({onClose}: SignUpProps) {
     if (inputRef.current) {
       inputRef.current.focus()
     }
-  }, [inputRef.current])
+  }, [])
 
   function onNameChange(e: ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
