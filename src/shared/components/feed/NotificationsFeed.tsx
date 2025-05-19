@@ -12,9 +12,10 @@ import runningOstrich from "@/assets/running-ostrich.gif"
 import {getTag, getZappingUser} from "@/utils/nostr.ts"
 import {useEffect, useCallback, useState} from "react"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
+import {useSettingsStore} from "@/stores/settings"
 import socialGraph from "@/utils/socialGraph"
+import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
-import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
 
 const INITIAL_DISPLAY_COUNT = 10
@@ -45,10 +46,8 @@ const getNotifications = debounce((myPubKey?: string) => {
 
   let latest = 0
 
-  let hideEventsByUnknownUsers = true
-  localState
-    .get("settings/hideEventsByUnknownUsers")
-    .on((v) => (hideEventsByUnknownUsers = v as boolean))
+  const hideEventsByUnknownUsers =
+    useSettingsStore.getState().content.hideEventsByUnknownUsers
 
   sub.on("event", (event: NDKEvent) => {
     if (event.kind !== 9735) {
@@ -92,26 +91,24 @@ const getNotifications = debounce((myPubKey?: string) => {
 
       if (created_at > latest) {
         latest = created_at
-        localState.get("notifications/latest").put(latest)
+        useNotificationsStore.getState().setLatestNotification(latest)
       }
     }
   })
 }, 2000)
 
-localState.get("user/publicKey").on(
-  (myPubKey) => {
-    notifications.clear()
-    getNotifications(myPubKey)
-  },
-  true,
-  undefined,
-  String
-)
-
-let notificationsSeenAt = 0
-localState.get("notifications/seenAt").on((v) => (notificationsSeenAt = v as number))
-
 function NotificationsFeed() {
+  const notificationsSeenAt = useNotificationsStore((state) => state.notificationsSeenAt)
+  useEffect(() => {
+    const unsubscribe = useUserStore.subscribe((state) => {
+      if (state.publicKey) {
+        notifications.clear()
+        getNotifications(state.publicKey)
+      }
+    })
+    return () => unsubscribe()
+  }, [])
+
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,
     "displayCount"
@@ -131,7 +128,7 @@ function NotificationsFeed() {
   const updateSeenAt = useCallback(() => {
     if (document.hasFocus()) {
       setTimeout(() => {
-        localState.get("notifications/seenAt").put(Date.now())
+        useNotificationsStore.getState().setNotificationsSeenAt(Date.now())
       }, 1000)
     }
   }, [latestNotificationTime, notificationsSeenAt])

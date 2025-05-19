@@ -10,9 +10,9 @@ import {shouldHideAuthor} from "@/utils/visibility"
 import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
 import EmojiType from "@/types/emoji"
-import {localState} from "irisdb/src"
 import Icon from "../../Icons/Icon"
 import {ndk} from "@/utils/ndk"
 
@@ -20,10 +20,8 @@ const likeCache = new LRUCache<string, Set<string>>({
   maxSize: 100,
 })
 
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
-
 export const FeedItemLike = ({event}: {event: NDKEvent}) => {
+  const myPubKey = useUserStore((state) => state.publicKey)
   const cachedLikes = likeCache.get(event.id)
   const [likesByAuthor, setLikesByAuthor] = useState<Set<string>>(
     cachedLikes || new Set()

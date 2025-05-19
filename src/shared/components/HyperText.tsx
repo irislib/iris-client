@@ -1,16 +1,9 @@
 import {MouseEvent, ReactNode, useState, memo} from "react"
 import reactStringReplace from "react-string-replace"
-import {localState, JsonObject} from "irisdb/src"
+import {useSettingsStore} from "@/stores/settings"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 
 import {allEmbeds, smallEmbeds} from "./embed"
-
-let settings: JsonObject = {}
-localState.get("settings").on((s) => {
-  if (typeof s === "object" && s !== null && !Array.isArray(s)) {
-    settings = s
-  }
-})
 
 const HyperText = memo(
   ({
@@ -30,6 +23,7 @@ const HyperText = memo(
   }) => {
     const [isExpanded, setIsExpanded] = useState(false)
     const content = children.trim()
+    const settings = useSettingsStore()
 
     const toggleShowMore = (e: MouseEvent<HTMLAnchorElement>) => {
       e.preventDefault()
@@ -41,7 +35,12 @@ const HyperText = memo(
 
     // Process embeds
     embeds.forEach((embed) => {
-      if (settings?.[embed.settingsKey || ""] === false) return
+      if (
+        embed.settingsKey &&
+        settings.content &&
+        settings.content.hideEventsByUnknownUsers === false
+      )
+        return
       processedChildren = reactStringReplace(
         processedChildren,
         embed.regex,

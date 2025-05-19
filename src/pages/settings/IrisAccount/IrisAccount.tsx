@@ -6,8 +6,8 @@ import ReservedAccount from "./ReservedAccount"
 import {profileCache} from "@/utils/memcache"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import ActiveAccount from "./ActiveAccount"
+import {useUserStore} from "@/stores/user"
 import AccountName from "./AccountName"
-import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
 
 // TODO split into smaller components
@@ -293,8 +293,11 @@ class IrisAccount extends Component {
     }
   }
 
+  unsubscribe: (() => void) | null = null
+
   componentDidMount() {
-    localState.get("user/publicKey").on((myPub) => {
+    this.unsubscribe = useUserStore.subscribe((state) => {
+      const myPub = state.publicKey
       if (myPub && typeof myPub === "string") {
         const profile = profileCache.get(myPub) || {}
         const irisToActive =
@@ -308,6 +311,10 @@ class IrisAccount extends Component {
 
       this.checkExistingAccount(myPub)
     })
+  }
+
+  componentWillUnmount() {
+    this.unsubscribe && this.unsubscribe()
   }
 
   async checkExistingAccount(pub: any) {

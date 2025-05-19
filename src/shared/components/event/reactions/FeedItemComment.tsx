@@ -6,7 +6,7 @@ import {ndk} from "@/utils/ndk"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
-import {localState} from "irisdb/src"
+import {useUserStore} from "@/stores/user"
 import Icon from "../../Icons/Icon"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
@@ -17,12 +17,10 @@ interface FeedItemCommentProps {
   event: NDKEvent
 }
 
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
-
 const replyCountByEventCache = new LRUCache({maxSize: 100})
 
 function FeedItemComment({event}: FeedItemCommentProps) {
+  const myPubKey = useUserStore((state) => state.publicKey)
   const [replyCount, setReplyCount] = useState(replyCountByEventCache.get(event.id) || 0)
 
   const [isPopupOpen, setPopupOpen] = useState(false)
