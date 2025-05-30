@@ -8,15 +8,15 @@ import {useEffect, useState, useRef} from "react"
 import {Session} from "nostr-double-ratchet/src"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import MessageForm from "../message/MessageForm"
-import {localState} from "irisdb/src"
 import {MessageType} from "../message/Message"
 import {Helmet} from "react-helmet"
 import {ndk} from "@/utils/ndk"
 import {fetchChannelMetadata, ChannelMetadata} from "../utils/channelMetadata"
 import {CHANNEL_MESSAGE, REACTION_KIND} from "../utils/constants"
+import {useUserStore} from "@/stores/user"
 
-let publicKey = ""
-localState.get("user/publicKey").on((k) => (publicKey = k as string))
+let publicKey = useUserStore.getState().publicKey
+useUserStore.subscribe((state) => (publicKey = state.publicKey))
 
 const PublicChat = () => {
   const {id} = useParams<{id: string}>()
@@ -262,8 +262,8 @@ const PublicChat = () => {
       <PublicChatHeader channelId={id || ""} />
       <ChatContainer
         messages={messages}
-        session={session}
-        sessionId={id || ""}
+        session={session} // TODO: remove this when fixing reactions
+        sessionId={id || ""} // TODO: remove this when fixing reactions
         onReply={setReplyingTo}
         showAuthor={true}
         isPublicChat={true}
@@ -274,7 +274,6 @@ const PublicChat = () => {
       />
       {publicKey && (
         <MessageForm
-          session={session}
           id={id || ""}
           replyingTo={replyingTo}
           setReplyingTo={setReplyingTo}

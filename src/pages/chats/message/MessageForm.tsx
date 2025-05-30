@@ -5,21 +5,18 @@ import {
   ChangeEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from "react"
-import {CHAT_MESSAGE_KIND, serializeSessionState, Session} from "nostr-double-ratchet/src"
 import {useAutosizeTextarea} from "@/shared/hooks/useAutosizeTextarea"
 import UploadButton from "@/shared/components/button/UploadButton"
 import EmojiButton from "@/shared/components/emoji/EmojiButton"
 import MessageFormReplyPreview from "./MessageFormReplyPreview"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
-import {NDKEventFromRawEvent} from "@/utils/nostr"
+import {useSessionsStore} from "@/stores/sessions"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiAttachment2} from "@remixicon/react"
 import EmojiType from "@/types/emoji"
-import {localState} from "irisdb/src"
 import {MessageType} from "./Message"
 
 interface MessageFormProps {
-  session: Session
   id: string
   replyingTo?: MessageType
   setReplyingTo: (message?: MessageType) => void
@@ -28,13 +25,13 @@ interface MessageFormProps {
 }
 
 const MessageForm = ({
-  session,
   id,
   replyingTo,
   setReplyingTo,
   onSendMessage,
   isPublicChat = false,
 }: MessageFormProps) => {
+  const {sendMessage} = useSessionsStore()
   const [newMessage, setNewMessage] = useState("")
   const textareaRef = useAutosizeTextarea(newMessage)
   const theirPublicKey = id.split(":")[0]
@@ -64,12 +61,10 @@ const MessageForm = ({
     const text = newMessage.trim()
     if (!text) return
 
-    // Clear form immediately
     setNewMessage("")
     if (replyingTo) {
       setReplyingTo(undefined)
     }
-
     if (onSendMessage) {
       onSendMessage(text).catch((error) => {
         console.error("Failed to send message:", error)
@@ -77,34 +72,8 @@ const MessageForm = ({
       return
     }
 
-    const time = Date.now()
-    const tags = [["ms", time.toString()]]
-    if (replyingTo) {
-      tags.push(["e", replyingTo.id])
-    }
-
     try {
-      const {event, innerEvent} = session.sendEvent({
-        content: text,
-        kind: CHAT_MESSAGE_KIND,
-        tags,
-      })
-
-      NDKEventFromRawEvent(event)
-        .publish()
-        .catch((e) => console.error("Failed to publish message:", e))
-
-      const message: MessageType = {
-        ...innerEvent,
-        sender: "user",
-        reactions: {},
-      }
-
-      const sessionState = localState.get("sessions").get(id)
-      sessionState.get("state").put(serializeSessionState(session.state))
-      sessionState.get("events").get(innerEvent.id).put(message)
-      sessionState.get("latest").put(message)
-      sessionState.get("lastSeen").put(time)
+      await sendMessage(id, text, replyingTo?.id)
     } catch (error) {
       console.error("Failed to send message:", error)
     }

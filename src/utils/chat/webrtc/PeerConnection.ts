@@ -3,9 +3,8 @@ import {EventEmitter} from "tseep"
 
 import {getCachedName, NDKEventFromRawEvent} from "@/utils/nostr"
 import {Rumor, Session} from "nostr-double-ratchet/src"
+import {useSessionsStore} from "@/stores/sessions"
 import socialGraph from "@/utils/socialGraph"
-
-import {getSessions} from "../Sessions"
 
 const connections = new Map<string, PeerConnection>()
 export function getPeerConnection(
@@ -33,7 +32,7 @@ export function getPeerConnection(
       !ask ||
       confirm(`WebRTC connect with ${getCachedName(pubKey)}?`))
   ) {
-    const session = getSessions().get(sessionId)
+    const session = useSessionsStore.getState().sessions.get(sessionId)
     if (!session) {
       console.error("Session not found for peer:", sessionId)
       return

@@ -5,36 +5,27 @@ import {UserRow} from "@/shared/components/user/UserRow"
 import Header from "@/shared/components/header/Header"
 import Dropdown from "@/shared/components/ui/Dropdown"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
-import {Session} from "nostr-double-ratchet/src"
-import {getSession} from "@/utils/chat/Sessions"
+import {useSessionsStore} from "@/stores/sessions"
 import {MessageType} from "../message/Message"
 import socialGraph from "@/utils/socialGraph"
 import {usePublicKey} from "@/stores/user"
-import {useEffect, useState} from "react"
 import {useNavigate} from "react-router"
-import {localState} from "irisdb/src"
-
+import {useState} from "react"
 interface PrivateChatHeaderProps {
   id: string
   messages: SortedMap<string, MessageType>
 }
 
-const PrivateChatHeader = ({id, messages}: PrivateChatHeaderProps) => {
+const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [session, setSession] = useState<Session | undefined>(undefined)
   const myPubKey = usePublicKey()
   const navigate = useNavigate()
+  const {sessions, deleteSession} = useSessionsStore()
+  const session = sessions.get(id)
 
   const handleDeleteChat = () => {
     if (id && confirm("Delete this chat?")) {
-      // TODO: delete properly, maybe needs irisdb support.
-      // also somehow make sure chatlinks dont respawn it
-      localState.get("sessions").get(id).get("state").put(null)
-      localState.get("sessions").get(id).get("deleted").put(true)
-      // put null to each message. at least the content is removed
-      for (const [messageId] of messages) {
-        localState.get("sessions").get(id).get("events").get(messageId).put(null)
-      }
+      deleteSession(id)
       navigate("/chats")
     }
   }
@@ -63,17 +54,6 @@ const PrivateChatHeader = ({id, messages}: PrivateChatHeaderProps) => {
       }
     }
   }
-
-  useEffect(() => {
-    const fetchSession = async () => {
-      if (id) {
-        const fetchedSession = await getSession(id)
-        setSession(fetchedSession)
-      }
-    }
-
-    fetchSession()
-  }, [id])
 
   const user = id.split(":").shift()!
 

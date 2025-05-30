@@ -1,6 +1,6 @@
 import {Name} from "@/shared/components/user/Name"
+import {useEventsStore} from "@/stores/events"
 import {useState, useEffect} from "react"
-import {localState} from "irisdb/src"
 import {MessageType} from "./Message"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
@@ -13,6 +13,7 @@ type ReplyPreviewProps = {
 
 const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
   const [repliedToMessage, setRepliedToMessage] = useState<MessageType | null>(null)
+  const {events} = useEventsStore()
 
   // No need to find the reply tag here since we're passing it directly
   const theirPublicKey = sessionId.split(":")[0]
@@ -39,29 +40,22 @@ const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
       try {
         // For private chats (sessionId contains ":")
         if (sessionId.includes(":")) {
-          console.log("Fetching private message:", sessionId, replyToId)
-          const replyMsg = await localState
-            .get("sessions")
-            .get(sessionId)
-            .get("events")
-            .get(replyToId)
-            .once()
-
-          if (replyMsg && typeof replyMsg === "object") {
-            console.log("Private message found:", replyMsg)
-            setRepliedToMessage(replyMsg as MessageType)
+          const sessionEvents = events.get(sessionId)
+          if (sessionEvents) {
+            const replyMsg = sessionEvents.get(replyToId)
+            if (replyMsg) {
+              setRepliedToMessage(replyMsg)
+              return
+            }
           }
-          return
         }
 
         // For public chats (sessionId is just the channel ID)
-        console.log("Fetching public message:", sessionId, replyToId)
         const event = await ndk().fetchEvent({
           ids: [replyToId],
         })
 
         if (event) {
-          console.log("Public event:", event)
           const message: MessageType = {
             id: event.id,
             pubkey: event.pubkey,
@@ -80,7 +74,7 @@ const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
     }
 
     fetchReplyMessage()
-  }, [replyToId, sessionId, theirPublicKey])
+  }, [replyToId, sessionId, theirPublicKey, events])
 
   if (!repliedToMessage) return null
 

@@ -1,10 +1,9 @@
 import {INVITE_RESPONSE_KIND, MESSAGE_EVENT_KIND} from "nostr-double-ratchet/src"
 import {NDKTag, NDKEvent, NDKUser} from "@nostr-dev-kit/ndk"
+import {useSessionsStore} from "@/stores/sessions"
 import {getZapAmount, getZappingUser} from "./nostr"
 import {useSettingsStore} from "@/stores/settings"
-import {getSessions} from "@/utils/chat/Sessions"
 import {SortedMap} from "./SortedMap/SortedMap"
-import {getInvites} from "@/utils/chat/Invites"
 import socialGraph from "@/utils/socialGraph"
 import {profileCache} from "@/utils/memcache"
 import debounce from "lodash/debounce"
@@ -170,12 +169,14 @@ export const subscribeToDMNotifications = debounce(async () => {
   if (!pushSubscription) {
     return
   }
+  const invites = useSessionsStore.getState().invites
+  const sessions = useSessionsStore.getState().sessions
 
-  const inviteRecipients = Array.from(getInvites().values())
+  const inviteRecipients = Array.from(invites.values())
     .map((i) => i.inviterEphemeralPublicKey)
     .filter((a) => typeof a === "string") as string[]
 
-  const sessionAuthors = Array.from(getSessions().values())
+  const sessionAuthors = Array.from(sessions.values())
     .flatMap((s) => [
       s?.state.theirCurrentNostrPublicKey,
       s?.state.theirNextNostrPublicKey,

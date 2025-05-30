@@ -5,10 +5,8 @@ import {useUserStore} from "./stores/user"
 import ReactDOM from "react-dom/client"
 
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
-import {loadSessions} from "@/utils/chat/Sessions"
 import {migrateUserState} from "./utils/migration"
 import {useSettingsStore} from "@/stores/settings"
-import {loadInvites} from "@/utils/chat/Invites"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
 
@@ -18,8 +16,6 @@ ndk()
 const state = useUserStore.getState()
 if (state.publicKey) {
   console.log("Initializing chat modules with existing user data")
-  loadSessions()
-  loadInvites()
   subscribeToNotifications()
   subscribeToDMNotifications()
 }
@@ -53,8 +49,6 @@ useUserStore.subscribe((state) => {
 
   if (state.publicKey && state.publicKey !== parsedPrevKey) {
     console.log("Public key changed, initializing chat modules")
-    loadSessions()
-    loadInvites()
     subscribeToNotifications()
     subscribeToDMNotifications()
   }

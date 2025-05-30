@@ -1,34 +1,22 @@
-import {getMillisecondTimestamp, Rumor} from "nostr-double-ratchet/src"
-import {useState, useEffect, useMemo} from "react"
-import {localState} from "irisdb/src"
-
-interface Session {
-  latest?: Rumor
-  lastSeen?: number
-}
+import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {useSessionsStore} from "@/stores/sessions"
+import {useEventsStore} from "@/stores/events"
+import {useMemo} from "react"
 
 export default function UnseenMessagesBadge() {
-  const [sessions, setSessions] = useState<Record<string, Session>>({})
-
-  useEffect(() => {
-    localState.get("sessions").put({})
-    const unsub = localState.get("sessions").on<Record<string, Session>>(
-      (value) => {
-        setSessions({...value})
-      },
-      false,
-      3
-    )
-    return unsub
-  }, [])
+  const {lastSeen} = useSessionsStore()
+  const {events} = useEventsStore()
 
   const hasUnread = useMemo(() => {
-    return Object.values(sessions).some((session) => {
-      const latest = session?.latest ? getMillisecondTimestamp(session.latest) : 0
-      const lastSeen = session?.lastSeen || 0
-      return latest && latest > lastSeen
+    return Array.from(events.entries()).some(([sessionId, sessionEvents]) => {
+      const [, latest] = sessionEvents.last() ?? []
+      if (!latest) return false
+
+      const latestTime = getMillisecondTimestamp(latest)
+      const lastSeenTime = lastSeen.get(sessionId) || 0
+      return latestTime > lastSeenTime
     })
-  }, [sessions])
+  }, [events, lastSeen])
 
   return (
     <>
