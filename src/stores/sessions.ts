@@ -205,9 +205,6 @@ const store = create<SessionStore>()(
       name: "sessions",
       onRehydrateStorage: () => (state) => {
         const privateKey = useUserStore.getState().privateKey
-        if (!privateKey) {
-          throw new Error("No private key")
-        }
         const decrypt = privateKey
           ? hexToBytes(privateKey)
           : async (cipherText: string, pubkey: string) => {
