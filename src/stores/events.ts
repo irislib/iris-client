@@ -23,6 +23,7 @@ interface EventsStoreState {
 interface EventsStoreActions {
   upsert: (sessionId: string, message: MessageType) => Promise<void>
   removeSession: (sessionId: string) => Promise<void>
+  removeMessage: (sessionId: string, messageId: string) => Promise<void>
   clear: () => Promise<void>
 }
 
@@ -58,6 +59,24 @@ export const useEventsStore = create<EventsStore>((set) => {
       await rehydration
       await messageRepository.clearAll()
       set({events: new Map()})
+    },
+
+    removeMessage: async (sessionId: string, messageId: string) => {
+      await rehydration
+      await messageRepository.deleteMessage(sessionId, messageId)
+      set((state) => {
+        const events = new Map(state.events)
+        const eventMap = events.get(sessionId)
+        if (eventMap) {
+          eventMap.delete(messageId)
+          if (eventMap.size === 0) {
+            events.delete(sessionId)
+          } else {
+            events.set(sessionId, eventMap)
+          }
+        }
+        return {events}
+      })
     },
   }
 })

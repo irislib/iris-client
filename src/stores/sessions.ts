@@ -5,15 +5,34 @@ import {
   deserializeSessionState,
   CHAT_MESSAGE_KIND,
 } from "nostr-double-ratchet/src"
-import {createJSONStorage, persist} from "zustand/middleware"
+import {createJSONStorage, persist, PersistStorage} from "zustand/middleware"
 import {NDKEventFromRawEvent, RawEvent} from "@/utils/nostr"
 import {MessageType} from "@/pages/chats/message/Message"
 import {Filter, VerifiedEvent} from "nostr-tools"
 import {hexToBytes} from "@noble/hashes/utils"
 import {useEventsStore} from "./events"
+import localforage from "localforage"
 import {useUserStore} from "./user"
 import {ndk} from "@/utils/ndk"
 import {create} from "zustand"
+
+// Changing storage engine doesn't trigger migration. Only version difference in storage does.
+// Here's an utility function that works around it by setting a dummy entry with version 0.
+// Simplified version of the code here:
+// https://github.com/pmndrs/zustand/discussions/1717#discussioncomment-9355154
+const forceMigrationOnInitialPersist = <S>(
+  originalStorage: PersistStorage<S> | undefined,
+  initialState: S
+): PersistStorage<S> | undefined =>
+  originalStorage === undefined
+    ? originalStorage
+    : {
+        ...originalStorage,
+        getItem: async (name) => {
+          const item = await originalStorage.getItem(name)
+          return item ?? {state: initialState, version: 0}
+        },
+      }
 
 interface SessionStoreState {
   invites: Map<string, Invite>
@@ -129,17 +148,21 @@ const store = create<SessionStore>()(
             ["ms", Date.now().toString()],
           ],
         })
-        const e = NDKEventFromRawEvent(event)
-        await e
-          .publish()
-          .then((res) => console.log("published", res))
-          .catch((e) => console.warn("Error publishing event:", e))
         const message: MessageType = {
           ...innerEvent,
           sender: "user",
           reactions: {},
         }
+        // Optimistic update
         useEventsStore.getState().upsert(sessionId, message)
+        try {
+          const e = NDKEventFromRawEvent(event)
+          await e.publish()
+          console.log("published", event.id)
+        } catch (err) {
+          console.warn("Error publishing event:", err)
+          await useEventsStore.getState().removeMessage(sessionId, message.id)
+        }
         // make sure we persist session state
         set({sessions: new Map(get().sessions)})
       },
@@ -249,7 +272,25 @@ const store = create<SessionStore>()(
         })
         state?.createDefaultInvites()
       },
-      storage: createJSONStorage(() => localStorage),
+      storage: forceMigrationOnInitialPersist(
+        createJSONStorage(() => localforage),
+        JSON.parse(localStorage.getItem("sessions") || "null")
+      ),
+      version: 1,
+      migrate: async (oldData: any, version) => {
+        if (version === 0 && oldData) {
+          const data = {
+            version: 1,
+            state: oldData.state,
+          }
+
+          const dataString = JSON.stringify(data)
+
+          await localforage.setItem("sessions", dataString)
+
+          return data.state
+        }
+      },
       partialize: (state) => {
         return {
           invites: Array.from(state.invites.entries()).map((entry) => {
@@ -264,7 +305,7 @@ const store = create<SessionStore>()(
         }
       },
       merge: (persistedState: unknown, currentState: SessionStore) => {
-        const state = persistedState as {
+        const state = (persistedState || {invites: [], sessions: [], lastSeen: []}) as {
           invites: [string, string][]
           sessions: [string, string][]
           lastSeen: [string, number][]

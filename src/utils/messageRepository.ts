@@ -42,3 +42,11 @@ export async function deleteBySession(sessionId: string): Promise<void> {
 export async function clearAll(): Promise<void> {
   await db.messages.clear()
 }
+
+export async function deleteMessage(sessionId: string, messageId: string): Promise<void> {
+  await db.messages
+    .where("session_id")
+    .equals(sessionId)
+    .and((msg) => msg.id === messageId)
+    .delete()
+}
