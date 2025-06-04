@@ -47,20 +47,19 @@ const store = create<SessionStore>()(
       invites: new Map(),
       sessions: new Map(),
       lastSeen: new Map(),
-      createDefaultInvites: () => {
+      createDefaultInvites: async () => {
         const myPubKey = useUserStore.getState().publicKey
         if (!myPubKey) {
           throw new Error("No public key")
         }
         if (!get().invites.has("public")) {
           get().createInvite("Public Invite", "public")
-          const myPrivKey = useUserStore.getState().privateKey
           const invite = get().invites.get("public")
-          if (!invite || !myPrivKey) {
+          if (!invite) {
             return
           }
           const event = invite.getEvent() as RawEvent
-          NDKEventFromRawEvent(event)
+          await NDKEventFromRawEvent(event)
             .publish()
             .then((res) => console.log("published public invite", res))
             .catch((e) => console.warn("Error publishing public invite:", e))
