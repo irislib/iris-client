@@ -96,7 +96,7 @@ const store = create<SessionStore>()(
           ? hexToBytes(myPrivKey)
           : async (cipherText: string, pubkey: string) => {
               if (window.nostr?.nip44) {
-                return window.nostr.nip44.decrypt(cipherText, pubkey)
+                return window.nostr.nip44.decrypt(pubkey, cipherText)
               }
               throw new Error("No nostr extension or private key")
             }
@@ -155,7 +155,7 @@ const store = create<SessionStore>()(
           ? hexToBytes(myPrivKey)
           : async (plaintext: string, pubkey: string) => {
               if (window.nostr?.nip44) {
-                return window.nostr.nip44.encrypt(plaintext, pubkey)
+                return window.nostr.nip44.encrypt(pubkey, plaintext)
               }
               throw new Error("No nostr extension or private key")
             }
@@ -213,7 +213,7 @@ const store = create<SessionStore>()(
           ? hexToBytes(privateKey)
           : async (cipherText: string, pubkey: string) => {
               if (window.nostr?.nip44) {
-                return window.nostr.nip44.decrypt(cipherText, pubkey)
+                return window.nostr.nip44.decrypt(pubkey, cipherText)
               }
               throw new Error("No nostr extension or private key")
             }
