@@ -278,10 +278,12 @@ const store = create<SessionStore>()(
             return [id, session] as [string, Session]
           }
         )
-        const newInvites: [string, Invite][] = state.invites.map((entry: [string, string]) => {
-          const [id, invite] = entry
-          return [id, Invite.deserialize(invite)] as [string, Invite]
-        })
+        const newInvites: [string, Invite][] = state.invites.map(
+          (entry: [string, string]) => {
+            const [id, invite] = entry
+            return [id, Invite.deserialize(invite)] as [string, Invite]
+          }
+        )
         return {
           ...currentState,
           invites: new Map<string, Invite>(newInvites),
