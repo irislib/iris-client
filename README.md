@@ -6,6 +6,9 @@ Source code for [iris.to](https://iris.to)
 [![Build Status](https://github.com/irislib/iris-client/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/irislib/iris-client/actions/workflows/ci.yml)
 [![Tests](https://github.com/irislib/iris-client/actions/workflows/ci.yml/badge.svg?branch=main&event=push&label=tests)](https://github.com/irislib/iris-client/actions/workflows/ci.yml)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/irislib/iris-client)
+
+
 ## Development
 
 ```bash
