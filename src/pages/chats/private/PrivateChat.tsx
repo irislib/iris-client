@@ -1,74 +1,72 @@
+import SessionManager from "nostr-double-ratchet/src/SessionManager"
+import {useSessionManager} from "@/stores/sessionManager"
 import ChatContainer from "../components/ChatContainer"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {comparator} from "../utils/messageGrouping"
 import PrivateChatHeader from "./PrivateChatHeader"
-import {useSessionsStore} from "@/stores/sessions"
+import {useState, useMemo, useEffect} from "react"
 import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
-import {useEventsStore} from "@/stores/events"
-import {useEffect, useState} from "react"
 
 const Chat = ({id}: {id: string}) => {
-  const {sessions, updateLastSeen} = useSessionsStore()
-  const {events} = useEventsStore()
-  const [haveReply, setHaveReply] = useState(false)
-  const [haveSent, setHaveSent] = useState(false)
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
-  const session = sessions.get(id)!
+  const [manager, setManager] = useState<SessionManager | undefined>(undefined)
+  const [messages, setMessages] = useState<MessageType[]>([])
+  const {ready, getManager} = useSessionManager()
+
+  // id is the recipient's pubkey
+  const recipientPubKey = id
 
   useEffect(() => {
-    if (!(id && session)) {
-      return
-    }
+    getManager().then(setManager)
+  }, [getManager, id])
 
-    const sessionEvents = events.get(id)
-    if (!sessionEvents) return
+  useEffect(() => {
+    if (!manager) return
 
-    Array.from(sessionEvents.entries()).forEach(([, message]) => {
-      if (!haveReply && message.sender !== "user") {
-        setHaveReply(true)
-      }
-      if (!haveSent && message.sender === "user") {
-        setHaveSent(true)
+    // Listen for new events and update messages directly
+    const unsubscribe = manager.onEvent((event: unknown) => {
+      // If the event is a message for this chat, add it to state
+      // You may want to check event type/kind here
+      console.log("manager.onEvent", event)
+      const msg = event as MessageType
+      if (msg && msg.sender === recipientPubKey) {
+        setMessages((prev) => [...prev, msg])
       }
     })
-  }, [id, session, events])
 
-  useEffect(() => {
-    if (!id) return
+    return unsubscribe
+  }, [manager, recipientPubKey])
 
-    updateLastSeen(id)
+  // Re-compute messages whenever eventTick changes
+  const messagesMemo = useMemo(() => {
+    return new SortedMap<string, MessageType>(
+      messages.map((m) => [m.id, m]),
+      comparator
+    )
+  }, [messages])
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        updateLastSeen(id)
-      }
-    }
+  console.log("recipientPubKey", recipientPubKey)
+  console.log("manager", manager)
+  console.log("ready", ready)
 
-    const handleFocus = () => {
-      updateLastSeen(id)
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange)
-    window.addEventListener("focus", handleFocus)
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange)
-      window.removeEventListener("focus", handleFocus)
-    }
-  }, [id, updateLastSeen])
-
-  if (!id || !session) {
+  if (!recipientPubKey || !manager || !ready) {
     return null
   }
 
-  const messages = events.get(id) ?? new SortedMap<string, MessageType>([], comparator)
-
   return (
     <>
-      <PrivateChatHeader id={id} messages={messages} />
-      <ChatContainer messages={messages} sessionId={id} onReply={setReplyingTo} />
-      <MessageForm id={id} replyingTo={replyingTo} setReplyingTo={setReplyingTo} />
+      <PrivateChatHeader id={recipientPubKey} messages={messagesMemo} />
+      <ChatContainer
+        messages={messagesMemo}
+        sessionId={recipientPubKey}
+        onReply={setReplyingTo}
+      />
+      <MessageForm
+        id={recipientPubKey}
+        replyingTo={replyingTo}
+        setReplyingTo={setReplyingTo}
+      />
     </>
   )
 }

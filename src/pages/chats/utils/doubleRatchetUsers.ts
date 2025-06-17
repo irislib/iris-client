@@ -1,5 +1,5 @@
+import socialGraph, {socialGraphLoaded} from "@/utils/socialGraph"
 import {NDKUserProfile} from "@nostr-dev-kit/ndk"
-import socialGraph from "@/utils/socialGraph"
 import {profileCache} from "@/utils/memcache"
 import {ndk} from "@/utils/ndk"
 import Fuse from "fuse.js"
@@ -51,8 +51,6 @@ export const updateDoubleRatchetSearchIndex = (pubkey: string) => {
     threshold: 0.3,
     includeScore: true,
   })
-
-  console.log("Updated double ratchet search index", userData.size)
 }
 
 // Search for double ratchet users using the Fuse.js index
@@ -70,13 +68,16 @@ export const getDoubleRatchetUser = (pubkey: string): DoubleRatchetUser | undefi
   return userData.get(pubkey)
 }
 
-export const subscribeToDoubleRatchetUsers = () => {
+export const subscribeToDoubleRatchetUsers = async () => {
+  await socialGraphLoaded
   if (!subscribed) {
     console.log("Subscribing to double ratchet users")
     subscribed = true
+    const authors = Array.from(socialGraph().getUsersByFollowDistance(1))
+    authors.push(socialGraph().getRoot())
     const sub = ndk().subscribe({
       kinds: [30078],
-      authors: Array.from(socialGraph().getUsersByFollowDistance(1)),
+      authors,
       "#l": ["double-ratchet/invites"],
     })
     sub.on("event", (event) => {

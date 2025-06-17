@@ -127,20 +127,24 @@ const store = create<SessionStore>()(
               }
               throw new Error("No nostr extension or private key")
             }
-        const unsubscribe = invite.listen(decrypt, subscribe, (session, identity) => {
-          const sessionId = `${identity}:${session.name}`
-          if (sessionListeners.has(sessionId)) {
-            return
+        const unsubscribe = invite.listen(
+          decrypt,
+          subscribe as any,
+          (session, identity) => {
+            const sessionId = `${identity}:${session.name}`
+            if (sessionListeners.has(sessionId)) {
+              return
+            }
+            const newSessions = new Map(store.getState().sessions)
+            newSessions.set(sessionId, session)
+            store.setState({sessions: newSessions})
+            const sessionUnsubscribe = session.onEvent((event) => {
+              useEventsStore.getState().upsert(sessionId, event)
+              store.setState({sessions: new Map(store.getState().sessions)})
+            })
+            sessionListeners.set(sessionId, sessionUnsubscribe)
           }
-          const newSessions = new Map(store.getState().sessions)
-          newSessions.set(sessionId, session)
-          store.setState({sessions: newSessions})
-          const sessionUnsubscribe = session.onEvent((event) => {
-            useEventsStore.getState().upsert(sessionId, event)
-            store.setState({sessions: new Map(store.getState().sessions)})
-          })
-          sessionListeners.set(sessionId, sessionUnsubscribe)
-        })
+        )
         inviteListeners.set(id, unsubscribe)
         set({invites: newInvites})
       },
@@ -199,7 +203,7 @@ const store = create<SessionStore>()(
               throw new Error("No nostr extension or private key")
             }
         const {session, event} = await invite.accept(
-          (filter, onEvent) => subscribe(filter, onEvent),
+          ((filter, onEvent) => subscribe(filter, onEvent)) as any,
           myPubKey,
           encrypt
         )
@@ -263,7 +267,7 @@ const store = create<SessionStore>()(
           }
           const inviteUnsubscribe = invite.listen(
             decrypt,
-            subscribe,
+            subscribe as any,
             (session, identity) => {
               const sessionId = `${identity}:${session.name}`
               if (sessionListeners.has(sessionId)) {
@@ -339,7 +343,10 @@ const store = create<SessionStore>()(
         }
         const newSessions: [string, Session][] = state.sessions.map(
           ([id, sessionState]: [string, string]) => {
-            const session = new Session(subscribe, deserializeSessionState(sessionState))
+            const session = new Session(
+              subscribe as any,
+              deserializeSessionState(sessionState)
+            )
             return [id, session] as [string, Session]
           }
         )

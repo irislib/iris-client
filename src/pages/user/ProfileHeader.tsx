@@ -16,7 +16,6 @@ import Header from "@/shared/components/header/Header"
 import {Name} from "@/shared/components/user/Name.tsx"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import Modal from "@/shared/components/ui/Modal.tsx"
-import {useSessionsStore} from "@/stores/sessions"
 import Icon from "@/shared/components/Icons/Icon"
 import {Filter, VerifiedEvent} from "nostr-tools"
 import {Invite} from "nostr-double-ratchet/src"
@@ -105,12 +104,7 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
                   className="btn btn-circle btn-neutral"
                   onClick={async () => {
                     if (!invite) return
-                    const sessionId = await useSessionsStore
-                      .getState()
-                      .acceptInvite(invite.getUrl())
-                    navigate("/chats/chat", {
-                      state: {id: sessionId},
-                    })
+                    navigate("/chats/chat", {state: {id: pubKey}})
                   }}
                 >
                   <Icon name="mail-outline" className="w-6 h-6" />

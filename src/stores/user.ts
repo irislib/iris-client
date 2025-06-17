@@ -1,3 +1,5 @@
+import {useSessionManager} from "./sessionManager"
+import {hexToBytes} from "@noble/hashes/utils"
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
 
@@ -78,8 +80,20 @@ export const useUserStore = create<UserState>()(
       }
 
       const actions = {
-        setPublicKey: (publicKey: string) => set({publicKey}),
-        setPrivateKey: (privateKey: string) => set({privateKey}),
+        setPublicKey: (publicKey: string) => {
+          set({publicKey})
+          const {privateKey} = useUserStore.getState()
+          if (privateKey) {
+            initialiseSessionManager(publicKey, privateKey)
+          }
+        },
+        setPrivateKey: (privateKey: string) => {
+          set({privateKey})
+          const {publicKey} = useUserStore.getState()
+          if (publicKey) {
+            initialiseSessionManager(publicKey, privateKey)
+          }
+        },
         setNip07Login: (nip07Login: boolean) => set({nip07Login}),
         setDHTPublicKey: (DHTPublicKey: string) => set({DHTPublicKey}),
         setDHTPrivateKey: (DHTPrivateKey: string) => set({DHTPrivateKey}),
@@ -138,3 +152,21 @@ export const useWalletConnect = () => useUserStore((state) => state.walletConnec
 export const useCashuEnabled = () => useUserStore((state) => state.cashuEnabled)
 export const useDefaultZapAmount = () => useUserStore((state) => state.defaultZapAmount)
 export const useReset = () => useUserStore((state) => state.reset)
+
+// Device id is persisted once per browser profile
+const getDeviceId = () => {
+  const stored = window.localStorage.getItem("deviceId")
+  if (stored) return stored
+  const newId = `web-${crypto.randomUUID()}`
+  window.localStorage.setItem("deviceId", newId)
+  return newId
+}
+
+const initialiseSessionManager = (publicKey: string, privateKeyHex: string) => {
+  if (!privateKeyHex) return
+  const {manager, init} = useSessionManager.getState()
+  if (manager) return // already initialised
+  const rawPriv = hexToBytes(privateKeyHex)
+  const deviceId = getDeviceId()
+  init(rawPriv, deviceId).catch((e) => console.error("SessionManager init failed", e))
+}

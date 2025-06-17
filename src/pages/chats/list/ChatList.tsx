@@ -1,8 +1,8 @@
 import {CHANNEL_CREATE, CHANNEL_MESSAGE} from "../utils/constants"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {PublicChatContext} from "../public/PublicChatContext"
+import {useSessionManager} from "@/stores/sessionManager"
 import Header from "@/shared/components/header/Header"
-import {useSessionsStore} from "@/stores/sessions"
 import {useEventsStore} from "@/stores/events"
 import {useUserStore} from "@/stores/user"
 import ChatListItem from "./ChatListItem"
@@ -25,7 +25,9 @@ type PublicChat = {
 }
 
 const ChatList = ({className}: ChatListProps) => {
-  const {sessions} = useSessionsStore()
+  const {getChatUsers, tick: _tick} = useSessionManager()
+  void _tick // re-render when tick changes
+  const chatUsers = getChatUsers()
   const {events} = useEventsStore()
   const [publicChats, setPublicChats] = useState<PublicChat[]>([])
   const [publicChatTimestamps, setPublicChatTimestamps] = useState<
@@ -120,9 +122,7 @@ const ChatList = ({className}: ChatListProps) => {
   // Combine private and public chats for display
   const allChats = Object.values(
     [
-      ...Array.from(sessions)
-        .filter(([, session]) => !!session) //&& !session.state.deleted)
-        .map(([id]) => ({id, isPublic: false})),
+      ...chatUsers.map((pub) => ({id: pub, isPublic: false})),
       ...publicChats.map((chat) => ({id: chat.id, isPublic: true})),
     ].reduce(
       (acc, chat) => {
