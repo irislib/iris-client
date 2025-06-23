@@ -1,5 +1,5 @@
-import {ReactNode, useRef, useEffect, MouseEvent} from "react"
 import {MOBILE_BREAKPOINT} from "@/shared/components/user/const.ts"
+import {ReactNode, useRef, useEffect, MouseEvent} from "react"
 import {RiMenuLine, RiArrowLeftLine} from "@remixicon/react"
 import NotificationButton from "./NotificationButton"
 import {useUserStore} from "@/stores/user"
