@@ -323,6 +323,7 @@ const store = create<SessionStore>()(
             return [id, serializeSessionState(session.state)]
           }),
           lastSeen: Array.from(state.lastSeen.entries()),
+          lastSeenPublic: Array.from(state.lastSeenPublic.entries()),
         }
       },
       merge: (persistedState: unknown, currentState: SessionStore) => {
