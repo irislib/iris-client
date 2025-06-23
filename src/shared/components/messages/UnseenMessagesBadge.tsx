@@ -11,9 +11,14 @@ export default function UnseenMessagesBadge() {
     return Array.from(events.entries()).some(([sessionId, sessionEvents]) => {
       const [, latest] = sessionEvents.last() ?? []
       if (!latest) return false
+      if (latest.sender === "user") return false
 
       const latestTime = getMillisecondTimestamp(latest)
-      const lastSeenTime = lastSeen.get(sessionId) || 0
+      const lastSeenTime = lastSeen.get(sessionId)
+
+      // If no lastSeen exists, don't show as unread (new sessions)
+      if (lastSeenTime === undefined) return false
+
       return latestTime > lastSeenTime
     })
   }, [events, lastSeen])
