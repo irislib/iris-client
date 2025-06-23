@@ -13,9 +13,9 @@ import {CacheableResponsePlugin} from "workbox-cacheable-response"
 import {precacheAndRoute, PrecacheEntry} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
-import {VerifiedEvent} from "nostr-tools"
 import {registerRoute} from "workbox-routing"
 import {clientsClaim} from "workbox-core"
+import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 
 // eslint-disable-next-line no-undef

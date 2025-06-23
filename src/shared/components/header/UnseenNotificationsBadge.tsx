@@ -10,9 +10,7 @@ export default function UnseenNotificationsBadge() {
 
   return (
     <>
-      {shouldShow && (
-        <div className="indicator-item badge badge-primary badge-xs"></div>
-      )}
+      {shouldShow && <div className="indicator-item badge badge-primary badge-xs"></div>}
     </>
   )
 }
