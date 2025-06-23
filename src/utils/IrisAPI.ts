@@ -9,19 +9,13 @@ export interface PushNotifications {
 }
 
 export interface Invoice {
-  id: number
+  id: string
   amount: number
+  currency: string
   status: string
   created_at: string
-  currency: string
-  subscription?: number
-  payment_hash?: string | null
-  paid_at?: string | null
-  expires_at?: string | null
-  btcpayserver_invoice_id?: string | null
-  btcpayserver_invoice_url?: string | null
-  btcpayserver_payment_method?: string | null
-  payment_url?: string | null
+  paid_at?: string
+  btcpayserver_invoice_url?: string
 }
 
 export interface Subscription {
@@ -41,6 +35,17 @@ export interface Subscription {
 
 export interface SubscriptionResponse {
   [key: string]: Subscription
+}
+
+export interface SubscriptionCreateResponse {
+  id: string
+  invoice: Invoice
+  subscriber: string
+  subscription_plan: number
+  pricing_option: number
+  currency: string
+  end_date?: string
+  canceled_date?: string
 }
 
 /**
@@ -72,11 +77,31 @@ export default class IrisAPI {
     pricing_option: number
     currency: string
   }) {
-    return this.getJsonAuthd<void>("subscriptions/create/", "POST", subscriptionData)
+    return this.getJsonAuthd<SubscriptionCreateResponse>(
+      "subscriptions/create/",
+      "POST",
+      subscriptionData
+    )
   }
 
   getInvoices() {
     return this.getJsonAuthd<Invoice[]>("invoices/")
+  }
+
+  getPaymentLink(invoiceId: string) {
+    return this.getJsonAuthd<{btcpayserver_invoice_url: string}>(
+      `invoices/${invoiceId}/get-payment-link/`,
+      "POST"
+    )
+  }
+
+  registerUsername(username: string, cfToken?: string) {
+    // For users with subscriptions, cfToken is optional
+    const data: {username: string; cfToken?: string} = {username}
+    if (cfToken) {
+      data.cfToken = cfToken
+    }
+    return this.getJsonAuthd<{signed_up: boolean}>("user/register", "POST", data)
   }
 
   registerPushNotifications(web_push_subscriptions: PushNotifications[], filter: Filter) {

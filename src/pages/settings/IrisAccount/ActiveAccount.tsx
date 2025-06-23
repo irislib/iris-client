@@ -36,7 +36,7 @@ export default function ActiveAccount({
   return (
     <div>
       <div className="negative">
-        You have an active iris.to account:
+        You have an active iris.to username:
         <AccountName name={name} />
       </div>
       <p>

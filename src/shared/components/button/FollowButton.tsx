@@ -12,8 +12,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   const [isHovering, setIsHovering] = useState(false)
   const [, setUpdated] = useState(0)
 
-  console.log("FollowButton rendering with pubKey:", pubKey, "myPubKey:", myPubKey)
-
   const isTestEnvironment =
     typeof window !== "undefined" && window.location.href.includes("localhost:5173")
 
@@ -27,8 +25,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
     }
   }, [pubKey])
 
-  console.log("pubKeyHex:", pubKeyHex)
-
   let isFollowing = false
   let isMuted = false
 
@@ -36,7 +32,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
     if (myPubKey && pubKeyHex) {
       isFollowing = socialGraph().isFollowing(myPubKey, pubKeyHex)
       isMuted = socialGraph().getMutedByUser(myPubKey).has(pubKeyHex)
-      console.log("Social graph check - isFollowing:", isFollowing, "isMuted:", isMuted)
     }
   } catch (error) {
     console.error("Error checking social graph:", error)
@@ -49,7 +44,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   }, [isFollowing])
 
   if ((!myPubKey || !pubKeyHex || pubKeyHex === myPubKey) && !isTestEnvironment) {
-    console.log("Not rendering FollowButton - conditions not met")
     return null
   }
 
@@ -60,7 +54,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
     }
 
     setLocalIsFollowing(!localIsFollowing)
-    console.log("Button clicked, updating localIsFollowing to:", !localIsFollowing)
 
     const event = new NDKEvent(ndk())
     event.kind = 3

@@ -12,7 +12,7 @@ import {formatAmount} from "@/utils/utils.ts"
 import Icon from "../../Icons/Icon"
 
 import {shouldHideAuthor} from "@/utils/visibility"
-import {localState} from "irisdb/src"
+import {useUserStore} from "@/stores/user"
 
 interface FeedItemRepostProps {
   event: NDKEvent
@@ -22,11 +22,9 @@ const repostCache = new LRUCache<string, Set<string>>({
   maxSize: 100,
 })
 
-let myPubKey = ""
-localState.get("user/publicKey").on((k) => (myPubKey = k as string))
-
 function FeedItemRepost({event}: FeedItemRepostProps) {
   const location = useLocation()
+  const myPubKey = useUserStore((state) => state.publicKey)
 
   const cachedReposts = repostCache.get(event.id)
   const [repostsByAuthor, setRepostsByAuthor] = useState<Set<string>>(
@@ -99,7 +97,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
           <NoteCreator handleClose={() => setShowQuoteModal(false)} quotedEvent={event} />
         </Modal>
       )}
-      <div
+      <button
         title="Repost"
         className={`${
           reposted ? "cursor-pointer text-success" : "cursor-pointer hover:text-success"
@@ -126,7 +124,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
           )}
         </div>
         <span>{formatAmount(repostCount)}</span>
-      </div>
+      </button>
     </>
   )
 }

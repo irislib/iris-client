@@ -6,6 +6,7 @@ import NavLink from "./NavLink"
 import PublicKeyQRCodeButton from "../user/PublicKeyQRCodeButton"
 import {useWalletBalance} from "../../hooks/useWalletBalance"
 import {NotificationNavItem} from "./NotificationNavItem"
+import {SubscriptionNavItem} from "./SubscriptionNavItem"
 import {MessagesNavItem} from "./MessagesNavItem"
 import PublishButton from "../ui/PublishButton"
 import ErrorBoundary from "../ui/ErrorBoundary"
@@ -23,10 +24,10 @@ const NavSideBar = () => {
   const myPubKey = usePublicKey()
 
   const navItems = useMemo(() => {
-    const configItems = navItemsConfig(myPubKey)
-    return (CONFIG.navItems as Array<keyof typeof configItems>)
-      .map((key) => configItems[key])
-      .filter((item) => !("requireLogin" in item) || (item.requireLogin && myPubKey))
+    const configItems = navItemsConfig()
+    return Object.values(configItems).filter(
+      (item) => !("requireLogin" in item) || (item.requireLogin && myPubKey)
+    )
   }, [myPubKey])
 
   const logoUrl = CONFIG.navLogo
@@ -64,6 +65,9 @@ const NavSideBar = () => {
               }
               if (label === "Notifications") {
                 return <NotificationNavItem key={to} to={to} onClick={onClick} />
+              }
+              if (label === "Subscription") {
+                return <SubscriptionNavItem key={to} to={to} onClick={onClick} />
               }
               return (
                 <NavItem

@@ -5,16 +5,18 @@ import {
 } from "@/utils/notifications"
 import NotificationsFeedItem from "@/pages/notifications/NotificationsFeedItem"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
+import {useEffect, useCallback, useState, Suspense} from "react"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import {useNotificationsStore} from "@/stores/notifications"
 import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
 import runningOstrich from "@/assets/running-ostrich.gif"
 import {getTag, getZappingUser} from "@/utils/nostr.ts"
-import {useEffect, useCallback, useState} from "react"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
+import {shouldHideAuthor} from "@/utils/visibility"
+import {useSettingsStore} from "@/stores/settings"
 import socialGraph from "@/utils/socialGraph"
+import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
-import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
 
 const INITIAL_DISPLAY_COUNT = 10
@@ -45,10 +47,8 @@ const getNotifications = debounce((myPubKey?: string) => {
 
   let latest = 0
 
-  let hideEventsByUnknownUsers = true
-  localState
-    .get("settings/hideEventsByUnknownUsers")
-    .on((v) => (hideEventsByUnknownUsers = v as boolean))
+  const settings = useSettingsStore.getState()
+  const hideEventsByUnknownUsers = settings.content?.hideEventsByUnknownUsers
 
   sub.on("event", (event: NDKEvent) => {
     if (event.kind !== 9735) {
@@ -56,6 +56,12 @@ const getNotifications = debounce((myPubKey?: string) => {
       if (event.pubkey === myPubKey) return
       if (hideEventsByUnknownUsers && socialGraph().getFollowDistance(event.pubkey) > 5)
         return
+      // Skip notifications from authors that should be hidden
+      if (shouldHideAuthor(event.pubkey)) return
+    } else {
+      // For zap notifications, check the zapping user
+      const zappingUser = getZappingUser(event)
+      if (zappingUser && shouldHideAuthor(zappingUser)) return
     }
     const eTag = getTag("e", event.tags)
     if (eTag && event.created_at) {
@@ -92,26 +98,30 @@ const getNotifications = debounce((myPubKey?: string) => {
 
       if (created_at > latest) {
         latest = created_at
-        localState.get("notifications/latest").put(latest)
+        useNotificationsStore.getState().setLatestNotification(latest)
       }
     }
   })
-}, 2000)
-
-localState.get("user/publicKey").on(
-  (myPubKey) => {
-    notifications.clear()
-    getNotifications(myPubKey)
-  },
-  true,
-  undefined,
-  String
-)
-
-let notificationsSeenAt = 0
-localState.get("notifications/seenAt").on((v) => (notificationsSeenAt = v as number))
+}, 500)
 
 function NotificationsFeed() {
+  const notificationsSeenAt = useNotificationsStore((state) => state.notificationsSeenAt)
+  const publicKey = useUserStore((state) => state.publicKey)
+
+  useEffect(() => {
+    if (publicKey) {
+      getNotifications(publicKey)
+    }
+
+    const unsubscribe = useUserStore.subscribe((state, prevState) => {
+      if (state.publicKey && state.publicKey !== prevState.publicKey) {
+        notifications.clear()
+        getNotifications(state.publicKey)
+      }
+    })
+    return () => unsubscribe()
+  }, [publicKey])
+
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,
     "displayCount"
@@ -131,7 +141,7 @@ function NotificationsFeed() {
   const updateSeenAt = useCallback(() => {
     if (document.hasFocus()) {
       setTimeout(() => {
-        localState.get("notifications/seenAt").put(Date.now())
+        useNotificationsStore.getState().setNotificationsSeenAt(Date.now())
       }, 1000)
     }
   }, [latestNotificationTime, notificationsSeenAt])
@@ -192,7 +202,9 @@ function NotificationsFeed() {
         ) : (
           <div className="p-8 flex flex-col gap-8 items-center justify-center text-base-content/50">
             No notifications yet
-            <img src={runningOstrich} alt="" className="w-24" />
+            <Suspense fallback={<div>Loading...</div>}>
+              <img src={runningOstrich} alt="" className="w-24" />
+            </Suspense>
           </div>
         )}
       </InfiniteScroll>

@@ -1,4 +1,4 @@
-import {getMillisecondTimestamp, Rumor, Session} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp, Rumor} from "nostr-double-ratchet/src"
 import MessageReactionButton from "../reaction/MessageReactionButton"
 import MessageReactions from "../reaction/MessageReactions"
 import {Avatar} from "@/shared/components/user/Avatar"
@@ -6,6 +6,7 @@ import HyperText from "@/shared/components/HyperText"
 import {shouldHideAuthor} from "@/utils/visibility"
 import {Name} from "@/shared/components/user/Name"
 import {useMemo, useEffect, useState} from "react"
+import {useEventsStore} from "@/stores/events"
 import ReplyPreview from "./ReplyPreview"
 import classNames from "classnames"
 import {Link} from "react-router"
@@ -21,7 +22,6 @@ type MessageProps = {
   message: MessageType
   isFirst: boolean
   isLast: boolean
-  session: Session
   sessionId: string
   onReply?: () => void
   showAuthor?: boolean
@@ -74,7 +74,6 @@ const Message = ({
   message,
   isFirst,
   isLast,
-  session,
   sessionId,
   onReply,
   showAuthor = false,
@@ -82,6 +81,7 @@ const Message = ({
   reactions: propReactions,
 }: MessageProps) => {
   const isUser = message.sender === "user"
+  const {events} = useEventsStore()
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(
     propReactions || {}
   )
@@ -89,6 +89,8 @@ const Message = ({
     () => EMOJI_REGEX.test(message.content?.trim() ?? ""),
     [message.content]
   )
+
+  const sessionReactions = events.get(sessionId)?.get(message.id)?.reactions || {}
 
   // Set up reaction subscription
   useEffect(() => {
@@ -151,11 +153,10 @@ const Message = ({
       )}
       id={message.id}
     >
-      <div className="flex items-center justify-center gap-2 max-w-[85%] md:max-w-[70%]">
+      <div className="flex items-center justify-center gap-2">
         {isUser && (
           <MessageReactionButton
             messageId={message.id}
-            session={session}
             sessionId={sessionId}
             isUser={isUser}
             onReply={onReply}
@@ -202,13 +203,19 @@ const Message = ({
             </div>
           </div>
 
-          <MessageReactions rawReactions={localReactions} isUser={isUser} />
+          <MessageReactions
+            rawReactions={
+              Object.keys(sessionReactions).length <= 0
+                ? localReactions
+                : sessionReactions
+            }
+            isUser={isUser}
+          />
         </div>
 
         {!isUser && (
           <MessageReactionButton
             messageId={message.id}
-            session={session}
             sessionId={sessionId}
             isUser={isUser}
             onReply={onReply}

@@ -1,16 +1,18 @@
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {useState, FormEvent, useEffect} from "react"
 import {useNavigate} from "react-router"
-import {localState} from "irisdb/src"
 import {ndk} from "@/utils/ndk"
 import PopularChannels from "./PopularChannels"
+import {useUserStore} from "@/stores/user"
 import ProxyImg from "@/shared/components/ProxyImg"
 import MinidenticonImg from "@/shared/components/user/MinidenticonImg"
 import { searchChannels } from "../utils/channelSearch"
 import { ChannelMetadata, getChannelsByFollowed } from "../utils/channelMetadata"
 
-let publicKey = ""
-localState.get("user/publicKey").on((k) => (publicKey = k as string))
+let publicKey = useUserStore.getState().publicKey
+useUserStore.subscribe((state) => {
+  publicKey = state.publicKey
+})
 
 const PublicChatCreation = () => {
   const navigate = useNavigate()

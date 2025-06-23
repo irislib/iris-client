@@ -1,9 +1,9 @@
 import {RiErrorWarningLine, RiGithubFill, RiShieldCheckFill} from "@remixicon/react"
 import {ElementType, ReactNode, useEffect, useMemo, useState} from "react"
+import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
 import {NDKUserProfile} from "@nostr-dev-kit/ndk"
 import {useNavigate} from "react-router"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
 
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
 import HyperText from "@/shared/components/HyperText.tsx"
@@ -32,8 +32,8 @@ function ProfileDetails({
   pubKey,
 }: ProfileDetailsProps) {
   const navigate = useNavigate()
-  const [nip05valid, setNIP05valid] = useState<boolean | null>(null)
   const [isValidPubkey, setIsValidPubkey] = useState(true)
+  const nip05valid = useNip05Validation(pubKey, displayProfile?.nip05)
 
   const website = useMemo(() => {
     if (!displayProfile?.website) return null
@@ -44,19 +44,18 @@ function ProfileDetails({
     }
   }, [displayProfile])
 
-  const {npub, hexPub} = useMemo(() => {
-    if (!pubKey) return {npub: "", hexPub: ""}
+  const {hexPub} = useMemo(() => {
+    if (!pubKey) return {hexPub: ""}
 
     try {
-      const npub = pubKey.startsWith("npub") ? pubKey : nip19.npubEncode(pubKey)
       const hexPub = pubKey.startsWith("npub")
         ? String(nip19.decode(pubKey).data)
         : pubKey
-      return {npub, hexPub}
+      return {hexPub}
     } catch (error) {
       console.warn("Invalid pubkey:", error)
       setIsValidPubkey(false)
-      return {npub: "", hexPub: ""}
+      return {hexPub: ""}
     }
   }, [pubKey])
 
@@ -64,25 +63,16 @@ function ProfileDetails({
   const isMuted = useMemo(() => mutes.includes(hexPub), [mutes, hexPub])
 
   useEffect(() => {
-    if (npub && displayProfile?.nip05) {
-      ndk()
-        ?.getUser({npub})
-        ?.validateNip05(displayProfile.nip05)
-        .then((isValid) => {
-          setNIP05valid(isValid ?? false)
-          if (isValid && displayProfile.nip05?.endsWith("@iris.to")) {
-            const currentPath = window.location.pathname.split("/").slice(2).join("/")
-            const basePath = displayProfile.nip05.replace("@iris.to", "")
-            const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
+    if (nip05valid && displayProfile?.nip05?.endsWith("@iris.to")) {
+      const currentPath = window.location.pathname.split("/").slice(2).join("/")
+      const basePath = displayProfile.nip05.replace("@iris.to", "")
+      const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
 
-            if (window.location.pathname !== newPath) {
-              navigate(newPath, {replace: true})
-            }
-          }
-        })
-        .catch((error) => console.warn(error))
+      if (window.location.pathname !== newPath) {
+        navigate(newPath, {replace: true})
+      }
     }
-  }, [npub, displayProfile])
+  }, [nip05valid, displayProfile?.nip05, navigate])
 
   const renderProfileField = (
     IconComponent: ElementType,
@@ -113,14 +103,17 @@ function ProfileDetails({
       <MutedBy pubkey={hexPub} />
       <SubscriberBadge className="mb-1" pubkey={hexPub} />
       {displayProfile?.nip05 && (
-        <div className={nip05valid === null ? "invisible" : "visible"}>
+        <div>
           {renderProfileField(
-            nip05valid ? RiShieldCheckFill : RiErrorWarningLine,
-            nip05valid ? (
-              displayProfile.nip05.replace("_@", "")
-            ) : (
-              <s>{String(displayProfile.nip05).replace("_@", "")}</s>
-            ),
+            (() => {
+              if (nip05valid === null) return RiShieldCheckFill
+              return nip05valid ? RiShieldCheckFill : RiErrorWarningLine
+            })(),
+            (() => {
+              const displayName = displayProfile.nip05.replace("_@", "")
+              if (nip05valid === null) return displayName
+              return nip05valid ? displayName : <s>{displayName}</s>
+            })(),
             "nip05"
           )}
         </div>

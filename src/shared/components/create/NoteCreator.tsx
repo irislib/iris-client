@@ -11,7 +11,7 @@ import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import HyperText from "@/shared/components/HyperText.tsx"
 import {eventsByIdCache} from "@/utils/memcache"
 import {useDraftStore} from "@/stores/draft"
-import {uploadFile} from "@/shared/upload"
+import {processFile} from "@/shared/upload"
 import {usePublicKey} from "@/stores/user"
 import Textarea from "./Textarea"
 import {ndk} from "@/utils/ndk"
@@ -141,26 +141,14 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
     metadata?: {width: number; height: number; blurhash: string}
   ) => {
     if (textarea) {
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      const textBeforeCursor = noteContent.substring(0, start)
-      const textAfterCursor = noteContent.substring(end)
+      // Always append the URL with a line break at the end of the content
+      setNoteContent((prev) => prev + `\n${url}\n`)
 
-      // Check if cursor is in the middle of or adjacent to a word
-      const isAdjacentToWord =
-        (start > 0 && /\w/.test(noteContent[start - 1])) || /\w/.test(noteContent[end])
-
-      if (isAdjacentToWord) {
-        // If adjacent to a word, append the URL at the end
-        setNoteContent(noteContent + ` ${url}`)
-      } else {
-        // Otherwise, insert the URL at the cursor position
-        setNoteContent(textBeforeCursor + ` ${url} ` + textAfterCursor)
-        // Move cursor to the end of the inserted URL
-        setTimeout(() => {
-          textarea.selectionStart = textarea.selectionEnd = start + url.length + 2
-        }, 0)
-      }
+      // Move cursor to the end of the content
+      setTimeout(() => {
+        const newPosition = noteContent.length + url.length + 2 // +2 for the line breaks
+        textarea.selectionStart = textarea.selectionEnd = newPosition
+      }, 0)
 
       // Store metadata if available
       if (metadata) {
@@ -195,10 +183,10 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
     setUploadProgress(0)
     setUploadError(null)
     try {
-      const url = await uploadFile(file, (progress) => {
+      const {url, metadata} = await processFile(file, (progress: number) => {
         setUploadProgress(progress)
       })
-      handleUpload(url)
+      handleUpload(url, metadata)
     } catch (error) {
       console.error("File upload failed:", error)
       setUploadError(error instanceof Error ? error.message : String(error))
@@ -304,7 +292,7 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
 
       <div className="flex justify-between items-center">
         <div className="flex gap-2">
-          <UploadButton onUpload={handleUpload} />
+          <UploadButton onUpload={handleUpload} multiple={true} />
           {!isTouchDevice && <EmojiButton onEmojiSelect={handleEmojiSelect} />}
         </div>
         <button

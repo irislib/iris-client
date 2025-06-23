@@ -1,18 +1,22 @@
-import {CHAT_MESSAGE_KIND, serializeSessionState, Session} from "nostr-double-ratchet/src"
-import {FormEvent, useState, useEffect, useRef, ChangeEvent} from "react"
+import {
+  FormEvent,
+  useState,
+  useEffect,
+  ChangeEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+} from "react"
+import {useAutosizeTextarea} from "@/shared/hooks/useAutosizeTextarea"
 import UploadButton from "@/shared/components/button/UploadButton"
 import EmojiButton from "@/shared/components/emoji/EmojiButton"
 import MessageFormReplyPreview from "./MessageFormReplyPreview"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
-import {NDKEventFromRawEvent} from "@/utils/nostr"
+import {useSessionsStore} from "@/stores/sessions"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiAttachment2} from "@remixicon/react"
 import EmojiType from "@/types/emoji"
-import {localState} from "irisdb/src"
 import {MessageType} from "./Message"
 
 interface MessageFormProps {
-  session: Session
   id: string
   replyingTo?: MessageType
   setReplyingTo: (message?: MessageType) => void
@@ -21,28 +25,29 @@ interface MessageFormProps {
 }
 
 const MessageForm = ({
-  session,
   id,
   replyingTo,
   setReplyingTo,
   onSendMessage,
   isPublicChat = false,
 }: MessageFormProps) => {
+  const {sendMessage} = useSessionsStore()
   const [newMessage, setNewMessage] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useAutosizeTextarea(newMessage)
   const theirPublicKey = id.split(":")[0]
 
   useEffect(() => {
-    if (!isTouchDevice && inputRef.current) {
-      inputRef.current.focus()
+    if (!isTouchDevice && textareaRef.current) {
+      textareaRef.current.focus()
     }
 
-    if (replyingTo && inputRef.current) {
-      inputRef.current.focus()
+    if (replyingTo && textareaRef.current) {
+      textareaRef.current.focus()
     }
 
-    const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && replyingTo) {
+    const handleEscKey = (event: Event) => {
+      const keyboardEvent = event as unknown as ReactKeyboardEvent
+      if (keyboardEvent.key === "Escape" && replyingTo) {
         setReplyingTo(undefined)
       }
     }
@@ -56,12 +61,10 @@ const MessageForm = ({
     const text = newMessage.trim()
     if (!text) return
 
-    // Clear form immediately
     setNewMessage("")
     if (replyingTo) {
       setReplyingTo(undefined)
     }
-
     if (onSendMessage) {
       onSendMessage(text).catch((error) => {
         console.error("Failed to send message:", error)
@@ -69,51 +72,34 @@ const MessageForm = ({
       return
     }
 
-    const time = Date.now()
-    const tags = [["ms", time.toString()]]
-    if (replyingTo) {
-      tags.push(["e", replyingTo.id])
-    }
-
     try {
-      const {event, innerEvent} = session.sendEvent({
-        content: text,
-        kind: CHAT_MESSAGE_KIND,
-        tags,
-      })
-
-      NDKEventFromRawEvent(event)
-        .publish()
-        .catch((e) => console.error("Failed to publish message:", e))
-
-      const message: MessageType = {
-        ...innerEvent,
-        sender: "user",
-        reactions: {},
-      }
-
-      const sessionState = localState.get("sessions").get(id)
-      sessionState.get("state").put(serializeSessionState(session.state))
-      sessionState.get("events").get(innerEvent.id).put(message)
-      sessionState.get("latest").put(message)
-      sessionState.get("lastSeen").put(time)
+      await sendMessage(id, text, replyingTo?.id)
     } catch (error) {
       console.error("Failed to send message:", error)
     }
   }
 
-  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setNewMessage(e.target.value)
+  }
+
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    if (isTouchDevice) return
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e as unknown as FormEvent)
+    }
   }
 
   const handleEmojiClick = (emoji: EmojiType) => {
     setNewMessage((prev) => prev + emoji.native)
-    inputRef.current?.focus()
+    textareaRef.current?.focus()
   }
 
   const handleUpload = (url: string) => {
     setNewMessage((prev) => prev + " " + url)
-    inputRef.current?.focus()
+    textareaRef.current?.focus()
   }
 
   return (
@@ -129,22 +115,26 @@ const MessageForm = ({
       <div className="flex gap-2 p-4 relative">
         {isPublicChat && (
           <UploadButton
+            multiple={true}
             onUpload={handleUpload}
             className="btn btn-ghost btn-circle btn-sm md:btn-md"
             text={<RiAttachment2 size={20} />}
           />
         )}
-        <form onSubmit={handleSubmit} className="flex-1 flex gap-2">
+        <form onSubmit={handleSubmit} className="flex-1 flex gap-2 items-center">
           <div className="relative flex-1 flex gap-2 items-center">
             {!isTouchDevice && <EmojiButton onEmojiSelect={handleEmojiClick} />}
-            <input
-              ref={inputRef}
-              type="text"
+            <textarea
+              ref={textareaRef}
               value={newMessage}
               onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
               placeholder="Message"
-              className="flex-1 input input-sm md:input-md input-bordered"
+              className={`flex-1 textarea leading-tight resize-none py-2.5 min-h-[2.5rem] ${
+                newMessage.includes("\n") ? "rounded-lg" : "rounded-full"
+              }`}
               aria-label="Message input"
+              rows={1}
             />
           </div>
           <button

@@ -20,7 +20,9 @@ export default function SignUp({onClose}: SignUpProps) {
 
   useEffect(() => {
     if (inputRef.current) {
-      inputRef.current.focus()
+      setTimeout(() => {
+        inputRef.current?.focus()
+      })
     }
   }, [inputRef.current])
 

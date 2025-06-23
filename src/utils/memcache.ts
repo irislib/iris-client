@@ -9,6 +9,9 @@ export const feedCache = new LRUCache<string, SortedMap<string, NDKEvent>>({maxS
 export const seenEventIds = new LRUCache<string, boolean>({maxSize: 10000})
 export const profileCache = new LRUCache<string, NDKUserProfile>({maxSize: 100000})
 
+// Cache for NIP-05 verification results
+export const nip05VerificationCache = new LRUCache<string, boolean>({maxSize: 1000})
+
 localforage
   .getItem<string[]>("seenEventIds")
   .then((s) => {

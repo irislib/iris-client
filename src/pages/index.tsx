@@ -13,6 +13,7 @@ import HomePage from "@/pages/home"
 // Lazy load components
 const ChatsPage = lazy(() => import("@/pages/chats"))
 const SettingsPage = lazy(() => import("@/pages/settings"))
+const SubscriptionPage = lazy(() => import("@/pages/subscription"))
 
 export const router = createBrowserRouter(
   createRoutesFromElements([
@@ -33,6 +34,14 @@ export const router = createBrowserRouter(
         element={
           <Suspense fallback={<LoadingFallback />}>
             <SettingsPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/subscribe"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SubscriptionPage />
           </Suspense>
         }
       />

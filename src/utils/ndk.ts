@@ -20,7 +20,8 @@ let nip07Signer: NDKNip07Signer | undefined
  * Default relays to use when initializing NDK
  */
 export const DEFAULT_RELAYS = [
-  "wss://strfry.iris.to",
+  "wss://temp.iris.to",
+  "wss://vault.iris.to",
   "wss://relay.damus.io",
   "wss://relay.nostr.band",
   "wss://relay.snort.social",
@@ -34,12 +35,32 @@ export const DEFAULT_RELAYS = [
  */
 export const ndk = (opts?: NDKConstructorParams): NDK => {
   if (!ndkInstance) {
+    const store = useUserStore.getState()
     const options = opts || {
       explicitRelayUrls: DEFAULT_RELAYS,
       enableOutboxModel: true,
       cacheAdapter: new NDKCacheAdapterDexie({dbName: "irisdb-nostr"}),
     }
     ndkInstance = new NDK(options)
+
+    // Set up initial signer if we have a private key
+    if (store.privateKey && typeof store.privateKey === "string") {
+      try {
+        privateKeySigner = new NDKPrivateKeySigner(store.privateKey)
+        if (!store.nip07Login) {
+          ndkInstance.signer = privateKeySigner
+        }
+      } catch (e) {
+        console.error("Error setting initial private key signer:", e)
+      }
+    }
+
+    // Set up NIP-07 signer if enabled
+    if (store.nip07Login) {
+      nip07Signer = new NDKNip07Signer()
+      ndkInstance.signer = nip07Signer
+    }
+
     watchLocalSettings(ndkInstance)
     ndkInstance.relayAuthDefaultPolicy = NDKRelayAuthPolicies.signIn({ndk: ndkInstance})
     ndkInstance.connect()

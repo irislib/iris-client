@@ -34,6 +34,7 @@ function HomeFeedEvents() {
   const myPubKey = usePublicKey()
   const follows = useFollows(myPubKey, true) // to update on follows change
   const refreshSignal = useRefreshRouteSignal()
+  console.log("refreshSignal", refreshSignal)
   const {activeHomeTab: activeTab, setActiveHomeTab: setActiveTab} = useFeedStore()
   const [forceUpdate, setForceUpdate] = useState(0)
 
@@ -114,10 +115,8 @@ function HomeFeedEvents() {
       feedCache.delete(UNSEEN_CACHE_KEY)
     }
     if (activeTab === "unseen" && refreshSignal > openedAt) {
-      const cachedFeed = feedCache.get(UNSEEN_CACHE_KEY)
-      if (cachedFeed) {
-        setForceUpdate((prev) => prev + 1) // Force update Feed component
-      }
+      feedCache.delete(UNSEEN_CACHE_KEY)
+      setForceUpdate((prev) => prev + 1) // Force update Feed component
     }
   }, [activeTabItem, openedAt, refreshSignal, activeTab])
 

@@ -88,12 +88,8 @@ function FeedItem({
     return getEventIdHex(initialEvent, eventId)
   }, [initialEvent, eventId])
 
-  const [event, setEvent] = useState<NDKEvent | undefined>(
-    initialEvent || eventsByIdCache.get(eventIdHex)
-  )
-  const [referredEvent, setReferredEvent] = useState<NDKEvent>(
-    eventsByIdCache.get(eventIdHex)
-  )
+  const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
+  const [referredEvent, setReferredEvent] = useState<NDKEvent | undefined>()
 
   if (!event && !eventId)
     throw new Error("FeedItem requires either an event or an eventId")
@@ -149,23 +145,29 @@ function FeedItem({
   }, [event])
 
   useEffect(() => {
+    if (!event && eventIdHex) {
+      const cached = eventsByIdCache.get(eventIdHex)
+      if (cached) {
+        setEvent(cached)
+      } else {
+        fetchEvent({ids: [eventIdHex], authors: authorHints}).then((fetched) => {
+          if (fetched) {
+            setEvent(fetched)
+            eventsByIdCache.set(eventIdHex, fetched)
+          }
+        })
+      }
+    }
+  }, [event, eventIdHex, authorHints])
+
+  useEffect(() => {
     if (event) {
       handleEventContent(event, (referred) => {
         setReferredEvent(referred)
         eventsByIdCache.set(eventIdHex, referred)
       })
-    } else {
-      fetchEvent({
-        ids: [eventIdHex],
-        authors: authorHints?.length ? authorHints : undefined,
-      }).then((fetchedEvent: NDKEvent | null) => {
-        if (fetchedEvent && fetchedEvent.id) {
-          setEvent(fetchedEvent)
-          eventsByIdCache.set(eventIdHex, fetchedEvent)
-        }
-      })
     }
-  }, [eventIdHex])
+  }, [event])
 
   const wrapperClasses = classNames("relative max-w-[100vw]", {
     "h-[200px] overflow-hidden": asEmbed && !expanded,

@@ -1,66 +1,8 @@
-import {Invite, serializeSessionState} from "nostr-double-ratchet/src"
 import {useNavigate, useLocation} from "react-router"
-import {NDKEventFromRawEvent} from "@/utils/nostr"
-import {hexToBytes} from "@noble/hashes/utils"
+import {useSessionsStore} from "@/stores/sessions"
 import {useUserStore} from "@/stores/user"
-import {VerifiedEvent} from "nostr-tools"
 import {useUIStore} from "@/stores/ui"
-import {localState} from "irisdb/src"
-import {ndk} from "@/utils/ndk"
 import {useEffect} from "react"
-
-export const acceptInvite = async (
-  invite: string | Invite,
-  myPubKey: string,
-  myPrivKey?: string,
-  navigate?: (path: string, options?: {state?: Record<string, unknown>}) => void
-) => {
-  try {
-    if (typeof invite === "string") {
-      invite = Invite.fromUrl(invite)
-    }
-
-    const encrypt = myPrivKey
-      ? hexToBytes(myPrivKey)
-      : async (plaintext: string, pubkey: string) => {
-          if (window.nostr?.nip44) {
-            return window.nostr.nip44.encrypt(pubkey, plaintext)
-          }
-          throw new Error("No nostr extension or private key")
-        }
-
-    const {session, event} = await invite.accept(
-      (filter, onEvent) => {
-        const sub = ndk().subscribe(filter)
-        sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
-        return () => sub.stop()
-      },
-      myPubKey,
-      encrypt
-    )
-
-    // Publish the event
-    NDKEventFromRawEvent(event).publish()
-
-    // Create session ID in the same format as NewChat
-    const sessionId = `${invite.inviter}:${session.name}`
-
-    // Save the session with the new path format
-    localState
-      .get(`sessions/${sessionId}/state`)
-      .put(serializeSessionState(session.state))
-
-    // Navigate to the new chat if navigate function is provided
-    if (navigate) {
-      navigate(`/chats/chat`, {state: {id: sessionId}})
-    }
-
-    return {success: true, inviter: invite.inviter}
-  } catch (error) {
-    //console.error("Not a valid invite link URL:", error)
-    return {success: false, error}
-  }
-}
 
 export const useInviteFromUrl = () => {
   const navigate = useNavigate()
@@ -89,10 +31,8 @@ export const useInviteFromUrl = () => {
         const cleanUrl = `${window.location.origin}${location.pathname}${location.search}`
         window.history.replaceState({}, document.title, cleanUrl)
 
-        const result = await acceptInvite(fullUrl, publicKey, privateKey, navigate)
-        if (!result.success) {
-          // Optionally, you can show an error message to the user here
-        }
+        const sessionId = await useSessionsStore.getState().acceptInvite(fullUrl)
+        navigate("/chats/chat", {state: {id: sessionId}})
       }
 
       acceptInviteFromUrl()

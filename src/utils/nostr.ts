@@ -72,7 +72,8 @@ export function getEventReplyingTo(event: NDKEvent) {
     return undefined
   }
   const qEvent = event.tags?.find((tag) => tag[0] === "q")?.[1]
-  const replyTags = event.tags?.filter((tag) => tag[0] === "e" && tag[3] !== "mention")
+  const replyTags =
+    event.tags?.filter((tag) => tag[0] === "e" && tag[3] !== "mention") || []
   if (replyTags.length === 1 && replyTags[0][1] !== qEvent) {
     return replyTags[0][1]
   }

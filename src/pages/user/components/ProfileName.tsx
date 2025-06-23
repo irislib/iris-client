@@ -1,34 +1,19 @@
-import {RiErrorWarningLine, RiVerifiedBadgeLine} from "@remixicon/react"
-import {useCallback, useEffect, useState} from "react"
+import {RiVerifiedBadgeLine, RiErrorWarningLine} from "@remixicon/react"
+import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
 import {NDKUserProfile} from "@nostr-dev-kit/ndk"
 import {useNavigate} from "react-router"
-import {ndk} from "@/utils/ndk"
+import {useCallback} from "react"
 
 interface ProfileNameProps {
-  profile: NDKUserProfile | null | undefined
+  profile?: NDKUserProfile
   pubkey: string
 }
 
 function ProfileName({profile, pubkey}: ProfileNameProps) {
   const navigate = useNavigate()
-
-  const [nip05valid, setNIP05valid] = useState<boolean>(false)
+  const nip05valid = useNip05Validation(pubkey, profile?.nip05)
 
   const handleClick = useCallback(() => navigate(`/${pubkey}`), [pubkey])
-
-  const validateNip05 = () => {
-    if (profile?.nip05) {
-      ndk()
-        .getUser({hexpubkey: pubkey})
-        ?.validateNip05(profile?.nip05)
-        .then((isValid) => setNIP05valid(isValid ? isValid : false))
-        .catch((error) => console.warn(error))
-    }
-  }
-
-  useEffect(() => {
-    validateNip05()
-  }, [])
 
   return (
     <div className="ProfileItem-text-container cursor-pointer" onClick={handleClick}>
