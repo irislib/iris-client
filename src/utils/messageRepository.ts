@@ -54,6 +54,7 @@ export async function deleteMessage(sessionId: string, messageId: string): Promi
 export async function getById(messageId: string): Promise<MessageType | undefined> {
   const msg = await db.messages.get(messageId)
   if (!msg) return msg
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const {session_id, ...event} = msg
   return event
 }

@@ -48,8 +48,10 @@ export const useNotificationsStore = create<NotificationsState>()(
   )
 )
 
-if (typeof window !== 'undefined') {
-  (window as any).useNotificationsStore = useNotificationsStore
+if (typeof window !== "undefined") {
+  ;(
+    window as typeof window & {useNotificationsStore: typeof useNotificationsStore}
+  ).useNotificationsStore = useNotificationsStore
 }
 
 export const useLatestNotification = () =>

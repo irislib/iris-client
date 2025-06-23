@@ -6,21 +6,30 @@ test.describe("Unseen Notifications Indicator", () => {
     page,
   }) => {
     await signUp(page, "Test User")
-    
+
     console.log("Testing notification badge rendering by manipulating store state...")
-    
+
     await page.evaluate(() => {
       const now = Date.now()
       const latestNotification = now
       const notificationsSeenAt = now - 10000 // 10 seconds ago
-      
-      const store = (window as any).useNotificationsStore?.getState?.()
+
+      const store = (
+        window as typeof window & {
+          useNotificationsStore?: {
+            getState?: () => {
+              setLatestNotification: (n: number) => void
+              setNotificationsSeenAt: (n: number) => void
+            }
+          }
+        }
+      ).useNotificationsStore?.getState?.()
       if (store) {
         store.setLatestNotification(latestNotification)
         store.setNotificationsSeenAt(notificationsSeenAt)
-        console.log('Set notification state:', {latestNotification, notificationsSeenAt})
+        console.log("Set notification state:", {latestNotification, notificationsSeenAt})
       } else {
-        console.log('Could not access notification store')
+        console.log("Could not access notification store")
       }
     })
 
@@ -32,36 +41,53 @@ test.describe("Unseen Notifications Indicator", () => {
     const desktopNotificationBadge = page.locator(
       'li a[href="/notifications"] .indicator .indicator-item.badge.badge-primary.badge-xs'
     )
-    
+
     const desktopBadgeVisible = await desktopNotificationBadge.isVisible()
     console.log(`Desktop badge visible: ${desktopBadgeVisible}`)
-    
+
     if (desktopBadgeVisible) {
       console.log("✅ Desktop notification badge found in sidebar")
       await expect(desktopNotificationBadge).toBeVisible()
     } else {
       console.log("❌ Desktop notification badge not found - checking store state...")
-      
+
       const storeState = await page.evaluate(() => {
-        const store = (window as any).useNotificationsStore?.getState?.()
-        return store ? {
-          latestNotification: store.latestNotification,
-          notificationsSeenAt: store.notificationsSeenAt
-        } : null
+        const store = (
+          window as typeof window & {
+            useNotificationsStore?: {
+              getState?: () => {latestNotification: number; notificationsSeenAt: number}
+            }
+          }
+        ).useNotificationsStore?.getState?.()
+        return store
+          ? {
+              latestNotification: store.latestNotification,
+              notificationsSeenAt: store.notificationsSeenAt,
+            }
+          : null
       })
-      
-      console.log('Current store state:', storeState)
-      
+
+      console.log("Current store state:", storeState)
+
       await page.evaluate(() => {
-        const store = (window as any).useNotificationsStore?.getState?.()
+        const store = (
+          window as typeof window & {
+            useNotificationsStore?: {
+              getState?: () => {
+                setLatestNotification: (n: number) => void
+                setNotificationsSeenAt: (n: number) => void
+              }
+            }
+          }
+        ).useNotificationsStore?.getState?.()
         if (store) {
           const now = Date.now()
           store.setLatestNotification(now)
           store.setNotificationsSeenAt(now - 5000)
-          console.log('Updated store state again')
+          console.log("Updated store state again")
         }
       })
-      
+
       await page.waitForTimeout(1000)
       const badgeAfterUpdate = await desktopNotificationBadge.isVisible()
       console.log(`Desktop badge visible after state update: ${badgeAfterUpdate}`)
@@ -72,15 +98,19 @@ test.describe("Unseen Notifications Indicator", () => {
     await page.waitForTimeout(2000)
 
     console.log("Testing mobile header notification indicator...")
-    const mobileNotificationButton = page.locator('.md\\:hidden').locator('a[href="/notifications"]')
+    const mobileNotificationButton = page
+      .locator(".md\\:hidden")
+      .locator('a[href="/notifications"]')
     const mobileButtonVisible = await mobileNotificationButton.isVisible()
     console.log(`Mobile notification button visible: ${mobileButtonVisible}`)
-    
+
     if (mobileButtonVisible) {
-      const mobileBadge = mobileNotificationButton.locator('.indicator-item.badge.badge-primary.badge-xs')
+      const mobileBadge = mobileNotificationButton.locator(
+        ".indicator-item.badge.badge-primary.badge-xs"
+      )
       const mobileBadgeVisible = await mobileBadge.isVisible()
       console.log(`Mobile badge visible: ${mobileBadgeVisible}`)
-      
+
       if (mobileBadgeVisible) {
         console.log("✅ Mobile notification badge found in header")
         await expect(mobileBadge).toBeVisible()
@@ -160,25 +190,26 @@ test.describe("Unseen Notifications Indicator", () => {
       const desktopNotificationBadge = pageA.locator(
         'li a[href="/notifications"] .indicator .indicator-item.badge.badge-primary.badge-xs'
       )
-      
+
       const desktopBadgeVisible = await desktopNotificationBadge.isVisible()
       console.log(`Desktop badge visible: ${desktopBadgeVisible}`)
-      
+
       await pageA.goto("/notifications")
       await pageA.waitForTimeout(3000)
 
       const anyNotification = pageA.locator("div").filter({hasText: "reacted"}).first()
       const notificationExists = await anyNotification.isVisible()
-      
+
       if (notificationExists) {
         console.log("✅ Notification exists in feed")
         if (!desktopBadgeVisible) {
-          console.log("❌ But badge was not showing - this indicates a bug in the indicator implementation")
+          console.log(
+            "❌ But badge was not showing - this indicates a bug in the indicator implementation"
+          )
         }
       } else {
         console.log("❌ No notification found - like action may not have worked")
       }
-
     } finally {
       await contextA.close()
       await contextB.close()
