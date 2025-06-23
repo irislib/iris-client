@@ -153,7 +153,7 @@ const NotificationSettings = () => {
   useEffect(() => {
     const fetchSubscriptionsData = async () => {
       try {
-        const api = new IrisAPI()
+        const api = new IrisAPI(notifications.server)
         const data = await api.getSubscriptions()
         setSubscriptionsData(data)
       } catch (error) {
@@ -260,8 +260,9 @@ const NotificationSettings = () => {
           </div>
           <div className="flex flex-col space-y-2 w-full">
             {Object.entries(subscriptionsData)
-              .flatMap(([id, subscription]) =>
-                subscription.web_push_subscriptions.map(
+              .flatMap(([id, subscription]) => {
+                if (!subscription?.web_push_subscriptions) return []
+                return subscription.web_push_subscriptions.map(
                   (pushSubscription: PushNotifications, index: number) => {
                     const isCurrentDevice = currentEndpoint === pushSubscription.endpoint
                     return {
@@ -273,7 +274,7 @@ const NotificationSettings = () => {
                     }
                   }
                 )
-              )
+              })
               .sort((a, b) => (b.isCurrentDevice ? 1 : 0) - (a.isCurrentDevice ? 1 : 0))
               .map(({id, subscription, pushSubscription, index, isCurrentDevice}) => (
                 <div

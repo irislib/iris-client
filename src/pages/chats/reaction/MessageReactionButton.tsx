@@ -1,15 +1,11 @@
 import {FloatingEmojiPicker} from "@/shared/components/emoji/FloatingEmojiPicker"
 import {RiHeartAddLine, RiReplyLine} from "@remixicon/react"
-import {NDKEventFromRawEvent} from "@/utils/nostr"
-import {Session} from "nostr-double-ratchet/src"
-import {usePublicKey} from "@/stores/user"
+import {useSessionsStore} from "@/stores/sessions"
 import {MouseEvent, useState} from "react"
-import {localState} from "irisdb/src"
 import classNames from "classnames"
 
 type MessageReactionButtonProps = {
   messageId: string
-  session: Session
   sessionId: string
   isUser: boolean
   onReply?: () => void
@@ -23,13 +19,12 @@ type EmojiData = {
 
 const MessageReactionButton = ({
   messageId,
-  session,
   sessionId,
   isUser,
   onReply,
   onSendReaction,
 }: MessageReactionButtonProps) => {
-  const myPubKey = usePublicKey()
+  const {sendMessage} = useSessionsStore()
   const [showReactionsPicker, setShowReactionsPicker] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<{clientY?: number}>({})
 
@@ -45,21 +40,7 @@ const MessageReactionButton = ({
       // Use the provided onSendReaction function if available
       onSendReaction(messageId, emoji.native)
     } else {
-      // Fall back to the original implementation for private chats
-      const {event} = session.sendEvent({
-        kind: 6,
-        content: emoji.native,
-        tags: [["e", messageId]],
-      })
-      localState
-        .get("sessions")
-        .get(sessionId)
-        .get("events")
-        .get(messageId)
-        .get("reactions")
-        .get(myPubKey)
-        .put(emoji.native)
-      NDKEventFromRawEvent(event).publish()
+      sendMessage(sessionId, emoji.native, messageId, true)
     }
   }
 
@@ -79,6 +60,9 @@ const MessageReactionButton = ({
           </div>
         )}
         <div
+          data-testid="reaction-button"
+          role="button"
+          aria-label="Add reaction"
           className="p-2 text-base-content/50 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity flex-shrink-0"
           onClick={handleReactionClick}
         >

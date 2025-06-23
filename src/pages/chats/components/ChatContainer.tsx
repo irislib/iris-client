@@ -1,13 +1,12 @@
-import {Session, getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {useLayoutEffect, useRef, useState, useEffect} from "react"
 import ErrorBoundary from "@/shared/components/ui/ErrorBoundary"
+import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import Message, {MessageType} from "../message/Message"
 import {groupMessages} from "../utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 
 interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
-  session: Session
   sessionId: string
   onReply: (message: MessageType) => void
   showAuthor?: boolean
@@ -15,14 +14,12 @@ interface ChatContainerProps {
   initialLoadDone?: boolean
   showNoMessages?: boolean
   onSendReaction?: (messageId: string, emoji: string) => Promise<void>
-  reactions?: Record<string, Record<string, string>>
 }
 
 const root = document.documentElement
 
 const ChatContainer = ({
   messages,
-  session,
   sessionId,
   onReply,
   showAuthor = false,
@@ -30,7 +27,6 @@ const ChatContainer = ({
   initialLoadDone = false,
   showNoMessages = false,
   onSendReaction,
-  reactions = {},
 }: ChatContainerProps) => {
   const [showScrollDown, setShowScrollDown] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -149,12 +145,10 @@ const ChatContainer = ({
                         message={message}
                         isFirst={messageIndex === 0}
                         isLast={messageIndex === group.length - 1}
-                        session={session}
                         sessionId={sessionId}
                         onReply={() => onReply(message)}
                         showAuthor={showAuthor}
                         onSendReaction={onSendReaction}
-                        reactions={reactions[message.id]}
                       />
                     ))}
                   </ErrorBoundary>

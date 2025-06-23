@@ -16,7 +16,6 @@ interface UseFeedEventsProps {
   displayFilterFn?: (event: NDKEvent) => boolean
   fetchFilterFn?: (event: NDKEvent) => boolean
   hideEventsByUnknownUsers: boolean
-  mutes: string[]
   sortLikedPosts?: boolean
   sortFn?: (a: NDKEvent, b: NDKEvent) => number
 }
@@ -29,7 +28,6 @@ export default function useFeedEvents({
   fetchFilterFn,
   sortFn,
   hideEventsByUnknownUsers,
-  mutes,
   sortLikedPosts = false,
 }: UseFeedEventsProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
@@ -50,6 +48,7 @@ export default function useFeedEvents({
   const [initialLoadDoneState, setInitialLoadDoneState] = useState(
     initialLoadDoneRef.current
   )
+  const hasReceivedEventsRef = useRef<boolean>(eventsRef.current.size > 0)
 
   const showNewEvents = () => {
     newEvents.forEach((event) => {
@@ -66,7 +65,6 @@ export default function useFeedEvents({
       if (!event.created_at) return false
       if (displayFilterFn && !displayFilterFn(event)) return false
       const inAuthors = localFilter.authors?.includes(event.pubkey)
-      if (!inAuthors && mutes.includes(event.pubkey)) return false
       if (!inAuthors && shouldHideAuthor(event.pubkey, 3)) {
         return false
       }
@@ -79,7 +77,7 @@ export default function useFeedEvents({
       }
       return true
     },
-    [displayFilterFn, myPubKey, hideEventsByUnknownUsers, filters.authors, mutes]
+    [displayFilterFn, myPubKey, hideEventsByUnknownUsers, filters.authors]
   )
 
   const filteredEvents = useMemo(() => {
@@ -114,9 +112,12 @@ export default function useFeedEvents({
     return Array.from(eventsRef.current.values()).filter(
       (event) =>
         (!displayFilterFn || displayFilterFn(event)) &&
-        shouldHideAuthor(event.author.pubkey)
+        socialGraph().getFollowDistance(event.pubkey) >= 5 &&
+        !(filters.authors && filters.authors.includes(event.pubkey)) &&
+        // Only include events that aren't heavily muted
+        !shouldHideAuthor(event.pubkey, undefined, true)
     )
-  }, [eventsRef.current.size, displayFilterFn])
+  }, [eventsRef.current.size, displayFilterFn, hideEventsByUnknownUsers, filters.authors])
 
   useEffect(() => {
     setLocalFilter(filters)
@@ -130,16 +131,25 @@ export default function useFeedEvents({
 
     const sub = ndk().subscribe(localFilter)
 
-    const debouncedInitialLoadDone = debounce(
-      () => {
+    // Reset these flags when subscription changes
+    hasReceivedEventsRef.current = eventsRef.current.size > 0
+    initialLoadDoneRef.current = eventsRef.current.size > 0
+    setInitialLoadDoneState(eventsRef.current.size > 0)
+
+    // Set up a timeout to mark initial load as done even if no events arrive
+    const initialLoadTimeout = setTimeout(() => {
+      if (!initialLoadDoneRef.current) {
         initialLoadDoneRef.current = true
         setInitialLoadDoneState(true)
-      },
-      500,
-      {maxWait: 2000}
-    )
+      }
+    }, 5000)
 
-    debouncedInitialLoadDone()
+    const markLoadDoneIfHasEvents = debounce(() => {
+      if (hasReceivedEventsRef.current && !initialLoadDoneRef.current) {
+        initialLoadDoneRef.current = true
+        setInitialLoadDoneState(true)
+      }
+    }, 500)
 
     sub.on("event", (event) => {
       if (!event || !event.id) return
@@ -150,29 +160,29 @@ export default function useFeedEvents({
         if (fetchFilterFn && !fetchFilterFn(event)) {
           return
         }
-        const lastShownIndex = Math.min(displayCount, eventsRef.current.size) - 1
-        const oldestShownTime =
-          lastShownIndex >= 0 && eventsRef.current.nth(lastShownIndex)?.[1].created_at
+
         const isMyRecent =
           event.pubkey === myPubKey && event.created_at * 1000 > Date.now() - 10000
-        if (
-          !isMyRecent &&
-          initialLoadDoneRef.current &&
-          (!oldestShownTime || event.created_at > oldestShownTime)
-        ) {
+
+        // Mark that we've received at least one event
+        hasReceivedEventsRef.current = true
+
+        if (!initialLoadDoneRef.current || isMyRecent) {
+          // Before initial load is done, add directly to main feed
+          eventsRef.current.set(event.id, event)
+          // Only mark initial load as done if we actually have events
+          markLoadDoneIfHasEvents()
+        } else {
+          // After initial load is done, add to newEvents
           setNewEvents((prev) => new Map([...prev, [event.id, event]]))
           setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
-        } else {
-          eventsRef.current.set(event.id, event)
-          if (!initialLoadDoneRef.current) {
-            debouncedInitialLoadDone()
-          }
         }
       }
     })
 
     return () => {
       sub.stop()
+      clearTimeout(initialLoadTimeout)
     }
   }, [JSON.stringify(localFilter)])
 

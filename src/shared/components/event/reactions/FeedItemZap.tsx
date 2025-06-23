@@ -217,7 +217,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
           }}
         />
       )}
-      <div
+      <button
         title="Zap"
         className={`${
           zapped ? "cursor-pointer text-accent" : "cursor-pointer hover:text-accent"
@@ -235,7 +235,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
           <Icon name={iconName} size={16} />
         )}
         <span>{formatAmount(zappedAmount)}</span>
-      </div>
+      </button>
     </>
   )
 }

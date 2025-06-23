@@ -3,18 +3,19 @@ import {fetchChannelMetadata, ChannelMetadata} from "../utils/channelMetadata"
 import RelativeTime from "@/shared/components/event/RelativeTime"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {PublicChatContext} from "../public/PublicChatContext"
-import {useLocalState} from "irisdb-hooks/src/useLocalState"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {useEffect, useState, useContext} from "react"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {shouldHideAuthor} from "@/utils/visibility"
 import {Name} from "@/shared/components/user/Name"
 import {CHANNEL_MESSAGE} from "../utils/constants"
+import {useSessionsStore} from "@/stores/sessions"
 import {useLocation, NavLink} from "react-router"
 import {MessageType} from "../message/Message"
+import {useEventsStore} from "@/stores/events"
 import {RiEarthLine} from "@remixicon/react"
+import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
-import {localState} from "irisdb/src"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
 
@@ -30,11 +31,15 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
   const [latestMessage, setLatestMessage] = useState<{
     content: string
     created_at: number
+    pubkey: string
   } | null>(null)
   const {setPublicChatTimestamps} = useContext(PublicChatContext)
   const [showPlaceholder, setShowPlaceholder] = useState(false)
   const [channelMetadata, setChannelMetadata] = useState<ChannelMetadata | null>(null)
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false)
+  const {events} = useEventsStore()
+  const {lastSeen, lastSeenPublic, updateLastSeenPublic} = useSessionsStore()
+  const myPubKey = useUserStore((state) => state.publicKey)
 
   // Fetch channel metadata for public chats
   useEffect(() => {
@@ -55,22 +60,19 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
     fetchMetadata()
   }, [id, isPublic])
 
-  useEffect(() => {
-    // TODO irisdb should have subscriptions work without this
-    if (!isPublic) {
-      localState.get(`sessions/${id}`).get("latest").put({})
-    }
-  }, [id, isPublic])
-
-  const [latest] = useLocalState(`sessions/${id}/latest`, {} as MessageType)
-  const [lastSeen, setLastSeen] = useLocalState(`sessions/${id}/lastSeen`, 0)
-  const [deleted] = useLocalState(`sessions/${id}/deleted`, false)
+  const [, latest] = events.get(id)?.last() ?? []
+  const lastSeenPrivateTime = lastSeen.get(id) || 0
+  const lastSeenPublicTime = lastSeenPublic.get(id) || 0
 
   // Fetch latest message for public chats
   useEffect(() => {
     if (!isPublic) return
 
-    let latestMessageInMemory: {content: string; created_at: number} | null = null
+    let latestMessageInMemory: {
+      content: string
+      created_at: number
+      pubkey: string
+    } | null = null
 
     const debouncedUpdate = debounce(() => {
       if (latestMessageInMemory) {
@@ -101,6 +103,7 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
         latestMessageInMemory = {
           content: event.content,
           created_at: event.created_at,
+          pubkey: event.pubkey,
         }
         debouncedUpdate()
       }
@@ -140,14 +143,12 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
 
   const previewText = getPreviewText()
 
-  if (deleted && !isPublic) return null
-
   return (
     <NavLink
       to={isPublic ? `/chats/${id}` : "/chats/chat"}
       state={{id}}
       key={id}
-      onClick={() => setLastSeen(Date.now())}
+      onClick={() => isPublic && updateLastSeenPublic(id)}
       className={classNames("px-2 py-4 flex items-center border-b border-custom", {
         "bg-base-300": isActive,
         "hover:bg-base-300": !isActive,
@@ -187,7 +188,7 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
                     from={
                       isPublic && latestMessage?.created_at
                         ? latestMessage.created_at * 1000
-                        : getMillisecondTimestamp(latest)
+                        : getMillisecondTimestamp(latest as MessageType) // TODO: we know it's not undefined, TS doesn't -> do this without type assertion
                     }
                   />
                 </span>
@@ -202,18 +203,20 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
             {(() => {
               if (isPublic) {
                 if (!latestMessage?.created_at) return null
-                const hasUnread = latestMessage.created_at * 1000 > lastSeen
+                if (latestMessage.pubkey === myPubKey) return null
+                const hasUnread = latestMessage.created_at * 1000 > lastSeenPublicTime
                 return (
-                  (!lastSeen || hasUnread) && (
-                    <div className="indicator-item badge badge-primary badge-xs"></div>
+                  (!lastSeenPublicTime || hasUnread) && (
+                    <div className="indicator-item badge badge-primary badge-xs" />
                   )
                 )
               } else {
                 if (!latest?.created_at) return null
-                const hasUnread = getMillisecondTimestamp(latest) > lastSeen
+                if (latest.sender === "user") return null
+                const hasUnread = getMillisecondTimestamp(latest) > lastSeenPrivateTime
                 return (
-                  (!lastSeen || hasUnread) && (
-                    <div className="indicator-item badge badge-primary badge-xs"></div>
+                  (!lastSeenPrivateTime || hasUnread) && (
+                    <div className="indicator-item badge badge-primary badge-xs" />
                   )
                 )
               }

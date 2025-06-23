@@ -1,12 +1,9 @@
-import {getSubscriptionIcon as getSubscriptionIconComponent} from "@/shared/utils/subscriptionIcons"
-import {useSubscriptionStatus} from "@/shared/hooks/useSubscriptionStatus"
 import SocialGraphSettings from "@/pages/settings/SocialGraphSettings"
 import {useLocation, Link, Routes, Route} from "react-router"
 import MediaServers from "@/pages/settings/Mediaservers.tsx"
 import {ProfileSettings} from "@/pages/settings/Profile.tsx"
 import NotificationSettings from "./NotificationSettings"
 import Appearance from "@/pages/settings/Appearance.tsx"
-import {ReactElement, useEffect, useState} from "react"
 import Header from "@/shared/components/header/Header"
 import IrisSettings from "./IrisAccount/IrisSettings"
 import {Network} from "@/pages/settings/Network.tsx"
@@ -16,11 +13,10 @@ import Account from "@/pages/settings/Account"
 import WalletSettings from "./WalletSettings"
 import SystemSettings from "./SystemSettings"
 import Backup from "@/pages/settings/Backup"
-import {useUserStore} from "@/stores/user"
-import Subscription from "./Subscription"
 import PrivacySettings from "./Privacy"
 import {Helmet} from "react-helmet"
 import classNames from "classnames"
+import {ReactElement} from "react"
 import Content from "./Content"
 
 interface SettingsItem {
@@ -38,30 +34,6 @@ interface SettingsGroup {
 function Settings() {
   const location = useLocation()
   const isSettingsRoot = location.pathname === "/settings"
-  const [pubkey, setPubkey] = useState<string | undefined>(undefined)
-  const {isSubscriber, isLoading, tier} = useSubscriptionStatus(pubkey)
-
-  useEffect(() => {
-    // Get the user's pubkey from zustand store instead of localStorage
-    const userStore = useUserStore.getState()
-    if (userStore.publicKey) {
-      setPubkey(userStore.publicKey)
-    }
-
-    const unsubscribe = useUserStore.subscribe((state, prevState) => {
-      if (state.publicKey && state.publicKey !== prevState.publicKey) {
-        setPubkey(state.publicKey)
-      }
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const renderSubscriptionIcon = () => {
-    if (isLoading || !isSubscriber)
-      return getSubscriptionIconComponent(undefined, "text-white", 18)
-    return getSubscriptionIconComponent(tier, "text-white", 18)
-  }
 
   const settingsGroups: SettingsGroup[] = [
     {
@@ -85,16 +57,6 @@ function Settings() {
           message: "iris.to username",
           path: "/settings/iris",
         },
-        ...(CONFIG.features.showSubscriptionSettings
-          ? [
-              {
-                icon: renderSubscriptionIcon(),
-                iconBg: "bg-warning",
-                message: "Subscription",
-                path: "/settings/subscription",
-              },
-            ]
-          : []),
       ],
     },
     {
@@ -238,7 +200,6 @@ function Settings() {
             <Route path="notifications" element={<NotificationSettings />} />
             <Route path="privacy" element={<PrivacySettings />} />
             <Route path="system" element={<SystemSettings />} />
-            <Route path="subscription" element={<Subscription />} />
             <Route path="/" element={<ProfileSettings />} />
           </Routes>
         </div>

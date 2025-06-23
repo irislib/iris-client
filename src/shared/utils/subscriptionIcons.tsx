@@ -20,6 +20,6 @@ export const getSubscriptionIcon = (
     case "vanguard":
       return <RiShieldFill {...iconProps} className="text-primary" />
     default:
-      return <RiTrophyFill {...iconProps} className="text-warning" />
+      return <RiHeartFill {...iconProps} className="text-error" />
   }
 }

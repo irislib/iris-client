@@ -6,15 +6,6 @@
   "icon": "/img/icon128.png",
   "navLogo": "/img/icon128.png",
   "defaultTheme": "iris",
-  "navItems": [
-    "home",
-    "search",
-    "messages",
-    "notifications",
-    "wallet",
-    "settings",
-    "about"
-  ],
   "aboutText": "Iris - Connecting People",
   "repository": "https://github.com/irislib/iris-client",
   "features": {

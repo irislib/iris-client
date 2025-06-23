@@ -1,9 +1,6 @@
 import socialGraph from "@/utils/socialGraph.ts"
 import {RiCheckLine} from "@remixicon/react"
-import {localState} from "irisdb/src"
-
-let loggedIn = false
-localState.get("user/publicKey").on((v?: string) => (loggedIn = !!v))
+import {useUserStore} from "@/stores/user"
 
 export const Badge = ({
   pubKeyHex,
@@ -12,6 +9,9 @@ export const Badge = ({
   pubKeyHex: string
   className?: string
 }) => {
+  const publicKey = useUserStore((state) => state.publicKey)
+  const loggedIn = !!publicKey
+
   if (!loggedIn) {
     return null
   }

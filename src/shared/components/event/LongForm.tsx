@@ -31,7 +31,7 @@ function LongForm({event, standalone}: LongFormProps) {
     <div className="flex flex-col gap-2 px-5">
       <h1 className="flex items-center gap-2 text-lg">{title}</h1>
       <Markdown
-        className="prose leading-relaxed tracking-wide text-gray-450"
+        className="prose leading-relaxed tracking-wide text-gray-450 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
         options={{forceBlock: true}}
       >
         {standalone ? textBody : summary || `${textBody.substring(0, 100)}...`}

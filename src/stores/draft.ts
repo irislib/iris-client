@@ -7,7 +7,7 @@ interface DraftState {
   repliedEventId?: string
   quotedEventId?: string
 
-  setContent: (content: string) => void
+  setContent: (content: string | ((prev: string) => string)) => void
   setImageMetadata: (
     metadata: Record<string, {width: number; height: number; blurhash: string}>
   ) => void
@@ -27,7 +27,10 @@ export const useDraftStore = create<DraftState>()(
       }
 
       const actions = {
-        setContent: (content: string) => set({content}),
+        setContent: (content: string | ((prev: string) => string)) =>
+          set((state) => ({
+            content: typeof content === "function" ? content(state.content) : content,
+          })),
         setImageMetadata: (
           imageMetadata: Record<string, {width: number; height: number; blurhash: string}>
         ) => set({imageMetadata}),

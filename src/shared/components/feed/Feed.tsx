@@ -13,7 +13,6 @@ import UnknownUserEvents from "./UnknownUserEvents.tsx"
 import {DisplayAsSelector} from "./DisplayAsSelector"
 import NewEventsButton from "./NewEventsButton.tsx"
 import {useSettingsStore} from "@/stores/settings"
-import useMutes from "@/shared/hooks/useMutes.ts"
 import {useFeedStore} from "@/stores/feed"
 import MediaFeed from "./MediaFeed"
 
@@ -69,7 +68,6 @@ function Feed({
     "displayCount"
   )
   const firstFeedItemRef = useRef<HTMLDivElement>(null)
-  const mutes = useMutes()
   const myPubKey = useUserStore((state) => state.publicKey)
 
   const {content} = useSettingsStore()
@@ -103,7 +101,6 @@ function Feed({
     fetchFilterFn,
     sortFn,
     hideEventsByUnknownUsers,
-    mutes,
     sortLikedPosts,
   })
 

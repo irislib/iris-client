@@ -4,6 +4,7 @@ import {
   RiGithubLine,
   RiRefreshLine,
   RiUserFollowLine,
+  RiHeartLine,
 } from "@remixicon/react"
 import RightColumn from "@/shared/components/RightColumn"
 import Trending from "@/shared/components/feed/Trending"
@@ -99,6 +100,11 @@ export const AboutPage = () => {
                 >
                   <RiUserFollowLine className="inline" /> Find people to follow
                 </a>
+              </p>
+              <p>
+                <Link to="/subscribe" className="flex items-center gap-1">
+                  <RiHeartLine className="inline" /> Subscribe to support Iris development
+                </Link>
               </p>
               <div className="mt-4">
                 <p>App build time: {formatBuildTime(buildTime)}</p>

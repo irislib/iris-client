@@ -54,8 +54,8 @@ export function SubscriberBadge({className = "", pubkey}: SubscriberBadgeProps) 
   return (
     <div className="inline-flex">
       <Link
-        to="/settings/subscription"
-        className={`flex items-center gap-1 ${className} px-2 rounded-full border ${getBorderColor()} bg-base-200`}
+        to="/subscribe"
+        className={`flex items-center gap-1 ${className} px-2 rounded-full border ${getBorderColor()} bg-base-200 no-underline`}
       >
         {getSubscriptionIcon(tier)}
         <span className={`text-xs font-medium ${getTextColor()}`}>{getBadgeText()}</span>
