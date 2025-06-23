@@ -48,6 +48,10 @@ export const useNotificationsStore = create<NotificationsState>()(
   )
 )
 
+if (typeof window !== 'undefined') {
+  (window as any).useNotificationsStore = useNotificationsStore
+}
+
 export const useLatestNotification = () =>
   useNotificationsStore((state) => state.latestNotification)
 export const useRefreshRouteSignal = () =>

@@ -102,7 +102,7 @@ const getNotifications = debounce((myPubKey?: string) => {
       }
     }
   })
-}, 2000)
+}, 500)
 
 function NotificationsFeed() {
   const notificationsSeenAt = useNotificationsStore((state) => state.notificationsSeenAt)

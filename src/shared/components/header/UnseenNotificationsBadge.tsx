@@ -6,9 +6,11 @@ export default function UnseenNotificationsBadge() {
     (state) => state.notificationsSeenAt || 0
   )
 
+  const shouldShow = notificationsSeenAt < latestNotification && latestNotification > 0
+
   return (
     <>
-      {notificationsSeenAt < latestNotification && (
+      {shouldShow && (
         <div className="indicator-item badge badge-primary badge-xs"></div>
       )}
     </>
