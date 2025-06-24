@@ -86,7 +86,7 @@ const store = create<SessionStore>()(
           if (!invite) {
             return
           }
-          const event = invite.getEvent() as RawEvent
+          const event = invite.getEvent("public") as RawEvent
           await NDKEventFromRawEvent(event)
             .publish()
             .then((res) => console.log("published public invite", res))
