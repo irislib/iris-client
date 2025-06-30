@@ -18,6 +18,7 @@ interface UseFeedEventsProps {
   hideEventsByUnknownUsers: boolean
   sortLikedPosts?: boolean
   sortFn?: (a: NDKEvent, b: NDKEvent) => number
+  isAboveViewport?: boolean
 }
 
 export default function useFeedEvents({
@@ -29,11 +30,14 @@ export default function useFeedEvents({
   sortFn,
   hideEventsByUnknownUsers,
   sortLikedPosts = false,
+  isAboveViewport = false,
 }: UseFeedEventsProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
   const [localFilter, setLocalFilter] = useState(filters)
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
-  const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())
+  const [newEventsAboveViewport, setNewEventsAboveViewport] = useState(
+    new Map<string, NDKEvent>()
+  )
   const eventsRef = useRef(
     feedCache.get(cacheKey) ||
       new SortedMap(
@@ -51,13 +55,19 @@ export default function useFeedEvents({
   const hasReceivedEventsRef = useRef<boolean>(eventsRef.current.size > 0)
 
   const showNewEvents = () => {
-    newEvents.forEach((event) => {
+    newEventsAboveViewport.forEach((event) => {
       if (!eventsRef.current.has(event.id)) {
         eventsRef.current.set(event.id, event)
       }
     })
-    setNewEvents(new Map())
+    setNewEventsAboveViewport(new Map())
     setNewEventsFrom(new Set())
+  }
+
+  const autoMergeEvent = (event: NDKEvent) => {
+    if (!eventsRef.current.has(event.id)) {
+      eventsRef.current.set(event.id, event)
+    }
   }
 
   const filterEvents = useCallback(
@@ -173,9 +183,13 @@ export default function useFeedEvents({
           // Only mark initial load as done if we actually have events
           markLoadDoneIfHasEvents()
         } else {
-          // After initial load is done, add to newEvents
-          setNewEvents((prev) => new Map([...prev, [event.id, event]]))
-          setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
+          // After initial load is done, categorize by viewport position
+          if (isAboveViewport) {
+            setNewEventsAboveViewport((prev) => new Map([...prev, [event.id, event]]))
+            setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
+          } else {
+            autoMergeEvent(event)
+          }
         }
       }
     })
@@ -206,7 +220,7 @@ export default function useFeedEvents({
 
   return {
     events: eventsRef,
-    newEvents,
+    newEvents: newEventsAboveViewport,
     newEventsFrom,
     filteredEvents,
     eventsByUnknownUsers,

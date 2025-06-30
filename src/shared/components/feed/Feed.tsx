@@ -6,6 +6,7 @@ import useHistoryState from "@/shared/hooks/useHistoryState"
 import FeedItem from "../event/FeedItem/FeedItem"
 import {useUserStore} from "@/stores/user"
 
+import {useViewportDetection} from "@/shared/hooks/useViewportDetection.ts"
 import {INITIAL_DISPLAY_COUNT, DISPLAY_INCREMENT} from "./utils"
 import useFeedEvents from "@/shared/hooks/useFeedEvents.ts"
 import {socialGraphLoaded} from "@/utils/socialGraph.ts"
@@ -69,6 +70,7 @@ function Feed({
   )
   const firstFeedItemRef = useRef<HTMLDivElement>(null)
   const myPubKey = useUserStore((state) => state.publicKey)
+  const isAboveViewport = useViewportDetection({targetRef: firstFeedItemRef})
 
   const {content} = useSettingsStore()
   const [hideEventsByUnknownUsers, setHideEventsByUnknownUsers] = useHistoryState(
@@ -102,6 +104,7 @@ function Feed({
     sortFn,
     hideEventsByUnknownUsers,
     sortLikedPosts,
+    isAboveViewport,
   })
 
   const loadMoreItems = () => {
