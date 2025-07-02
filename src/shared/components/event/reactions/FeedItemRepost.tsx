@@ -1,8 +1,6 @@
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {useEffect, useState} from "react"
 import {useLocation} from "react-router"
-import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import Dropdown from "@/shared/components/ui/Dropdown"
@@ -11,8 +9,8 @@ import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import Icon from "../../Icons/Icon"
 
-import {shouldHideAuthor} from "@/utils/visibility"
 import {useUserStore} from "@/stores/user"
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 
 interface FeedItemRepostProps {
   event: NDKEvent
@@ -64,27 +62,17 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
-
-      const debouncedUpdate = debounce((repostsByAuthor) => {
-        setRepostCount(repostsByAuthor.size)
-      }, 300)
-
-      sub?.on("event", (repostEvent: NDKEvent) => {
-        if (shouldHideAuthor(repostEvent.author.pubkey)) return
+      const unsubscribe = sharedSubscriptionManager.subscribe(filter, (repostEvent: NDKEvent) => {
         setRepostsByAuthor((prev) => {
           const newSet = new Set(prev)
           newSet.add(repostEvent.pubkey)
           repostCache.set(event.id, newSet)
-          debouncedUpdate(newSet)
+          setRepostCount(newSet.size)
           return newSet
         })
       })
 
-      return () => {
-        sub.stop()
-        debouncedUpdate.cancel()
-      }
+      return unsubscribe
     } catch (error) {
       console.warn(error)
     }

@@ -4,9 +4,9 @@ import {LRUCache} from "typescript-lru-cache"
 import debounce from "lodash/debounce"
 import localforage from "localforage"
 
-export const eventsByIdCache = new LRUCache({maxSize: 500})
-export const feedCache = new LRUCache<string, SortedMap<string, NDKEvent>>({maxSize: 10})
-export const seenEventIds = new LRUCache<string, boolean>({maxSize: 10000})
+export const eventsByIdCache = new LRUCache({maxSize: 2000})
+export const feedCache = new LRUCache<string, SortedMap<string, NDKEvent>>({maxSize: 50})
+export const seenEventIds = new LRUCache<string, boolean>({maxSize: 20000})
 export const profileCache = new LRUCache<string, NDKUserProfile>({maxSize: 100000})
 
 // Cache for NIP-05 verification results
