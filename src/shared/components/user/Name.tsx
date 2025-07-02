@@ -1,11 +1,15 @@
 import {PublicKey} from "@/shared/utils/PublicKey"
+import {useMemo, useEffect} from "react"
 import classNames from "classnames"
-import {useMemo} from "react"
 
+import {profilePerformanceTest} from "@/utils/performanceTest"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import animalName from "@/utils/AnimalName"
 
 export function Name({pubKey, className}: {pubKey: string; className?: string}) {
+  useEffect(() => {
+    profilePerformanceTest.trackComponentRender("Name")
+  })
   const pubKeyHex = useMemo(() => {
     if (!pubKey || pubKey === "follows") {
       return ""

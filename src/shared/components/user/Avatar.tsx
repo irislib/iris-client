@@ -3,6 +3,7 @@ import {useEffect, useMemo, useState} from "react"
 import MinidenticonImg from "@/shared/components/user/MinidenticonImg"
 import {useHoverCard} from "@/shared/components/user/useHoverCard"
 import ProfileCard from "@/shared/components/user/ProfileCard"
+import {profilePerformanceTest} from "@/utils/performanceTest"
 import ProxyImg from "@/shared/components/ProxyImg.tsx"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import {Badge} from "@/shared/components/user/Badge"
@@ -23,6 +24,9 @@ export const Avatar = ({
   showTooltip?: boolean
   showHoverCard?: boolean
 }) => {
+  useEffect(() => {
+    profilePerformanceTest.trackComponentRender("Avatar")
+  })
   const pubKeyHex = useMemo(() => {
     if (!pubKey) {
       return ""

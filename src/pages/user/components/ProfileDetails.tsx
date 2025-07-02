@@ -6,6 +6,7 @@ import {nip19} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
 
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
+import {profilePerformanceTest} from "@/utils/performanceTest"
 import HyperText from "@/shared/components/HyperText.tsx"
 import MutedBy from "@/shared/components/user/MutedBy"
 import Icon from "@/shared/components/Icons/Icon"
@@ -31,6 +32,10 @@ function ProfileDetails({
   externalIdentities,
   pubKey,
 }: ProfileDetailsProps) {
+  useEffect(() => {
+    profilePerformanceTest.trackComponentRender("ProfileDetails")
+  })
+
   const navigate = useNavigate()
   const [nip05valid, setNIP05valid] = useState<boolean | null>(null)
   const [isValidPubkey, setIsValidPubkey] = useState(true)

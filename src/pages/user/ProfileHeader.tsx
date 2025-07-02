@@ -4,6 +4,7 @@ import {Link, useNavigate} from "react-router"
 import {useUserStore} from "@/stores/user"
 
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
+import {useProfilePerformance} from "@/shared/hooks/useProfilePerformance"
 import {FollowButton} from "@/shared/components/button/FollowButton.tsx"
 import ProfileDetails from "@/pages/user/components/ProfileDetails.tsx"
 import FollowerCount from "@/pages/user/components/FollowerCount.tsx"
@@ -34,6 +35,8 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
   const [invite, setInvite] = useState<Invite | undefined>(undefined)
+
+  useProfilePerformance(pubKeyHex, profile)
 
   const navigate = useNavigate()
 
