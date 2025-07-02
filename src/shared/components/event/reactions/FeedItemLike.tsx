@@ -142,9 +142,7 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
     <button
       title="Like"
       data-testid="like-button"
-      className={`relative min-w-[50px] md:min-w-[80px] transition-colors duration-200 ease-in-out cursor-pointer likeIcon ${
-        liked ? "text-error" : "hover:text-error"
-      } flex flex-row gap-1 items-center`}
+      className={`reaction-btn relative ${liked ? "text-error" : "hover:text-error"}`}
       onClick={handleClick}
       onMouseDown={(e) => handleMouseDown(e)}
       onMouseUp={handleMouseUp}
@@ -153,7 +151,9 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
       onTouchEnd={handleMouseUp}
     >
       {getReactionIcon()}
-      <span data-testid="like-count">{formatAmount(likeCount)}</span>
+      <span data-testid="like-count" className="reaction-count">
+        {formatAmount(likeCount)}
+      </span>
 
       <FloatingEmojiPicker
         isOpen={showEmojiPicker}

@@ -28,7 +28,7 @@ function PublishButton({
         data-testid="new-post-button"
         className={classNames(
           "cursor-pointer flex flex-row items-center justify-center rounded-full",
-          "primary md:bg-primary md:hover:bg-primary-hover md:text-white",
+          "btn-publish",
           {
             "p-4 md:p-2 aspect-auto md:aspect-square xl:aspect-auto xl:p-4": showLabel,
             "aspect-square": !showLabel,

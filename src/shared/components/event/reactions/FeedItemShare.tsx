@@ -22,8 +22,8 @@ const FeedItemShare = ({event}: {event: NDKEvent}) => {
   }
 
   return (
-    <button onClick={handleShare} className="shareButton hover:text-info" title="Share">
-      <Icon name="share" size={16} />
+    <button onClick={handleShare} className="reaction-btn hover:text-info" title="Share">
+      <Icon name="share" className="sidebar-nav-icon" />
     </button>
   )
 }

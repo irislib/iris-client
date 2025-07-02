@@ -99,12 +99,12 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
       )}
       <button
         title="Repost"
-        className={`${
-          reposted ? "cursor-pointer text-success" : "cursor-pointer hover:text-success"
-        } m-1 transition-colors duration-200 ease-in-out dropdown dropdown-open flex flex-row gap-1 items-center min-w-[50px] md:min-w-[80px]`}
+        className={`reaction-btn dropdown dropdown-open ${
+          reposted ? "text-success" : "hover:text-success"
+        }`}
         onClick={() => myPubKey && setShowButtons(!showButtons)}
       >
-        <Icon name="repost" size={16} />
+        <Icon name="repost" className="sidebar-nav-icon" />
         <div>
           {showButtons && (
             <Dropdown onClose={() => setShowButtons(false)}>
@@ -123,7 +123,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
             </Dropdown>
           )}
         </div>
-        <span>{formatAmount(repostCount)}</span>
+        <span className="reaction-count">{formatAmount(repostCount)}</span>
       </button>
     </>
   )

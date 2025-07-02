@@ -71,11 +71,11 @@ function FeedItemComment({event}: FeedItemCommentProps) {
     <>
       <button
         title="Reply"
-        className="flex flex-row items-center min-w-[50px] md:min-w-[80px] items-center gap-1 cursor-pointer hover:text-info transition-colors duration-200 ease-in-out"
+        className="reaction-btn hover:text-info"
         onClick={handleCommentClick}
       >
-        <Icon name="reply" size={16} />
-        {formatAmount(replyCount)}
+        <Icon name="reply" className="sidebar-nav-icon" />
+        <span className="reaction-count">{formatAmount(replyCount)}</span>
       </button>
 
       {isPopupOpen && (

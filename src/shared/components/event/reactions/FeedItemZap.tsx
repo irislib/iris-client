@@ -219,9 +219,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
       )}
       <button
         title="Zap"
-        className={`${
-          zapped ? "cursor-pointer text-accent" : "cursor-pointer hover:text-accent"
-        } flex flex-row items-center gap-1 transition duration-200 ease-in-out min-w-[50px] md:min-w-[80px]`}
+        className={`reaction-btn ${zapped ? "text-accent" : "hover:text-accent"}`}
         onClick={handleClick}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
@@ -232,9 +230,9 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
         {isZapping ? (
           <div className="loading loading-spinner loading-xs" />
         ) : (
-          <Icon name={iconName} size={16} />
+          <Icon name={iconName} className="sidebar-nav-icon" />
         )}
-        <span>{formatAmount(zappedAmount)}</span>
+        <span className="reaction-count">{formatAmount(zappedAmount)}</span>
       </button>
     </>
   )

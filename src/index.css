@@ -31,6 +31,9 @@ body {
   --shadow-color: none;
   --note-hover-color: #e5e7eb;
   --border-color: rgba(0, 0, 0, 0.2);
+  --publish-btn-color: var(--primary-color);
+  --publish-btn-hover-color: var(--primary-hover);
+  --highlight-color: var(--primary-color);
 }
 
 [data-theme="dark"] {
@@ -50,6 +53,9 @@ body {
   --shadow-color: rgba(0, 0, 0, 0.8);
   --note-hover-color: #040a1c;
   --border-color: rgba(255, 255, 255, 0.2);
+  --publish-btn-color: var(--primary-color);
+  --publish-btn-hover-color: var(--primary-hover);
+  --highlight-color: var(--primary-color);
 }
 
 [data-theme="iris"] {
@@ -69,6 +75,9 @@ body {
   --shadow-color: none;
   --note-hover-color: #0a0a0a;
   --border-color: rgba(255, 255, 255, 0.2);
+  --publish-btn-color: #702ace;
+  --publish-btn-hover-color: rgba(112, 42, 206, 0.8);
+  --highlight-color: #702ace;
 }
 
 /* Utility classes for theme colors */
@@ -123,7 +132,7 @@ body {
 }
 
 .btn-info {
-  @apply bg-info text-white;
+  @apply bg-info text-black text-sm;
   transition: background 0.2s;
 }
 
@@ -133,10 +142,24 @@ body {
 
 .btn-primary {
   @apply bg-primary text-white hover:bg-primary-hover;
+  /* Add smooth glow transition on hover */
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.btn-primary:hover {
+  /* Subtle outer glow */
+  box-shadow: 0 0 10px 0px var(--highlight-color);
 }
 
 .btn-neutral {
-  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
+  /* Use theme-aware neutral color and base text color */
+  @apply bg-neutral text-base-content;
+  transition: background 0.2s;
+}
+
+.btn-neutral:hover {
+  /* Subtle lightening on hover */
+  background-color: color-mix(in srgb, var(--neutral-color) 80%, transparent);
 }
 
 .btn-sm {
@@ -149,6 +172,17 @@ body {
 
 .btn-circle {
   @apply rounded-full p-2 aspect-square;
+}
+
+/* Publish button utility */
+.btn-publish {
+  @apply text-white;
+  background-color: var(--publish-btn-color);
+  transition: background 0.2s;
+}
+
+.btn-publish:hover {
+  background-color: var(--publish-btn-hover-color);
 }
 
 /* Input variants */
@@ -337,4 +371,16 @@ iframe {
 }
 .sidebar-nav-label {
   @apply text-xl;
+}
+
+/* Reaction buttons */
+.reaction-btn {
+  @apply flex items-center gap-1 cursor-pointer text-base-content/50 hover:text-base-content transition-colors duration-200 ease-in-out;
+}
+.reaction-btn svg {
+  width: 1.25rem !important; /* 20px */
+  height: 1.25rem !important;
+}
+.reaction-count {
+  @apply text-sm leading-none;
 }

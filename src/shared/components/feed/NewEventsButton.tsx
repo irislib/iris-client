@@ -20,7 +20,7 @@ const NewEventsButton = ({
   return (
     <div className="fixed bottom-20 md:bottom-10 left-1/2 transform -translate-x-1/2 z-30 flex justify-center w-full max-w-lg pb-[env(safe-area-inset-bottom)]">
       <button
-        className="btn btn-info shadow-xl rounded-full"
+        className="btn btn-info shadow-xl rounded-full flex items-center gap-2"
         onClick={() => {
           showNewEvents()
           firstFeedItemRef?.current?.scrollIntoView({block: "start"})
