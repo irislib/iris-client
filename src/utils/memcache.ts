@@ -8,6 +8,10 @@ export const eventsByIdCache = new LRUCache({maxSize: 500})
 export const feedCache = new LRUCache<string, SortedMap<string, NDKEvent>>({maxSize: 10})
 export const seenEventIds = new LRUCache<string, boolean>({maxSize: 10000})
 export const profileCache = new LRUCache<string, NDKUserProfile>({maxSize: 100000})
+export const nip05ValidationCache = new LRUCache<
+  string,
+  {isValid: boolean; timestamp: number}
+>({maxSize: 10000})
 
 localforage
   .getItem<string[]>("seenEventIds")
