@@ -19,6 +19,7 @@ export default {
         "primary-hover": "var(--primary-hover)",
         secondary: "var(--secondary-color)",
         accent: "var(--accent-color)",
+        "accent-hover": "var(--accent-hover)",
         neutral: "var(--neutral-color)",
         // Status colors
         info: "var(--info-color)",

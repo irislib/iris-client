@@ -60,7 +60,7 @@ body {
 
 [data-theme="iris"] {
   --primary-color: #ff3f15;
-  --primary-hover: #ff3f15;
+  --primary-hover: rgba(255, 63, 21, 0.8);
   --secondary-color: #f87171;
   --accent-color: rgb(255, 113, 10);
   --neutral-color: #2b2b2b;
@@ -78,6 +78,7 @@ body {
   --publish-btn-color: #702ace;
   --publish-btn-hover-color: rgba(112, 42, 206, 0.8);
   --highlight-color: #702ace;
+  --prose-link-color: #ffffff;
 }
 
 /* Utility classes for theme colors */
@@ -383,4 +384,30 @@ iframe {
 }
 .reaction-count {
   @apply text-sm leading-none;
+}
+
+/* Typography overrides for Tailwind prose */
+.prose {
+  color: var(--base-content);
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: var(--base-content);
+}
+.prose a {
+  color: var(--prose-link-color, var(--primary-color));
+}
+
+/* Add btn-accent utility after btn-primary definitions */
+.btn-accent {
+  @apply bg-accent text-white hover:bg-accent-hover;
+  transition: background 0.2s;
+}
+.btn-accent:hover {
+  /* ensure smooth transition when accent-hover var not defined in some themes */
+  background-color: color-mix(in srgb, var(--accent-color) 80%, transparent);
 }
