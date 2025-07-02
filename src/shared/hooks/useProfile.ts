@@ -1,9 +1,8 @@
-import {NDKEvent, NDKUserProfile} from "@nostr-dev-kit/ndk"
-import {handleProfile} from "@/utils/profileSearch"
+import {profileSubscriptionManager} from "@/utils/profileSubscriptionManager"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useEffect, useMemo, useState} from "react"
+import {NDKUserProfile} from "@nostr-dev-kit/ndk"
 import {profileCache} from "@/utils/memcache"
-import {ndk} from "@/utils/ndk"
 
 export default function useProfile(pubKey?: string, subscribe = true) {
   const pubKeyHex = useMemo(() => {
@@ -24,32 +23,19 @@ export default function useProfile(pubKey?: string, subscribe = true) {
 
   useEffect(() => {
     if (!pubKeyHex) {
+      setProfile(null)
       return
     }
-    const newProfile = profileCache.get(pubKeyHex || "") || null
-    setProfile(newProfile)
-    if (newProfile && !subscribe) {
+
+    const cachedProfile = profileCache.get(pubKeyHex)
+    setProfile(cachedProfile || null)
+
+    if (!subscribe) {
       return
     }
-    const sub = ndk().subscribe({kinds: [0], authors: [pubKeyHex]}, {closeOnEose: false})
-    let latest = 0
-    sub.on("event", (event: NDKEvent) => {
-      if (event.pubkey === pubKeyHex && event.kind === 0) {
-        if (!event.created_at || event.created_at <= latest) {
-          return
-        }
-        latest = event.created_at
-        const profile = JSON.parse(event.content)
-        profile.created_at = event.created_at
-        profileCache.set(pubKeyHex, profile)
-        setProfile(profile)
-        handleProfile(pubKeyHex, profile)
-      }
-    })
-    return () => {
-      sub.stop()
-    }
-  }, [pubKeyHex])
+
+    return profileSubscriptionManager.subscribe(pubKeyHex, setProfile)
+  }, [pubKeyHex, subscribe])
 
   return profile
 }

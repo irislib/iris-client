@@ -156,7 +156,7 @@ function UserPage({pubKey}: {pubKey: string}) {
   const filteredFollows = useMemo(() => {
     return follows
       .filter((follow) => socialGraph().getFollowDistance(follow) > 1)
-      .sort(() => Math.random() - 0.5) // Randomize order
+      .sort(() => Math.random() - 0.5)
   }, [follows])
   const location = useLocation()
   const activeProfile = location.pathname.split("/")[1] || ""

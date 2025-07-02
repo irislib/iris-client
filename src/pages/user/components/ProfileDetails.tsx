@@ -9,6 +9,7 @@ import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
 import {profilePerformanceTest} from "@/utils/performanceTest"
 import HyperText from "@/shared/components/HyperText.tsx"
 import MutedBy from "@/shared/components/user/MutedBy"
+import {nip05ValidationCache} from "@/utils/memcache"
 import Icon from "@/shared/components/Icons/Icon"
 import {unmuteUser} from "@/shared/services/Mute"
 import useMutes from "@/shared/hooks/useMutes"
@@ -70,12 +71,34 @@ function ProfileDetails({
 
   useEffect(() => {
     if (npub && displayProfile?.nip05) {
+      const cacheKey = `${npub}-${displayProfile.nip05}`
+      const cached = nip05ValidationCache.get(cacheKey)
+      const now = Date.now()
+      const CACHE_TTL = 5 * 60 * 1000
+
+      if (cached && now - cached.timestamp < CACHE_TTL) {
+        setNIP05valid(cached.isValid)
+        if (cached.isValid && displayProfile.nip05?.endsWith("@iris.to")) {
+          const currentPath = window.location.pathname.split("/").slice(2).join("/")
+          const basePath = displayProfile.nip05.replace("@iris.to", "")
+          const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
+
+          if (window.location.pathname !== newPath) {
+            navigate(newPath, {replace: true})
+          }
+        }
+        return
+      }
+
       ndk()
         ?.getUser({npub})
         ?.validateNip05(displayProfile.nip05)
         .then((isValid) => {
-          setNIP05valid(isValid ?? false)
-          if (isValid && displayProfile.nip05?.endsWith("@iris.to")) {
+          const validationResult = isValid ?? false
+          setNIP05valid(validationResult)
+          nip05ValidationCache.set(cacheKey, {isValid: validationResult, timestamp: now})
+
+          if (validationResult && displayProfile.nip05?.endsWith("@iris.to")) {
             const currentPath = window.location.pathname.split("/").slice(2).join("/")
             const basePath = displayProfile.nip05.replace("@iris.to", "")
             const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
@@ -87,7 +110,7 @@ function ProfileDetails({
         })
         .catch((error) => console.warn(error))
     }
-  }, [npub, displayProfile])
+  }, [npub, displayProfile, navigate])
 
   const renderProfileField = (
     IconComponent: ElementType,
