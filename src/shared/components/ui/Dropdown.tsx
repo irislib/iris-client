@@ -31,7 +31,7 @@ function Dropdown({children, onClose}: DropdownProps) {
   }, [onClose])
 
   return (
-    <div className="dropdown dropdown-open dropdown-left dropdown-container">
+    <div className="relative dropdown-container">
       {children}
     </div>
   )

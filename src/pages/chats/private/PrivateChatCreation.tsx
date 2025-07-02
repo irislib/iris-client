@@ -194,7 +194,7 @@ const PrivateChatCreation = () => {
               >
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
-                    <span>{id === "private" ? "Private Invite" : link.deviceId}</span>
+                    <span>{id === "private" ? "Private Invite" : id}</span>
                     {id === "public" && (
                       <button
                         onClick={() => setShowPublicInfo(!showPublicInfo)}

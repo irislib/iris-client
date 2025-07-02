@@ -85,7 +85,7 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
           </button>
           {dropdownOpen && (
             <Dropdown onClose={() => setDropdownOpen(false)}>
-              <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+              <ul className="dropdown-content z-[1] p-2 shadow bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 w-52">
                 <li>
                   <button onClick={handleDeleteChat}>Delete Chat</button>
                 </li>

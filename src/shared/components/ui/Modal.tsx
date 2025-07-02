@@ -69,15 +69,15 @@ const Modal = ({onClose, children, hasBackground = true}: ModalProps) => {
   }, [isMouseDownOnBackdrop])
 
   return (
-    <dialog ref={modalRef} className="modal outline-none">
+    <dialog ref={modalRef} className="fixed inset-0 z-50 overflow-y-auto outline-none flex items-center justify-center">
       <div
         ref={contentRef}
-        className={hasBackground ? "modal-box w-full max-w-full" : ""}
+        className={hasBackground ? "relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-full w-full max-h-full m-4" : ""}
         onClick={(e) => e.stopPropagation()}
       >
         {hasBackground && (
           <button
-            className="btn btn-circle btn-ghost absolute z-50 right-2 top-2 focus:outline-none"
+            className="absolute z-50 right-2 top-2 p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 focus:outline-none"
             onClick={() => {
               onClose()
               closeModal()
@@ -90,7 +90,7 @@ const Modal = ({onClose, children, hasBackground = true}: ModalProps) => {
       </div>
       {hasBackground && (
         <div
-          className="modal-backdrop"
+          className="fixed inset-0 bg-black bg-opacity-50 -z-10"
           onClick={() => {
             onClose()
             closeModal()

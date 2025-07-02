@@ -250,11 +250,11 @@ function SearchBox({
   }
 
   return (
-    <div className={"dropdown dropdown-open"} ref={dropdownRef}>
+    <div className="relative" ref={dropdownRef}>
       <label className={classNames("input flex items-center gap-2", className)}>
         <input
           type="text"
-          className="grow"
+          className="grow bg-transparent border-0 outline-none"
           placeholder="Search"
           value={value}
           ref={inputRef}
@@ -265,14 +265,13 @@ function SearchBox({
       </label>
       {(searchResults.length > 0 ||
         (isFocused && !value && recentSearches.length > 0)) && (
-        <ul className="dropdown-content menu shadow bg-base-200 rounded-box z-10 w-full border border-info">
+        <ul className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10 max-h-60 overflow-y-auto p-2 space-y-1">
           {value ? (
             searchResults.slice(0, maxResults).map((result, index) => (
               <li
                 key={result.pubKey}
-                className={classNames("cursor-pointer rounded-md", {
-                  "bg-primary text-primary-content": index === activeResult,
-                  "hover:bg-primary/50": index !== activeResult,
+                className={classNames("cursor-pointer rounded-md px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700", {
+                  "bg-purple-500 text-white": index === activeResult,
                 })}
                 onClick={() => handleSearchResultClick(result.pubKey, result.query)}
               >
@@ -289,13 +288,12 @@ function SearchBox({
             ))
           ) : (
             <>
-              <li className="menu-title text-sm px-4 py-2">Recent</li>
+              <li className="text-sm px-4 py-2 font-semibold text-gray-500 dark:text-gray-400">Recent</li>
               {recentSearches.map((result: CustomSearchResult, index: number) => (
                 <li
                   key={result.pubKey}
-                  className={classNames("cursor-pointer rounded-md", {
-                    "bg-primary text-primary-content": index === activeResult,
-                    "hover:bg-primary/50": index !== activeResult,
+                  className={classNames("cursor-pointer rounded-md px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700", {
+                    "bg-purple-500 text-white": index === activeResult,
                   })}
                   onClick={() => handleSearchResultClick(result.pubKey, result.query)}
                 >

@@ -86,7 +86,7 @@ export default function SignIn({onClose}: SignInProps) {
           autoComplete="nsec"
           type="password"
           className={classNames("input input-bordered", {
-            "input-error": inputPrivateKey && inputPrivateKey.length < 60,
+            "border-red-500 focus:ring-red-500": inputPrivateKey && inputPrivateKey.length < 60,
           })}
           placeholder="Paste secret key"
           onChange={(e) => onPrivateKeyChange(e)}

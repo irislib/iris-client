@@ -6,49 +6,205 @@ html {
   font-size: 15px;
 }
 
-.btn, .input {
-  @apply rounded-full;
+/* Theme variables */
+:root {
+  --primary-color: #a855f7;
+  --primary-hover: rgba(168, 85, 247, 0.8);
+  --secondary-color: #22d3ee;
+  --accent-color: #fbbf24;
+  --neutral-color: #3d4451;
+  --base-100: #f5f5f5;
+  --base-200: #ffffff;
+  --base-300: #e0e0e0;
+  --base-content: #1f2937;
+  --info-color: #3b82f6;
+  --success-color: #10b981;
+  --warning-color: #facc15;
+  --error-color: #ef4444;
+  --shadow-color: none;
+  --note-hover-color: #e5e7eb;
+  --border-color: rgba(0, 0, 0, 0.2);
 }
 
-/* Default theme */
+[data-theme="dark"] {
+  --primary-color: #702ace;
+  --primary-hover: rgba(112, 42, 206, 0.8);
+  --secondary-color: #f87171;
+  --accent-color: #db8216;
+  --neutral-color: #2a3c5e;
+  --base-100: #1b1c48;
+  --base-200: #030918;
+  --base-300: #121212;
+  --base-content: #ffffff;
+  --info-color: #3b82f6;
+  --success-color: #10b981;
+  --warning-color: #facc15;
+  --error-color: #ef4444;
+  --shadow-color: rgba(0, 0, 0, 0.8);
+  --note-hover-color: #040a1c;
+  --border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="iris"] {
+  --primary-color: #ff3f15;
+  --primary-hover: #ff3f15;
+  --secondary-color: #f87171;
+  --accent-color: rgb(255, 113, 10);
+  --neutral-color: #2b2b2b;
+  --base-100: #1a1a1a;
+  --base-200: #000000;
+  --base-300: #1c1c1c;
+  --base-content: #ffffff;
+  --info-color: rgb(172, 136, 255);
+  --success-color: rgb(30, 203, 225);
+  --warning-color: #facc15;
+  --error-color: rgb(239, 68, 68);
+  --shadow-color: none;
+  --note-hover-color: #0a0a0a;
+  --border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Base component styles */
+.btn {
+  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-full border border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200;
+}
+
+.input {
+  @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white;
+}
+
+.select {
+  @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white;
+}
+
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+/* Button variants */
 .btn-primary {
-  @apply text-base-content;
-  border-width: 0px;
-  background: linear-gradient(to top, rgba(60, 33, 200, 1), rgba(122, 41, 288, 1));
-  transition: background-image 0.3s ease;
+  @apply text-white;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(to top, rgba(60, 33, 200, 0.8), rgba(122, 41, 288, 0.8));
-}
-
-/* Dark theme */
-[data-theme="dark"] .btn-primary {
-  background: linear-gradient(to top, rgba(60, 33, 200, 1), rgba(122, 41, 288, 1));
-}
-
-[data-theme="dark"] .btn-primary:hover {
-  background: linear-gradient(to top, rgba(60, 33, 200, 0.8), rgba(122, 41, 288, 0.8));
-}
-
-/* Light theme */
-[data-theme="light"] .btn-primary {
-  background: linear-gradient(to top, rgba(60, 33, 200, 1), rgba(122, 41, 288, 1));
-  color: #ffffff;
-}
-
-[data-theme="light"] .btn-primary:hover {
-  background: linear-gradient(to top, rgba(60, 33, 200, 0.8), rgba(122, 41, 288, 0.8));
-}
-
-/* Iris theme */
-[data-theme="iris"] .btn-primary {
-  background: #ff3f15;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 [data-theme="iris"] .btn-primary:hover {
-  background: #ff3f15;
-  box-shadow: 0 0 10px #ff3f15;
+  box-shadow: 0 0 10px var(--primary-color);
+}
+
+.btn-secondary {
+  @apply bg-gray-500 hover:bg-gray-600 text-white;
+}
+
+.btn-success {
+  background: var(--success-color);
+  @apply text-white border-0;
+}
+
+.btn-success:hover {
+  background: color-mix(in srgb, var(--success-color) 80%, black);
+}
+
+.btn-error {
+  background: var(--error-color);
+  @apply text-white border-0;
+}
+
+.btn-error:hover {
+  background: color-mix(in srgb, var(--error-color) 80%, black);
+}
+
+.btn-ghost {
+  @apply bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300;
+}
+
+.btn-neutral {
+  @apply bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200;
+}
+
+.btn-outline {
+  @apply bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800;
+}
+
+/* Button sizes */
+.btn-xs {
+  @apply px-2 py-1 text-xs;
+}
+
+.btn-sm {
+  @apply px-3 py-1 text-xs;
+}
+
+.btn-lg {
+  @apply px-6 py-3 text-lg;
+}
+
+.btn-circle {
+  @apply rounded-full p-2 aspect-square;
+}
+
+.btn-square {
+  @apply rounded-lg p-2 aspect-square;
+}
+
+/* Input variants */
+.input-bordered {
+  @apply border-gray-300 dark:border-gray-600;
+}
+
+.input-primary {
+  @apply border-purple-500 focus:ring-purple-500;
+}
+
+.input-sm {
+  @apply px-2 py-1 text-sm;
+}
+
+/* Select variants */
+.select-bordered {
+  @apply border-gray-300 dark:border-gray-600;
+}
+
+.select-primary {
+  @apply border-purple-500 focus:ring-purple-500;
+}
+
+/* Badge variants */
+.badge-primary {
+  @apply bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200;
+}
+
+.badge-secondary {
+  @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200;
+}
+
+.badge-success {
+  @apply bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200;
+}
+
+.badge-error {
+  @apply bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200;
+}
+
+.badge-warning {
+  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200;
+}
+
+.badge-info {
+  @apply bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200;
+}
+
+.badge-neutral {
+  @apply bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200;
+}
+
+.badge-xs {
+  @apply px-1.5 py-0.5 text-xs;
 }
 
 iframe {
@@ -86,8 +242,89 @@ iframe {
   display: none;  /* Safari and Chrome */
 }
 
-/* modals */
+/* Loading spinner */
+.loading {
+  @apply animate-spin rounded-full border-2 border-gray-300;
+}
 
+.loading-spinner {
+  border-top-color: var(--primary-color);
+}
+
+.loading-xs {
+  @apply w-4 h-4;
+}
+
+.loading-sm {
+  @apply w-5 h-5;
+}
+
+.loading-md {
+  @apply w-6 h-6;
+}
+
+.loading-lg {
+  @apply w-8 h-8;
+}
+
+/* Hero sections */
+.hero {
+  @apply flex items-center justify-center min-h-screen;
+}
+
+.hero-content {
+  @apply text-center;
+}
+
+/* Dropdown */
+.dropdown {
+  @apply relative;
+}
+
+.dropdown-open {
+  @apply block;
+}
+
+.dropdown-left {
+  @apply right-0;
+}
+
+.dropdown-content {
+  @apply absolute top-full mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10;
+}
+
+/* Menu */
+.menu {
+  @apply p-2 space-y-1;
+}
+
+.menu li {
+  @apply list-none;
+}
+
+.menu li > * {
+  @apply block px-3 py-2 rounded-md text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer;
+}
+
+/* Indicator */
+.indicator {
+  @apply relative;
+}
+
+.indicator-item {
+  @apply absolute -top-1 -right-1;
+}
+
+/* Carousel */
+.carousel {
+  @apply flex overflow-x-auto snap-x snap-mandatory;
+}
+
+.carousel-item {
+  @apply flex-none snap-center;
+}
+
+/* Modal styles */
 .modal-box {
   max-width: fit-content !important;
 }

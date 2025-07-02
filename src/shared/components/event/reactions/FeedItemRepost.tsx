@@ -108,7 +108,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
         <div>
           {showButtons && (
             <Dropdown onClose={() => setShowButtons(false)}>
-              <ul className="p-2 gap-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-32">
+              <ul className="absolute top-full mt-1 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10 p-2 space-y-1 w-32">
                 <li>
                   <button className="btn btn-primary btn-sm" onClick={handleRepost}>
                     Repost
