@@ -45,24 +45,26 @@ export const SubscriptionNavItem = ({to, onClick}: SubscriptionNavItemProps) => 
         to={to}
         onClick={handleClick}
         className={({isActive}) =>
-          classNames({
-            "bg-base-100": isActive,
-            "rounded-full md:aspect-square xl:aspect-auto flex items-center": true,
-          })
+          classNames(
+            {
+              "bg-base-100": isActive,
+            },
+            "sidebar-nav-row"
+          )
         }
       >
         {({isActive}) => (
-          <span className="indicator flex items-center gap-2">
+          <>
             {isSubscriber ? (
-              getSubscriptionIcon(tier, "w-6 h-6")
+              getSubscriptionIcon(tier, "sidebar-nav-icon")
             ) : (
               <Icon
                 name={isActive ? "heart-solid" : "heart"}
-                className="w-6 h-6 text-base-content"
+                className="sidebar-nav-icon text-base-content"
               />
             )}
-            <span className="inline md:hidden xl:inline">Subscription</span>
-          </span>
+            <span className="sidebar-nav-label">Subscription</span>
+          </>
         )}
       </NavLink>
     </li>

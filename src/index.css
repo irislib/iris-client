@@ -4,6 +4,13 @@
 
 html {
   font-size: 15px;
+  background-color: var(--base-200);
+  color: var(--base-content);
+}
+
+body {
+  background-color: var(--base-200);
+  color: var(--base-content);
 }
 
 /* Theme variables */
@@ -64,80 +71,76 @@ html {
   --border-color: rgba(255, 255, 255, 0.2);
 }
 
-/* Base component styles */
+/* Utility classes for theme colors */
+.bg-theme-base-100 {
+  background-color: var(--base-100);
+}
+
+.bg-theme-base-200 {
+  background-color: var(--base-200);
+}
+
+.bg-theme-base-300 {
+  background-color: var(--base-300);
+}
+
+.text-theme-base-content {
+  color: var(--base-content);
+}
+
+.border-theme-custom {
+  border-color: var(--border-color);
+}
+
+/* Opacity variants for base colors */
+.text-base-content\/50 {
+  color: color-mix(in srgb, var(--base-content) 50%, transparent);
+}
+
+.text-base-content\/60 {
+  color: color-mix(in srgb, var(--base-content) 60%, transparent);
+}
+
+.text-base-content\/70 {
+  color: color-mix(in srgb, var(--base-content) 70%, transparent);
+}
+
+.text-base-content\/75 {
+  color: color-mix(in srgb, var(--base-content) 75%, transparent);
+}
+
+.text-base-content\/80 {
+  color: color-mix(in srgb, var(--base-content) 80%, transparent);
+}
+
+.bg-base-200\/90 {
+  background-color: color-mix(in srgb, var(--base-200) 90%, transparent);
+}
+
+/* Custom button utilities (DaisyUI replacement) */
 .btn {
-  @apply inline-flex items-center justify-center px-4 py-2 text-sm font-medium rounded-full border border-transparent focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200;
+  @apply inline-flex items-center justify-center px-4 py-2 font-semibold rounded-full transition;
 }
 
-.input {
-  @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white;
+.btn-info {
+  @apply bg-info text-white;
+  transition: background 0.2s;
 }
 
-.select {
-  @apply block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 sm:text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white;
+.btn-info:hover {
+  background-color: color-mix(in srgb, var(--info-color) 80%, transparent);
 }
 
-.badge {
-  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
-}
-
-/* Button variants */
 .btn-primary {
-  @apply text-white;
-  background: var(--primary-color);
-  border-color: var(--primary-color);
-}
-
-.btn-primary:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-}
-
-[data-theme="iris"] .btn-primary:hover {
-  box-shadow: 0 0 10px var(--primary-color);
-}
-
-.btn-secondary {
-  @apply bg-gray-500 hover:bg-gray-600 text-white;
-}
-
-.btn-success {
-  background: var(--success-color);
-  @apply text-white border-0;
-}
-
-.btn-success:hover {
-  background: color-mix(in srgb, var(--success-color) 80%, black);
-}
-
-.btn-error {
-  background: var(--error-color);
-  @apply text-white border-0;
-}
-
-.btn-error:hover {
-  background: color-mix(in srgb, var(--error-color) 80%, black);
-}
-
-.btn-ghost {
-  @apply bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300;
+  @apply bg-primary text-white hover:bg-primary-hover;
 }
 
 .btn-neutral {
-  @apply bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200;
-}
-
-.btn-outline {
-  @apply bg-transparent border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800;
-}
-
-/* Button sizes */
-.btn-xs {
-  @apply px-2 py-1 text-xs;
+  @apply bg-gray-200 text-gray-800 hover:bg-gray-300;
 }
 
 .btn-sm {
-  @apply px-3 py-1 text-xs;
+  @apply px-3 py-1 text-sm;
 }
 
 .btn-lg {
@@ -146,10 +149,6 @@ html {
 
 .btn-circle {
   @apply rounded-full p-2 aspect-square;
-}
-
-.btn-square {
-  @apply rounded-lg p-2 aspect-square;
 }
 
 /* Input variants */
@@ -327,4 +326,15 @@ iframe {
 /* Modal styles */
 .modal-box {
   max-width: fit-content !important;
+}
+
+/* Sidebar nav item DRY utility classes */
+.sidebar-nav-row {
+  @apply flex items-center gap-2 px-4 py-2 rounded-full hover:bg-base-300 transition;
+}
+.sidebar-nav-icon {
+  @apply w-6 h-6;
+}
+.sidebar-nav-label {
+  @apply text-xl;
 }

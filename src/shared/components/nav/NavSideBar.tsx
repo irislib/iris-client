@@ -58,7 +58,7 @@ const NavSideBar = () => {
             <img className="w-8 h-8" src={logoUrl} />
             <span className="inline md:hidden xl:inline">{CONFIG.appName}</span>
           </NavLink>
-          <ul className="menu px-2 py-0 text-xl flex flex-col gap-4 md:gap-2 xl:gap-4 rounded-2xl">
+          <ul className="px-2 py-0 flex flex-col gap-4 items-start">
             {navItems.map(({to, icon, activeIcon, inactiveIcon, label, onClick}) => {
               if (label === "Chats") {
                 return (
@@ -99,13 +99,13 @@ const NavSideBar = () => {
           {!myPubKey && (
             <>
               <button
-                className="ml-2 md:ml-0 hidden md:flex xl:hidden btn btn-primary btn-circle items-center justify-center signup-btn"
+                className="ml-2 md:ml-0 hidden md:flex xl:hidden inline-flex items-center justify-center p-2 rounded-full bg-primary text-white hover:bg-primary-hover transition"
                 onClick={() => setShowLoginDialog(true)}
               >
                 <RiLoginBoxLine className="w-5 h-5" />
               </button>
               <button
-                className="ml-2 flex md:hidden xl:flex btn btn-primary items-center gap-2 signup-btn"
+                className="ml-2 flex md:hidden xl:flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-white hover:bg-primary-hover font-medium transition"
                 onClick={() => setShowLoginDialog(true)}
               >
                 <RiLoginBoxLine className="w-5 h-5" />

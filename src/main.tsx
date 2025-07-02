@@ -10,6 +10,10 @@ import {useSettingsStore} from "@/stores/settings"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
 
+// Initialize theme immediately to prevent flash of unstyled content
+const {appearance} = useSettingsStore.getState()
+document.documentElement.setAttribute("data-theme", appearance.theme)
+
 ndk()
 
 // Initialize chat modules if we have a public key
@@ -21,10 +25,6 @@ if (state.publicKey) {
 }
 
 document.title = CONFIG.appName
-
-// Initialize theme from settings store
-const {appearance} = useSettingsStore.getState()
-document.documentElement.setAttribute("data-theme", appearance.theme)
 
 // Perform migration before rendering the app
 migrateUserState()

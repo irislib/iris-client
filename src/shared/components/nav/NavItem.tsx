@@ -41,23 +41,25 @@ export const NavItem = ({
         to={to}
         onClick={handleClick}
         className={({isActive}) =>
-          classNames(className, {
-            "bg-base-100": isActive,
-            "rounded-full md:aspect-square xl:aspect-auto flex md:justify-center xl:justify-start items-center":
-              true,
-          })
+          classNames(
+            className,
+            {
+              "bg-base-100": isActive,
+            },
+            "sidebar-nav-row"
+          )
         }
       >
         {({isActive}) => (
           <>
             <Icon
-              className="w-6 h-6"
+              className="sidebar-nav-icon"
               name={
                 (isActive ? activeIcon : inactiveIcon) ||
                 (icon ? `${icon}-${isActive ? "solid" : "outline"}` : "")
               }
             />
-            <span className="inline md:hidden xl:inline">{label}</span>
+            <span className="sidebar-nav-label">{label}</span>
             {badge && (
               <span className="badge badge-sm absolute bottom-0 xl:bottom-auto xl:top-1/2 xl:-translate-y-1/2 xl:right-2">
                 {badge}

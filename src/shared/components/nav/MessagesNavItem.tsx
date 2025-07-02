@@ -26,20 +26,23 @@ export const MessagesNavItem = ({label, to, onClick}: MessagesNavItemProps) => {
         to={to}
         onClick={handleClick}
         className={({isActive}) =>
-          classNames({
-            "bg-base-100": isActive,
-            "rounded-full md:aspect-square xl:aspect-auto flex items-center": true,
-          })
+          classNames(
+            {
+              "bg-base-100": isActive,
+            },
+            "rounded-full flex flex-row items-center gap-3 px-4 py-2 hover:bg-base-300 transition"
+          )
         }
       >
         {({isActive}) => (
-          <span className="flex items-center gap-2">
-            <span className="indicator">
-              <UnseenMessagesBadge />
-              <Icon name={`mail-${isActive ? "solid" : "outline"}`} className="w-6 h-6" />
-            </span>
-            <span className="inline md:hidden xl:inline">{label}</span>
-          </span>
+          <>
+            <Icon
+              name={`mail-${isActive ? "solid" : "outline"}`}
+              className="sidebar-nav-icon"
+            />
+            <span className="sidebar-nav-label">{label}</span>
+            <UnseenMessagesBadge />
+          </>
         )}
       </NavLink>
     </li>

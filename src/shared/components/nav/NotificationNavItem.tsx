@@ -25,18 +25,23 @@ export const NotificationNavItem = ({to, onClick}: NotificationNavItemProps) => 
         to={to}
         onClick={handleClick}
         className={({isActive}) =>
-          classNames({
-            "bg-base-100": isActive,
-            "rounded-full md:aspect-square xl:aspect-auto flex items-center": true,
-          })
+          classNames(
+            {
+              "bg-base-100": isActive,
+            },
+            "sidebar-nav-row indicator"
+          )
         }
       >
         {({isActive}) => (
-          <span className="indicator flex items-center gap-2">
+          <>
+            <Icon
+              name={`bell-${isActive ? "solid" : "outline"}`}
+              className="sidebar-nav-icon"
+            />
+            <span className="sidebar-nav-label">Notifications</span>
             <UnseenNotificationsBadge />
-            <Icon name={`bell-${isActive ? "solid" : "outline"}`} className="w-6 h-6" />
-            <span className="inline md:hidden xl:inline">Notifications</span>
-          </span>
+          </>
         )}
       </NavLink>
     </li>
