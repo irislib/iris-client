@@ -1,6 +1,7 @@
 import {NDKEvent, NDKFilter, NDKSubscription} from "@nostr-dev-kit/ndk"
-import debounce from "lodash/debounce"
+import {shouldHideAuthor} from "@/utils/visibility"
 import {ndk} from "@/utils/ndk"
+import debounce from "lodash/debounce"
 
 type SubscriptionCallback = (event: NDKEvent) => void
 type SubscriptionKey = string
@@ -32,6 +33,8 @@ class SharedSubscriptionManager {
       }
 
       sub.on("event", (event: NDKEvent) => {
+        if (shouldHideAuthor(event.author.pubkey)) return
+        
         subscription!.callbacks.forEach((cb) => {
           try {
             cb(event)

@@ -8,9 +8,8 @@ import Modal from "@/shared/components/ui/Modal.tsx"
 import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import Icon from "../../Icons/Icon"
-
-import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 import {useUserStore} from "@/stores/user"
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 
 interface FeedItemRepostProps {
   event: NDKEvent
@@ -62,18 +61,15 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
     }
 
     try {
-      const unsubscribe = sharedSubscriptionManager.subscribe(
-        filter,
-        (repostEvent: NDKEvent) => {
-          setRepostsByAuthor((prev) => {
-            const newSet = new Set(prev)
-            newSet.add(repostEvent.pubkey)
-            repostCache.set(event.id, newSet)
-            setRepostCount(newSet.size)
-            return newSet
-          })
-        }
-      )
+      const unsubscribe = sharedSubscriptionManager.subscribe(filter, (repostEvent: NDKEvent) => {
+        setRepostsByAuthor((prev) => {
+          const newSet = new Set(prev)
+          newSet.add(repostEvent.pubkey)
+          repostCache.set(event.id, newSet)
+          setRepostCount(newSet.size)
+          return newSet
+        })
+      })
 
       return unsubscribe
     } catch (error) {

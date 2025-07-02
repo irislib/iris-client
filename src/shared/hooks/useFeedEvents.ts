@@ -115,7 +115,7 @@ export default function useFeedEvents({
         socialGraph().getFollowDistance(event.pubkey) >= 5 &&
         !(filters.authors && filters.authors.includes(event.pubkey)) &&
         // Only include events that aren't heavily muted
-        !shouldHideAuthor(event.pubkey, undefined, true)
+        !shouldHideAuthor(event.pubkey, 3, true)
     )
   }, [eventsRef.current.size, displayFilterFn, hideEventsByUnknownUsers, filters.authors])
 

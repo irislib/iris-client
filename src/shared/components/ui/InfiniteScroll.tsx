@@ -1,5 +1,5 @@
-import {infiniteScrollObserver} from "@/utils/sharedIntersectionObserver"
 import {ReactNode, useEffect, useRef} from "react"
+import {infiniteScrollObserver} from "@/utils/sharedIntersectionObserver"
 
 type Props = {
   onLoadMore: () => void

@@ -1,6 +1,6 @@
-import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
 import {useEffect, useState} from "react"
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"

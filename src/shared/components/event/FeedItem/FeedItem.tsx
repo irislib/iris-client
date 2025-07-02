@@ -1,8 +1,8 @@
-import {feedItemVisibilityObserver} from "@/utils/sharedIntersectionObserver"
 import {eventsByIdCache, addSeenEventId} from "@/utils/memcache.ts"
 import {useEffect, useMemo, useState, useRef} from "react"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import classNames from "classnames"
+animport {feedItemVisibilityObserver} from "@/utils/sharedIntersectionObserver"
 
 import {getEventReplyingTo, fetchEvent, getEventRoot, isRepost} from "@/utils/nostr.ts"
 import {getEventIdHex, handleEventContent} from "@/shared/components/event/utils.ts"
