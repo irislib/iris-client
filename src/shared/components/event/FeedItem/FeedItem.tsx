@@ -1,5 +1,5 @@
 import {eventsByIdCache, addSeenEventId} from "@/utils/memcache.ts"
-import {useEffect, useMemo, useState, useRef} from "react"
+import {useEffect, useMemo, useState, useRef, memo} from "react"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import classNames from "classnames"
 
@@ -304,4 +304,4 @@ function FeedItem({
   )
 }
 
-export default FeedItem
+export default memo(FeedItem)

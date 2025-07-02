@@ -3,11 +3,14 @@ import {eventComparator} from "../components/feed/utils"
 import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {shouldHideAuthor} from "@/utils/visibility"
+import {LRUCache} from "typescript-lru-cache"
 import socialGraph from "@/utils/socialGraph"
 import {feedCache} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
+
+const distanceCache = new LRUCache<string, number>({maxSize: 1000})
 
 interface UseFeedEventsProps {
   filters: NDKFilter
@@ -70,14 +73,20 @@ export default function useFeedEvents({
       }
       if (
         hideEventsByUnknownUsers &&
-        socialGraph().getFollowDistance(event.pubkey) >= 5 &&
         !(filters.authors && filters.authors.includes(event.pubkey))
       ) {
-        return false
+        let distance = distanceCache.get(event.pubkey)
+        if (distance === undefined) {
+          distance = socialGraph().getFollowDistance(event.pubkey)
+          distanceCache.set(event.pubkey, distance)
+        }
+        if (distance !== null && distance >= 5) {
+          return false
+        }
       }
       return true
     },
-    [displayFilterFn, myPubKey, hideEventsByUnknownUsers, filters.authors]
+    [displayFilterFn, localFilter.authors, hideEventsByUnknownUsers, filters.authors]
   )
 
   const filteredEvents = useMemo(() => {
