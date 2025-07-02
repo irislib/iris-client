@@ -1,8 +1,6 @@
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
-import {shouldHideAuthor} from "@/utils/visibility"
 import {useEffect, useState} from "react"
-import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
@@ -43,25 +41,15 @@ function FeedItemComment({event}: FeedItemCommentProps) {
       ["#e"]: [event.id],
     }
 
-    const debouncedSetReplyCount = debounce((count) => {
-      setReplyCount(count)
-      replyCountByEventCache.set(event.id, count)
-    }, 300)
-
     try {
-      const sub = ndk().subscribe(filter)
-
-      sub?.on("event", (e: NDKEvent) => {
-        if (shouldHideAuthor(e.author.pubkey) || getEventReplyingTo(e) !== event.id)
-          return
+      const unsubscribe = sharedSubscriptionManager.subscribe(filter, (e: NDKEvent) => {
+        if (getEventReplyingTo(e) !== event.id) return
         replies.add(e.id)
-        debouncedSetReplyCount(replies.size)
+        setReplyCount(replies.size)
+        replyCountByEventCache.set(event.id, replies.size)
       })
 
-      return () => {
-        sub.stop()
-        debouncedSetReplyCount.cancel()
-      }
+      return unsubscribe
     } catch (error) {
       console.warn(error)
     }

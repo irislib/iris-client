@@ -1,4 +1,5 @@
-import {ReactNode, useCallback, useEffect, useRef} from "react"
+import {infiniteScrollObserver} from "@/utils/sharedIntersectionObserver"
+import {ReactNode, useEffect, useRef} from "react"
 
 type Props = {
   onLoadMore: () => void
@@ -8,33 +9,17 @@ type Props = {
 const InfiniteScroll = ({onLoadMore, children}: Props) => {
   const observerRef = useRef<HTMLDivElement | null>(null)
 
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const target = entries[0]
-      if (target.isIntersecting) {
+  useEffect(() => {
+    if (!observerRef.current) return
+
+    const unobserve = infiniteScrollObserver.observe(observerRef.current, (entry) => {
+      if (entry.isIntersecting) {
         onLoadMore()
       }
-    },
-    [onLoadMore]
-  )
+    })
 
-  useEffect(() => {
-    const observerOptions = {
-      rootMargin: "1000px",
-      threshold: 1.0,
-    }
-
-    const observer = new IntersectionObserver(handleObserver, observerOptions)
-    if (observerRef.current) {
-      observer.observe(observerRef.current)
-    }
-
-    return () => {
-      if (observerRef.current) {
-        observer.unobserve(observerRef.current)
-      }
-    }
-  }, [handleObserver])
+    return unobserve
+  }, [onLoadMore])
 
   return (
     <>

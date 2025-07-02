@@ -6,15 +6,13 @@ import {
   useRef,
 } from "react"
 import {FloatingEmojiPicker} from "@/shared/components/emoji/FloatingEmojiPicker"
-import {shouldHideAuthor} from "@/utils/visibility"
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {useUserStore} from "@/stores/user"
-import debounce from "lodash/debounce"
 import EmojiType from "@/types/emoji"
 import Icon from "../../Icons/Icon"
-import {ndk} from "@/utils/ndk"
 
 const likeCache = new LRUCache<string, Set<string>>({
   maxSize: 100,
@@ -102,29 +100,23 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
-      const debouncedUpdate = debounce((likesSet: Set<string>) => {
-        setLikeCount(likesSet.size)
-      }, 300)
-
-      sub?.on("event", (likeEvent: NDKEvent) => {
-        if (shouldHideAuthor(likeEvent.author.pubkey)) return
-        if (likeEvent.pubkey === myPubKey) {
-          setMyReaction(likeEvent.content)
+      const unsubscribe = sharedSubscriptionManager.subscribe(
+        filter,
+        (likeEvent: NDKEvent) => {
+          if (likeEvent.pubkey === myPubKey) {
+            setMyReaction(likeEvent.content)
+          }
+          setLikesByAuthor((prev) => {
+            const newSet = new Set(prev)
+            newSet.add(likeEvent.pubkey)
+            likeCache.set(event.id, newSet)
+            setLikeCount(newSet.size)
+            return newSet
+          })
         }
-        setLikesByAuthor((prev) => {
-          const newSet = new Set(prev)
-          newSet.add(likeEvent.pubkey)
-          likeCache.set(event.id, newSet)
-          debouncedUpdate(newSet)
-          return newSet
-        })
-      })
+      )
 
-      return () => {
-        sub.stop()
-        debouncedUpdate.cancel()
-      }
+      return unsubscribe
     } catch (error) {
       console.warn(error)
     }

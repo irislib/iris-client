@@ -1,3 +1,4 @@
+import {feedItemVisibilityObserver} from "@/utils/sharedIntersectionObserver"
 import {eventsByIdCache, addSeenEventId} from "@/utils/memcache.ts"
 import {useEffect, useMemo, useState, useRef} from "react"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
@@ -102,45 +103,30 @@ function FeedItem({
   const feedItemRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (event) {
-      onEvent?.(event)
-    } else {
-      return
-    }
+    if (!event || !feedItemRef.current) return
 
-    if (!event) return
+    onEvent?.(event)
 
     let timeoutId: number | undefined
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            // Start the timer when the item becomes visible
-            timeoutId = window.setTimeout(() => {
-              addSeenEventId(event.id)
-              observer.disconnect()
-            }, 1000)
-          } else {
-            // Clear the timer if the item becomes hidden before 1s
-            if (timeoutId) {
-              window.clearTimeout(timeoutId)
-              timeoutId = undefined
-            }
-          }
-        })
-      },
-      {rootMargin: "-200px 0px 0px 0px"}
-    )
 
-    if (feedItemRef.current) {
-      observer.observe(feedItemRef.current)
-    }
+    const unobserve = feedItemVisibilityObserver.observe(feedItemRef.current, (entry) => {
+      if (entry.isIntersecting) {
+        timeoutId = window.setTimeout(() => {
+          addSeenEventId(event.id)
+        }, 1000)
+      } else {
+        if (timeoutId) {
+          window.clearTimeout(timeoutId)
+          timeoutId = undefined
+        }
+      }
+    })
 
     return () => {
       if (timeoutId) {
         window.clearTimeout(timeoutId)
       }
-      observer.disconnect()
+      unobserve()
     }
   }, [event])
 

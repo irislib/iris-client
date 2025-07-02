@@ -1,4 +1,5 @@
 import {LnPayCb, NDKEvent, NDKZapper, NDKPaymentConfirmationLN} from "@nostr-dev-kit/ndk"
+import {sharedSubscriptionManager} from "@/utils/sharedSubscriptions"
 import {useWebLNProvider} from "@/shared/hooks/useWebLNProvider"
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
 import {RefObject, useEffect, useState, useRef} from "react"
@@ -145,40 +146,41 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
       const debouncedUpdateAmount = debounce(async (zapsByAuthor) => {
         const amount = await calculateZappedAmount(zapsByAuthor)
         setZappedAmount(amount)
-      }, 300)
+      }, 50)
 
-      sub?.on("event", async (zapEvent: NDKEvent) => {
-        // if (shouldHideEvent(zapEvent)) return // blah. disabling this check enables fake receipts but what can we do
-        const invoice = zapEvent.tagValue("bolt11")
-        if (invoice) {
-          const decodedInvoice = decode(invoice)
-          const amountSection = decodedInvoice.sections.find(
-            (section) => section.name === "amount"
-          )
-          if (amountSection && "value" in amountSection) {
-            setZapsByAuthor((prev) => {
-              const zappingUser = getZappingUser(zapEvent)
-              const newMap = new Map(prev)
-              const authorZaps = newMap.get(zappingUser) ?? []
-              if (!authorZaps.some((e) => e.id === zapEvent.id)) {
-                authorZaps.push(zapEvent)
-              }
-              newMap.set(zappingUser, authorZaps)
-              zapsByEventCache.set(event.id, newMap)
-              debouncedUpdateAmount(newMap)
-              return newMap
-            })
+      const unsubscribe = sharedSubscriptionManager.subscribe(
+        filter,
+        async (zapEvent: NDKEvent) => {
+          const invoice = zapEvent.tagValue("bolt11")
+          if (invoice) {
+            const decodedInvoice = decode(invoice)
+            const amountSection = decodedInvoice.sections.find(
+              (section) => section.name === "amount"
+            )
+            if (amountSection && "value" in amountSection) {
+              setZapsByAuthor((prev) => {
+                const zappingUser = getZappingUser(zapEvent)
+                const newMap = new Map(prev)
+                const authorZaps = newMap.get(zappingUser) ?? []
+                if (!authorZaps.some((e) => e.id === zapEvent.id)) {
+                  authorZaps.push(zapEvent)
+                }
+                newMap.set(zappingUser, authorZaps)
+                zapsByEventCache.set(event.id, newMap)
+                debouncedUpdateAmount(newMap)
+                return newMap
+              })
+            }
           }
         }
-      })
+      )
 
       return () => {
         debouncedUpdateAmount.cancel()
-        sub.stop()
+        unsubscribe()
       }
     } catch (error) {
       console.warn(error)
