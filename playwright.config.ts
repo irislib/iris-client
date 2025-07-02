@@ -11,6 +11,9 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
     video: "on-first-retry",
+    launchOptions: {
+      args: ['--enable-precise-memory-info']
+    }
   },
   projects: [
     {

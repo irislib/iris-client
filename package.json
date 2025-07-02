@@ -24,6 +24,8 @@
     "pretest": "npx playwright install --with-deps chromium",
     "test": "playwright test --reporter=list",
     "test:ui": "playwright test --ui",
+    "test:performance": "playwright test feed-performance.spec.ts --reporter=list",
+    "performance:baseline": "tsx ./scripts/performance-baseline.ts",
     "format": "prettier --write \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\""
   },
   "build": {

@@ -239,6 +239,8 @@ function FeedItem({
               "hover:bg-[var(--note-hover-color)]": !standalone,
             }
           )}
+          data-testid="feed-item"
+          data-event-id={event.id}
           onClick={(e) =>
             !standalone && onClick(e, event, referredEvent, eventId, navigate)
           }
