@@ -5,10 +5,16 @@ test("profile navigation performance", async ({page}) => {
   const username = "Performance Test User"
   await signUp(page, username)
   
-  const currentUrl = page.url()
-  const profileUrl = currentUrl.replace(/\/$/, '') + '/profile'
-  
   await page.goto('/')
+  
+  const profileUrl = await page
+    .locator('a[href*="/npub"]')
+    .first()
+    .getAttribute("href")
+  
+  if (!profileUrl) {
+    throw new Error("Could not find user's profile link")
+  }
   
   const navigationStart = Date.now()
   
@@ -17,7 +23,7 @@ test("profile navigation performance", async ({page}) => {
   await expect(page.getByTestId('profile-header-actions')).toBeVisible()
   const navigationComplete = Date.now()
   
-  await expect(page.getByText(username, {exact: true})).toBeVisible()
+  await expect(page.getByRole('banner').getByText(username, {exact: true})).toBeVisible()
   const profileDataLoaded = Date.now()
   
   await expect(page.locator('img[alt="User Avatar"], img[alt=""]').first()).toBeVisible()
