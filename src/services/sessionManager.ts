@@ -86,6 +86,7 @@ async function initializeManager(
   await manager.init()
 
   manager.onEvent((rumor: any) => {
+    console.log("got rumor", rumor)
     messageCallbacks.forEach((callback) => {
       callback("unknown-sender", rumor)
     })
@@ -178,6 +179,8 @@ export async function sendMessage(
         tags: event.tags,
       }
     }
+
+    console.log("sent msg events", events)
 
     if (events.length === 0) {
       sessionManager.listenToUser(publicKey)
