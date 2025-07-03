@@ -37,8 +37,11 @@ const PrivateChatCreation = () => {
         filter: Filter,
         onEvent: (event: VerifiedEvent) => void
       ) => {
+        console.log("nostrSubscribed to filter", filter)
         const sub = ndk().subscribe(filter)
-        sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
+        sub.on("event", (e) => {
+          console.log("nostrSubscribe got evt", e)
+          onEvent(e as unknown as VerifiedEvent)})
         return () => sub.stop()
       }
 

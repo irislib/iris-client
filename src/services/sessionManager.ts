@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {VerifiedEvent, Filter, verifyEvent, validateEvent} from "nostr-tools"
 import {StorageAdapter} from "nostr-double-ratchet/src/StorageAdapter"
 import SessionManager from "nostr-double-ratchet/src/SessionManager"
 import {usePrivateChatsStore} from "../stores/privateChats"
-import {NDKEventFromRawEvent} from "@/utils/nostr"
+import {VerifiedEvent, Filter} from "nostr-tools"
 import {useEventsStore} from "../stores/events"
+import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {useUserStore} from "../stores/user"
 import localforage from "localforage"
 import {ndk} from "@/utils/ndk"
-import { NDKEvent } from "@nostr-dev-kit/ndk"
 
 const storage: StorageAdapter = {
   get: async (key) => {
@@ -31,7 +30,10 @@ const storage: StorageAdapter = {
 
 const makeSubscribe = () => (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
   const sub = ndk().subscribe(filter)
-  sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
+  sub.on("event", (e) => {
+    console.log("got evt", e)
+    onEvent(e as unknown as VerifiedEvent)
+  })
   return () => sub.stop()
 }
 
@@ -41,8 +43,7 @@ const makePublish = () => async (event: any) => {
   ndkEvent.content = event.content
   ndkEvent.tags = event.tags
   ndkEvent.created_at = event.created_at
-  ndkEvent.pubkey = event.pubkey
-  ndkEvent.sign().then(() => {
+  await ndkEvent.sign().then(() => {
     ndkEvent.publish(undefined, undefined, 0).catch((error) => {
       console.warn(`Event could not be published: ${error}`)
     })
@@ -57,7 +58,7 @@ const messageCallbacks: Array<(publicKey: string, event: any) => void> = []
 const getDeviceId = (): string => {
   const stored = window.localStorage.getItem("deviceId")
   if (stored) return stored
-  const newId = `web-${crypto.randomUUID()}`
+  const newId = crypto.randomUUID()
   window.localStorage.setItem("deviceId", newId)
   return newId
 }

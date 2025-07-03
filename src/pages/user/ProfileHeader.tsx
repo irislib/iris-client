@@ -33,7 +33,7 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
 
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
-  const [_invite, _setInvite] = useState<Invite | undefined>(undefined)
+  const [invite, setInvite] = useState<Invite | undefined>(undefined)
 
   const navigate = useNavigate()
 
@@ -47,16 +47,12 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
   }
 
   useEffect(() => {
-    if (myPubKey === pubKeyHex) {
-      return
-    }
-
     const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
       const sub = ndk().subscribe(filter)
       sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
       return () => sub.stop()
     }
-    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => _setInvite(invite))
+    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => setInvite(invite))
     return unsub
   }, [myPubKey, pubKeyHex])
 
@@ -109,7 +105,7 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
             )}
 
             <div className="flex flex-row gap-2" data-testid="profile-header-actions">
-              {myPubKey && myPubKey !== pubKeyHex && (
+              {myPubKey && invite && (
                 <button className="btn btn-circle btn-neutral" onClick={handleStartChat}>
                   <Icon name="mail-outline" className="w-6 h-6" />
                 </button>
