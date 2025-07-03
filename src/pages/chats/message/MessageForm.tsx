@@ -10,7 +10,7 @@ import UploadButton from "@/shared/components/button/UploadButton"
 import EmojiButton from "@/shared/components/emoji/EmojiButton"
 import MessageFormReplyPreview from "./MessageFormReplyPreview"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
-import {useSessionsStore} from "@/stores/sessions"
+import {sendMessage} from "@/services/sessionManager"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiAttachment2} from "@remixicon/react"
 import EmojiType from "@/types/emoji"
@@ -31,10 +31,8 @@ const MessageForm = ({
   onSendMessage,
   isPublicChat = false,
 }: MessageFormProps) => {
-  const {sendMessage} = useSessionsStore()
   const [newMessage, setNewMessage] = useState("")
   const textareaRef = useAutosizeTextarea(newMessage)
-  const theirPublicKey = id.split(":")[0]
 
   useEffect(() => {
     if (!isTouchDevice && textareaRef.current) {
@@ -65,17 +63,20 @@ const MessageForm = ({
     if (replyingTo) {
       setReplyingTo(undefined)
     }
-    if (onSendMessage) {
+    if (isPublicChat && onSendMessage) {
       onSendMessage(text).catch((error) => {
         console.error("Failed to send message:", error)
       })
       return
     }
-
-    try {
-      await sendMessage(id, text, replyingTo?.id)
-    } catch (error) {
-      console.error("Failed to send message:", error)
+    // Private chat: use session manager
+    if (!isPublicChat) {
+      try {
+        await sendMessage(id, text, replyingTo?.id, false)
+      } catch (error) {
+        // Handle error silently or show user notification
+      }
+      return
     }
   }
 
@@ -108,7 +109,7 @@ const MessageForm = ({
         <MessageFormReplyPreview
           replyingTo={replyingTo}
           setReplyingTo={setReplyingTo}
-          theirPublicKey={theirPublicKey}
+          theirPublicKey={id}
         />
       )}
 

@@ -1,3 +1,4 @@
+import {initializeChat} from "@/services/sessionManager"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 import {Link, useNavigate} from "react-router"
@@ -16,7 +17,6 @@ import Header from "@/shared/components/header/Header"
 import {Name} from "@/shared/components/user/Name.tsx"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import Modal from "@/shared/components/ui/Modal.tsx"
-import {useSessionsStore} from "@/stores/sessions"
 import Icon from "@/shared/components/Icons/Icon"
 import {Filter, VerifiedEvent} from "nostr-tools"
 import {Invite} from "nostr-double-ratchet/src"
@@ -33,9 +33,18 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
 
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
-  const [invite, setInvite] = useState<Invite | undefined>(undefined)
+  const [_invite, _setInvite] = useState<Invite | undefined>(undefined)
 
   const navigate = useNavigate()
+
+  const handleStartChat = async () => {
+    try {
+      await initializeChat(pubKeyHex)
+      navigate("/chats/chat", {state: {id: pubKey}})
+    } catch (error) {
+      // Handle error silently
+    }
+  }
 
   useEffect(() => {
     if (myPubKey === pubKeyHex) {
@@ -47,7 +56,7 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
       sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
       return () => sub.stop()
     }
-    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => setInvite(invite))
+    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => _setInvite(invite))
     return unsub
   }, [myPubKey, pubKeyHex])
 
@@ -100,19 +109,8 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
             )}
 
             <div className="flex flex-row gap-2" data-testid="profile-header-actions">
-              {invite && myPubKey && (
-                <button
-                  className="btn btn-circle btn-neutral"
-                  onClick={async () => {
-                    if (!invite) return
-                    const sessionId = await useSessionsStore
-                      .getState()
-                      .acceptInvite(invite.getUrl())
-                    navigate("/chats/chat", {
-                      state: {id: sessionId},
-                    })
-                  }}
-                >
+              {myPubKey && myPubKey !== pubKeyHex && (
+                <button className="btn btn-circle btn-neutral" onClick={handleStartChat}>
                   <Icon name="mail-outline" className="w-6 h-6" />
                 </button>
               )}
