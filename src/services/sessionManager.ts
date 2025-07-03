@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import {VerifiedEvent, Filter, verifyEvent, validateEvent} from "nostr-tools"
 import {StorageAdapter} from "nostr-double-ratchet/src/StorageAdapter"
 import SessionManager from "nostr-double-ratchet/src/SessionManager"
 import {usePrivateChatsStore} from "../stores/privateChats"
-import {VerifiedEvent, Filter} from "nostr-tools"
+import {NDKEventFromRawEvent} from "@/utils/nostr"
 import {useEventsStore} from "../stores/events"
 import {useUserStore} from "../stores/user"
 import localforage from "localforage"
 import {ndk} from "@/utils/ndk"
+import { NDKEvent } from "@nostr-dev-kit/ndk"
 
 const storage: StorageAdapter = {
   get: async (key) => {
@@ -33,15 +35,24 @@ const makeSubscribe = () => (filter: Filter, onEvent: (event: VerifiedEvent) => 
   return () => sub.stop()
 }
 
-const makePublish = () => (event: any) => {
-  try {
-    return ndk().publish(event) as unknown as Promise<void>
-  } catch (e) {
-    return undefined
-  }
+const makePublish = () => async (event: any) => {
+  const ndkEvent = new NDKEvent(ndk())
+  ndkEvent.kind = event.kind
+  ndkEvent.content = event.content
+  ndkEvent.tags = event.tags
+  ndkEvent.created_at = event.created_at
+  ndkEvent.pubkey = event.pubkey
+  ndkEvent.sign().then(() => {
+    ndkEvent.publish(undefined, undefined, 0).catch((error) => {
+      console.warn(`Event could not be published: ${error}`)
+    })
+  })
+  console.log("ndkevent", ndkEvent)
+  return ndkEvent
 }
+
 let manager: SessionManager | undefined
-let messageCallbacks: Array<(publicKey: string, event: any) => void> = []
+const messageCallbacks: Array<(publicKey: string, event: any) => void> = []
 
 const getDeviceId = (): string => {
   const stored = window.localStorage.getItem("deviceId")
@@ -54,7 +65,10 @@ const getDeviceId = (): string => {
 /**
  * Initialize the session manager with user's identity key and device ID
  */
-async function initializeManager(identityKey: Uint8Array, deviceId: string): Promise<void> {
+async function initializeManager(
+  identityKey: Uint8Array,
+  deviceId: string
+): Promise<void> {
   if (manager) return
 
   const subscribe = makeSubscribe()
@@ -80,7 +94,7 @@ async function initializeManager(identityKey: Uint8Array, deviceId: string): Pro
 /**
  * Get the underlying SessionManager instance, initializing if needed
  */
-async function ensureManager(): Promise<SessionManager | undefined> {
+export async function ensureManager(): Promise<SessionManager | undefined> {
   if (manager) return manager
 
   const publicKey = useUserStore.getState().publicKey
@@ -98,6 +112,7 @@ async function ensureManager(): Promise<SessionManager | undefined> {
  * Adds the contact to privateChats and starts listening for their messages
  */
 export async function initializeChat(publicKeyHex: string): Promise<void> {
+  console.log("Initialising chat", publicKeyHex)
   const sessionManager = await ensureManager()
   if (!sessionManager) {
     return
@@ -125,12 +140,11 @@ export async function sendMessage(
     throw new Error("SessionManager not available")
   }
 
-
   try {
     let messageToStore: any
     let events: any[] = []
 
-      if (!isReaction && !replyToId) {
+    if (!isReaction && !replyToId) {
       events = await (sessionManager as any).sendText(publicKey, content)
 
       const myPubKey = useUserStore.getState().publicKey
@@ -205,4 +219,3 @@ export function onMessage(callback: (publicKey: string, event: any) => void): ()
     }
   }
 }
-

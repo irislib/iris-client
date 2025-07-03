@@ -9,6 +9,7 @@ import {migrateUserState} from "./utils/migration"
 import {useSettingsStore} from "@/stores/settings"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
+import { ensureManager } from "./services/sessionManager"
 
 ndk()
 
@@ -18,6 +19,10 @@ if (state.publicKey) {
   console.log("Initializing chat modules with existing user data")
   subscribeToNotifications()
   subscribeToDMNotifications()
+  setTimeout(() => {
+    console.log("Ensuring manager")
+    ensureManager()
+  }, 1000)
 }
 
 document.title = CONFIG.appName
@@ -35,6 +40,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 // Subscribe to public key changes from the user store
 useUserStore.subscribe((state) => {
+  console.log("User store changed", state)
   const prevPublicKey = localStorage.getItem("localState/user/publicKey")
   let parsedPrevKey = ""
   if (prevPublicKey) {
@@ -51,6 +57,7 @@ useUserStore.subscribe((state) => {
     console.log("Public key changed, initializing chat modules")
     subscribeToNotifications()
     subscribeToDMNotifications()
+    ensureManager()
   }
 })
 

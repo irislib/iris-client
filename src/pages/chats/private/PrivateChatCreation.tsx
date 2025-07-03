@@ -6,9 +6,12 @@ import {
 } from "../utils/doubleRatchetUsers"
 import {usePrivateChatsStore} from "@/stores/privateChats"
 import {UserRow} from "@/shared/components/user/UserRow"
+import {Filter, VerifiedEvent} from "nostr-tools"
+import {Invite} from "nostr-double-ratchet/src"
 import {useUserStore} from "@/stores/user"
 import {useState, useEffect} from "react"
 import {useNavigate} from "react-router"
+import {ndk} from "@/utils/ndk"
 
 const PrivateChatCreation = () => {
   const navigate = useNavigate()
@@ -16,6 +19,9 @@ const PrivateChatCreation = () => {
   const [searchInput, setSearchInput] = useState("")
   const [searchResults, setSearchResults] = useState<DoubleRatchetUser[]>([])
   const [doubleRatchetCount, setDoubleRatchetCount] = useState(0)
+  const [ourDevices, setOurDevices] = useState<Array<{deviceId: string; invite: Invite}>>(
+    []
+  )
   const myPubKey = useUserStore((state) => state.publicKey)
 
   useEffect(() => {
@@ -24,6 +30,37 @@ const PrivateChatCreation = () => {
     const interval = setInterval(() => {
       setDoubleRatchetCount(getDoubleRatchetUsersCount())
     }, 1000)
+
+    // Subscribe to our own invites
+    if (myPubKey) {
+      const nostrSubscribe = (
+        filter: Filter,
+        onEvent: (event: VerifiedEvent) => void
+      ) => {
+        const sub = ndk().subscribe(filter)
+        sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
+        return () => sub.stop()
+      }
+
+      const unsubscribe = Invite.fromUser(myPubKey, nostrSubscribe, (inv) => {
+        console.log("Found invite from ourself:", inv)
+        if (inv.deviceId) {
+          setOurDevices((devices) => {
+            // Check if device already exists
+            const exists = devices.some((device) => device.deviceId === inv.deviceId)
+            if (!exists) {
+              return [...devices, {deviceId: inv.deviceId!, invite: inv}]
+            }
+            return devices
+          })
+        }
+      })
+
+      return () => {
+        clearInterval(interval)
+        unsubscribe()
+      }
+    }
 
     return () => {
       clearInterval(interval)
@@ -86,6 +123,42 @@ const PrivateChatCreation = () => {
                 </button>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Our Devices Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Our Devices</h2>
+          {ourDevices.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {ourDevices.map((device) => (
+                <div
+                  key={device.deviceId}
+                  className="flex items-center justify-between p-3 bg-base-200 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                      <span className="text-primary-content text-sm">📱</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{device.deviceId}</p>
+                      <p className="text-sm text-base-content/70">Device ID</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-base-content/70">
+                      {device.invite.maxUses
+                        ? `${device.invite.usedBy.length}/${device.invite.maxUses} uses`
+                        : "Unlimited uses"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-base-content/70 text-center py-4">
+              No devices found. Devices will appear here when they publish their invites.
+            </p>
           )}
         </div>
       </div>

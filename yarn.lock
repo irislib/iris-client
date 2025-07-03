@@ -4733,14 +4733,6 @@ normalize-range@^0.1.2:
   resolved "https://registry.yarnpkg.com/normalize-range/-/normalize-range-0.1.2.tgz#2d10c06bdfd312ea9777695a4d28439456b75942"
   integrity sha512-bdok/XvKII3nUpklnV6P2hxtMNrCboOjAcyBuQnWEhO665FwrSNRxU+AqpsyvO6LgGYPspN+lu5CLtw4jPRKNA==
 
-nostr-double-ratchet@^0.0.29:
-  version "0.0.29"
-  resolved "https://registry.yarnpkg.com/nostr-double-ratchet/-/nostr-double-ratchet-0.0.29.tgz#996be33da1c1e48b1832107b2f682a69e9060b85"
-  integrity sha512-Nc28ImEElpO//mgQrzxcsgOXD3jKRc5ADSGFgU28IHfhd3qDWT/7iE/0TQftOBEJuH3pJdCVyJOBtarvGUNZ/w==
-  dependencies:
-    nostr-tools "^2.15.0"
-    react-blurhash "^0.3.0"
-
 nostr-social-graph@1.0.17:
   version "1.0.17"
   resolved "https://registry.yarnpkg.com/nostr-social-graph/-/nostr-social-graph-1.0.17.tgz#fa14c9bef1d0e5348d79e48a6ccb237ddb13bc1b"
@@ -5274,11 +5266,6 @@ randomfill@^1.0.4:
   dependencies:
     randombytes "^2.0.5"
     safe-buffer "^5.1.0"
-
-react-blurhash@^0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/react-blurhash/-/react-blurhash-0.3.0.tgz#f125801d052644f74420c79b05981691d17c9705"
-  integrity sha512-XlKr4Ns1iYFRnk6DkAblNbAwN/bTJvxTVoxMvmTcURdc5oLoXZwqAF9N3LZUh/HT+QFlq5n6IS6VsDGsviYAiQ==
 
 react-dom@^19.1.0:
   version "19.1.0"
