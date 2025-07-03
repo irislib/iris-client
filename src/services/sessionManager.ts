@@ -85,10 +85,10 @@ async function initializeManager(
 
   await manager.init()
 
-  manager.onEvent((rumor: any) => {
-    console.log("got rumor", rumor)
+  manager.onEvent((rumor: any, from: string) => {
+    console.log("got from", from, "rumor", rumor)
     messageCallbacks.forEach((callback) => {
-      callback("unknown-sender", rumor)
+      callback(from, rumor)
     })
   })
 }
