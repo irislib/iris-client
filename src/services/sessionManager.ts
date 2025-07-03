@@ -55,7 +55,7 @@ const makePublish = () => async (event: any) => {
 let manager: SessionManager | undefined
 const messageCallbacks: Array<(publicKey: string, event: any) => void> = []
 
-const getDeviceId = (): string => {
+export const getDeviceId = (): string => {
   const stored = window.localStorage.getItem("deviceId")
   if (stored) return stored
   const newId = crypto.randomUUID()

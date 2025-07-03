@@ -12,6 +12,7 @@ import {useUserStore} from "@/stores/user"
 import {useState, useEffect} from "react"
 import {useNavigate} from "react-router"
 import {ndk} from "@/utils/ndk"
+import {getDeviceId} from "@/services/sessionManager"
 
 const PrivateChatCreation = () => {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ const PrivateChatCreation = () => {
     []
   )
   const myPubKey = useUserStore((state) => state.publicKey)
+  const myDeviceId = getDeviceId()
 
   useEffect(() => {
     subscribeToDoubleRatchetUsers()
@@ -41,7 +43,8 @@ const PrivateChatCreation = () => {
         const sub = ndk().subscribe(filter)
         sub.on("event", (e) => {
           console.log("nostrSubscribe got evt", e)
-          onEvent(e as unknown as VerifiedEvent)})
+          onEvent(e as unknown as VerifiedEvent)
+        })
         return () => sub.stop()
       }
 
@@ -144,7 +147,14 @@ const PrivateChatCreation = () => {
                       <span className="text-primary-content text-sm">📱</span>
                     </div>
                     <div>
-                      <p className="font-medium">{device.deviceId}</p>
+                      <p className="font-medium">
+                        {device.deviceId}
+                        {device.deviceId === myDeviceId && (
+                          <span className="ml-2 badge badge-primary text-xs">
+                            this device
+                          </span>
+                        )}
+                      </p>
                       <p className="text-sm text-base-content/70">Device ID</p>
                     </div>
                   </div>
