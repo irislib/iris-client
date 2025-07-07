@@ -7,15 +7,15 @@ import {useUserStore} from "./user"
 import {create} from "zustand"
 
 const addToMap = (
-  sessionEventMap: Map<string, SortedMap<string, MessageType>>,
-  sessionId: string,
+  publicKeyEventMap: Map<string, SortedMap<string, MessageType>>,
+  publicKey: string,
   message: MessageType
 ) => {
   const eventMap =
-    sessionEventMap.get(sessionId) || new SortedMap<string, MessageType>([], comparator)
+    publicKeyEventMap.get(publicKey) || new SortedMap<string, MessageType>([], comparator)
   eventMap.set(message.id, message)
-  sessionEventMap.set(sessionId, eventMap)
-  return sessionEventMap
+  publicKeyEventMap.set(publicKey, eventMap)
+  return publicKeyEventMap
 }
 
 interface EventsStoreState {
@@ -23,32 +23,30 @@ interface EventsStoreState {
 }
 
 interface EventsStoreActions {
-  upsert: (sessionId: string, message: MessageType) => Promise<void>
-  removeSession: (sessionId: string) => Promise<void>
-  removeMessage: (sessionId: string, messageId: string) => Promise<void>
+  upsert: (publicKey: string, message: MessageType) => Promise<void>
+  removePublicKey: (publicKey: string) => Promise<void>
+  removeMessage: (publicKey: string, messageId: string) => Promise<void>
   clear: () => Promise<void>
 }
 
 type EventsStore = EventsStoreState & EventsStoreActions
 
-const makeOrModifyMessage = async (sessionId: string, message: MessageType) => {
+const makeOrModifyMessage = async (publicKey: string, message: MessageType) => {
   const isReaction = message.kind === REACTION_KIND
   const eTag = message.tags.find(([key]) => key === "e")
   if (isReaction && eTag) {
     const [, messageId] = eTag
     const oldMsg = await messageRepository.getById(messageId)
 
-    const pubKey =
-      message?.sender === "user"
-        ? useUserStore.getState().publicKey
-        : sessionId.split(":")[0]
+    const reactionPubKey =
+      message?.sender === "user" ? useUserStore.getState().publicKey : publicKey
 
     if (oldMsg) {
       return {
         ...oldMsg,
         reactions: {
           ...oldMsg.reactions,
-          [pubKey]: message.content,
+          [reactionPubKey]: message.content,
         },
       }
     }
@@ -64,21 +62,21 @@ export const useEventsStore = create<EventsStore>((set) => {
   return {
     events: new Map(),
 
-    upsert: async (sessionId, event) => {
+    upsert: async (publicKey, event) => {
       await rehydration
-      const message = await makeOrModifyMessage(sessionId, event)
-      await messageRepository.save(sessionId, message)
+      const message = await makeOrModifyMessage(publicKey, event)
+      await messageRepository.save(publicKey, message)
       set((state) => ({
-        events: addToMap(new Map(state.events), sessionId, message),
+        events: addToMap(new Map(state.events), publicKey, message),
       }))
     },
 
-    removeSession: async (sessionId) => {
+    removePublicKey: async (publicKey) => {
       await rehydration
-      await messageRepository.deleteBySession(sessionId)
+      await messageRepository.deleteBySession(publicKey)
       set((state) => {
         const events = new Map(state.events)
-        events.delete(sessionId)
+        events.delete(publicKey)
         return {events}
       })
     },
@@ -89,18 +87,18 @@ export const useEventsStore = create<EventsStore>((set) => {
       set({events: new Map()})
     },
 
-    removeMessage: async (sessionId: string, messageId: string) => {
+    removeMessage: async (publicKey: string, messageId: string) => {
       await rehydration
-      await messageRepository.deleteMessage(sessionId, messageId)
+      await messageRepository.deleteMessage(publicKey, messageId)
       set((state) => {
         const events = new Map(state.events)
-        const eventMap = events.get(sessionId)
+        const eventMap = events.get(publicKey)
         if (eventMap) {
           eventMap.delete(messageId)
           if (eventMap.size === 0) {
-            events.delete(sessionId)
+            events.delete(publicKey)
           } else {
-            events.set(sessionId, eventMap)
+            events.set(publicKey, eventMap)
           }
         }
         return {events}

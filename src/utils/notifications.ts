@@ -1,8 +1,8 @@
 import {INVITE_RESPONSE_KIND, MESSAGE_EVENT_KIND} from "nostr-double-ratchet/src"
 import {NDKTag, NDKEvent, NDKUser} from "@nostr-dev-kit/ndk"
+import {usePrivateChatsStore} from "@/stores/privateChats"
 import {getZapAmount, getZappingUser} from "./nostr"
 import {useSettingsStore} from "@/stores/settings"
-import {useSessionsStore} from "@/stores/sessions"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {profileCache} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
@@ -169,19 +169,17 @@ export const subscribeToDMNotifications = debounce(async () => {
   if (!pushSubscription) {
     return
   }
-  const invites = useSessionsStore.getState().invites
-  const sessions = useSessionsStore.getState().sessions
 
-  const inviteRecipients = Array.from(invites.values())
-    .map((i) => i.inviterEphemeralPublicKey)
-    .filter((a) => typeof a === "string") as string[]
+  // Get chat public keys from the new privateChats store
+  const chatPublicKeys = Array.from(usePrivateChatsStore.getState().chatPublicKeys)
 
-  const sessionAuthors = Array.from(sessions.values())
-    .flatMap((s) => [
-      s?.state.theirCurrentNostrPublicKey,
-      s?.state.theirNextNostrPublicKey,
-    ])
-    .filter((a) => typeof a === "string") as string[]
+  // For now, we'll use the chat public keys as session authors
+  // In the future, this might need to be more sophisticated based on the sessionManager
+  const sessionAuthors = chatPublicKeys
+
+  // We no longer have invite recipients from the old sessions store
+  // This functionality may need to be reimplemented if needed
+  const inviteRecipients: string[] = []
 
   const webPushData = {
     endpoint: pushSubscription.endpoint,

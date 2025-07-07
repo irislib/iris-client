@@ -78,8 +78,12 @@ export const useUserStore = create<UserState>()(
       }
 
       const actions = {
-        setPublicKey: (publicKey: string) => set({publicKey}),
-        setPrivateKey: (privateKey: string) => set({privateKey}),
+        setPublicKey: (publicKey: string) => {
+          set({publicKey})
+        },
+        setPrivateKey: (privateKey: string) => {
+          set({privateKey})
+        },
         setNip07Login: (nip07Login: boolean) => set({nip07Login}),
         setDHTPublicKey: (DHTPublicKey: string) => set({DHTPublicKey}),
         setDHTPrivateKey: (DHTPrivateKey: string) => set({DHTPrivateKey}),
@@ -138,3 +142,5 @@ export const useWalletConnect = () => useUserStore((state) => state.walletConnec
 export const useCashuEnabled = () => useUserStore((state) => state.cashuEnabled)
 export const useDefaultZapAmount = () => useUserStore((state) => state.defaultZapAmount)
 export const useReset = () => useUserStore((state) => state.reset)
+
+

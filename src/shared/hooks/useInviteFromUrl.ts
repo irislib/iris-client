@@ -1,5 +1,4 @@
 import {useNavigate, useLocation} from "react-router"
-import {useSessionsStore} from "@/stores/sessions"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {useEffect} from "react"
@@ -25,14 +24,16 @@ export const useInviteFromUrl = () => {
       }, 500)
     } else {
       const acceptInviteFromUrl = async () => {
-        const fullUrl = `${window.location.origin}${location.pathname}${location.search}${location.hash}`
-
         // Clear the invite from URL history by replacing current state with a clean URL
         const cleanUrl = `${window.location.origin}${location.pathname}${location.search}`
         window.history.replaceState({}, document.title, cleanUrl)
 
-        const sessionId = await useSessionsStore.getState().acceptInvite(fullUrl)
-        navigate("/chats/chat", {state: {id: sessionId}})
+        // TODO: This invite acceptance functionality needs to be updated to work with the new sessionManager
+        // instead of the retired sessions store. For now, invite URLs are disabled.
+        navigate("/chats")
+
+        // const sessionId = await useSessionsStore.getState().acceptInvite(fullUrl)
+        // navigate("/chats/chat", {state: {id: sessionId}})
       }
 
       acceptInviteFromUrl()

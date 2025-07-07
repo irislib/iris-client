@@ -1,10 +1,10 @@
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
-import {useSessionsStore} from "@/stores/sessions"
+import {usePrivateChatsStore} from "@/stores/privateChats"
 import {useEventsStore} from "@/stores/events"
 import {useMemo} from "react"
 
 export default function UnseenMessagesBadge() {
-  const {lastSeen} = useSessionsStore()
+  const {lastSeen} = usePrivateChatsStore()
   const {events} = useEventsStore()
 
   const hasUnread = useMemo(() => {

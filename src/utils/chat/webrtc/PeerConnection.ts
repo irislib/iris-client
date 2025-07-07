@@ -3,48 +3,50 @@ import {EventEmitter} from "tseep"
 
 import {getCachedName, NDKEventFromRawEvent} from "@/utils/nostr"
 import {Rumor, Session} from "nostr-double-ratchet/src"
-import {useSessionsStore} from "@/stores/sessions"
 import socialGraph from "@/utils/socialGraph"
 
 const connections = new Map<string, PeerConnection>()
 export function getPeerConnection(
-  sessionId: string,
+  publicKey: string,
   options: {
     ask?: boolean
     connect?: boolean
     create?: boolean
   } = {}
 ) {
-  const {ask = true, connect = false, create = true} = options
-  const pubKey = sessionId.split(":")[0]
+  const {ask = true, connect: _connect = false, create = true} = options
   if (
     create &&
-    socialGraph().getFollowDistance(pubKey) > 1 &&
-    socialGraph().getRoot() !== pubKey
+    socialGraph().getFollowDistance(publicKey) > 1 &&
+    socialGraph().getRoot() !== publicKey
   ) {
-    console.log("Rejected connection request from untrusted user:", pubKey)
+    console.log("Rejected connection request from untrusted user:", publicKey)
     return
   }
   if (
-    !connections.has(sessionId) &&
+    !connections.has(publicKey) &&
     create &&
-    (pubKey === socialGraph().getRoot() ||
+    (publicKey === socialGraph().getRoot() ||
       !ask ||
-      confirm(`WebRTC connect with ${getCachedName(pubKey)}?`))
+      confirm(`WebRTC connect with ${getCachedName(publicKey)}?`))
   ) {
-    const session = useSessionsStore.getState().sessions.get(sessionId)
-    if (!session) {
-      console.error("Session not found for peer:", sessionId)
-      return
-    }
-    const connection = new PeerConnection(session, sessionId)
-    connections.set(sessionId, connection)
-    if (connect) {
-      connection?.connect()
-    }
-    return connection
+    // TODO: This WebRTC functionality needs to be updated to work with the new sessionManager
+    // instead of the retired sessions store. For now, WebRTC file sharing is disabled.
+    return
+
+    // const session = useSessionsStore.getState().sessions.get(sessionId)
+    // if (!session) {
+    //   console.error("Session not found for peer:", sessionId)
+    //   return
+    // }
+    // const connection = new PeerConnection(session, publicKey)
+    // connections.set(publicKey, connection)
+    // if (connect) {
+    //   connection?.connect()
+    // }
+    // return connection
   }
-  return connections.get(sessionId)
+  return connections.get(publicKey)
 }
 
 export default class PeerConnection extends EventEmitter {
