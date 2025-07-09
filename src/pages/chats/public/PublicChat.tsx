@@ -10,9 +10,10 @@ import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
 import {Helmet} from "react-helmet"
 import {ndk} from "@/utils/ndk"
-import {fetchChannelMetadata, ChannelMetadata} from "../utils/channelMetadata"
 import {CHANNEL_MESSAGE, REACTION_KIND} from "../utils/constants"
+import {usePublicChatsStore} from "@/stores/publicChats"
 import {useUserStore} from "@/stores/user"
+import {socialGraphFollowDataLoaded} from "@/utils/socialGraph"
 
 let publicKey = useUserStore.getState().publicKey
 useUserStore.subscribe((state) => (publicKey = state.publicKey))
@@ -20,7 +21,7 @@ useUserStore.subscribe((state) => (publicKey = state.publicKey))
 const PublicChat = () => {
   const {id} = useParams<{id: string}>()
   const navigate = useNavigate()
-  const [metadata, setMetadata] = useState<ChannelMetadata | null>(null)
+  const {publicChats, addOrRefreshChatById} = usePublicChatsStore()
   const [messages, setMessages] = useState<SortedMap<string, MessageType>>(
     new SortedMap<string, MessageType>([], comparator)
   )
@@ -30,22 +31,17 @@ const PublicChat = () => {
   const [initialLoadDone, setInitialLoadDone] = useState(false)
   const [showNoMessages, setShowNoMessages] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [followDataReady, setFollowDataReady] = useState(false)
 
-  // Fetch channel metadata
+  useEffect(() => {
+    socialGraphFollowDataLoaded.then(() => setFollowDataReady(true))
+  }, [])
+
   useEffect(() => {
     if (!id) return
+    addOrRefreshChatById(id)
+  }, [id, addOrRefreshChatById])
 
-    const getMetadata = async () => {
-      try {
-        const data = await fetchChannelMetadata(id)
-        setMetadata(data)
-      } catch (err) {
-        console.error("Error fetching channel metadata:", err)
-      }
-    }
-
-    getMetadata()
-  }, [id])
 
   // Set up timeout to show "No messages yet" after 2 seconds
   useEffect(() => {
@@ -73,7 +69,7 @@ const PublicChat = () => {
 
   // Set up continuous subscription for messages
   useEffect(() => {
-    if (!id) return
+    if (!id || !followDataReady) return
 
     // Set up subscription for channel messages
     const sub = ndk().subscribe({
@@ -103,8 +99,6 @@ const PublicChat = () => {
           return prev
         }
 
-
-
         // Add new message to SortedMap
         const updated = new SortedMap(prev, comparator)
         updated.set(newMessage.id, newMessage)
@@ -122,7 +116,7 @@ const PublicChat = () => {
     return () => {
       sub.stop()
     }
-  }, [id])
+  }, [id, followDataReady])
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || !id) return
@@ -239,7 +233,7 @@ const PublicChat = () => {
   return (
     <>
       <Helmet>
-        <title>{metadata?.name || "Public Chat"}</title>
+        <title>{id && publicChats[id]?.name || "Public Chat"}</title>
       </Helmet>
       <PublicChatHeader channelId={id || ""} />
       <ChatContainer

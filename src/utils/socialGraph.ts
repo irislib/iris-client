@@ -12,6 +12,7 @@ const DEFAULT_SOCIAL_GRAPH_ROOT =
 
 let instance = new SocialGraph(DEFAULT_SOCIAL_GRAPH_ROOT)
 let isInitialized = false
+let hasLoadedFollowData = false
 
 async function initializeInstance(publicKey?: string) {
   if (isInitialized) {
@@ -142,6 +143,8 @@ const throttledRecalculate = throttle(
   {leading: true}
 )
 
+let followDataResolve: ((value: boolean) => void) | null = null
+
 export const socialGraphLoaded = new Promise((resolve) => {
   const currentPublicKey = useUserStore.getState().publicKey
   initializeInstance(currentPublicKey).then(() => {
@@ -165,6 +168,10 @@ export const socialGraphLoaded = new Promise((resolve) => {
   })
 })
 
+export const socialGraphFollowDataLoaded = new Promise<boolean>((resolve) => {
+  followDataResolve = resolve
+})
+
 function setupSubscription(publicKey: string) {
   sub?.stop()
   sub = ndk().subscribe({
@@ -183,7 +190,13 @@ function setupSubscription(publicKey: string) {
     }
     latestTime = ev.created_at
     handleSocialGraphEvent(ev as NostrEvent)
-    queueMicrotask(() => getMissingFollowLists(publicKey))
+    queueMicrotask(() => {
+      getMissingFollowLists(publicKey)
+      if (!hasLoadedFollowData) {
+        hasLoadedFollowData = true
+        followDataResolve?.(true)
+      }
+    })
     throttledRecalculate()
   })
 }
@@ -239,5 +252,7 @@ export const downloadLargeGraph = (maxBytes: number) => {
 }
 
 export const loadAndMerge = () => loadFromFile(true)
+
+export const hasFollowData = () => hasLoadedFollowData
 
 export default () => instance
