@@ -5,7 +5,7 @@ import {useUserStore} from "./stores/user"
 import ReactDOM from "react-dom/client"
 
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
-import {migrateUserState} from "./utils/migration"
+import {migrateUserState, migratePublicChats} from "./utils/migration"
 import {useSettingsStore} from "@/stores/settings"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
@@ -18,6 +18,7 @@ if (state.publicKey) {
   console.log("Initializing chat modules with existing user data")
   subscribeToNotifications()
   subscribeToDMNotifications()
+  migratePublicChats()
 }
 
 document.title = CONFIG.appName
@@ -51,6 +52,7 @@ useUserStore.subscribe((state) => {
     console.log("Public key changed, initializing chat modules")
     subscribeToNotifications()
     subscribeToDMNotifications()
+    migratePublicChats()
   }
 })
 
