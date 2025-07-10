@@ -10,8 +10,8 @@ import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
 import {Helmet} from "react-helmet"
 import {ndk} from "@/utils/ndk"
-import {fetchChannelMetadata, ChannelMetadata} from "../utils/channelMetadata"
 import {CHANNEL_MESSAGE, REACTION_KIND} from "../utils/constants"
+import {usePublicChatsStore} from "@/stores/publicChats"
 import {useUserStore} from "@/stores/user"
 
 let publicKey = useUserStore.getState().publicKey
@@ -20,7 +20,7 @@ useUserStore.subscribe((state) => (publicKey = state.publicKey))
 const PublicChat = () => {
   const {id} = useParams<{id: string}>()
   const navigate = useNavigate()
-  const [metadata, setMetadata] = useState<ChannelMetadata | null>(null)
+  const {publicChats, addOrRefreshChatById} = usePublicChatsStore()
   const [messages, setMessages] = useState<SortedMap<string, MessageType>>(
     new SortedMap<string, MessageType>([], comparator)
   )
@@ -31,21 +31,11 @@ const PublicChat = () => {
   const [showNoMessages, setShowNoMessages] = useState(false)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Fetch channel metadata
   useEffect(() => {
     if (!id) return
+    addOrRefreshChatById(id)
+  }, [id, addOrRefreshChatById])
 
-    const getMetadata = async () => {
-      try {
-        const data = await fetchChannelMetadata(id)
-        setMetadata(data)
-      } catch (err) {
-        console.error("Error fetching channel metadata:", err)
-      }
-    }
-
-    getMetadata()
-  }, [id])
 
   // Set up timeout to show "No messages yet" after 2 seconds
   useEffect(() => {
@@ -84,7 +74,7 @@ const PublicChat = () => {
     // Handle new messages
     sub.on("event", (event) => {
       if (!event || !event.id) return
-      if (shouldHideAuthor(event.pubkey)) return
+      if (shouldHideAuthor(event.pubkey, 1, true)) return
 
       const newMessage: MessageType = {
         id: event.id,
@@ -102,8 +92,6 @@ const PublicChat = () => {
         if (prev.has(newMessage.id)) {
           return prev
         }
-
-
 
         // Add new message to SortedMap
         const updated = new SortedMap(prev, comparator)
@@ -239,7 +227,7 @@ const PublicChat = () => {
   return (
     <>
       <Helmet>
-        <title>{metadata?.name || "Public Chat"}</title>
+        <title>{id && publicChats[id]?.name || "Public Chat"}</title>
       </Helmet>
       <PublicChatHeader channelId={id || ""} />
       <ChatContainer
