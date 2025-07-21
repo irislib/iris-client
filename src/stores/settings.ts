@@ -12,6 +12,11 @@ interface SettingsState {
     hideEventsByUnknownUsers: boolean
     hidePostsByMutedMoreThanFollowed: boolean
     autoplayVideos: boolean
+    showLikes: boolean
+    showReposts: boolean
+    showReplies: boolean
+    showZaps: boolean
+    showReactionsBar: boolean
   }
   // Notification settings
   notifications: {
@@ -39,6 +44,11 @@ export const useSettingsStore = create<SettingsState>()(
         hideEventsByUnknownUsers: true,
         hidePostsByMutedMoreThanFollowed: true,
         autoplayVideos: true,
+        showLikes: true,
+        showReposts: true,
+        showReplies: true,
+        showZaps: true,
+        showReactionsBar: true,
       },
       notifications: {
         server: CONFIG.defaultSettings.notificationServer,

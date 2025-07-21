@@ -38,6 +38,36 @@ function Content() {
         />
       </div>
       <div className="mt-6">
+        <h2 className="text-xl mb-2">Reactions</h2>
+        <div className="space-y-4">
+          <SettingToggle
+            checked={content.showReactionsBar}
+            onChange={() => handleToggleChange("showReactionsBar")}
+            label="Show reactions bar"
+          />
+          <SettingToggle
+            checked={content.showLikes}
+            onChange={() => handleToggleChange("showLikes")}
+            label="Show likes"
+          />
+          <SettingToggle
+            checked={content.showReposts}
+            onChange={() => handleToggleChange("showReposts")}
+            label="Show reposts"
+          />
+          <SettingToggle
+            checked={content.showReplies}
+            onChange={() => handleToggleChange("showReplies")}
+            label="Show replies"
+          />
+          <SettingToggle
+            checked={content.showZaps}
+            onChange={() => handleToggleChange("showZaps")}
+            label="Show zaps"
+          />
+        </div>
+      </div>
+      <div className="mt-6">
         <h2 className="text-xl mb-2">Muted Users</h2>
         {mutes.length > 0 ? (
           <>
