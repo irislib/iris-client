@@ -39,9 +39,9 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
     navigator.clipboard.writeText(event.content)
     onClose()
   }
-  const handleCopyAuthorID = () => {
-    const npub = nip19.npubEncode(event.pubkey)
-    navigator.clipboard.writeText(npub)
+  const handleCopyLink = () => {
+    const irisUrl = `https://iris.to/${nip19.noteEncode(event.id)}`
+    navigator.clipboard.writeText(irisUrl)
     onClose()
   }
   const handleCopyNoteID = () => {
@@ -127,7 +127,7 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
             <button onClick={handleShowRawJson}>Show Raw Data</button>
           </li>
           <li>
-            <button onClick={handleCopyAuthorID}>Copy Author ID</button>
+            <button onClick={handleCopyLink}>Copy link</button>
           </li>
           <li>
             <button onClick={handleCopyNoteID}>Copy Event ID</button>
