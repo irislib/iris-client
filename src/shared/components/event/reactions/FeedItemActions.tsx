@@ -17,7 +17,7 @@ function FeedItemActions({event, feedItemRef}: FeedItemActionsProps) {
   const {content} = useSettingsStore()
 
   if (!content.showReactionsBar) {
-    return null
+    return <div className="py-2" />
   }
 
   return (
