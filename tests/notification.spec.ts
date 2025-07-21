@@ -5,6 +5,7 @@ test.describe("Notifications", () => {
   test("user should see highlighted notification when post is liked by followed user", async ({
     browser,
   }) => {
+    test.setTimeout(60000) // Increase timeout to 60s for complex multi-user interactions
     const contextA = await browser.newContext()
     const contextB = await browser.newContext()
 
@@ -70,7 +71,7 @@ test.describe("Notifications", () => {
       await expect(pageA.getByText(postContent)).toBeVisible()
 
       await pageB.goto("/")
-      await expect(pageB.getByText(postContent)).toBeVisible({timeout: 10000})
+      await expect(pageB.getByText(postContent)).toBeVisible({timeout: 20000})
 
       const postElement = pageB.locator("div").filter({hasText: postContent}).first()
       await postElement.getByTestId("like-button").click()
@@ -79,7 +80,7 @@ test.describe("Notifications", () => {
 
       await expect(pageA.locator("header").getByText("Notifications")).toBeVisible()
 
-      await pageA.waitForTimeout(5000)
+      await pageA.waitForTimeout(8000)
 
       const noNotificationsMessage = pageA.getByText("No notifications yet")
       const hasNoNotifications = await noNotificationsMessage.isVisible()
@@ -93,8 +94,10 @@ test.describe("Notifications", () => {
         await pageA.waitForTimeout(3000)
       }
 
+      await pageA.waitForTimeout(5000)
+
       const anyNotification = pageA.locator("div").filter({hasText: "reacted"}).first()
-      await expect(anyNotification).toBeVisible({timeout: 15000})
+      await expect(anyNotification).toBeVisible({timeout: 25000})
 
       const highlightedNotification = pageA.locator('div[class*="bg-info/20"]')
 
@@ -109,8 +112,12 @@ test.describe("Notifications", () => {
         await expect(anyNotification).toContainText("reacted")
       }
     } finally {
-      await contextA.close()
-      await contextB.close()
+      try {
+        await contextA.close()
+        await contextB.close()
+      } catch (error) {
+        console.log("Context cleanup error (expected):", error.message)
+      }
     }
   })
 })

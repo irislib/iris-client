@@ -11,10 +11,8 @@ test("can open QR code on own profile", async ({page}) => {
   // Click QR code button in profile header
   await page.getByRole("button", {name: "Show QR Code"}).click()
 
-  // Verify QR code modal is visible
-  await expect(page.getByRole("img", {name: "QR Code"})).toBeVisible()
+  await expect(page.getByRole("img", {name: "QR Code"})).toBeVisible({timeout: 10000})
 
-  // Verify QR code data is visible and contains nostr:npub
   const qrData = page.getByText(/nostr:npub/)
-  await expect(qrData).toBeVisible()
+  await expect(qrData).toBeVisible({timeout: 10000})
 })

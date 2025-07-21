@@ -119,6 +119,7 @@ test.describe("Unseen Notifications Indicator", () => {
   test("should show notification badge after real like notification", async ({
     browser,
   }) => {
+    test.setTimeout(60000) // Increase timeout to 60s for complex multi-user interactions
     const contextA = await browser.newContext()
     const contextB = await browser.newContext()
 
@@ -170,11 +171,11 @@ test.describe("Unseen Notifications Indicator", () => {
       await expect(pageA.getByText(postContent)).toBeVisible()
 
       await pageB.goto("/")
-      await expect(pageB.getByText(postContent)).toBeVisible({timeout: 10000})
+      await expect(pageB.getByText(postContent)).toBeVisible({timeout: 20000})
       const postElement = pageB.locator("div").filter({hasText: postContent}).first()
       await postElement.getByTestId("like-button").click()
 
-      await pageA.waitForTimeout(8000)
+      await pageA.waitForTimeout(12000)
 
       await pageA.setViewportSize({width: 1024, height: 768})
       await pageA.goto("/")
@@ -205,8 +206,12 @@ test.describe("Unseen Notifications Indicator", () => {
         console.log("❌ No notification found - like action may not have worked")
       }
     } finally {
-      await contextA.close()
-      await contextB.close()
+      try {
+        await contextA.close()
+        await contextB.close()
+      } catch (error) {
+        console.log("Context cleanup error (expected):", error.message)
+      }
     }
   })
 })

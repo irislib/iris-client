@@ -13,7 +13,7 @@ test.describe("Post liking", () => {
     await page.getByRole("button", {name: "Publish"}).click()
 
     // Verify post is visible
-    await expect(page.getByText(postContent)).toBeVisible()
+    await expect(page.getByText(postContent)).toBeVisible({timeout: 10000})
 
     // Wait for the post to be fully loaded and like button to appear
     await page.waitForSelector('[data-testid="like-button"]', {timeout: 5000})

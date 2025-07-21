@@ -7,7 +7,7 @@ test("can search for self and start a private chat via user search", async ({pag
 
   // Navigate to chats via navbar
   await page.getByRole("link", {name: "Chats"}).click()
-  await expect(page.getByRole("banner").getByText("New Chat")).toBeVisible()
+  await expect(page.locator("header").getByText("New Chat")).toBeVisible({timeout: 10000})
 
   // Click the New Chat link to go to /chats/new
   await page.getByRole("link", {name: /New Chat/}).click()

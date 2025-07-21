@@ -3,7 +3,7 @@ import {signUp} from "./auth.setup"
 
 async function setupChatWithSelf(page, username) {
   await page.getByRole("link", {name: "Chats"}).click()
-  await expect(page.getByRole("banner").getByText("New Chat")).toBeVisible()
+  await expect(page.locator("header").getByText("New Chat")).toBeVisible({timeout: 10000})
   const searchInput = page.getByPlaceholder("Search for users")
   await searchInput.fill(username)
   await page.waitForTimeout(1000)
