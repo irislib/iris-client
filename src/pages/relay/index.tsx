@@ -10,6 +10,14 @@ import Feed from "@/shared/components/feed/Feed.tsx"
 import Widget from "@/shared/components/ui/Widget"
 import {DEFAULT_RELAYS} from "@/utils/ndk"
 
+const normalizeRelayUrl = (url: string) => {
+  let normalized = url.trim()
+  if (!normalized.startsWith("wss://") && !normalized.startsWith("ws://")) {
+    normalized = `wss://${normalized}`
+  }
+  return normalized.replace(/\/$/, "")
+}
+
 function RelayPage() {
   const {url} = useParams()
   const navigate = useNavigate()
@@ -116,6 +124,14 @@ function RelayPage() {
               showFilters={true}
               cacheKey={`relay-${selectedRelay}`}
               relayUrls={[selectedRelay]}
+              displayFilterFn={(event) => {
+                if (!event.onRelays || event.onRelays.length === 0) return false
+
+                const normalizedSelectedRelay = normalizeRelayUrl(selectedRelay)
+                return event.onRelays.some(
+                  (relay) => normalizeRelayUrl(relay.url) === normalizedSelectedRelay
+                )
+              }}
             />
           )}
 
