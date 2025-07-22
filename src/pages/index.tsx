@@ -14,6 +14,7 @@ import HomePage from "@/pages/home"
 const ChatsPage = lazy(() => import("@/pages/chats"))
 const SettingsPage = lazy(() => import("@/pages/settings"))
 const SubscriptionPage = lazy(() => import("@/pages/subscription"))
+const RelayPage = lazy(() => import("@/pages/relay"))
 
 export const router = createBrowserRouter(
   createRoutesFromElements([
@@ -46,6 +47,14 @@ export const router = createBrowserRouter(
         }
       />
       <Route path="/search/:query?" element={<SearchPage />} />
+      <Route
+        path="/relay/:url?"
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <RelayPage />
+          </Suspense>
+        }
+      />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/:link/*" element={<NostrLinkHandler />} />
     </Route>,

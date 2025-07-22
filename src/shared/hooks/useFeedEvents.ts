@@ -18,6 +18,7 @@ interface UseFeedEventsProps {
   hideEventsByUnknownUsers: boolean
   sortLikedPosts?: boolean
   sortFn?: (a: NDKEvent, b: NDKEvent) => number
+  relayUrls?: string[]
 }
 
 export default function useFeedEvents({
@@ -29,6 +30,7 @@ export default function useFeedEvents({
   sortFn,
   hideEventsByUnknownUsers,
   sortLikedPosts = false,
+  relayUrls,
 }: UseFeedEventsProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
   const [localFilter, setLocalFilter] = useState(filters)
@@ -131,7 +133,7 @@ export default function useFeedEvents({
       return
     }
 
-    const sub = ndk().subscribe(localFilter)
+    const sub = ndk().subscribe(localFilter, relayUrls ? {relayUrls} : undefined)
 
     // Reset these flags when subscription changes
     hasReceivedEventsRef.current = eventsRef.current.size > 0

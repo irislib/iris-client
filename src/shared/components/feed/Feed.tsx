@@ -36,6 +36,7 @@ interface FeedProps {
   showFilters?: boolean
   onDisplayAsChange?: (display: "list" | "grid") => void
   sortLikedPosts?: boolean
+  relayUrls?: string[]
 }
 
 const DefaultEmptyPlaceholder = (
@@ -63,6 +64,7 @@ const Feed = memo(function Feed({
   showFilters = false,
   onDisplayAsChange,
   sortLikedPosts = false,
+  relayUrls,
 }: FeedProps) {
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,
@@ -103,6 +105,7 @@ const Feed = memo(function Feed({
     sortFn,
     hideEventsByUnknownUsers,
     sortLikedPosts,
+    relayUrls,
   })
 
   const loadMoreItems = () => {
