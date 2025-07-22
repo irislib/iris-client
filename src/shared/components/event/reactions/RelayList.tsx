@@ -1,4 +1,5 @@
-import {useState} from "react"
+import {useState, MouseEvent} from "react"
+import {Link} from "react-router"
 import type {NDKRelay} from "@nostr-dev-kit/ndk"
 
 export default function RelayList({relays}: {relays: NDKRelay[]}) {
@@ -24,9 +25,14 @@ export default function RelayList({relays}: {relays: NDKRelay[]}) {
   return (
     <div className="px-4 pb-2 pt-1 text-xs text-base-content/50 flex flex-col gap-1 items-start">
       {relaysToShow.map((relay, i) => (
-        <div key={relay.url + i} className="truncate max-w-full">
+        <Link
+          key={relay.url + i}
+          to={`/relay/${normalizeUrl(relay.url)}`}
+          className="truncate max-w-full text-primary hover:underline"
+          onClick={(e: MouseEvent) => e.stopPropagation()}
+        >
           {normalizeUrl(relay.url)}
-        </div>
+        </Link>
       ))}
       {dedupedRelays.length > maxToShow && (
         <button

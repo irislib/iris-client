@@ -1,5 +1,6 @@
 import {FormEvent, useEffect, useMemo, useState} from "react"
 import {RiDeleteBinLine} from "@remixicon/react"
+import {Link} from "react-router"
 
 import {DEFAULT_RELAYS, ndk as getNdk} from "@/utils/ndk"
 import {useUserStore} from "@/stores/user"
@@ -69,9 +70,12 @@ export function Network() {
           const relay = ndkRelays.get(url)
           return (
             <div key={url} className="py-2 flex justify-between items-center">
-              <span className="text-lg font-medium">
+              <Link
+                to={`/relay/${url.replace("wss://", "").replace("ws://", "").replace(/\/$/, "")}`}
+                className="text-lg font-medium text-primary hover:underline"
+              >
                 {url.replace("wss://", "").replace(/\/$/, "")}
-              </span>
+              </Link>
               <div className="flex items-center gap-4">
                 <RiDeleteBinLine
                   className="cursor-pointer"
