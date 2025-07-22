@@ -11,7 +11,7 @@ import UploadButton from "@/shared/components/button/UploadButton"
 import EmojiButton from "@/shared/components/emoji/EmojiButton"
 import MessageFormReplyPreview from "./MessageFormReplyPreview"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
-import {useSessionsStore} from "@/stores/sessions"
+import {usePrivateChatsStore} from "@/stores/privateChats"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiAttachment2} from "@remixicon/react"
 import EmojiType from "@/types/emoji"
@@ -38,13 +38,13 @@ const MessageForm = ({
   onSendMessage,
   isPublicChat = false,
 }: MessageFormProps) => {
-  const {sendMessage} = useSessionsStore()
+  const {sendToUser} = usePrivateChatsStore()
   const [newMessage, setNewMessage] = useState("")
   const [encryptionMetadata, setEncryptionMetadata] = useState<
     Map<string, EncryptionMetaWithImeta>
   >(new Map())
   const textareaRef = useAutosizeTextarea(newMessage)
-  const theirPublicKey = id.split(":")[0]
+  const theirPublicKey = id // id is now userPubKey directly
 
   useEffect(() => {
     if (!isTouchDevice && textareaRef.current) {
@@ -102,7 +102,7 @@ const MessageForm = ({
         ],
       }
 
-      await sendMessage(id, event)
+      await sendToUser(id, event)
       setEncryptionMetadata(new Map()) // Clear after sending
     } catch (error) {
       console.error("Failed to send message:", error)

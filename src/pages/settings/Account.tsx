@@ -1,9 +1,23 @@
 import {unsubscribeAll} from "@/utils/notifications"
 import {useUserStore} from "@/stores/user"
+import {useUserRecordsStore} from "@/stores/userRecords"
+import {useEventsStore} from "@/stores/events"
+import {useDraftStore} from "@/stores/draft"
 import {MouseEvent, useState} from "react"
-import {useNavigate} from "react-router"
+import {useNavigate, Link} from "react-router"
 import localforage from "localforage"
 import {ndk} from "@/utils/ndk"
+import {NDKEvent} from "@nostr-dev-kit/ndk"
+
+// Helper function to add timeout to any promise
+const withTimeout = (promise: Promise<unknown>, ms: number): Promise<unknown> => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Operation timeout after ${ms}ms`)), ms)
+    ),
+  ])
+}
 
 function Account() {
   const store = useUserStore()
@@ -26,6 +40,44 @@ function Account() {
       await localforage.clear()
     } catch (err) {
       console.error("Error clearing storage:", err)
+    }
+  }
+
+  async function cleanupStores() {
+    try {
+      // Clear events store (clears message repository)
+      await useEventsStore.getState().clear()
+
+      // Reset stores with reset methods
+      useUserRecordsStore.getState().reset()
+      useDraftStore.getState().reset()
+
+      // For stores without reset methods, we'll rely on storage clearing
+      console.log("All stores cleaned up")
+    } catch (err) {
+      console.error("Error cleaning up stores:", err)
+    }
+  }
+
+  async function publishInviteTombstones() {
+    try {
+      const invites = useUserRecordsStore.getState().getOwnDeviceInvites()
+      for (const invite of invites.values()) {
+        const deletionEvent = new NDKEvent(ndk(), {
+          kind: 30078,
+          pubkey: invite.inviter,
+          content: "",
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [["d", "double-ratchet/invites/" + invite.deviceId]],
+        })
+        try {
+          await deletionEvent.publish()
+        } catch (e) {
+          console.warn("Error publishing invite tombstone", e)
+        }
+      }
+    } catch (e) {
+      console.error("Failed to publish invite tombstones", e)
     }
   }
 
@@ -56,21 +108,38 @@ function Account() {
       try {
         // Try to unsubscribe from notifications first, while we still have the signer
         try {
-          await unsubscribeAll()
+          await withTimeout(unsubscribeAll(), 3000)
         } catch (e) {
           console.error("Error unsubscribing from push notifications:", e)
         }
 
-        await cleanupNDK()
+        // Clean up stores first (while we still have access to data)
+        try {
+          await withTimeout(cleanupStores(), 3000)
+        } catch (e) {
+          console.error("Error cleaning up stores:", e)
+        }
+
+        try {
+          await publishInviteTombstones()
+        } catch {}
+
+        await withTimeout(cleanupNDK(), 3000)
         const {reset} = useUserStore.getState()
         reset()
       } catch (e) {
         console.error("Error during logout cleanup:", e)
       } finally {
-        await cleanupStorage()
-        await cleanupServiceWorker()
-        navigate("/")
-        location.reload() // quick & dirty way to ensure everything is reset, especially localState
+        try {
+          await withTimeout(Promise.all([cleanupStorage(), cleanupServiceWorker()]), 5000)
+        } catch (e) {
+          console.error("Error during final cleanup:", e)
+        } finally {
+          // Ensure spinner always stops and navigation happens
+          setIsLoggingOut(false)
+          navigate("/")
+          location.reload()
+        }
       }
     }
   }
@@ -84,7 +153,12 @@ function Account() {
           Your <b>Iris chats</b> and <b>Cashu wallet</b> on this device will be
           permanently deleted.
         </small>
-        <div className="mt-2">
+        <div className="mt-2 flex gap-2">
+          {store.privateKey && (
+            <Link to="/settings/backup" className="btn btn-default">
+              Backup
+            </Link>
+          )}
           <button
             className="btn btn-primary"
             onClick={handleLogout}

@@ -7,6 +7,7 @@ import PublicChatCreation from "./public/PublicChatCreation"
 import GroupChatCreation from "./group/GroupChatCreation"
 import Header from "@/shared/components/header/Header"
 import PublicChannelCreateStep from "./public/PublicChannelCreateStep"
+import Icon from "@/shared/components/Icons/Icon"
 
 const TabSelector = () => {
   const location = useLocation()
@@ -42,7 +43,15 @@ const TabSelector = () => {
 const NewChat = () => {
   return (
     <>
-      <Header title="New Chat" />
+      <Header title="New Chat">
+        <Link
+          to="/settings/chat"
+          className="btn btn-circle btn-ghost btn-sm ml-auto"
+          title="Chat Settings"
+        >
+          <Icon name="gear" className="w-5 h-5" />
+        </Link>
+      </Header>
       <NotificationPrompt />
       <TabSelector />
       <Routes>

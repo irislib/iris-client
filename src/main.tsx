@@ -7,7 +7,11 @@ import ReactDOM from "react-dom/client"
 import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
 import {migrateUserState, migratePublicChats} from "./utils/migration"
 import {useSettingsStore} from "@/stores/settings"
-import {useSessionsStore} from "@/stores/sessions"
+import {useUserRecordsStore} from "@/stores/userRecords"
+import {
+  subscribeToOwnDeviceInvites,
+  resetDeviceInvitesInitialization,
+} from "@/stores/privateChats"
 import {ndk} from "./utils/ndk"
 import {router} from "@/pages"
 import socialGraph from "./utils/socialGraph"
@@ -22,7 +26,8 @@ if (state.publicKey) {
   subscribeToDMNotifications()
   migratePublicChats()
   socialGraph().recalculateFollowDistances()
-  useSessionsStore.getState().createDefaultInvites()
+  useUserRecordsStore.getState().createDefaultInvites()
+  subscribeToOwnDeviceInvites().catch(console.error)
 }
 
 document.title = CONFIG.appName
@@ -54,10 +59,12 @@ useUserStore.subscribe((state) => {
 
   if (state.publicKey && state.publicKey !== parsedPrevKey) {
     console.log("Public key changed, initializing chat modules")
+    resetDeviceInvitesInitialization() // Reset to allow re-initialization
     subscribeToNotifications()
     subscribeToDMNotifications()
     migratePublicChats()
-    useSessionsStore.getState().createDefaultInvites()
+    useUserRecordsStore.getState().createDefaultInvites()
+    subscribeToOwnDeviceInvites().catch(console.error)
   }
 })
 

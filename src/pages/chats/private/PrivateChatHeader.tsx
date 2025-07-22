@@ -5,7 +5,7 @@ import {UserRow} from "@/shared/components/user/UserRow"
 import Header from "@/shared/components/header/Header"
 import Dropdown from "@/shared/components/ui/Dropdown"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
-import {useSessionsStore} from "@/stores/sessions"
+import {useUserRecordsStore} from "@/stores/userRecords"
 import {MessageType} from "../message/Message"
 import {useNavigate} from "react-router"
 import {useState} from "react"
@@ -17,7 +17,7 @@ interface PrivateChatHeaderProps {
 const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const navigate = useNavigate()
-  const {sessions, deleteSession} = useSessionsStore()
+  const {sessions, deleteSession} = useUserRecordsStore()
   const session = sessions.get(id)
 
   const handleDeleteChat = () => {
