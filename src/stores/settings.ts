@@ -17,6 +17,7 @@ interface SettingsState {
     showReplies: boolean
     showZaps: boolean
     showReactionsBar: boolean
+    showReactionCounts: boolean
   }
   // Notification settings
   notifications: {
@@ -49,6 +50,7 @@ export const useSettingsStore = create<SettingsState>()(
         showReplies: true,
         showZaps: true,
         showReactionsBar: true,
+        showReactionCounts: true,
       },
       notifications: {
         server: CONFIG.defaultSettings.notificationServer,

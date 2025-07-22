@@ -46,24 +46,33 @@ function Content() {
             label="Show reactions bar"
           />
           <SettingToggle
+            checked={content.showReactionCounts}
+            onChange={() => handleToggleChange("showReactionCounts")}
+            label="Show reaction counts"
+          />
+          <SettingToggle
             checked={content.showLikes}
             onChange={() => handleToggleChange("showLikes")}
             label="Show likes"
+            disabled={!content.showReactionsBar}
           />
           <SettingToggle
             checked={content.showReposts}
             onChange={() => handleToggleChange("showReposts")}
             label="Show reposts"
+            disabled={!content.showReactionsBar}
           />
           <SettingToggle
             checked={content.showReplies}
             onChange={() => handleToggleChange("showReplies")}
             label="Show replies"
+            disabled={!content.showReactionsBar}
           />
           <SettingToggle
             checked={content.showZaps}
             onChange={() => handleToggleChange("showZaps")}
             label="Show zaps"
+            disabled={!content.showReactionsBar}
           />
         </div>
       </div>
@@ -99,18 +108,20 @@ interface SettingToggleProps {
   checked: boolean
   onChange: () => void
   label: string
+  disabled?: boolean
 }
 
-function SettingToggle({checked, onChange, label}: SettingToggleProps) {
+function SettingToggle({checked, onChange, label, disabled = false}: SettingToggleProps) {
   return (
     <div className="flex items-center gap-2">
       <input
         type="checkbox"
         checked={checked}
         onChange={onChange}
+        disabled={disabled}
         className="toggle toggle-primary"
       />
-      <span>{label}</span>
+      <span className={disabled ? "opacity-50" : ""}>{label}</span>
     </div>
   )
 }

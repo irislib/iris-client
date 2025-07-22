@@ -7,6 +7,7 @@ import {ndk} from "@/utils/ndk"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
 import {useUserStore} from "@/stores/user"
+import {useSettingsStore} from "@/stores/settings"
 import Icon from "../../Icons/Icon"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
@@ -20,6 +21,7 @@ interface FeedItemCommentProps {
 const replyCountByEventCache = new LRUCache({maxSize: 100})
 
 function FeedItemComment({event}: FeedItemCommentProps) {
+  const {content} = useSettingsStore()
   const myPubKey = useUserStore((state) => state.publicKey)
   const [replyCount, setReplyCount] = useState(replyCountByEventCache.get(event.id) || 0)
 
@@ -36,6 +38,8 @@ function FeedItemComment({event}: FeedItemCommentProps) {
   // refetch when location.pathname changes
   // to refetch count when switching display profile
   useEffect(() => {
+    if (!content.showReactionCounts) return
+
     const replies = new Set<string>()
     setReplyCount(replyCountByEventCache.get(event.id) || 0)
     const filter: NDKFilter = {
@@ -65,7 +69,7 @@ function FeedItemComment({event}: FeedItemCommentProps) {
     } catch (error) {
       console.warn(error)
     }
-  }, [event.id])
+  }, [event.id, content.showReactionCounts])
 
   return (
     <>
@@ -75,7 +79,7 @@ function FeedItemComment({event}: FeedItemCommentProps) {
         onClick={handleCommentClick}
       >
         <Icon name="reply" size={16} />
-        {formatAmount(replyCount)}
+        {content.showReactionCounts ? formatAmount(replyCount) : ""}
       </button>
 
       {isPopupOpen && (

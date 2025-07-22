@@ -13,6 +13,7 @@ import Icon from "../../Icons/Icon.tsx"
 import ZapModal from "../ZapModal.tsx"
 import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
+import {useSettingsStore} from "@/stores/settings"
 
 const zapsByEventCache = new LRUCache<string, Map<string, NDKEvent[]>>({
   maxSize: 100,
@@ -24,6 +25,7 @@ interface FeedItemZapProps {
 }
 
 function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
+  const {content} = useSettingsStore()
   const myPubKey = usePublicKey()
   const {defaultZapAmount} = useZapStore()
   const [isZapping, setIsZapping] = useState(false)
@@ -139,6 +141,8 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
   }
 
   useEffect(() => {
+    if (!content.showReactionCounts) return
+
     const filter = {
       kinds: [9735],
       ["#e"]: [event.id],
@@ -183,7 +187,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
     } catch (error) {
       console.warn(error)
     }
-  }, [])
+  }, [content.showReactionCounts])
 
   useEffect(() => {
     calculateZappedAmount(zapsByAuthor).then(setZappedAmount)
@@ -234,7 +238,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
         ) : (
           <Icon name={iconName} size={16} />
         )}
-        <span>{formatAmount(zappedAmount)}</span>
+        <span>{content.showReactionCounts ? formatAmount(zappedAmount) : ""}</span>
       </button>
     </>
   )

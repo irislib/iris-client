@@ -13,6 +13,7 @@ import Icon from "../../Icons/Icon"
 
 import {shouldHideAuthor} from "@/utils/visibility"
 import {useUserStore} from "@/stores/user"
+import {useSettingsStore} from "@/stores/settings"
 
 interface FeedItemRepostProps {
   event: NDKEvent
@@ -23,6 +24,7 @@ const repostCache = new LRUCache<string, Set<string>>({
 })
 
 function FeedItemRepost({event}: FeedItemRepostProps) {
+  const {content} = useSettingsStore()
   const location = useLocation()
   const myPubKey = useUserStore((state) => state.publicKey)
 
@@ -58,6 +60,8 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
   }
 
   useEffect(() => {
+    if (!content.showReactionCounts) return
+
     const filter = {
       kinds: [6],
       ["#e"]: [event.id],
@@ -88,7 +92,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
     } catch (error) {
       console.warn(error)
     }
-  }, [location.pathname])
+  }, [location.pathname, content.showReactionCounts])
 
   return (
     <>
@@ -123,7 +127,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
             </Dropdown>
           )}
         </div>
-        <span>{formatAmount(repostCount)}</span>
+        <span>{content.showReactionCounts ? formatAmount(repostCount) : ""}</span>
       </button>
     </>
   )
