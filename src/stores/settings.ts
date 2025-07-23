@@ -19,6 +19,14 @@ interface SettingsState {
     showReactionsBar: boolean
     showReactionCounts: boolean
   }
+  // Imgproxy settings
+  imgproxy: {
+    url: string
+    key: string
+    salt: string
+    enabled: boolean
+    fallbackToOriginal: boolean
+  }
   // Notification settings
   notifications: {
     server: string
@@ -30,6 +38,7 @@ interface SettingsState {
   // Update a specific setting group
   updateAppearance: (settings: Partial<SettingsState["appearance"]>) => void
   updateContent: (settings: Partial<SettingsState["content"]>) => void
+  updateImgproxy: (settings: Partial<SettingsState["imgproxy"]>) => void
   updateNotifications: (settings: Partial<SettingsState["notifications"]>) => void
   updatePrivacy: (settings: Partial<SettingsState["privacy"]>) => void
 }
@@ -52,6 +61,13 @@ export const useSettingsStore = create<SettingsState>()(
         showReactionsBar: true,
         showReactionCounts: true,
       },
+      imgproxy: {
+        url: "https://imgproxy.coracle.social",
+        key: "",
+        salt: "",
+        enabled: true,
+        fallbackToOriginal: true,
+      },
       notifications: {
         server: CONFIG.defaultSettings.notificationServer,
       },
@@ -66,6 +82,14 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           content: {...state.content, ...settings},
         })),
+      updateImgproxy: (settings) =>
+        set((state) => {
+          const newImgproxy = {...state.imgproxy, ...settings}
+          import("localforage").then((localforage) => {
+            localforage.setItem("imgproxy-settings", newImgproxy)
+          })
+          return {imgproxy: newImgproxy}
+        }),
       updateNotifications: (settings) =>
         set((state) => ({
           notifications: {...state.notifications, ...settings},
@@ -77,6 +101,13 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "settings-storage",
+      onRehydrateStorage: () => (state) => {
+        if (state?.imgproxy) {
+          import("localforage").then((localforage) => {
+            localforage.setItem("imgproxy-settings", state.imgproxy)
+          })
+        }
+      },
     }
   )
 )

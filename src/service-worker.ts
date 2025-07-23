@@ -337,8 +337,17 @@ self.addEventListener("push", (event) => {
         return
       }
 
+      const imgproxySettings = (await localforage.getItem("imgproxy-settings")) as any
+      const proxyConfig = imgproxySettings
+        ? {
+            url: imgproxySettings.url,
+            key: imgproxySettings.key,
+            salt: imgproxySettings.salt,
+          }
+        : undefined
+
       const icon = data.icon?.startsWith("http")
-        ? generateProxyUrl(data.icon, {width: 128, square: true})
+        ? generateProxyUrl(data.icon, {width: 128, square: true}, proxyConfig)
         : data.icon || "/favicon.png"
 
       await self.registration.showNotification(data.title || "New notification", {

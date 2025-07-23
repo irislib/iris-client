@@ -25,7 +25,7 @@ function HlsVideoComponent({
   isMuted = true,
   onMuteChange,
 }: HlsVideoComponentProps) {
-  const {content} = useSettingsStore()
+  const {content, imgproxy} = useSettingsStore()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [blur, setBlur] = useState(
     content.blurNSFW &&
@@ -138,7 +138,15 @@ function HlsVideoComponent({
         autoPlay={content.autoplayVideos}
         playsInline
         loop
-        poster={generateProxyUrl(match, {height: 638})}
+        poster={generateProxyUrl(
+          match,
+          {height: 638},
+          {
+            url: imgproxy.url,
+            key: imgproxy.key,
+            salt: imgproxy.salt,
+          }
+        )}
       ></video>
     </div>
   )

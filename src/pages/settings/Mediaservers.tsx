@@ -1,6 +1,7 @@
 import {useSubscriptionStatus} from "@/shared/hooks/useSubscriptionStatus"
 import {ChangeEvent, useState, useEffect, useRef} from "react"
 import {useUserStore} from "@/stores/user"
+import {useSettingsStore} from "@/stores/settings"
 import {getDefaultServers, stripHttps} from "./mediaservers-utils"
 
 function MediaServers() {
@@ -14,6 +15,7 @@ function MediaServers() {
     ensureDefaultMediaserver,
     publicKey,
   } = useUserStore()
+  const {imgproxy, updateImgproxy} = useSettingsStore()
   const [newServer, setNewServer] = useState("")
   const [newProtocol, setNewProtocol] = useState<"blossom" | "nip96">("blossom")
   const {isSubscriber, isLoading} = useSubscriptionStatus(publicKey)
@@ -142,6 +144,70 @@ function MediaServers() {
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="divider"></div>
+
+        <div>
+          <h2 className="text-xl mb-4">Image Proxy Settings</h2>
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={imgproxy.enabled}
+                  onChange={(e) => updateImgproxy({enabled: e.target.checked})}
+                />
+                Load images via proxy (enabled by default)
+              </label>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="checkbox"
+                  checked={imgproxy.fallbackToOriginal}
+                  onChange={(e) => updateImgproxy({fallbackToOriginal: e.target.checked})}
+                />
+                If image proxy fails, load from original source (enabled by default)
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Proxy URL</label>
+              <input
+                type="url"
+                className="input input-bordered w-full"
+                placeholder="https://imgproxy.coracle.social"
+                value={imgproxy.url}
+                onChange={(e) => updateImgproxy({url: e.target.value})}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Key (optional)</label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="Leave empty for default coracle.social server"
+                value={imgproxy.key}
+                onChange={(e) => updateImgproxy({key: e.target.value})}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Salt (optional)</label>
+              <input
+                type="text"
+                className="input input-bordered w-full"
+                placeholder="Leave empty for default coracle.social server"
+                value={imgproxy.salt}
+                onChange={(e) => updateImgproxy({salt: e.target.value})}
+              />
+            </div>
           </div>
         </div>
 

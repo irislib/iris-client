@@ -33,7 +33,18 @@ interface ImgProxyOptions {
   square?: boolean
 }
 
-export function generateProxyUrl(originalSrc: string, options: ImgProxyOptions = {}) {
+interface ImgProxyConfig {
+  url: string
+  key: string
+  salt: string
+}
+
+export function generateProxyUrl(
+  originalSrc: string,
+  options: ImgProxyOptions = {},
+  config?: ImgProxyConfig
+) {
+  const proxyConfig = config || DefaultImgProxy
   const te = new TextEncoder()
   const encodedUrl = urlSafe(base64.encode(te.encode(originalSrc)))
 
@@ -49,7 +60,7 @@ export function generateProxyUrl(originalSrc: string, options: ImgProxyOptions =
   }
 
   const path = `/${opts.join("/")}/${encodedUrl}`
-  const signature = signUrl(path, DefaultImgProxy.key, DefaultImgProxy.salt)
+  const signature = signUrl(path, proxyConfig.key, proxyConfig.salt)
 
-  return `${DefaultImgProxy.url}/${signature}${path}`
+  return `${proxyConfig.url}/${signature}${path}`
 }

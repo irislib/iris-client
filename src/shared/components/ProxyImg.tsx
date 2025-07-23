@@ -1,6 +1,7 @@
 import {CSSProperties, useEffect, useState, MouseEvent, useRef} from "react"
 import {generateProxyUrl} from "../utils/imgproxy"
 import {imgproxyFailureCache} from "@/utils/memcache"
+import {useSettingsStore} from "@/stores/settings"
 
 type Props = {
   src: string
@@ -30,6 +31,7 @@ const shouldSkipProxy = (url: string) => {
 const LOAD_TIMEOUT = 2000 // 2 seconds timeout
 
 const ProxyImg = (props: Props) => {
+  const {imgproxy} = useSettingsStore()
   const [proxyFailed, setProxyFailed] = useState(false)
   const [src, setSrc] = useState(props.src)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -42,16 +44,26 @@ const ProxyImg = (props: Props) => {
     // Check if this URL has previously failed through imgproxy
     const hasProxyFailed = imgproxyFailureCache.has(props.src)
 
-    if (
+    const shouldUseProxy =
+      imgproxy.enabled &&
       props.src &&
       !props.src.startsWith("data:image") &&
-      !hasProxyFailed && // Skip proxy if it previously failed for this URL
+      !hasProxyFailed &&
       (!shouldSkipProxy(props.src) || props.width)
-    ) {
-      mySrc = generateProxyUrl(props.src, {width: props.width, square: props.square})
+
+    if (shouldUseProxy) {
+      mySrc = generateProxyUrl(
+        props.src,
+        {width: props.width, square: props.square},
+        {
+          url: imgproxy.url,
+          key: imgproxy.key,
+          salt: imgproxy.salt,
+        }
+      )
       setSrc(mySrc)
     } else {
-      // Use original URL if proxy previously failed or should be skipped
+      // Use original URL if proxy is disabled or should be skipped
       setSrc(props.src)
     }
 
@@ -60,7 +72,7 @@ const ProxyImg = (props: Props) => {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [props.src, props.width, props.square])
+  }, [props.src, props.width, props.square, imgproxy])
 
   useEffect(() => {
     // If we've already switched to the original, do NOT set the timer again
@@ -95,7 +107,13 @@ const ProxyImg = (props: Props) => {
     } else {
       // The proxy failed or timed out
       imgproxyFailureCache.set(props.src, true)
-      if (props.loadOriginalIfProxyFails === false) {
+
+      const shouldFallback =
+        props.loadOriginalIfProxyFails !== undefined
+          ? props.loadOriginalIfProxyFails
+          : imgproxy.fallbackToOriginal
+
+      if (!shouldFallback) {
         // Do not load from original source, treat as failure
         setLoadFailed(true)
         props.onError?.()
