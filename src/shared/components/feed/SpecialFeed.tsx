@@ -17,10 +17,7 @@ const SpecialFeed = memo(function SpecialFeed() {
   if (events.length === 0 && !loading) {
     return (
       <div className="p-8 flex items-center justify-center text-base-content/50">
-        <p> No popular posts found.</p>
-        <button className="btn btn-primary mt-4" onClick={loadMore}>
-          Load More
-        </button>
+        No popular posts found.
       </div>
     )
   }

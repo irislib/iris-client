@@ -4,8 +4,11 @@ import usePopularityFilters from "./usePopularityFilters"
 
 export default function useSpecialFeedEvents() {
   const {currentFilters, expandFilters} = usePopularityFilters()
-  const {getNextMostPopular} = useReactionSubscription(currentFilters, expandFilters)
-  const {events, loadMore, loading} = usePostFetcher(getNextMostPopular)
+  const {getNextMostPopular, hasInitialData} = useReactionSubscription(
+    currentFilters,
+    expandFilters
+  )
+  const {events, loadMore, loading} = usePostFetcher(getNextMostPopular, hasInitialData)
   return {
     events,
     loadMore,

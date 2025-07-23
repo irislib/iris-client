@@ -1,4 +1,4 @@
-import {useEffect, useRef} from "react"
+import {useEffect, useRef, useState} from "react"
 import {NDKFilter} from "@nostr-dev-kit/ndk"
 import {ndk} from "@/utils/ndk"
 import {REACTION_KIND, REPOST_KIND} from "@/pages/chats/utils/constants"
@@ -6,6 +6,7 @@ import {getTag} from "@/utils/nostr"
 import {PopularityFilters} from "./usePopularityFilters"
 
 const LOW_THRESHOLD = 30
+const INITIAL_DATA_THRESHOLD = 10
 
 export default function useReactionSubscription(
   currentFilters: PopularityFilters,
@@ -13,6 +14,7 @@ export default function useReactionSubscription(
 ) {
   const showingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
   const pendingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
+  const [hasInitialData, setHasInitialData] = useState(false)
 
   useEffect(() => {
     const {timeRange, limit, authors: filterAuthors} = currentFilters
@@ -42,10 +44,15 @@ export default function useReactionSubscription(
       } else {
         pendingReactionCounts.current.set(originalPostId, new Set([event.id]))
       }
+
+      // Check if we have enough initial data
+      if (!hasInitialData && pendingReactionCounts.current.size >= INITIAL_DATA_THRESHOLD) {
+        setHasInitialData(true)
+      }
     })
 
     return () => sub.stop()
-  }, [currentFilters])
+  }, [currentFilters, hasInitialData])
 
   const getNextMostPopular = (n: number) => {
     const currentPendingCount = pendingReactionCounts.current.size
@@ -70,5 +77,6 @@ export default function useReactionSubscription(
 
   return {
     getNextMostPopular,
+    hasInitialData,
   }
 }
