@@ -36,13 +36,7 @@ function NotificationsFeed() {
 
   const {latestNotification: latestNotificationTime} = useNotificationsStore()
 
-  const [initialNotificationsSeenAt, setInitialNotificationsSeenAt] =
-    useState(notificationsSeenAt)
-  useEffect(() => {
-    if (initialNotificationsSeenAt === 0) {
-      setInitialNotificationsSeenAt(notificationsSeenAt)
-    }
-  }, [notificationsSeenAt])
+  const [initialNotificationsSeenAt] = useState(notificationsSeenAt)
   console.log("initialNotificationsSeenAt", initialNotificationsSeenAt)
 
   const updateSeenAt = useCallback(() => {
