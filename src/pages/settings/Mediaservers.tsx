@@ -160,7 +160,7 @@ function MediaServers() {
                   checked={imgproxy.enabled}
                   onChange={(e) => updateImgproxy({enabled: e.target.checked})}
                 />
-                Load images via proxy (enabled by default)
+                Load images via proxy
               </label>
             </div>
 
@@ -172,7 +172,7 @@ function MediaServers() {
                   checked={imgproxy.fallbackToOriginal}
                   onChange={(e) => updateImgproxy({fallbackToOriginal: e.target.checked})}
                 />
-                If image proxy fails, load from original source (enabled by default)
+                If image proxy fails, load from original source
               </label>
             </div>
 

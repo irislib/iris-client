@@ -337,7 +337,13 @@ self.addEventListener("push", (event) => {
         return
       }
 
-      const imgproxySettings = (await localforage.getItem("imgproxy-settings")) as any
+      const imgproxySettings = (await localforage.getItem("imgproxy-settings")) as {
+        url: string
+        key: string
+        salt: string
+        enabled: boolean
+        fallbackToOriginal: boolean
+      } | null
       const proxyConfig = imgproxySettings
         ? {
             url: imgproxySettings.url,
