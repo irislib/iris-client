@@ -14,7 +14,7 @@ import {DisplayAsSelector} from "./DisplayAsSelector"
 import NewEventsButton from "./NewEventsButton.tsx"
 import {useSettingsStore} from "@/stores/settings"
 import {useFeedStore} from "@/stores/feed"
-import {getTag, getEventReplyingTo} from "@/utils/nostr"
+import {getTag} from "@/utils/nostr"
 import MediaFeed from "./MediaFeed"
 
 interface FeedProps {
@@ -203,16 +203,7 @@ const Feed = memo(function Feed({
                       event={"content" in event ? event : undefined}
                       eventId={"content" in event ? undefined : event.id}
                       onEvent={onEvent}
-                      borderTop={
-                        borderTopFirst &&
-                        index === 0 &&
-                        !(
-                          showRepliedTo &&
-                          event &&
-                          "content" in event &&
-                          getEventReplyingTo(event)
-                        )
-                      }
+                      borderTop={borderTopFirst && index === 0}
                     />
                   </div>
                 ))}
