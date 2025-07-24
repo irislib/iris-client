@@ -234,7 +234,7 @@ function FeedItem({
             {
               "cursor-pointer": !standalone,
               "border-b": !asRepliedTo && !asEmbed,
-              "border-t": !asReply && borderTop && !(showRepliedTo && repliedToEventId),
+              "border-t": !asReply && borderTop && (asRepliedTo || !(showRepliedTo && repliedToEventId)),
               "border pt-3 pb-3 my-2 rounded": asEmbed,
               "hover:bg-[var(--note-hover-color)]": !standalone,
             }
