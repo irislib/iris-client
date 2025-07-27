@@ -1,6 +1,6 @@
 import {updateChannelSearchIndex, getCachedChannel} from "./channelSearch"
 import {shouldHideAuthor} from "@/utils/visibility"
-import {ndk} from "@/utils/ndk"
+import {fetchEvents} from "@/utils/applesauce"
 
 // NIP-28 event kinds
 export const CHANNEL_CREATE = 40
@@ -30,7 +30,7 @@ export const getChannelsByFollowed = async (): Promise<ChannelMetadata[]> => {
 
   try {
     // Fetch latest 100 channel creation events
-    const events = await ndk().fetchEvents({
+    const events = await fetchEvents({
       kinds: [CHANNEL_CREATE],
       limit: 100,
     })
@@ -84,10 +84,11 @@ export const fetchChannelMetadata = async (
 
   try {
     // First try to fetch the channel creation event
-    const channelEvent = await ndk().fetchEvent({
+    const events = await fetchEvents({
       kinds: [CHANNEL_CREATE],
       ids: [channelId],
     })
+    const channelEvent = Array.from(events)[0]
 
     if (channelEvent) {
       try {
@@ -107,10 +108,11 @@ export const fetchChannelMetadata = async (
     } else {
       // If no channel creation event found, try to fetch the channel message event
       // This is a fallback approach since some channels might not have a creation event
-      const channelMessageEvent = await ndk().fetchEvent({
+      const events = await fetchEvents({
         kinds: [42], // CHANNEL_MESSAGE
         ids: [channelId],
       })
+      const channelMessageEvent = events[0]
 
       if (channelMessageEvent) {
         // Create a basic metadata object from the message event

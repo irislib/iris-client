@@ -1,11 +1,12 @@
-import {getTag, NDKEventFromRawEvent, fetchEvent} from "@/utils/nostr.ts"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
-import {nip19} from "nostr-tools"
+import {getTag, NostrEventFromRawEvent} from "@/utils/nostr.ts"
+import {NostrEvent, nip19} from "nostr-tools"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
-export const handleEventContent = async (
-  event: NDKEvent,
-  setReferredEvent: (event: NDKEvent) => void
-) => {
+// TODO: This function needs to be properly converted from NDK to applesauce
+export const handleEventContent = (
+  event: NostrEvent,
+  setReferredEvent: (event: NostrEvent) => void
+): (() => void) | undefined => {
   try {
     if (event.kind === 6 || event.kind === 7) {
       let originalEvent
@@ -15,21 +16,39 @@ export const handleEventContent = async (
         // ignore
       }
       if (originalEvent && originalEvent?.id) {
-        const ndkEvent = NDKEventFromRawEvent(originalEvent)
+        const ndkEvent = NostrEventFromRawEvent(originalEvent)
         setReferredEvent(ndkEvent)
+        return undefined // No cleanup needed
       } else {
         const eTag = getTag("e", event.tags)
         if (eTag) {
-          const origEvent = await fetchEvent({ids: [eTag]})
-          if (origEvent) setReferredEvent(origEvent)
+          const pool = getPool()
+          const subscription = pool.subscription(DEFAULT_RELAYS, {ids: [eTag]})
+
+          subscription.subscribe({
+            next: (fetchedEvent) => {
+              if (typeof fetchedEvent !== "string" && fetchedEvent && fetchedEvent.id) {
+                setReferredEvent(fetchedEvent)
+              }
+            },
+            error: (error) => {
+              console.error("Subscription error:", error)
+            },
+          })
+
+          return () => {
+            // RxJS subscriptions auto-cleanup
+          }
         }
       }
     }
   } catch (error) {
     console.warn(error)
   }
+
+  return undefined
 }
-export const getEventIdHex = (event?: NDKEvent, eventId?: string) => {
+export const getEventIdHex = (event?: NostrEvent, eventId?: string) => {
   if (event?.id) {
     return event.id
   }

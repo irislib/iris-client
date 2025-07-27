@@ -1,11 +1,10 @@
 import {useNavigate} from "react-router"
-import {useEffect, useState, useMemo, memo, MutableRefObject} from "react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {useEffect, useState, useMemo, memo, MutableRefObject, useRef} from "react"
+import {NostrEvent, nip19} from "nostr-tools"
+import {Subscription} from "rxjs"
 import {decode} from "blurhash"
-import {nip19} from "nostr-tools"
 
 import {eventsByIdCache} from "@/utils/memcache.ts"
-import {fetchEvent} from "@/utils/nostr.ts"
 import {IMAGE_REGEX, VIDEO_REGEX} from "@/shared/components/embed/media/MediaEmbed.tsx"
 import {useSettingsStore} from "@/stores/settings"
 import MarketGridItem from "../market/MarketGridItem"
@@ -13,12 +12,13 @@ import {isMarketListing} from "@/shared/utils/marketUtils.ts"
 import ProxyImg from "../ProxyImg"
 import Icon from "../Icons/Icon"
 import {LRUCache} from "typescript-lru-cache"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 interface ImageGridItemProps {
-  event: NDKEvent | {id: string}
+  event: NostrEvent | {id: string}
   index: number
-  setActiveItemIndex: (event: NDKEvent, url: string) => void
-  onEventFetched?: (event: NDKEvent) => void
+  setActiveItemIndex: (event: NostrEvent, url: string) => void
+  onEventFetched?: (event: NostrEvent) => void
   lastElementRef?: MutableRefObject<HTMLDivElement>
 }
 
@@ -70,16 +70,23 @@ const ImageGridItem = memo(function ImageGridItem({
   const navigate = useNavigate()
   const [loadErrors, setLoadErrors] = useState<Record<number, boolean>>({})
   const [proxyFailed, setProxyFailed] = useState<Record<number, boolean>>({})
-  const [event, setEvent] = useState<NDKEvent | undefined>(
+  const [event, setEvent] = useState<NostrEvent | undefined>(
     "content" in initialEvent ? initialEvent : undefined
   )
   const {content, imgproxy} = useSettingsStore()
+  const subscriptionRef = useRef<Subscription | null>(null)
 
   const eventIdHex = useMemo(() => {
     return "content" in initialEvent ? initialEvent.id : initialEvent.id
   }, [initialEvent])
 
   useEffect(() => {
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe()
+      subscriptionRef.current = null
+    }
+
     if (event) {
       onEventFetched?.(event)
       return
@@ -91,17 +98,30 @@ const ImageGridItem = memo(function ImageGridItem({
         setEvent(cached)
         onEventFetched?.(cached)
       } else {
-        fetchEvent({ids: [eventIdHex]})
-          .then((fetched) => {
-            if (fetched) {
-              setEvent(fetched)
-              eventsByIdCache.set(eventIdHex, fetched)
-              onEventFetched?.(fetched)
+        const pool = getPool()
+        const poolSubscription = pool.subscription(DEFAULT_RELAYS, {ids: [eventIdHex]})
+
+        const subscription = poolSubscription.subscribe({
+          next: (fetchedEvent) => {
+            if (typeof fetchedEvent !== "string" && fetchedEvent && fetchedEvent.id) {
+              setEvent(fetchedEvent)
+              eventsByIdCache.set(eventIdHex, fetchedEvent)
+              onEventFetched?.(fetchedEvent)
             }
-          })
-          .catch((error) => {
-            console.warn("Failed to fetch event:", error)
-          })
+          },
+          error: (error) => {
+            console.error("Event fetch error:", error)
+          },
+        })
+
+        subscriptionRef.current = subscription
+      }
+    }
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe()
+        subscriptionRef.current = null
       }
     }
   }, [event, eventIdHex, onEventFetched])

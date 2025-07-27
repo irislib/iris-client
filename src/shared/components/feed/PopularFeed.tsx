@@ -1,5 +1,5 @@
 import {useCallback, useMemo, useState} from "react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import classNames from "classnames"
 
 import socialGraph, {
@@ -54,7 +54,7 @@ export default function PopularFeed({
 
   // Social graph filter - only show posts from users within distance 2 (unless using fallback)
   const displayFilterFn = useCallback(
-    (e: NDKEvent) => {
+    (e: NostrEvent) => {
       if (shouldUseFallback) {
         return true
       }

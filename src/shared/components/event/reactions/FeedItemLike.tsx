@@ -9,19 +9,20 @@ import {FloatingEmojiPicker} from "@/shared/components/emoji/FloatingEmojiPicker
 import {shouldHideAuthor} from "@/utils/visibility"
 import {LRUCache} from "typescript-lru-cache"
 import {formatAmount} from "@/utils/utils.ts"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
 import EmojiType from "@/types/emoji"
+import {reactToEvent} from "@/utils/nostr"
 import Icon from "../../Icons/Icon"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 import {useSettingsStore} from "@/stores/settings"
 
 const likeCache = new LRUCache<string, Set<string>>({
   maxSize: 100,
 })
 
-export const FeedItemLike = ({event}: {event: NDKEvent}) => {
+export const FeedItemLike = ({event}: {event: NostrEvent}) => {
   const {content} = useSettingsStore()
   const myPubKey = useUserStore((state) => state.publicKey)
   const cachedLikes = likeCache.get(event.id)
@@ -38,7 +39,7 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
   const like = async () => {
     if (likesByAuthor.has(myPubKey)) return
     try {
-      event.react("+")
+      reactToEvent(event, "+")
       setMyReaction("+")
       setLikesByAuthor((prev) => {
         const newSet = new Set(prev)
@@ -55,7 +56,7 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
   const handleEmojiSelect = async (emoji: EmojiType) => {
     if (!myPubKey) return
     try {
-      await event.react(emoji.native)
+      await reactToEvent(event, emoji.native)
       setMyReaction(emoji.native)
       setShowEmojiPicker(false)
       setLikesByAuthor((prev) => {
@@ -106,13 +107,13 @@ export const FeedItemLike = ({event}: {event: NDKEvent}) => {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
       const debouncedUpdate = debounce((likesSet: Set<string>) => {
         setLikeCount(likesSet.size)
       }, 300)
 
-      sub?.on("event", (likeEvent: NDKEvent) => {
-        if (shouldHideAuthor(likeEvent.author.pubkey)) return
+      sub?.on("event", (likeEvent: NostrEvent) => {
+        if (shouldHideAuthor(likeEvent.pubkey)) return
         if (likeEvent.pubkey === myPubKey) {
           setMyReaction(likeEvent.content)
         }

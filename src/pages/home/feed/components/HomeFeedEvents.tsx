@@ -1,5 +1,5 @@
 import {useCallback, useMemo, useEffect} from "react"
-import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
+import {NostrEvent, Filter} from "nostr-tools"
 
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
 import NotificationPrompt from "@/shared/components/NotificationPrompt"
@@ -47,7 +47,7 @@ const createFeedTabFromConfig = (config: TabConfig): FeedTab => {
 
   // Create fetchFilterFn based on config
   if (config.excludeSeen || config.hideReplies) {
-    tab.fetchFilterFn = (e: NDKEvent) => {
+    tab.fetchFilterFn = (e: NostrEvent) => {
       // Check if should exclude seen events
       if (config.excludeSeen && seenEventIds.has(e.id)) {
         return false
@@ -64,7 +64,7 @@ const createFeedTabFromConfig = (config: TabConfig): FeedTab => {
 
   // Create displayFilterFn based on config
   if (config.requiresMedia || config.requiresReplies || config.hideReplies) {
-    tab.displayFilterFn = (e: NDKEvent) => {
+    tab.displayFilterFn = (e: NostrEvent) => {
       // Check if requires media
       if (config.requiresMedia && !hasMedia(e)) {
         return false
@@ -137,7 +137,7 @@ function HomeFeedEvents() {
   }, [activeTab, activeTabConfig])
 
   const displayFilterFn = useCallback(
-    (event: NDKEvent) => {
+    (event: NostrEvent) => {
       if (
         activeTab === "unseen" &&
         refreshSignal > openedAt &&
@@ -170,7 +170,7 @@ function HomeFeedEvents() {
       <NotificationPrompt />
       <Feed
         key={feedKey}
-        filters={activeTabConfig.filter as unknown as NDKFilter}
+        filters={activeTabConfig.filter as unknown as Filter}
         displayFilterFn={displayFilterFn}
         fetchFilterFn={activeTabItem?.fetchFilterFn}
         showDisplayAsSelector={follows.length > 1}

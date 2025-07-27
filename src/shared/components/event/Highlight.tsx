@@ -1,17 +1,18 @@
 import {RiExternalLinkLine} from "@remixicon/react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
+import {getTagValue} from "@/utils/nostr"
 
 interface HighlightProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 function Highlight({event}: HighlightProps) {
   const [link, setLink] = useState<string>("")
 
   useEffect(() => {
-    const rTag = event.tagValue("r")
+    const rTag = getTagValue(event, "r")
     // todo: clean URL from trackers
     if (rTag) setLink(rTag)
   }, [event])

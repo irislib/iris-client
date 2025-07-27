@@ -6,14 +6,17 @@ import {
 } from "nostr-double-ratchet/src"
 import {createJSONStorage, persist, PersistStorage} from "zustand/middleware"
 import {Filter, VerifiedEvent, UnsignedEvent} from "nostr-tools"
-import {NDKEventFromRawEvent, RawEvent} from "@/utils/nostr"
+import {NostrEventFromRawEvent, RawEvent} from "@/utils/nostr"
+import {
+  publishEvent as applesaucePublishEvent,
+  subscribe as applesauceSubscribe,
+} from "@/utils/applesauce"
 import {REACTION_KIND} from "@/pages/chats/utils/constants"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {hexToBytes} from "@noble/hashes/utils"
 import {useEventsStore} from "./events"
 import localforage from "localforage"
 import {useUserStore} from "./user"
-import {ndk} from "@/utils/ndk"
 import {create} from "zustand"
 import {useGroupsStore} from "./groups"
 
@@ -70,7 +73,7 @@ interface SessionStoreActions {
 
 type SessionStore = SessionStoreState & SessionStoreActions
 const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-  const sub = ndk().subscribe(filter)
+  const sub = applesauceSubscribe(filter)
   sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
   return () => sub.stop()
 }
@@ -105,10 +108,13 @@ const store = create<SessionStore>()(
           }
           const event = invite.getEvent() as RawEvent
           console.log("Publishing public invite...", event)
-          await NDKEventFromRawEvent(event)
-            .publish()
-            .then((res) => console.log("Published public invite", res))
-            .catch((e) => console.warn("Error publishing public invite:", e))
+          try {
+            const nostrEvent = await NostrEventFromRawEvent(event)
+            const res = await applesaucePublishEvent(nostrEvent)
+            console.log("Published public invite", res)
+          } catch (e) {
+            console.warn("Error publishing public invite:", e)
+          }
         }
         if (!get().invites.has("private")) {
           get().createInvite("Private Invite", "private")
@@ -195,11 +201,11 @@ const store = create<SessionStore>()(
         // Optimistic update
         routeEventToStore(sessionId, message)
         try {
-          const e = NDKEventFromRawEvent(publishedEvent)
-          await e.publish(undefined, undefined, 0) // required relay count 0
-          console.log("published", publishedEvent.id)
+          const nostrEvent = await NostrEventFromRawEvent(publishedEvent)
+          await applesaucePublishEvent(nostrEvent)
+          console.log("Published message event:", nostrEvent, publishedEvent.id)
         } catch (err) {
-          console.warn("Error publishing event:", err)
+          console.warn("Error publishing message event:", err)
         }
         // make sure we persist session state
         set({sessions: new Map(get().sessions)})
@@ -263,11 +269,13 @@ const store = create<SessionStore>()(
           myPubKey,
           encrypt
         )
-        const e = NDKEventFromRawEvent(event)
-        await e
-          .publish()
-          .then((res) => console.log("published", res))
-          .catch((e) => console.warn("Error publishing event:", e))
+        try {
+          const nostrEvent = await NostrEventFromRawEvent(event)
+          await applesaucePublishEvent(nostrEvent)
+          console.log("Published invite event:", nostrEvent)
+        } catch (e) {
+          console.warn("Error publishing invite event:", e)
+        }
         const sessionId = `${invite.inviter}:${session.name}`
         if (sessionListeners.has(sessionId)) {
           return sessionId

@@ -22,7 +22,7 @@ import Icon from "@/shared/components/Icons/Icon"
 import {Filter, VerifiedEvent} from "nostr-tools"
 import {Invite} from "nostr-double-ratchet/src"
 import {Helmet} from "react-helmet"
-import {ndk} from "@/utils/ndk"
+import {subscribe as applesauceSubscribe} from "@/utils/applesauce"
 
 const ProfileHeader = ({pubKey}: {pubKey: string}) => {
   const profile = useProfile(pubKey, true)
@@ -43,12 +43,17 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
       return
     }
 
-    const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-      const sub = ndk().subscribe(filter)
+    const subscribeToEvents = (
+      filter: Filter,
+      onEvent: (event: VerifiedEvent) => void
+    ) => {
+      const sub = applesauceSubscribe(filter)
       sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
       return () => sub.stop()
     }
-    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => setInvite(invite))
+    const unsub = Invite.fromUser(pubKeyHex, subscribeToEvents, (invite) =>
+      setInvite(invite)
+    )
     return unsub
   }, [myPubKey, pubKeyHex])
 
@@ -59,21 +64,21 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
       </Header>
       <div className="flex flex-col gap-4 w-full break-all">
         <div className="w-full h-48 md:h-72 bg-gradient-to-r from-primary to-primary-dark">
-          {profile?.banner && (
+          {profile?.banner ? (
             <ProxyImg
-              src={profile?.banner}
+              src={String(profile.banner)}
               className="w-full h-48 md:h-72 object-cover cursor-pointer select-none"
               alt=""
               onClick={() => setShowBannerModal(true)}
               hideBroken={true}
               width={655}
             />
-          )}
+          ) : null}
         </div>
         {showBannerModal && (
           <Modal onClose={() => setShowBannerModal(false)} hasBackground={false}>
             <ProxyImg
-              src={String(profile?.banner)}
+              src={String(profile?.banner || "")}
               className="max-h-screen max-w-screen"
               alt="Banner"
             />
@@ -154,11 +159,13 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
         )}
         <Helmet>
           <title>
-            {profile?.name ||
-              profile?.display_name ||
-              profile?.username ||
-              profile?.nip05?.split("@")[0] ||
-              "Profile"}{" "}
+            {String(
+              profile?.name ||
+                profile?.display_name ||
+                profile?.username ||
+                (profile?.nip05 as string)?.split("@")[0] ||
+                "Profile"
+            )}{" "}
           </title>
         </Helmet>
       </div>

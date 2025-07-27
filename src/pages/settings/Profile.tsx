@@ -1,11 +1,11 @@
 import UploadButton from "@/shared/components/button/UploadButton"
 import useProfile from "@/shared/hooks/useProfile"
 import {useEffect, useMemo, useState} from "react"
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
+// import {getProfileContent} from "applesauce-core/helpers" // unused
 import {useUserStore} from "@/stores/user"
 import {Link} from "react-router"
-import {ndk} from "@/utils/ndk"
 import ProxyImg from "@/shared/components/ProxyImg"
+import {publishEvent} from "@/utils/applesauce"
 
 export function ProfileSettings() {
   const [publicKeyState, setPublicKeyState] = useState("")
@@ -23,19 +23,21 @@ export function ProfileSettings() {
     if (!myPubKey) {
       return null
     }
-    return ndk().getUser({pubkey: myPubKey})
-  }, [myPubKey])
+    return {pubkey: myPubKey, profile: existingProfile}
+  }, [myPubKey, existingProfile])
 
-  const [newProfile, setNewProfile] = useState<NDKUserProfile>(user?.profile || {})
+  const [newProfile, setNewProfile] = useState<Record<string, string>>(
+    (user?.profile as Record<string, string>) || {}
+  )
 
   useEffect(() => {
     if (existingProfile) {
-      setNewProfile(existingProfile)
+      setNewProfile(existingProfile as Record<string, string>)
     }
   }, [existingProfile])
 
-  function setProfileField(field: keyof NDKUserProfile, value: string) {
-    setNewProfile((prev) => {
+  function setProfileField(field: string, value: string) {
+    setNewProfile((prev: Record<string, string>) => {
       return {
         ...prev,
         [field]: value,
@@ -43,12 +45,44 @@ export function ProfileSettings() {
     })
   }
 
-  function onSaveProfile() {
+  async function onSaveProfile() {
     if (!user || !newProfile) {
       return
     }
-    user.profile = newProfile
-    user.publish()
+
+    try {
+      // Merge new profile fields with existing profile to preserve all fields
+      const mergedProfile = {
+        ...existingProfile, // Start with existing profile
+        ...newProfile, // Override with new values
+      }
+
+      // Remove any undefined or empty string values to clean up the profile
+      const cleanedProfile = Object.fromEntries(
+        Object.entries(mergedProfile).filter(
+          ([, value]) => value !== undefined && value !== null && value !== ""
+        )
+      )
+
+      // Create a profile event (kind 0) with the merged profile data
+      const profileEvent = {
+        kind: 0,
+        content: JSON.stringify(cleanedProfile),
+        tags: [],
+        created_at: Math.floor(Date.now() / 1000),
+      }
+
+      console.log("Publishing profile update:", profileEvent)
+      console.log("Merged profile:", cleanedProfile)
+      await publishEvent(profileEvent)
+      console.log("Profile updated successfully!")
+
+      // Optionally show success message to user
+      // You could add a toast notification here
+    } catch (error) {
+      console.error("Failed to update profile:", error)
+      // Optionally show error message to user
+    }
   }
 
   const isEdited = useMemo(() => {

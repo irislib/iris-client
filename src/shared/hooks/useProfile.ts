@@ -1,11 +1,11 @@
-import {NDKEvent, NDKUserProfile} from "@nostr-dev-kit/ndk"
+import type {NostrEvent} from "nostr-tools"
+import {subscribe as applesauceSubscribe} from "@/utils/applesauce"
 import {handleProfile} from "@/utils/profileSearch"
 import {PublicKey} from "@/shared/utils/PublicKey"
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState, useRef} from "react"
 import {profileCache, addCachedProfile} from "@/utils/profileCache"
-import {ndk} from "@/utils/ndk"
 
-export default function useProfile(pubKey?: string, subscribe = true) {
+export default function useProfile(pubKey?: string, shouldSubscribe = true) {
   const pubKeyHex = useMemo(() => {
     if (!pubKey) {
       return ""
@@ -18,22 +18,38 @@ export default function useProfile(pubKey?: string, subscribe = true) {
     }
   }, [pubKey])
 
-  const [profile, setProfile] = useState<NDKUserProfile | null>(
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(
     profileCache.get(pubKeyHex || "") || null
   )
 
+  const subscriptionRef = useRef<{stop: () => void} | null>(null)
+
   useEffect(() => {
+    // Clean up any existing subscription first
+    if (subscriptionRef.current) {
+      subscriptionRef.current.stop()
+      subscriptionRef.current = null
+    }
+
     if (!pubKeyHex) {
       return
     }
+
     const newProfile = profileCache.get(pubKeyHex || "") || null
     setProfile(newProfile)
-    if (newProfile && !subscribe) {
+
+    if (newProfile && !shouldSubscribe) {
       return
     }
-    const sub = ndk().subscribe({kinds: [0], authors: [pubKeyHex]}, {closeOnEose: false})
+
+    const sub = applesauceSubscribe(
+      {kinds: [0], authors: [pubKeyHex]},
+      {closeOnEose: true}
+    )
+    subscriptionRef.current = sub
+
     let latest = 0
-    sub.on("event", (event: NDKEvent) => {
+    sub.on("event", (event: NostrEvent) => {
       if (event.pubkey === pubKeyHex && event.kind === 0) {
         if (!event.created_at || event.created_at <= latest) {
           return
@@ -46,10 +62,14 @@ export default function useProfile(pubKey?: string, subscribe = true) {
         handleProfile(pubKeyHex, profile)
       }
     })
+
     return () => {
-      sub.stop()
+      if (subscriptionRef.current) {
+        subscriptionRef.current.stop()
+        subscriptionRef.current = null
+      }
     }
-  }, [pubKeyHex])
+  }, [pubKeyHex, shouldSubscribe])
 
   return profile
 }

@@ -1,5 +1,6 @@
 import {useEffect, useState, useCallback} from "react"
 import {LRUCache} from "typescript-lru-cache"
+import {CONFIG} from "@/utils/config"
 
 // Cache interface for subscription data
 interface SubscriptionCache {

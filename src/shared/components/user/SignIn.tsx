@@ -1,11 +1,9 @@
 import {hexToBytes, bytesToHex} from "@noble/hashes/utils"
-import {NDKPrivateKeySigner} from "@nostr-dev-kit/ndk"
 import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
-import {ndk} from "@/utils/ndk"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
 const HEX_REGEX = /[0-9a-fA-F]{64}/gi
@@ -30,8 +28,6 @@ export default function SignIn({onClose}: SignInProps) {
             ? (nip19.decode(inputPrivateKey).data as Uint8Array)
             : hexToBytes(inputPrivateKey)
         const hex = bytesToHex(bytes)
-        const privateKeySigner = new NDKPrivateKeySigner(hex)
-        ndk().signer = privateKeySigner
         const publicKey = getPublicKey(bytes)
         setPrivateKey(hex)
         setPublicKey(publicKey)

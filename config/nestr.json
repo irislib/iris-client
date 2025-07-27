@@ -3,8 +3,8 @@
   "appNameCapitalized": "Nestr",
   "hostname": "nestr.iris.to",
   "nip05Domain": "iris.to",
+  "navLogo": "/img/icon128.png",
   "icon": "/img/icon128.png",
-  "navLogo": "/nestr-logo-no-name.png",
   "defaultTheme": "dark",
   "navItems": [
     "home",

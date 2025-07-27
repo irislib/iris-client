@@ -8,6 +8,7 @@ import RegisterForm from "./RegisterForm"
 import {useEffect, useState} from "react"
 import AccountName from "./AccountName"
 import IrisAPI from "@/utils/IrisAPI"
+import {CONFIG} from "@/utils/config"
 
 // Main component
 function IrisAccount() {
@@ -27,7 +28,7 @@ function IrisAccount() {
   const checkExistingAccount = async (pub: string) => {
     if (!pub) return
 
-    const url = `${CONFIG.defaultSettings.irisApiUrl}/user/find?public_key=${pub}&nocache=${Date.now()}`
+    const url = `${CONFIG.defaultSettings?.irisApiUrl || "https://api.iris.to"}/user/find?public_key=${pub}&nocache=${Date.now()}`
     const res = await fetch(url)
 
     if (res.status === 200) {

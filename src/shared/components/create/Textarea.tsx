@@ -8,16 +8,15 @@ import {
   useCallback,
 } from "react"
 import {searchIndex, SearchResult} from "@/utils/profileSearch"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent, nip19} from "nostr-tools"
 import {UserRow} from "../user/UserRow"
-import {nip19} from "nostr-tools"
 
 interface TextareaProps {
   value: string
   onChange: (event: ChangeEvent<HTMLTextAreaElement>) => void
   onUpload: (file: File) => void
   onPublish: () => void
-  quotedEvent?: NDKEvent
+  quotedEvent?: NostrEvent
   placeholder: string
   onRef: (ref: HTMLTextAreaElement) => void
 }

@@ -3,11 +3,11 @@ import RightColumn from "@/shared/components/RightColumn.tsx"
 import Header from "@/shared/components/header/Header"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import PopularFeed from "@/shared/components/feed/PopularFeed"
-import {NDKFilter} from "@nostr-dev-kit/ndk"
+import {Filter} from "nostr-tools"
 import Feed from "@/shared/components/feed/Feed.tsx"
 import {useParams} from "react-router"
 import Widget from "@/shared/components/ui/Widget"
-import {DEFAULT_RELAYS} from "@/utils/ndk"
+import {DEFAULT_RELAYS} from "@/utils/applesauce"
 import {useSettingsStore} from "@/stores/settings"
 import {Helmet} from "react-helmet"
 import RelaySelector from "@/shared/components/ui/RelaySelector"
@@ -29,7 +29,7 @@ function RelayPage() {
     setDisplayedRelay(selectedRelay || DEFAULT_RELAYS[0])
   }, [selectedRelay])
 
-  const filters: NDKFilter = useMemo(
+  const filters: Filter = useMemo(
     () => ({
       kinds: [1],
       limit: 100,

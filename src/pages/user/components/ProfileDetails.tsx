@@ -1,7 +1,6 @@
 import {RiErrorWarningLine, RiGithubFill, RiShieldCheckFill} from "@remixicon/react"
 import {ElementType, ReactNode, useEffect, useMemo, useState} from "react"
 import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
 import {useNavigate} from "react-router"
 import {nip19} from "nostr-tools"
 
@@ -21,7 +20,17 @@ type ExternalIdentities = {
 }
 
 interface ProfileDetailsProps {
-  displayProfile: NDKUserProfile | undefined
+  displayProfile:
+    | {
+        name?: string
+        display_name?: string
+        username?: string
+        about?: string
+        website?: string
+        lud16?: string
+        nip05?: string
+      }
+    | undefined
   externalIdentities: ExternalIdentities | undefined
   pubKey: string
 }

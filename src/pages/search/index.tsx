@@ -4,7 +4,7 @@ import PopularFeed from "@/shared/components/feed/PopularFeed"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import SearchBox from "@/shared/components/ui/SearchBox"
 import Header from "@/shared/components/header/Header"
-import {NDKFilter} from "@nostr-dev-kit/ndk"
+import {Filter} from "nostr-tools"
 import Feed from "@/shared/components/feed/Feed.tsx"
 import {useParams, useNavigate} from "react-router"
 import Widget from "@/shared/components/ui/Widget"
@@ -38,7 +38,7 @@ function SearchPage() {
     setForceUpdate((prev) => prev + 1)
   }, [activeTab])
 
-  const filters: NDKFilter = useMemo(
+  const filters: Filter = useMemo(
     () => ({
       kinds: activeTab === "market" ? [30402] : [1],
       search: query,

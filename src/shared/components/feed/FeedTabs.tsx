@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useFeedStore, useEnabledFeedIds, type TabConfig} from "@/stores/feed"
 import {
   RiDeleteBinLine,
@@ -15,13 +15,13 @@ interface FeedTab {
   name: string
   id: string
   showRepliedTo?: boolean
-  fetchFilterFn?: (e: NDKEvent) => boolean
+  fetchFilterFn?: (e: NostrEvent) => boolean
   filter?: {
     kinds?: number[]
     since?: number
     limit?: number
   }
-  displayFilterFn?: (e: NDKEvent) => boolean
+  displayFilterFn?: (e: NostrEvent) => boolean
   sortLikedPosts?: boolean
 }
 

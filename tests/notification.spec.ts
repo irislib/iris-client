@@ -68,7 +68,8 @@ test.describe("Notifications", () => {
       await pageA.getByPlaceholder("What's on your mind?").fill(postContent)
       await pageA.getByRole("button", {name: "Publish"}).click()
 
-      await expect(pageA.getByText(postContent)).toBeVisible()
+      // Verify post is visible in the feed (use nth(1) to skip the textarea and get the published post)
+      await expect(pageA.getByText(postContent).nth(1)).toBeVisible()
 
       await pageB.goto("/")
       await expect(pageB.getByText(postContent)).toBeVisible({timeout: 20000})

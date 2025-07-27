@@ -1,8 +1,8 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useEffect, useState} from "react"
 import {useLocation} from "react-router"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import Dropdown from "@/shared/components/ui/Dropdown"
@@ -13,10 +13,11 @@ import Icon from "../../Icons/Icon"
 
 import {shouldHideAuthor} from "@/utils/visibility"
 import {useUserStore} from "@/stores/user"
+import {repostEvent} from "@/utils/nostr"
 import {useSettingsStore} from "@/stores/settings"
 
 interface FeedItemRepostProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 const repostCache = new LRUCache<string, Set<string>>({
@@ -41,7 +42,7 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
     if (reposted) return
     setShowButtons(false)
     try {
-      event.repost()
+      repostEvent(event)
       setRepostsByAuthor((prev) => {
         const newSet = new Set(prev)
         newSet.add(myPubKey)
@@ -68,14 +69,14 @@ function FeedItemRepost({event}: FeedItemRepostProps) {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
       const debouncedUpdate = debounce((repostsByAuthor) => {
         setRepostCount(repostsByAuthor.size)
       }, 300)
 
-      sub?.on("event", (repostEvent: NDKEvent) => {
-        if (shouldHideAuthor(repostEvent.author.pubkey)) return
+      sub?.on("event", (repostEvent: NostrEvent) => {
+        if (shouldHideAuthor(repostEvent.pubkey)) return
         setRepostsByAuthor((prev) => {
           const newSet = new Set(prev)
           newSet.add(repostEvent.pubkey)

@@ -11,7 +11,7 @@ import ErrorBoundary from "./ui/ErrorBoundary"
 import {formatAmount} from "@/utils/utils"
 import {useUserStore} from "@/stores/user"
 import {useLocation} from "react-router"
-import {ndk} from "@/utils/ndk"
+import {getCurrentSigner} from "@/utils/applesauce"
 
 type MenuItem = {
   label?: string
@@ -58,7 +58,7 @@ const Footer = () => {
     // -mb-[1px] because weird 1px gap under footer?
     <ErrorBoundary>
       <footer className="-mb-[1px] md:hidden fixed bottom-0 z-10 w-full bg-base-200 pb-[env(safe-area-inset-bottom)] bg-bg-color">
-        {myPubKey && !ndk().signer && (
+        {myPubKey && !getCurrentSigner() && (
           <div className="flex items-center justify-center gap-1 text-error text-xs py-1 border-b border-error/20">
             <RiLockLine className="w-3 h-3" />
             <span>Read-only mode</span>
@@ -68,7 +68,7 @@ const Footer = () => {
           {MENU_ITEMS.map(
             (item, index) =>
               (myPubKey || !item.loggedInOnly) &&
-              (!item.requireSigner || (item.requireSigner && ndk().signer)) && (
+              (!item.requireSigner || (item.requireSigner && getCurrentSigner())) && (
                 <FooterNavItem key={index} item={item} readonly={readonly} />
               )
           )}

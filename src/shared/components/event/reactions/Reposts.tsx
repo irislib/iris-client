@@ -1,12 +1,12 @@
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {shouldHideAuthor} from "@/utils/visibility"
 import socialGraph from "@/utils/socialGraph"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useEffect, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
-export default function Reposts({event}: {event: NDKEvent}) {
-  const [reactions, setReactions] = useState<Map<string, NDKEvent>>(new Map())
+export default function Reposts({event}: {event: NostrEvent}) {
+  const [reactions, setReactions] = useState<Map<string, NostrEvent>>(new Map())
 
   useEffect(() => {
     try {
@@ -15,18 +15,18 @@ export default function Reposts({event}: {event: NDKEvent}) {
         kinds: [6],
         ["#e"]: [event.id],
       }
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
-      sub?.on("event", (event: NDKEvent) => {
-        if (shouldHideAuthor(event.author.pubkey)) return
+      sub?.on("event", (event: NostrEvent) => {
+        if (shouldHideAuthor(event.pubkey)) return
         setReactions((prev) => {
-          const existing = prev.get(event.author.pubkey)
+          const existing = prev.get(event.pubkey)
           if (existing) {
             if (existing.created_at! < event.created_at!) {
-              prev.set(event.author.pubkey, event)
+              prev.set(event.pubkey, event)
             }
           } else {
-            prev.set(event.author.pubkey, event)
+            prev.set(event.pubkey, event)
           }
           return new Map(prev)
         })
@@ -45,12 +45,12 @@ export default function Reposts({event}: {event: NDKEvent}) {
       {Array.from(reactions.values())
         .sort((a, b) => {
           return (
-            socialGraph().getFollowDistance(a.author.pubkey) -
-            socialGraph().getFollowDistance(b.author.pubkey)
+            socialGraph().getFollowDistance(a.pubkey) -
+            socialGraph().getFollowDistance(b.pubkey)
           )
         })
         .map((event) => (
-          <UserRow showHoverCard={true} key={event.id} pubKey={event.author.pubkey} />
+          <UserRow showHoverCard={true} key={event.id} pubKey={event.pubkey} />
         ))}
     </div>
   )

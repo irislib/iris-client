@@ -1,6 +1,7 @@
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
 import localforage from "localforage"
+import {CONFIG} from "@/utils/config"
 
 interface SettingsState {
   // Appearance settings
@@ -54,7 +55,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       appearance: {
-        theme: CONFIG.defaultTheme,
+        theme: String(CONFIG.defaultTheme),
       },
       content: {
         blurNSFW: true,

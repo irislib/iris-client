@@ -1,8 +1,8 @@
 import CopyButton from "@/shared/components/button/CopyButton.tsx"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 
 type RawJSONProps = {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 function RawJSON({event}: RawJSONProps) {

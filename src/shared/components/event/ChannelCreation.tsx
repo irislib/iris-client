@@ -1,10 +1,10 @@
 import MinidenticonImg from "../user/MinidenticonImg"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useNavigate} from "react-router"
 import ProxyImg from "../ProxyImg"
 
 type ChannelCreationProps = {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 const ChannelCreation = ({event}: ChannelCreationProps) => {

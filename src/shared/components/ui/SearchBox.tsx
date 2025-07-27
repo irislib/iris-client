@@ -8,11 +8,9 @@ import {useNavigate} from "react-router"
 import classNames from "classnames"
 import {nip19} from "nostr-tools"
 import Icon from "../Icons/Icon"
-import {ndk} from "@/utils/ndk"
 
 const NOSTR_REGEX = /(npub|note|nevent|naddr|nprofile)1[a-zA-Z0-9]{58,300}/gi
 const HEX_REGEX = /[0-9a-fA-F]{64}/gi
-const NIP05_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_RESULTS = 6
 
 // Search ranking constants
@@ -88,16 +86,8 @@ function SearchBox({
       onSelect(v)
       setValue("")
       return
-    } else if (v.match(NIP05_REGEX)) {
-      ndk()
-        .getUserFromNip05(v)
-        .then((user) => {
-          if (user) {
-            onSelect(user.pubkey)
-            setValue("")
-          }
-        })
     }
+    // TODO: Add NIP-05 resolution support
 
     const query = v.toLowerCase()
     const results = searchIndex.search(query)
@@ -180,12 +170,12 @@ function SearchBox({
         setActiveResult(0)
       } else if (e.key === "Enter") {
         e.preventDefault()
-        if (searchNotes && value.trim()) {
-          // When searchNotes is true and user has typed something, always search for notes
-          handleSelectResult("search-notes", value.trim())
-        } else if (displayedLength > 0) {
+        if (displayedLength > 0) {
           const activeItem = displayedItems[activeResult]
           handleSelectResult(activeItem.pubKey, activeItem.query)
+        } else if (searchNotes && value.trim()) {
+          // Only default to note search if no results are selected
+          handleSelectResult("search-notes", value.trim())
         }
       }
     }

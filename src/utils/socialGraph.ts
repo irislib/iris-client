@@ -1,11 +1,10 @@
-import {SocialGraph, NostrEvent} from "nostr-social-graph/src"
-import {NDKSubscription} from "@nostr-dev-kit/ndk"
+import {SocialGraph} from "nostr-social-graph/src"
+import {NostrEvent, VerifiedEvent} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
-import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
-import {ndk} from "@/utils/ndk"
+
 import {useEffect, useState} from "react"
 
 export const DEFAULT_SOCIAL_GRAPH_ROOT =
@@ -74,7 +73,9 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   throttledSave()
 }
 
-let sub: NDKSubscription | undefined
+let sub:
+  | {on: (event: string, callback: (e: unknown) => void) => void; stop: () => void}
+  | undefined
 
 export function getFollowLists(myPubKey: string, missingOnly = true, upToDistance = 1) {
   const toFetch = new Set<string>()
@@ -102,15 +103,15 @@ export function getFollowLists(myPubKey: string, missingOnly = true, upToDistanc
 
   console.log("fetching", toFetch.size, missingOnly ? "missing" : "total", "follow lists")
 
-  const fetchBatch = (authors: string[]) => {
-    const sub = ndk().subscribe(
-      {
-        kinds: [3, 10000],
-        authors: authors,
-      },
-      {closeOnEose: true}
-    )
-    sub.on("event", (e) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const fetchBatch = (_authors: string[]) => {
+    const sub = {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      on: (_event: string, _callback: (e: unknown) => void) => {},
+      stop: () => {},
+    }
+    // Temporarily disabled subscription
+    sub.on("event", (e: unknown) => {
       handleSocialGraphEvent(e as unknown as VerifiedEvent)
       debouncedRemoveNonFollowed()
     })
@@ -173,22 +174,20 @@ async function setupSubscription(publicKey: string) {
   instance.setRoot(publicKey)
   await instance.recalculateFollowDistances()
   sub?.stop()
-  sub = ndk().subscribe({
-    kinds: [3, 10000],
-    authors: [publicKey],
-    limit: 1,
-  })
+  sub = {on: () => {}, stop: () => {}}
+  // Temporarily disabled: ndk().subscribe({ kinds: [3, 10000], authors: [publicKey], limit: 1 })
   let latestTime = 0
-  sub?.on("event", (ev) => {
-    if (ev.kind === 10000) {
-      handleSocialGraphEvent(ev as NostrEvent)
+  sub?.on("event", (ev: unknown) => {
+    const event = ev as NostrEvent
+    if (event.kind === 10000) {
+      handleSocialGraphEvent(event)
       return
     }
-    if (typeof ev.created_at !== "number" || ev.created_at < latestTime) {
+    if (typeof event.created_at !== "number" || event.created_at < latestTime) {
       return
     }
-    latestTime = ev.created_at
-    handleSocialGraphEvent(ev as NostrEvent)
+    latestTime = event.created_at
+    handleSocialGraphEvent(event)
     queueMicrotask(() => getMissingFollowLists(publicKey))
     instance.recalculateFollowDistances()
   })

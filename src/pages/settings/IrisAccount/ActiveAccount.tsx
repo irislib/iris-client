@@ -1,5 +1,4 @@
 import AccountName from "./AccountName"
-import {ndk} from "@/utils/ndk"
 
 interface ActiveAccountProps {
   name?: string
@@ -13,13 +12,15 @@ export default function ActiveAccount({
   myPub = "",
 }: ActiveAccountProps) {
   async function saveProfile(nip05: string) {
-    const user = ndk().getUser({pubkey: myPub})
+    const user = {pubkey: myPub, profile: {nip05}}
     user.profile = user.profile || {nip05}
-    user.publish()
+    // TODO: Implement profile saving with applesauce
+    console.log("Saving profile:", user)
   }
 
   const onClick = async () => {
-    const profile = ndk().getUser({pubkey: myPub}).profile
+    const user = {pubkey: myPub, profile: {nip05: ""}}
+    const profile = user.profile
     const newNip = name + "@iris.to"
     const timeout = setTimeout(() => {
       saveProfile(newNip)

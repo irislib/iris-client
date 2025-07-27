@@ -16,7 +16,7 @@ import {useUserStore} from "@/stores/user"
 import {useEffect, useState} from "react"
 import debounce from "lodash/debounce"
 import classNames from "classnames"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 import {useGroupsStore} from "@/stores/groups"
 
 interface ChatListItemProps {
@@ -70,7 +70,7 @@ const ChatListItem = ({id, isPublic = false}: ChatListItemProps) => {
       }
     }, 300)
 
-    const sub = ndk().subscribe({
+    const sub = subscribe({
       kinds: [CHANNEL_MESSAGE],
       "#e": [id],
       limit: 1,

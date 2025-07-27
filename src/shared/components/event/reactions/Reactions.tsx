@@ -1,10 +1,10 @@
 import Reposts from "@/shared/components/event/reactions/Reposts.tsx"
 import Likes from "@/shared/components/event/reactions/Likes.tsx"
 import Zaps from "@/shared/components/event/reactions/Zaps.tsx"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useState} from "react"
 
-export default function Reactions({event}: {event: NDKEvent}) {
+export default function Reactions({event}: {event: NostrEvent}) {
   const [activeTab, setActiveTab] = useState("likes")
 
   return (

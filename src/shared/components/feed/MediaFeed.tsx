@@ -5,12 +5,12 @@ import {useState, useMemo, useCallback, useEffect, useRef} from "react"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import PreloadImages from "../media/PreloadImages"
 import MediaModal from "../media/MediaModal"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import ImageGridItem from "./ImageGridItem"
 import DebugManager from "@/utils/DebugManager"
 
 interface MediaFeedProps {
-  events: (NDKEvent | {id: string})[]
+  events: (NostrEvent | {id: string})[]
 }
 
 // Limit memory usage by keeping only recent events
@@ -25,11 +25,11 @@ export default function MediaFeed({events}: MediaFeedProps) {
     "displayCount"
   )
   const [modalMedia, setModalMedia] = useState<
-    Array<{type: "image" | "video"; url: string; event: NDKEvent}>
+    Array<{type: "image" | "video"; url: string; event: NostrEvent}>
   >([])
 
   // Use a Map for better performance and automatic deduplication
-  const [fetchedEventsMap, setFetchedEventsMap] = useState<Map<string, NDKEvent>>(
+  const [fetchedEventsMap, setFetchedEventsMap] = useState<Map<string, NostrEvent>>(
     new Map()
   )
 
@@ -92,12 +92,12 @@ export default function MediaFeed({events}: MediaFeedProps) {
   }, [events, displayCount])
 
   const calculateAllMedia = useCallback(
-    (events: NDKEvent[]) => {
+    (events: NostrEvent[]) => {
       const startTime = performance.now()
 
       const deduplicated = new Map<
         string,
-        {type: "image" | "video"; url: string; event: NDKEvent}
+        {type: "image" | "video"; url: string; event: NostrEvent}
       >()
 
       events.forEach((event) => {
@@ -192,7 +192,7 @@ export default function MediaFeed({events}: MediaFeedProps) {
     return false
   }
 
-  const handleImageClick = (event: NDKEvent, clickedUrl: string) => {
+  const handleImageClick = (event: NostrEvent, clickedUrl: string) => {
     const startTime = performance.now()
 
     // Use all available events for modal, not just fetched ones
@@ -213,7 +213,7 @@ export default function MediaFeed({events}: MediaFeedProps) {
         // Skip unfetched events for now (they'll be fetched on demand)
         return null
       })
-      .filter(Boolean) as NDKEvent[]
+      .filter(Boolean) as NostrEvent[]
 
     // Calculate media from all available events
     const mediaArray = calculateAllMedia(allEvents)
@@ -248,7 +248,7 @@ export default function MediaFeed({events}: MediaFeedProps) {
   }
 
   const handleEventFetched = useCallback(
-    (event: NDKEvent) => {
+    (event: NostrEvent) => {
       setFetchedEventsMap((prev) => {
         if (prev.has(event.id)) return prev
 

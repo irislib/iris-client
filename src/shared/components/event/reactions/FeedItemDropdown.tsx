@@ -1,6 +1,5 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent, nip19} from "nostr-tools"
 import {useEffect, useState} from "react"
-import {nip19} from "nostr-tools"
 
 import {unmuteUser} from "@/shared/services/Mute.tsx"
 
@@ -13,9 +12,10 @@ import MuteUser from "../MuteUser.tsx"
 import RawJSON from "../RawJSON.tsx"
 import RelayList from "./RelayList.tsx"
 import {useNavigate} from "react-router"
+import {encodeEvent, deleteEvent} from "@/utils/nostr"
 
 type FeedItemDropdownProps = {
-  event: NDKEvent
+  event: NostrEvent
   onClose: () => void
 }
 
@@ -45,7 +45,7 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
     onClose()
   }
   const handleCopyNoteID = () => {
-    navigator.clipboard.writeText(event.encode())
+    navigator.clipboard.writeText(encodeEvent(event))
     onClose()
   }
   const handleMute = async () => {
@@ -63,7 +63,7 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
   const handleDeletionRequest = async () => {
     if (event.pubkey === myPubKey) {
       try {
-        await event.delete()
+        await deleteEvent(event)
         onClose()
       } catch (error) {
         console.warn("Event could not be deleted: ", error)
@@ -150,7 +150,7 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
             </li>
           )}
           <li onClick={() => navigate("/settings/network")}>
-            <RelayList relays={event.onRelays} />
+            <RelayList relays={[]} />
           </li>
         </ul>
       </Dropdown>

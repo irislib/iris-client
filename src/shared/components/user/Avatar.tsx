@@ -68,7 +68,7 @@ export const Avatar = ({
                 profile?.name ||
                   profile?.display_name ||
                   profile?.username ||
-                  profile?.nip05?.split("@")[0] ||
+                  (profile?.nip05 as string)?.split("@")[0] ||
                   (pubKeyHex && AnimalName(pubKeyHex))
               )
             : ""

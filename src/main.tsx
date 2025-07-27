@@ -8,12 +8,12 @@ import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/noti
 import {migrateUserState, migratePublicChats} from "./utils/migration"
 import {useSettingsStore} from "@/stores/settings"
 import {useSessionsStore} from "@/stores/sessions"
-import {ndk} from "./utils/ndk"
+import {initApplesauce} from "./utils/applesauce"
 import {router} from "@/pages"
 import socialGraph from "./utils/socialGraph"
 import DebugManager from "./utils/DebugManager"
 
-ndk()
+initApplesauce()
 
 // Initialize debug system
 DebugManager
@@ -29,7 +29,7 @@ if (state.publicKey) {
   useSessionsStore.getState().createDefaultInvites()
 }
 
-document.title = CONFIG.appName
+document.title = "Iris"
 
 // Initialize theme from settings store
 const {appearance} = useSettingsStore.getState()

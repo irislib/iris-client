@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useRef} from "react"
 import {DebugSession} from "./DebugSession"
+import {NostrEvent} from "nostr-tools"
 
 interface SystemInfo {
   appVersion: string
@@ -52,6 +53,11 @@ interface MediaFeedMemory {
   timestamp: number
 }
 
+interface SubscriptionData {
+  filters: unknown[]
+  relays: string[]
+}
+
 const DebugApp = () => {
   const [session, setSession] = useState<DebugSession | null>(null)
   const [sessionLink, setSessionLink] = useState<string>("")
@@ -66,6 +72,10 @@ const DebugApp = () => {
     MediaFeedPerformance[]
   >([])
   const [mediaFeedMemory, setMediaFeedMemory] = useState<MediaFeedMemory[]>([])
+  const [subscriptions, setSubscriptions] = useState<Record<
+    string,
+    SubscriptionData
+  > | null>(null)
   const [userAgent, setUserAgent] = useState<string>("")
   const [currentUrl, setCurrentUrl] = useState<string>("")
 
@@ -103,47 +113,58 @@ const DebugApp = () => {
     setSessionLink(linkWithKey)
 
     // Subscribe to test value changes
-    const unsubscribeTest = debugSession.subscribe("testInput", (value) => {
+    const unsubscribeTest = debugSession.subscribe("testInput", (value: unknown) => {
       if (typeof value === "string") {
         setTestValue(value)
       }
     })
 
-    // Subscribe to heartbeat data to check if Iris browser is online
-    const unsubscribeData = debugSession.subscribe("data", (value, event) => {
-      const eventTime = event.created_at // Event timestamp in seconds
-      if (eventTime) {
-        lastHeartbeatTime.current = eventTime // Store in seconds
-        const now = Math.floor(Date.now() / 1000) // Current time in seconds
-        const isRecent = now - eventTime < 10 // Less than 10 seconds old
-        setIsBrowserOnline(isRecent)
+    // Subscribe to subscriptions data
+    const unsubscribeSubscriptions = debugSession.subscribe(
+      "subscriptions",
+      (value: unknown) => {
+        setSubscriptions(value as Record<string, SubscriptionData>)
       }
+    )
 
-      // Extract system info from heartbeat
-      const data = value as {
-        systemInfo?: SystemInfo
-        ndkInfo?: NdkInfo
-        userAgent?: string
-        url?: string
+    // Subscribe to heartbeat data to check if Iris browser is online
+    const unsubscribeData = debugSession.subscribe(
+      "data",
+      (value: unknown, event: NostrEvent | undefined) => {
+        const eventTime = event?.created_at // Event timestamp in seconds
+        if (eventTime) {
+          lastHeartbeatTime.current = eventTime // Store in seconds
+          const now = Math.floor(Date.now() / 1000) // Current time in seconds
+          const isRecent = now - eventTime < 10 // Less than 10 seconds old
+          setIsBrowserOnline(isRecent)
+        }
+
+        // Extract system info from heartbeat
+        const data = value as {
+          systemInfo?: SystemInfo
+          ndkInfo?: NdkInfo
+          userAgent?: string
+          url?: string
+        }
+        if (data && data.systemInfo) {
+          setSystemInfo(data.systemInfo)
+        }
+        if (data && data.ndkInfo) {
+          setNdkInfo(data.ndkInfo)
+        }
+        if (data && data.userAgent) {
+          setUserAgent(data.userAgent)
+        }
+        if (data && data.url) {
+          setCurrentUrl(data.url)
+        }
       }
-      if (data && data.systemInfo) {
-        setSystemInfo(data.systemInfo)
-      }
-      if (data && data.ndkInfo) {
-        setNdkInfo(data.ndkInfo)
-      }
-      if (data && data.userAgent) {
-        setUserAgent(data.userAgent)
-      }
-      if (data && data.url) {
-        setCurrentUrl(data.url)
-      }
-    })
+    )
 
     // Subscribe to MediaFeed debug data
     const unsubscribeMediaFeedDebug = debugSession.subscribe(
       "mediaFeed_debug",
-      (value) => {
+      (value: unknown) => {
         setMediaFeedDebug(value as MediaFeedDebug)
       }
     )
@@ -151,7 +172,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed performance data
     const unsubscribeMediaFeedPerformance = debugSession.subscribe(
       "mediaFeed_performance",
-      (value) => {
+      (value: unknown) => {
         setMediaFeedPerformance((prev) => {
           const newEntry = value as MediaFeedPerformance
           // Keep only last 20 performance entries to avoid memory buildup
@@ -164,7 +185,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed memory data
     const unsubscribeMediaFeedMemory = debugSession.subscribe(
       "mediaFeed_memory",
-      (value) => {
+      (value: unknown) => {
         setMediaFeedMemory((prev) => {
           const newEntry = value as MediaFeedMemory
           // Keep only last 20 memory entries to avoid memory buildup
@@ -176,7 +197,7 @@ const DebugApp = () => {
 
     // Monitor connection status periodically
     const checkConnection = () => {
-      setIsConnected(debugSession.isConnectedToRelay(TEMP_IRIS_RELAY))
+      setIsConnected(debugSession.isConnectedToRelay())
     }
 
     // Check heartbeat freshness periodically
@@ -199,6 +220,7 @@ const DebugApp = () => {
       clearInterval(heartbeatInterval)
       unsubscribeTest()
       unsubscribeData()
+      unsubscribeSubscriptions()
       unsubscribeMediaFeedDebug()
       unsubscribeMediaFeedPerformance()
       unsubscribeMediaFeedMemory()
@@ -314,6 +336,49 @@ const DebugApp = () => {
                         </pre>
                       </div>
                     </details>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {subscriptions && <div className="divider">Active Subscriptions</div>}
+
+            {subscriptions && (
+              <div className="card bg-base-200 shadow">
+                <div className="card-body">
+                  <h3 className="card-title">
+                    Subscription Details ({Object.keys(subscriptions).length} total)
+                    <span className="badge badge-warning badge-sm">Live</span>
+                  </h3>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="table table-xs">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Filters</th>
+                          <th>Relays</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(subscriptions).map(([id, data]) => (
+                          <tr key={id}>
+                            <td className="font-mono text-xs">{id}</td>
+                            <td className="text-xs max-w-md">
+                              <pre className="whitespace-pre-wrap break-all">
+                                {JSON.stringify(data.filters, null)}
+                              </pre>
+                            </td>
+                            <td className="text-xs">
+                              {data.relays.map((relay, i) => (
+                                <div key={i} className="truncate">
+                                  {relay}
+                                </div>
+                              ))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import {DebugSession} from "@/debug/DebugSession"
 import {useSettingsStore} from "@/stores/settings"
-import {ndk} from "./ndk"
+import {DEFAULT_RELAYS} from "./applesauce"
 
 class DebugManager {
   private static instance: DebugManager
@@ -68,23 +68,20 @@ class DebugManager {
           "memory" in performance &&
           performance.memory
         ) {
+          const memory = performance.memory as {
+            usedJSHeapSize: number
+            jsHeapSizeLimit: number
+          }
           memoryUsage = {
-            used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
-            total: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024),
+            used: Math.round(memory.usedJSHeapSize / 1024 / 1024),
+            total: Math.round(memory.jsHeapSizeLimit / 1024 / 1024),
           }
         }
 
-        // Get NDK subscription manager info
-        const ndkInstance = ndk()
-        const subManager = ndkInstance.subManager
-        const ndkInfo = {
-          subscriptionsCount: subManager.subscriptions.size,
-          seenEventsCount: subManager.seenEvents.size,
-          subscriptionIds: Array.from(subManager.subscriptions.keys()),
-          relayCount: ndkInstance.pool.relays.size,
-          connectedRelays: Array.from(ndkInstance.pool.relays.entries())
-            .filter(([, relay]) => relay.connected)
-            .map(([url]) => url),
+        // Get pool info
+        const poolInfo = {
+          relayCount: DEFAULT_RELAYS.length,
+          connectedRelays: DEFAULT_RELAYS,
         }
 
         const heartbeatData = {
@@ -96,9 +93,11 @@ class DebugManager {
             buildTime: import.meta.env.VITE_BUILD_TIME || "development",
             memoryUsage,
           },
-          ndkInfo,
+          poolInfo,
         }
         this.debugSession.publish("data", heartbeatData)
+
+        // Note: Subscription tracking not implemented for Applesauce yet
       }
     }
 

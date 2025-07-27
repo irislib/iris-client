@@ -1,12 +1,12 @@
 import {extractMarketData} from "@/shared/utils/marketUtils"
 import ErrorBoundary from "../ui/ErrorBoundary"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import MarketDetails from "./MarketDetails"
 import MarketImage from "./MarketImage"
 import HyperText from "../HyperText"
 
 type MarketListingProps = {
-  event: NDKEvent
+  event: NostrEvent
   truncate?: number
   isTruncated?: boolean
 }
@@ -14,7 +14,7 @@ type MarketListingProps = {
 /**
  * Component for truncated market listings
  */
-function TruncatedMarketListing({event}: {event: NDKEvent}) {
+function TruncatedMarketListing({event}: {event: NostrEvent}) {
   const {title, price, imageUrl, summary} = extractMarketData(event)
 
   return (
@@ -37,7 +37,7 @@ function TruncatedMarketListing({event}: {event: NDKEvent}) {
 /**
  * Component for full market listings
  */
-function FullMarketListing({event}: {event: NDKEvent}) {
+function FullMarketListing({event}: {event: NostrEvent}) {
   const {title, price, imageUrl, content, tags} = extractMarketData(event)
 
   return (

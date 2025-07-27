@@ -1,6 +1,5 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent, nip19} from "nostr-tools"
 import {useNavigate} from "react-router"
-import {nip19} from "nostr-tools"
 import {MouseEvent} from "react"
 
 export const TRUNCATE_LENGTH = 300
@@ -12,8 +11,8 @@ export const isTextSelected = () => {
 
 export function onClick(
   e: MouseEvent<HTMLDivElement>,
-  event: NDKEvent | undefined,
-  ReferredEvent: NDKEvent | undefined,
+  event: NostrEvent | undefined,
+  ReferredEvent: NostrEvent | undefined,
   eventId: string | undefined,
   navigate: ReturnType<typeof useNavigate>
 ) {

@@ -1,5 +1,5 @@
 import {useRef, useState, ReactNode, useEffect, useMemo, memo} from "react"
-import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
+import {NostrEvent, Filter} from "nostr-tools"
 
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import useHistoryState from "@/shared/hooks/useHistoryState"
@@ -18,15 +18,15 @@ import MediaFeed from "./MediaFeed"
 import socialGraph from "@/utils/socialGraph"
 
 interface FeedProps {
-  filters: NDKFilter
-  displayFilterFn?: (event: NDKEvent) => boolean
-  fetchFilterFn?: (event: NDKEvent) => boolean
-  sortFn?: (a: NDKEvent, b: NDKEvent) => number
+  filters: Filter
+  displayFilterFn?: (event: NostrEvent) => boolean
+  fetchFilterFn?: (event: NostrEvent) => boolean
+  sortFn?: (a: NostrEvent, b: NostrEvent) => number
   cacheKey?: string
   asReply?: boolean
   showRepliedTo?: boolean
   showReplies?: number
-  onEvent?: (event: NDKEvent) => void
+  onEvent?: (event: NostrEvent) => void
   borderTopFirst?: boolean
   emptyPlaceholder?: ReactNode
   forceUpdate?: number
@@ -77,27 +77,28 @@ const Feed = memo(function Feed({
 
   // Create combined display filter that includes follow distance filtering if needed
   const combinedDisplayFilterFn = useMemo(() => {
-    // Simple relay URL normalization
-    const normalizeRelay = (url: string) =>
-      url.replace(/^(https?:\/\/)?(wss?:\/\/)?/, "").replace(/\/$/, "")
+    // Simple relay URL normalization (temporarily unused)
+    // const normalizeRelay = (url: string) =>
+    //   url.replace(/^(https?:\/\/)?(wss?:\/\/)?/, "").replace(/\/$/, "")
 
-    return (event: NDKEvent) => {
+    return (event: NostrEvent) => {
       // First apply custom display filter if provided
       if (displayFilterFn && !displayFilterFn(event)) {
         return false
       }
 
       // Apply relay filtering if relayUrls is configured
-      if (relayUrls && relayUrls.length > 0) {
-        if (!event.onRelays || event.onRelays.length === 0) return false
-
-        const normalizedTargetRelays = relayUrls.map(normalizeRelay)
-        const eventIsOnTargetRelay = event.onRelays.some((relay) =>
-          normalizedTargetRelays.includes(normalizeRelay(relay.url))
-        )
-
-        if (!eventIsOnTargetRelay) return false
-      }
+      // TODO: Implement relay filtering with applesauce - NDK onRelays property not available
+      // if (relayUrls && relayUrls.length > 0) {
+      //   if (!event.onRelays || event.onRelays.length === 0) return false
+      //
+      //   const normalizedTargetRelays = relayUrls.map(normalizeRelay)
+      //   const eventIsOnTargetRelay = event.onRelays.some((relay) =>
+      //     normalizedTargetRelays.includes(normalizeRelay(relay.url))
+      //   )
+      //
+      //   if (!eventIsOnTargetRelay) return false
+      // }
 
       // Apply follow distance filter if specified and showEventsByUnknownUsers is false
       if (followDistance !== undefined && !showEventsByUnknownUsersProp) {

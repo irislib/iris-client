@@ -3,7 +3,7 @@ import {useMemo, useState, useEffect} from "react"
 import socialGraph from "@/utils/socialGraph.ts"
 import {NostrEvent} from "nostr-social-graph"
 import {formatAmount} from "@/utils/utils.ts"
-import {ndk} from "@/utils/ndk"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 
@@ -25,15 +25,25 @@ const FollowerCount = ({pubKey}: {pubKey: string}) => {
         kinds: [3],
         ["#p"]: [pubKey],
       }
-      const sub = ndk().subscribe(filter)
-      sub.on("event", (event) => {
-        socialGraph().handleEvent(event as NostrEvent)
-        const newFollowers = Array.from(socialGraph().getFollowersByUser(pubKey))
-        setFollowers(newFollowers)
+
+      const pool = getPool()
+      const poolSubscription = pool.subscription(DEFAULT_RELAYS, filter)
+
+      const subscription = poolSubscription.subscribe({
+        next: (event) => {
+          if (typeof event !== "string") {
+            socialGraph().handleEvent(event as NostrEvent)
+            const newFollowers = Array.from(socialGraph().getFollowersByUser(pubKey))
+            setFollowers(newFollowers)
+          }
+        },
+        error: (error) => {
+          console.error("Subscription error:", error)
+        },
       })
 
       return () => {
-        sub.stop()
+        subscription.unsubscribe()
       }
     }
   }, [followers.length, pubKey])

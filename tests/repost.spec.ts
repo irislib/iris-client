@@ -9,8 +9,10 @@ test("user can create a post", async ({page}) => {
   await page.getByPlaceholder("What's on your mind?").fill(postContent)
   await page.getByRole("button", {name: "Publish"}).click()
 
-  await expect(page.getByText(postContent)).toBeVisible()
+  // Verify post is visible in the feed (use nth(1) to skip the textarea and get the published post)
+  await expect(page.getByText(postContent).nth(1)).toBeVisible()
 
   await page.getByRole("link", {name: "Home", exact: true}).click()
+  // After navigation, the post should still be visible in the feed
   await expect(page.getByText(postContent)).toBeVisible()
 })

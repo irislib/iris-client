@@ -1,5 +1,6 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {formatAmount} from "@/utils/utils"
+import {getTagValue} from "@/utils/nostr"
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: "$",
@@ -35,15 +36,15 @@ export const formatPrice = (priceTag: string[]) => {
 }
 
 /**
- * Extracts market listing data from an NDKEvent
+ * Extracts market listing data from an NostrEvent
  */
-export const extractMarketData = (event: NDKEvent) => {
-  const title = event?.tagValue("title")
+export const extractMarketData = (event: NostrEvent) => {
+  const title = getTagValue(event, "title")
   const priceTag = event?.tags?.find((tag) => tag[0] === "price")
   const price = priceTag ? formatPrice(priceTag) : null
   const imageTag = event?.tags?.find((tag) => tag[0] === "image")
   const imageUrl = imageTag ? imageTag[1] : null
-  const summary = event?.tagValue("summary") || event?.content || ""
+  const summary = getTagValue(event, "summary") || event?.content || ""
   const cleanSummary = imageUrl ? summary.replace(imageUrl, "").trim() : summary
 
   return {
@@ -59,7 +60,7 @@ export const extractMarketData = (event: NDKEvent) => {
 /**
  * Gets all image URLs from a market listing
  */
-export const getMarketImageUrls = (event: NDKEvent) => {
+export const getMarketImageUrls = (event: NostrEvent) => {
   if (!isMarketListing(event)) return []
   return event.tags.filter((tag) => tag[0] === "image").map((tag) => tag[1])
 }
@@ -77,6 +78,6 @@ export const formatTagValue = (tag: string[]) => {
 /**
  * Checks if an event is a market listing
  */
-export const isMarketListing = (event: NDKEvent) => {
+export const isMarketListing = (event: NostrEvent) => {
   return event.kind === 30402
 }

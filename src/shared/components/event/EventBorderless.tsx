@@ -1,22 +1,21 @@
-import {useCallback, MouseEvent, useState, memo} from "react"
+import {useCallback, MouseEvent, useState, memo, useEffect} from "react"
 import {eventsByIdCache} from "@/utils/memcache"
 import ErrorBoundary from "../ui/ErrorBoundary"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent, nip19} from "nostr-tools"
 import RelativeTime from "./RelativeTime"
 import {useNavigate} from "react-router"
 import {UserRow} from "../user/UserRow"
 import {RawEvent} from "@/utils/nostr"
 import HyperText from "../HyperText"
-import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 interface EventBorderlessProps {
-  event?: RawEvent | NDKEvent
+  event?: RawEvent | NostrEvent
   eventId?: string
   contentOnly?: boolean
 }
 
-function isRawEvent(event: RawEvent | NDKEvent): event is RawEvent {
+function isRawEvent(event: RawEvent | NostrEvent): event is RawEvent {
   return (event as RawEvent).kind !== undefined
 }
 
@@ -41,19 +40,32 @@ function EventBorderless({
     initialEvent || (eventId && eventsByIdCache.get(eventId))
   )
 
+  useEffect(() => {
+    if (!event && eventId) {
+      const pool = getPool()
+      const subscription = pool.subscription(DEFAULT_RELAYS, {ids: [eventId]})
+
+      const sub = subscription.subscribe({
+        next: (e) => {
+          if (typeof e !== "string" && e && e.id) {
+            setEvent(e)
+            eventsByIdCache.set(e.id, e)
+          }
+        },
+        error: (error) => {
+          console.error("Event fetch error:", error)
+        },
+      })
+
+      return () => sub.unsubscribe()
+    }
+  }, [event, eventId])
+
   if (!event && !eventId) {
     throw new Error("must provide either event or eventId")
   }
 
   if (!event) {
-    ndk()
-      .fetchEvent({ids: [eventId!]})
-      .then((e: NDKEvent | null) => {
-        if (e && e.id) {
-          setEvent(e)
-          eventsByIdCache.set(e.id, e)
-        }
-      })
     return null
   }
 
