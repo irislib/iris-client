@@ -366,7 +366,9 @@ export async function publishEvent(template: EventTemplate, relayUrls?: string[]
     }
 
     if (publishResponses.length === 0) {
-      console.warn("⚠️ No relays responded to publish request, but event is available locally")
+      console.warn(
+        "⚠️ No relays responded to publish request, but event is available locally"
+      )
     }
   } catch (error) {
     console.warn("⚠️ Failed to publish to relays, but event is available locally:", error)
@@ -379,6 +381,7 @@ export async function publishEvent(template: EventTemplate, relayUrls?: string[]
 
 /**
  * Subscribe to events - compatible with applesauce-simple interface
+ * This version checks both the local event store and subscribes to relays
  */
 export function subscribe(
   filters: Filter | Filter[],
@@ -386,6 +389,7 @@ export function subscribe(
   relays?: string[]
 ) {
   const pool = getPool()
+  const eventStore = getEventStore()
   const relayUrls = relays || DEFAULT_RELAYS
   const group = pool.group(relayUrls)
   const subscription = group.req(filters)
@@ -394,9 +398,30 @@ export function subscribe(
   return {
     on: (eventType: string, callback: (event: NostrEvent) => void) => {
       if (eventType === "event") {
+        // First, query the local event store for existing events
+        try {
+          const filtersArray = Array.isArray(filters) ? filters : [filters]
+          const existingEventsStream = eventStore.filters(filtersArray)
+          const subscription = existingEventsStream.subscribe({
+            next: (event) => {
+              console.log("📦 Found existing event in store:", event.id)
+              callback(event)
+            },
+            error: (error) => {
+              console.warn("Failed to query event store:", error)
+            },
+          })
+          // Unsubscribe immediately since we just want the existing events
+          setTimeout(() => subscription.unsubscribe(), 100)
+        } catch (error) {
+          console.warn("Failed to query event store:", error)
+        }
+
+        // Then, subscribe to new events from relays
         rxjsSubscription = subscription.subscribe({
           next: (response) => {
             if (typeof response !== "string") {
+              console.log("📡 Received new event from relay:", response.id)
               callback(response)
             }
           },

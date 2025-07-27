@@ -46,13 +46,19 @@ test.describe("Session persistence", () => {
     // Refresh the page
     await page.reload()
 
-    // Like the post
-    await page.waitForSelector('[data-testid="like-button"]', {timeout: 5000})
-    const likeButton = page.getByTestId("like-button")
-    await expect(likeButton).toBeVisible()
+    // Wait for the post to be visible after refresh - use nth(1) for published post
+    await expect(page.getByText(postContent).nth(1)).toBeVisible({timeout: 10000})
+
+    // Find our specific post by text and like it
+    const ourPost = page
+      .locator('[data-testid="feed-item"]')
+      .filter({hasText: postContent})
+      .first()
+    const likeButton = ourPost.getByTestId("like-button")
+    await expect(likeButton).toBeVisible({timeout: 5000})
     await likeButton.click()
 
-    // Verify like count increased
-    await expect(page.getByTestId("like-count")).toHaveText("1")
+    // Verify like count increased for our specific post
+    await expect(ourPost.getByTestId("like-count")).toHaveText("1")
   })
 })

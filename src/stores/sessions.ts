@@ -7,14 +7,16 @@ import {
 import {createJSONStorage, persist, PersistStorage} from "zustand/middleware"
 import {Filter, VerifiedEvent, UnsignedEvent} from "nostr-tools"
 import {NostrEventFromRawEvent, RawEvent} from "@/utils/nostr"
-import {publishEvent as applesaucePublishEvent} from "@/utils/applesauce"
+import {
+  publishEvent as applesaucePublishEvent,
+  subscribe as applesauceSubscribe,
+} from "@/utils/applesauce"
 import {REACTION_KIND} from "@/pages/chats/utils/constants"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {hexToBytes} from "@noble/hashes/utils"
 import {useEventsStore} from "./events"
 import localforage from "localforage"
 import {useUserStore} from "./user"
-import {subscribe as applesauceSubscribe} from "@/utils/applesauce"
 import {create} from "zustand"
 import {useGroupsStore} from "./groups"
 

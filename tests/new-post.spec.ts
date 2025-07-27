@@ -16,8 +16,10 @@ test("user can create a new post", async ({page}) => {
   await page.getByRole("button", {name: "Publish"}).click()
 
   // Wait for the post to appear in the feed (this verifies the event store integration is working)
-  await expect(page.locator("div").filter({hasText: postContent}).first()).toBeVisible({timeout: 10000})
-  
+  await expect(page.locator("div").filter({hasText: postContent}).first()).toBeVisible({
+    timeout: 10000,
+  })
+
   // Check if navigation happened to the post page (optional - test passes if post appears in feed)
   try {
     await expect(page).toHaveURL(/\/note/, {timeout: 2000})

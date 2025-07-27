@@ -12,19 +12,20 @@ test.describe("Post liking", () => {
     await page.getByPlaceholder("What's on your mind?").fill(postContent)
     await page.getByRole("button", {name: "Publish"}).click()
 
-    // Verify post is visible
-    await expect(page.getByText(postContent)).toBeVisible({timeout: 10000})
+    // Verify post is visible in the feed (use nth(1) to skip the textarea and get the published post)
+    await expect(page.getByText(postContent).nth(1)).toBeVisible({timeout: 10000})
 
-    // Wait for the post to be fully loaded and like button to appear
-    await page.waitForSelector('[data-testid="like-button"]', {timeout: 5000})
-
-    // Find and click the like button
-    const likeButton = page.getByTestId("like-button")
-    await expect(likeButton).toBeVisible()
+    // Find our specific post by text and then find the like button within its feed item
+    const ourPost = page
+      .locator('[data-testid="feed-item"]')
+      .filter({hasText: postContent})
+      .first()
+    const likeButton = ourPost.getByTestId("like-button")
+    await expect(likeButton).toBeVisible({timeout: 5000})
     await likeButton.click()
 
-    // Verify like count increased and heart is filled
-    await expect(page.getByTestId("like-count")).toHaveText("1")
-    await expect(page.getByTestId("like-button")).toHaveClass(/text-error/)
+    // Verify like count increased and heart is filled for our specific post
+    await expect(ourPost.getByTestId("like-count")).toHaveText("1")
+    await expect(ourPost.getByTestId("like-button")).toHaveClass(/text-error/)
   })
 })
