@@ -1,5 +1,5 @@
 import {Dispatch, SetStateAction, useEffect, useState} from "react"
-import {EventTemplate} from "nostr-tools"
+import {EventTemplate, NostrEvent} from "nostr-tools"
 
 import {muteUser, unmuteUser} from "@/shared/services/Mute.tsx"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
@@ -11,7 +11,7 @@ type Hexpubkey = string
 interface MuteUserProps {
   setMuting: Dispatch<SetStateAction<boolean>>
   user: Hexpubkey
-  event?: any
+  event?: NostrEvent
   muteState: boolean
   setMutedState: Dispatch<SetStateAction<boolean>>
 }

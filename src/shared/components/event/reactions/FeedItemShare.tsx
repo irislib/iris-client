@@ -1,6 +1,5 @@
 import Icon from "@/shared/components/Icons/Icon"
-import {NostrEvent} from "nostr-tools"
-import {nip19} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 
 const FeedItemShare = ({event}: {event: NostrEvent}) => {
   if (!navigator.share) {

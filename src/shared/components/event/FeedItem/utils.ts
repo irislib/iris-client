@@ -1,6 +1,5 @@
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {useNavigate} from "react-router"
-import {nip19} from "nostr-tools"
 import {MouseEvent} from "react"
 
 export const TRUNCATE_LENGTH = 300

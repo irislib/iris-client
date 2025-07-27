@@ -26,16 +26,18 @@ export function ProfileSettings() {
     return {pubkey: myPubKey, profile: existingProfile}
   }, [myPubKey, existingProfile])
 
-  const [newProfile, setNewProfile] = useState<any>(user?.profile || {})
+  const [newProfile, setNewProfile] = useState<Record<string, string>>(
+    (user?.profile as Record<string, string>) || {}
+  )
 
   useEffect(() => {
     if (existingProfile) {
-      setNewProfile(existingProfile)
+      setNewProfile(existingProfile as Record<string, string>)
     }
   }, [existingProfile])
 
-  function setProfileField(field: keyof any, value: string) {
-    setNewProfile((prev: any) => {
+  function setProfileField(field: string, value: string) {
+    setNewProfile((prev: Record<string, string>) => {
       return {
         ...prev,
         [field]: value,
@@ -58,7 +60,7 @@ export function ProfileSettings() {
       // Remove any undefined or empty string values to clean up the profile
       const cleanedProfile = Object.fromEntries(
         Object.entries(mergedProfile).filter(
-          ([_, value]) => value !== undefined && value !== null && value !== ""
+          ([, value]) => value !== undefined && value !== null && value !== ""
         )
       )
 

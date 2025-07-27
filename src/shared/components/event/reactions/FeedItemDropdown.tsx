@@ -1,6 +1,5 @@
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {useEffect, useState} from "react"
-import {nip19} from "nostr-tools"
 
 import {unmuteUser} from "@/shared/services/Mute.tsx"
 

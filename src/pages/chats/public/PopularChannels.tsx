@@ -50,7 +50,7 @@ const PopularChannels = ({publicKey}: PopularChannelsProps) => {
 
       for (const event of Array.from(channelMessages)) {
         // Extract channel ID from the 'e' tag
-        const channelIdTag = event.tags.find((tag: any) => tag[0] === "e")
+        const channelIdTag = event.tags.find((tag: string[]) => tag[0] === "e")
         if (!channelIdTag) continue
 
         const channelId = channelIdTag[1]

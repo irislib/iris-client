@@ -8,7 +8,7 @@ export function ProfileAbout({pubKey, className}: {pubKey: string; className?: s
     return (
       <div className={className}>
         <HyperText small={true} expandable={false} truncate={100}>
-          {profile.about}
+          {String(profile.about)}
         </HyperText>
       </div>
     )

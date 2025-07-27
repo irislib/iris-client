@@ -13,7 +13,7 @@ import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
 const PrivateChatCreation = () => {
   const navigate = useNavigate()
   const myPubKey = useUserStore((state) => state.publicKey)
-  const subRef = useRef<any | null>(null)
+  const subRef = useRef<{stop: () => void} | null>(null)
 
   const handleStartChat = async (user: DoubleRatchetUser) => {
     if (!myPubKey) return

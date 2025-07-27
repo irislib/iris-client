@@ -135,7 +135,7 @@ function watchUserSettings() {
         .then((pubkey: string) => {
           useUserStore.getState().setPublicKey(pubkey)
         })
-        .catch((e: any) => {
+        .catch((e: unknown) => {
           console.error("Error getting extension public key:", e)
           useUserStore.getState().setNip07Login(false)
         })
@@ -375,7 +375,7 @@ export async function publishEvent(template: EventTemplate, relayUrls?: string[]
  * Subscribe to events - compatible with applesauce-simple interface
  */
 export function subscribe(
-  filters: any,
+  filters: Filter | Filter[],
   _options?: {closeOnEose?: boolean},
   relays?: string[]
 ) {
@@ -383,7 +383,7 @@ export function subscribe(
   const relayUrls = relays || DEFAULT_RELAYS
   const group = pool.group(relayUrls)
   const subscription = group.req(filters)
-  let rxjsSubscription: any = null
+  let rxjsSubscription: {unsubscribe: () => void} | null = null
 
   return {
     on: (eventType: string, callback: (event: NostrEvent) => void) => {
@@ -412,7 +412,10 @@ export function subscribe(
 /**
  * Fetch multiple events by filter from relays
  */
-export async function fetchEvents(filter: any, relays: string[] = DEFAULT_RELAYS) {
+export async function fetchEvents(
+  filter: Filter | Filter[],
+  relays: string[] = DEFAULT_RELAYS
+) {
   const pool = getPool()
   const group = pool.group(relays)
   const events = await group.req(filter).toPromise()

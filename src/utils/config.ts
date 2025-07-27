@@ -11,14 +11,14 @@ interface ConfigType {
   features: {
     analytics: boolean
   }
-  [key: string]: any
+  [key: string]: unknown
 }
 
 // Get the global CONFIG defined by Vite at runtime
 function getConfig(): ConfigType {
   // Use globalThis to access CONFIG safely
   if (typeof globalThis !== "undefined" && "CONFIG" in globalThis) {
-    return (globalThis as any).CONFIG
+    return (globalThis as unknown as {CONFIG: ConfigType}).CONFIG
   }
   // Fallback for development or if CONFIG isn't available
   return {

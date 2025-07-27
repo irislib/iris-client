@@ -30,7 +30,7 @@ export default function useFeedEvents({
   sortFn,
   hideEventsByUnknownUsers,
   sortLikedPosts = false,
-  relayUrls: _relayUrls, // Temporarily unused in applesauce migration
+  // relayUrls: _relayUrls, // Temporarily unused in applesauce migration
 }: UseFeedEventsProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
   const [localFilter, setLocalFilter] = useState(filters)

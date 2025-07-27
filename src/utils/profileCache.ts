@@ -7,7 +7,20 @@ import localforage from "localforage"
 const PROFILE_NAME_MAX_LENGTH = 50
 const PROFILE_PICTURE_URL_MAX_LENGTH = 500
 
-export const profileCache = new LRUCache<string, any>({maxSize: 100000})
+export interface ProfileData {
+  name?: string
+  display_name?: string
+  username?: string
+  about?: string
+  picture?: string
+  banner?: string
+  website?: string
+  lud16?: string
+  nip05?: string
+  [key: string]: unknown
+}
+
+export const profileCache = new LRUCache<string, ProfileData>({maxSize: 100000})
 
 // Helper functions for profile data sanitization
 const shouldRejectNip05 = (nip05: string, name: string): boolean => {
@@ -38,9 +51,9 @@ const sanitizePicture = (picture: string): string | undefined => {
 }
 
 // Convert condensed array to any
-const arrayToProfile = (item: string[]): any => {
+const arrayToProfile = (item: string[]): ProfileData => {
   const [, name, nip05, picture] = item
-  const profile: any = {}
+  const profile: ProfileData = {}
 
   if (name) {
     profile.name = name
@@ -57,7 +70,7 @@ const arrayToProfile = (item: string[]): any => {
 }
 
 // Convert any to condensed array format
-const profileToArray = (pubkey: string, profile: any): string[] => {
+const profileToArray = (pubkey: string, profile: ProfileData): string[] => {
   const name = sanitizeName((profile.name || profile.username || "").toString())
   if (!name) return [] // Skip profiles without names
 
@@ -147,7 +160,7 @@ export const loadProfileCache = (): Promise<void> => {
     })
 }
 
-export const addCachedProfile = (pubkey: string, profile: any) => {
+export const addCachedProfile = (pubkey: string, profile: ProfileData) => {
   // Only cache profiles with names
   const name = sanitizeName(
     (profile.name || profile.display_name || profile.username || "").toString()

@@ -15,7 +15,11 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
     [pubKey]
   )
   const [follows, setFollows] = useState<string[]>([])
-  const subscriptionRef = useRef<any | null>(null)
+  const subscriptionRef = useRef<{
+    stop: () => void
+    ndk?: {subManager?: {subscriptions: Map<string, unknown>}}
+    internalId?: string
+  } | null>(null)
 
   // Initialize follows when pubKeyHex changes
   useEffect(() => {
@@ -33,7 +37,7 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
       // Force cleanup by removing from subscription manager (NDK bug workaround)
       if (subscriptionRef.current.ndk?.subManager) {
         subscriptionRef.current.ndk.subManager.subscriptions.delete(
-          subscriptionRef.current.internalId
+          subscriptionRef.current.internalId || ""
         )
       }
       subscriptionRef.current = null
@@ -78,7 +82,7 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
         // Force cleanup by removing from subscription manager (NDK bug workaround)
         if (subscriptionRef.current.ndk?.subManager) {
           subscriptionRef.current.ndk.subManager.subscriptions.delete(
-            subscriptionRef.current.internalId
+            subscriptionRef.current.internalId || ""
           )
         }
         subscriptionRef.current = null

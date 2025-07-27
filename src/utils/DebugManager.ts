@@ -68,7 +68,10 @@ class DebugManager {
           "memory" in performance &&
           performance.memory
         ) {
-          const memory = performance.memory as any
+          const memory = performance.memory as {
+            usedJSHeapSize: number
+            jsHeapSizeLimit: number
+          }
           memoryUsage = {
             used: Math.round(memory.usedJSHeapSize / 1024 / 1024),
             total: Math.round(memory.jsHeapSizeLimit / 1024 / 1024),

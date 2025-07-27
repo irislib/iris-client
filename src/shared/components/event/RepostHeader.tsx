@@ -1,8 +1,7 @@
 import {Name} from "@/shared/components/user/Name"
 import {RiRepeatFill} from "@remixicon/react"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {Link} from "react-router"
-import {nip19} from "nostr-tools"
 
 interface RepostHeaderProps {
   event: NostrEvent

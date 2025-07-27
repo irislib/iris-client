@@ -15,7 +15,7 @@ const FeedItemTitle = ({event}: FeedItemTitleProps) => {
       authorProfile?.name ||
       authorProfile?.display_name ||
       authorProfile?.username ||
-      authorProfile?.nip05?.split("@")[0]
+      (authorProfile?.nip05 as string)?.split("@")[0]
     return name ? `Post by ${name}` : "Post"
   }, [authorProfile])
 

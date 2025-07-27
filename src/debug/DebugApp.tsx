@@ -1,5 +1,6 @@
 import React, {useEffect, useState, useRef} from "react"
 import {DebugSession} from "./DebugSession"
+import {NostrEvent} from "nostr-tools"
 
 interface SystemInfo {
   appVersion: string
@@ -58,7 +59,7 @@ interface SubscriptionData {
 }
 
 const DebugApp = () => {
-  const [session, setSession] = useState<any | null>(null)
+  const [session, setSession] = useState<DebugSession | null>(null)
   const [sessionLink, setSessionLink] = useState<string>("")
   const [testValue, setTestValue] = useState<string>("")
   const [isConnected, setIsConnected] = useState<boolean>(false)
@@ -112,7 +113,7 @@ const DebugApp = () => {
     setSessionLink(linkWithKey)
 
     // Subscribe to test value changes
-    const unsubscribeTest = debugSession.subscribe("testInput", (value: any) => {
+    const unsubscribeTest = debugSession.subscribe("testInput", (value: unknown) => {
       if (typeof value === "string") {
         setTestValue(value)
       }
@@ -121,46 +122,49 @@ const DebugApp = () => {
     // Subscribe to subscriptions data
     const unsubscribeSubscriptions = debugSession.subscribe(
       "subscriptions",
-      (value: any) => {
+      (value: unknown) => {
         setSubscriptions(value as Record<string, SubscriptionData>)
       }
     )
 
     // Subscribe to heartbeat data to check if Iris browser is online
-    const unsubscribeData = debugSession.subscribe("data", (value: any, event: any) => {
-      const eventTime = event?.created_at // Event timestamp in seconds
-      if (eventTime) {
-        lastHeartbeatTime.current = eventTime // Store in seconds
-        const now = Math.floor(Date.now() / 1000) // Current time in seconds
-        const isRecent = now - eventTime < 10 // Less than 10 seconds old
-        setIsBrowserOnline(isRecent)
-      }
+    const unsubscribeData = debugSession.subscribe(
+      "data",
+      (value: unknown, event: NostrEvent | undefined) => {
+        const eventTime = event?.created_at // Event timestamp in seconds
+        if (eventTime) {
+          lastHeartbeatTime.current = eventTime // Store in seconds
+          const now = Math.floor(Date.now() / 1000) // Current time in seconds
+          const isRecent = now - eventTime < 10 // Less than 10 seconds old
+          setIsBrowserOnline(isRecent)
+        }
 
-      // Extract system info from heartbeat
-      const data = value as {
-        systemInfo?: SystemInfo
-        ndkInfo?: NdkInfo
-        userAgent?: string
-        url?: string
+        // Extract system info from heartbeat
+        const data = value as {
+          systemInfo?: SystemInfo
+          ndkInfo?: NdkInfo
+          userAgent?: string
+          url?: string
+        }
+        if (data && data.systemInfo) {
+          setSystemInfo(data.systemInfo)
+        }
+        if (data && data.ndkInfo) {
+          setNdkInfo(data.ndkInfo)
+        }
+        if (data && data.userAgent) {
+          setUserAgent(data.userAgent)
+        }
+        if (data && data.url) {
+          setCurrentUrl(data.url)
+        }
       }
-      if (data && data.systemInfo) {
-        setSystemInfo(data.systemInfo)
-      }
-      if (data && data.ndkInfo) {
-        setNdkInfo(data.ndkInfo)
-      }
-      if (data && data.userAgent) {
-        setUserAgent(data.userAgent)
-      }
-      if (data && data.url) {
-        setCurrentUrl(data.url)
-      }
-    })
+    )
 
     // Subscribe to MediaFeed debug data
     const unsubscribeMediaFeedDebug = debugSession.subscribe(
       "mediaFeed_debug",
-      (value: any) => {
+      (value: unknown) => {
         setMediaFeedDebug(value as MediaFeedDebug)
       }
     )
@@ -168,7 +172,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed performance data
     const unsubscribeMediaFeedPerformance = debugSession.subscribe(
       "mediaFeed_performance",
-      (value: any) => {
+      (value: unknown) => {
         setMediaFeedPerformance((prev) => {
           const newEntry = value as MediaFeedPerformance
           // Keep only last 20 performance entries to avoid memory buildup
@@ -181,7 +185,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed memory data
     const unsubscribeMediaFeedMemory = debugSession.subscribe(
       "mediaFeed_memory",
-      (value: any) => {
+      (value: unknown) => {
         setMediaFeedMemory((prev) => {
           const newEntry = value as MediaFeedMemory
           // Keep only last 20 memory entries to avoid memory buildup

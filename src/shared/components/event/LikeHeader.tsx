@@ -1,8 +1,7 @@
 import {CustomEmojiComponent} from "../embed/nostr/CustomEmojiComponent"
 import {Name} from "@/shared/components/user/Name"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {Link} from "react-router"
-import {nip19} from "nostr-tools"
 
 interface LikeHeaderProps {
   event: NostrEvent

@@ -20,7 +20,17 @@ type ExternalIdentities = {
 }
 
 interface ProfileDetailsProps {
-  displayProfile: any | undefined
+  displayProfile:
+    | {
+        name?: string
+        display_name?: string
+        username?: string
+        about?: string
+        website?: string
+        lud16?: string
+        nip05?: string
+      }
+    | undefined
   externalIdentities: ExternalIdentities | undefined
   pubKey: string
 }

@@ -24,7 +24,10 @@ export const useDoubleRatchetUsers = () => {
   useEffect(() => {
     if (!myPubKey) return
 
-    let currentSub: any | null = null
+    let currentSub: {
+      stop: () => void
+      on: (event: string, handler: (data: NostrEvent) => void) => void
+    } | null = null
     let sessionsUnsubscribe: (() => void) | null = null
     let pollInterval: NodeJS.Timeout | null = null
     let socialGraphSize = 0

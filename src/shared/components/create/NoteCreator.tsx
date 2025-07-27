@@ -1,7 +1,6 @@
 import {ChangeEvent, DragEvent, useEffect, useState} from "react"
-import {NostrEvent, EventTemplate} from "nostr-tools"
+import {NostrEvent, EventTemplate, nip19} from "nostr-tools"
 import {useNavigate} from "react-router"
-import {nip19} from "nostr-tools"
 
 import UploadButton from "@/shared/components/button/UploadButton.tsx"
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem"

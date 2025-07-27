@@ -1,6 +1,5 @@
-import {fetchZappedAmount} from "@/utils/nostr"
+import {fetchZappedAmount, getTagValue} from "@/utils/nostr"
 import {NostrEvent} from "nostr-tools"
-import {getTagValue} from "@/utils/nostr"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
 

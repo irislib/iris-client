@@ -1,7 +1,6 @@
 import {SocialGraph} from "nostr-social-graph/src"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, VerifiedEvent} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
-import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
@@ -74,7 +73,9 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   throttledSave()
 }
 
-let sub: any | undefined
+let sub:
+  | {on: (event: string, callback: (e: unknown) => void) => void; stop: () => void}
+  | undefined
 
 export function getFollowLists(myPubKey: string, missingOnly = true, upToDistance = 1) {
   const toFetch = new Set<string>()
@@ -102,10 +103,15 @@ export function getFollowLists(myPubKey: string, missingOnly = true, upToDistanc
 
   console.log("fetching", toFetch.size, missingOnly ? "missing" : "total", "follow lists")
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchBatch = (_authors: string[]) => {
-    const sub = {on: (_event: string, _callback: any) => {}, stop: () => {}}
+    const sub = {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      on: (_event: string, _callback: (e: unknown) => void) => {},
+      stop: () => {},
+    }
     // Temporarily disabled subscription
-    sub.on("event", (e: any) => {
+    sub.on("event", (e: unknown) => {
       handleSocialGraphEvent(e as unknown as VerifiedEvent)
       debouncedRemoveNonFollowed()
     })
@@ -171,16 +177,17 @@ async function setupSubscription(publicKey: string) {
   sub = {on: () => {}, stop: () => {}}
   // Temporarily disabled: ndk().subscribe({ kinds: [3, 10000], authors: [publicKey], limit: 1 })
   let latestTime = 0
-  sub?.on("event", (ev: any) => {
-    if (ev.kind === 10000) {
-      handleSocialGraphEvent(ev as NostrEvent)
+  sub?.on("event", (ev: unknown) => {
+    const event = ev as NostrEvent
+    if (event.kind === 10000) {
+      handleSocialGraphEvent(event)
       return
     }
-    if (typeof ev.created_at !== "number" || ev.created_at < latestTime) {
+    if (typeof event.created_at !== "number" || event.created_at < latestTime) {
       return
     }
-    latestTime = ev.created_at
-    handleSocialGraphEvent(ev as NostrEvent)
+    latestTime = event.created_at
+    handleSocialGraphEvent(event)
     queueMicrotask(() => getMissingFollowLists(publicKey))
     instance.recalculateFollowDistances()
   })

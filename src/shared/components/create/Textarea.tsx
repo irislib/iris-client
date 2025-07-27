@@ -8,9 +8,8 @@ import {
   useCallback,
 } from "react"
 import {searchIndex, SearchResult} from "@/utils/profileSearch"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {UserRow} from "../user/UserRow"
-import {nip19} from "nostr-tools"
 
 interface TextareaProps {
   value: string

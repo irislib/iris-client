@@ -2,13 +2,12 @@ import {useEffect, useState, useCallback} from "react"
 import {RiMoreLine} from "@remixicon/react"
 import classNames from "classnames"
 import {Link} from "react-router"
-import {nip19} from "nostr-tools"
+import {nip19, NostrEvent} from "nostr-tools"
 
 import RelativeTime from "@/shared/components/event/RelativeTime.tsx"
 import FeedItemDropdown from "../reactions/FeedItemDropdown.tsx"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {EVENT_AVATAR_WIDTH} from "../../user/const.ts"
-import {NostrEvent} from "nostr-tools"
 import {getTagValue} from "@/utils/nostr"
 
 type FeedItemHeaderProps = {

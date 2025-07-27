@@ -59,6 +59,7 @@
   },
   "globals": {
     "CONFIG": "readonly",
-    "NodeJS": "readonly"
+    "NodeJS": "readonly",
+    "globalThis": "readonly"
   }
 }

@@ -7,7 +7,7 @@ declare global {
   interface Window {
     nostr?: {
       getPublicKey(): Promise<string>
-      signEvent(event: any): Promise<any>
+      signEvent(event: Record<string, unknown>): Promise<Record<string, unknown>>
       nip04?: {
         encrypt(pubkey: string, plaintext: string): Promise<string>
         decrypt(pubkey: string, ciphertext: string): Promise<string>
@@ -25,15 +25,15 @@ export {}
 // Add missing module declarations
 declare module "tseep" {
   export class EventEmitter {
-    emit(event: string, ...args: any[]): boolean
-    on(event: string, listener: (...args: any[]) => void): this
-    off(event: string, listener: (...args: any[]) => void): this
+    emit(event: string, ...args: unknown[]): boolean
+    on(event: string, listener: (...args: unknown[]) => void): this
+    off(event: string, listener: (...args: unknown[]) => void): this
   }
 }
 
 declare const CONFIG: {
   appName: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 interface Performance {

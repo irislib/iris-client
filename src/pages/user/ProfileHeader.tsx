@@ -64,21 +64,21 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
       </Header>
       <div className="flex flex-col gap-4 w-full break-all">
         <div className="w-full h-48 md:h-72 bg-gradient-to-r from-primary to-primary-dark">
-          {profile?.banner && (
+          {profile?.banner ? (
             <ProxyImg
-              src={profile?.banner}
+              src={String(profile.banner)}
               className="w-full h-48 md:h-72 object-cover cursor-pointer select-none"
               alt=""
               onClick={() => setShowBannerModal(true)}
               hideBroken={true}
               width={655}
             />
-          )}
+          ) : null}
         </div>
         {showBannerModal && (
           <Modal onClose={() => setShowBannerModal(false)} hasBackground={false}>
             <ProxyImg
-              src={String(profile?.banner)}
+              src={String(profile?.banner || "")}
               className="max-h-screen max-w-screen"
               alt="Banner"
             />
@@ -159,11 +159,13 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
         )}
         <Helmet>
           <title>
-            {profile?.name ||
-              profile?.display_name ||
-              profile?.username ||
-              profile?.nip05?.split("@")[0] ||
-              "Profile"}{" "}
+            {String(
+              profile?.name ||
+                profile?.display_name ||
+                profile?.username ||
+                (profile?.nip05 as string)?.split("@")[0] ||
+                "Profile"
+            )}{" "}
           </title>
         </Helmet>
       </div>

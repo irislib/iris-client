@@ -55,7 +55,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       appearance: {
-        theme: CONFIG.defaultTheme,
+        theme: String(CONFIG.defaultTheme),
       },
       content: {
         blurNSFW: true,

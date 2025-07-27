@@ -28,7 +28,7 @@ export const muteUser = async (pubkey: string): Promise<string[]> => {
     socialGraph().handleEvent(signedEvent)
 
     // Publish to relays
-    publishEvent(muteEventTemplate).catch((error: any) => {
+    publishEvent(muteEventTemplate).catch((error: Error) => {
       console.warn("Unable to publish mute event", error)
     })
   } catch (error) {
@@ -61,7 +61,7 @@ export const unmuteUser = async (pubkey: string): Promise<string[]> => {
     socialGraph().handleEvent(signedEvent)
 
     // Publish to relays
-    publishEvent(unmuteEventTemplate).catch((error: any) => {
+    publishEvent(unmuteEventTemplate).catch((error: Error) => {
       console.warn("Unable to publish unmute event", error)
     })
   } catch (error) {

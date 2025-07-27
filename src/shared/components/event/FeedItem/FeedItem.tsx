@@ -1,6 +1,6 @@
 import {eventsByIdCache, addSeenEventId} from "@/utils/memcache.ts"
 import {useEffect, useMemo, useState, useRef, memo} from "react"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import classNames from "classnames"
 
 import {getEventReplyingTo, getEventRoot, isRepost} from "@/utils/nostr.ts"
@@ -17,7 +17,6 @@ import socialGraph from "@/utils/socialGraph.ts"
 import FeedItemTitle from "./FeedItemTitle.tsx"
 import {Link, useNavigate} from "react-router"
 import LikeHeader from "../LikeHeader"
-import {nip19} from "nostr-tools"
 import {subscribe} from "@/utils/applesauce"
 
 const replySortFn = (a: NostrEvent, b: NostrEvent) => {
@@ -65,7 +64,12 @@ function FeedItem({
   const [expanded, setExpanded] = useState(false)
   const [hasActualReplies, setHasActualReplies] = useState(false)
   const navigate = useNavigate()
-  const subscriptionRef = useRef<any | null>(null)
+  const subscriptionRef = useRef<{
+    stop: () => void
+    on: (event: string, callback: (e: NostrEvent) => void) => void
+    ndk?: {subManager?: {subscriptions: Map<string, unknown>}}
+    internalId?: string
+  } | null>(null)
 
   if ((!initialEvent || !initialEvent.id) && !eventId) {
     throw new Error(
@@ -154,7 +158,7 @@ function FeedItem({
       // Force cleanup by removing from subscription manager (NDK bug workaround)
       if (subscriptionRef.current.ndk?.subManager) {
         subscriptionRef.current.ndk.subManager.subscriptions.delete(
-          subscriptionRef.current.internalId
+          subscriptionRef.current.internalId || ""
         )
       }
       subscriptionRef.current = null
@@ -186,7 +190,7 @@ function FeedItem({
         // Force cleanup by removing from subscription manager (NDK bug workaround)
         if (subscriptionRef.current.ndk?.subManager) {
           subscriptionRef.current.ndk.subManager.subscriptions.delete(
-            subscriptionRef.current.internalId
+            subscriptionRef.current.internalId || ""
           )
         }
         subscriptionRef.current = null

@@ -8,7 +8,7 @@ import {
 } from "react"
 import {NostrEvent} from "nostr-tools"
 import {getTagValue} from "@/utils/nostr"
-import {RiCheckLine, RiFileCopyLine} from "@remixicon/react"
+// import {RiCheckLine, RiFileCopyLine} from "@remixicon/react"
 import {decode} from "light-bolt11-decoder"
 
 import {Avatar} from "@/shared/components/user/Avatar"
@@ -28,7 +28,7 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
   const {defaultZapAmount, setDefaultZapAmount} = useZapStore()
   // Temporarily disabled for NDK migration
   // const {walletConnect: isWalletConnect} = useUserStore()
-  const [copiedPaymentRequest, setCopiedPaymentRequest] = useState(false)
+  // const [copiedPaymentRequest, setCopiedPaymentRequest] = useState(false)
   const [noAddress, setNoAddress] = useState(false)
   // const [showQRCode, setShowQRCode] = useState(false)
   // const [bolt11Invoice, setBolt11Invoice] = useState<string>("")
@@ -73,13 +73,13 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
     setShouldSetDefault(e.target.checked)
   }
 
-  const handleCopyPaymentRequest = () => {
-    // navigator.clipboard.writeText(bolt11Invoice) // Disabled - zap functionality not available
-    setCopiedPaymentRequest(true)
-    setTimeout(() => {
-      setCopiedPaymentRequest(false)
-    }, 3000)
-  }
+  // const handleCopyPaymentRequest = () => {
+  //   // navigator.clipboard.writeText(bolt11Invoice) // Disabled - zap functionality not available
+  //   setCopiedPaymentRequest(true)
+  //   setTimeout(() => {
+  //     setCopiedPaymentRequest(false)
+  //   }, 3000)
+  // }
 
   const handleZap = async () => {
     setNoAddress(false)
@@ -176,7 +176,8 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
               : 0
           const amountRequested = -1 // zapRequest?.amount ? zapRequest.amount / 1000 : -1
 
-          if (false && amountPaid === amountRequested) {
+          // TODO: Re-enable when receipt validation is implemented
+          if (/* false && */ amountPaid === amountRequested) {
             // bolt11Invoice === receiptInvoice
             setZapped(true)
             onClose()
@@ -254,83 +255,63 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
           ))}
         </div>
 
-        {false ? ( // showQRCode disabled
-          <div className="flex flex-col items-center gap-4">
-            <p>
-              Scan the QR code to zap <b>{zapAmount} sats</b>
-            </p>
-            <div className="w-40 h-40">
-              {false && <img id="qr-image" className="w-40 h-40" src="" />}
-            </div>
-            <a href={`lightning:undefined`} className="btn btn-primary w-full">
-              Open in Wallet
-            </a>
+        {/* showQRCode disabled - directly show form instead */}
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+          {noAddress && (
+            <span className="text-red-500">The user has no lightning address.</span>
+          )}
+          {error && <span className="text-red-500">{error}</span>}
+
+          <div className="flex gap-2">
+            <input
+              type="number"
+              className="input input-bordered grow"
+              value={customAmount}
+              onChange={handleCustomAmountChange}
+              placeholder="Custom amount"
+            />
             <button
-              className="btn btn-neutral gap-2 w-full"
-              onClick={handleCopyPaymentRequest}
+              type="button"
+              className="btn btn-neutral"
+              onClick={handleConfirmCustomAmount}
+              disabled={
+                !customAmount || Number(customAmount) <= 0 || customAmount === zapAmount
+              }
             >
-              {!copiedPaymentRequest ? <RiFileCopyLine /> : <RiCheckLine />}
-              Copy zap invoice
+              Confirm
             </button>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
-            {noAddress && (
-              <span className="text-red-500">The user has no lightning address.</span>
-            )}
-            {error && <span className="text-red-500">{error}</span>}
 
-            <div className="flex gap-2">
-              <input
-                type="number"
-                className="input input-bordered grow"
-                value={customAmount}
-                onChange={handleCustomAmountChange}
-                placeholder="Custom amount"
-              />
-              <button
-                type="button"
-                className="btn btn-neutral"
-                onClick={handleConfirmCustomAmount}
-                disabled={
-                  !customAmount || Number(customAmount) <= 0 || customAmount === zapAmount
-                }
-              >
-                Confirm
-              </button>
-            </div>
+          <input
+            type="text"
+            className="input input-bordered w-full"
+            value={zapMessage}
+            onChange={handleZapMessageChange}
+            placeholder="Comment (optional)"
+          />
 
+          <label className="label cursor-pointer justify-start gap-2">
             <input
-              type="text"
-              className="input input-bordered w-full"
-              value={zapMessage}
-              onChange={handleZapMessageChange}
-              placeholder="Comment (optional)"
+              type="checkbox"
+              className="checkbox"
+              checked={shouldSetDefault}
+              onChange={handleSetDefaultAmount}
             />
+            <span className="label-text">Set as default zap amount</span>
+          </label>
 
-            <label className="label cursor-pointer justify-start gap-2">
-              <input
-                type="checkbox"
-                className="checkbox"
-                checked={shouldSetDefault}
-                onChange={handleSetDefaultAmount}
-              />
-              <span className="label-text">Set as default zap amount</span>
-            </label>
-
-            <button
-              type="submit"
-              className="btn btn-primary w-full"
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <div className="loading loading-spinner loading-sm" />
-              ) : (
-                `Zap ${zapAmount} sats`
-              )}
-            </button>
-          </form>
-        )}
+          <button
+            type="submit"
+            className="btn btn-primary w-full"
+            disabled={isProcessing}
+          >
+            {isProcessing ? (
+              <div className="loading loading-spinner loading-sm" />
+            ) : (
+              `Zap ${zapAmount} sats`
+            )}
+          </button>
+        </form>
       </div>
     </Modal>
   )

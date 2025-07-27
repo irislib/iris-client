@@ -7,10 +7,9 @@ import {Name} from "@/shared/components/user/Name"
 import Widget from "@/shared/components/ui/Widget"
 import {useSettingsStore} from "@/stores/settings"
 import socialGraph from "@/utils/socialGraph"
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {useState, useEffect} from "react"
 import {getTags} from "@/utils/nostr"
-import {nip19} from "nostr-tools"
 
 export default function ThreadPage({
   id,

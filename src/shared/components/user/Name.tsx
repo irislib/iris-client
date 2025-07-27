@@ -24,7 +24,7 @@ export function Name({pubKey, className}: {pubKey: string; className?: string}) 
     profile?.display_name ||
     profile?.name ||
     profile?.username ||
-    profile?.nip05?.split("@")[0]
+    (profile?.nip05 as string)?.split("@")[0]
 
   const animal = useMemo(() => {
     if (name) {
@@ -46,7 +46,7 @@ export function Name({pubKey, className}: {pubKey: string; className?: string}) 
         className
       )}
     >
-      {name || animal}
+      {String(name || animal)}
     </span>
   )
 }

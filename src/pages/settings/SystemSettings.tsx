@@ -37,9 +37,12 @@ export default function SystemSettings() {
         "memory" in performance &&
         performance.memory
       ) {
+        const perfMemory = (
+          performance as {memory: {usedJSHeapSize: number; jsHeapSizeLimit: number}}
+        ).memory
         setMemoryUsage({
-          used: Math.round((performance as any).memory?.usedJSHeapSize / 1024 / 1024),
-          total: Math.round((performance as any).memory?.jsHeapSizeLimit / 1024 / 1024),
+          used: Math.round(perfMemory?.usedJSHeapSize / 1024 / 1024),
+          total: Math.round(perfMemory?.jsHeapSizeLimit / 1024 / 1024),
         })
       }
     }

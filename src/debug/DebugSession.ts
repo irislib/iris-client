@@ -21,11 +21,7 @@ export async function createDebugEvent(
   }
 }
 
-export function setupDebugRelaySubscription(
-  relayUrl: string,
-  filters: Filter[],
-  _onEvent: (event: any) => void // renamed to avoid unused parameter warning
-) {
+export function setupDebugRelaySubscription(relayUrl: string, filters: Filter[]) {
   console.log("Debug relay subscription setup for:", relayUrl, filters)
   // Simplified debug subscription
 }
@@ -36,7 +32,7 @@ export function getConnectedRelays(): string[] {
 
 class DebugSessionClass {
   private privateKey: string | undefined
-  private nostrSubscriptions: Map<string, any> = new Map()
+  private nostrSubscriptions: Map<string, {stop: () => void}> = new Map()
   private conversationKey: Uint8Array | undefined
 
   constructor(privateKey?: string) {
@@ -44,15 +40,13 @@ class DebugSessionClass {
   }
 
   // Subscribe to Nostr events based on topic mapping
-  subscribe(topic: string, callback: (value: any, event?: any) => void) {
-    let filter: Filter
-
+  subscribe(topic: string, callback: (value: unknown, event?: NostrEvent) => void) {
     // Map debug topics to Nostr filters with recent timestamp
     const since = Math.floor(Date.now() / 1000) - 60 // Last minute
 
     // Simple topic mapping - use d tag for kind 30000 events from our own pubkey
     const publicKey = this.getPublicKey()
-    filter = {kinds: [30000], "#d": [topic], "#p": [publicKey], since}
+    const filter: Filter = {kinds: [30000], "#d": [topic], "#p": [publicKey], since}
 
     // Create Nostr subscription using applesauce - only connect to temp.iris.to for debug
     const debugRelays = ["wss://temp.iris.to"]
@@ -74,8 +68,8 @@ class DebugSessionClass {
     })
 
     // Add error handling for subscription
-    sub.on("error", (error: any) => {
-      console.error(`Debug subscription error for topic: ${topic}`, error)
+    sub.on("error", (event: unknown) => {
+      console.error(`Debug subscription error for topic: ${topic}`, event)
     })
 
     // Store subscription for cleanup
@@ -124,7 +118,7 @@ class DebugSessionClass {
   }
 
   // Publish debug events to Nostr
-  async publish(topic: string, data: any) {
+  async publish(topic: string, data: unknown) {
     try {
       const {SimpleSigner} = await import("applesauce-signers")
 
@@ -158,7 +152,7 @@ class DebugSessionClass {
           next: () => {
             // Silent publish
           },
-          error: (error: any) => reject(error),
+          error: (error: Error) => reject(error),
           complete: () => resolve(),
         })
         setTimeout(() => {
@@ -192,8 +186,8 @@ class DebugSessionClass {
     return createDebugEvent(template)
   }
 
-  setupSubscription(relayUrl: string, filters: Filter[], onEvent: (event: any) => void) {
-    return setupDebugRelaySubscription(relayUrl, filters, onEvent)
+  setupSubscription(relayUrl: string, filters: Filter[]) {
+    return setupDebugRelaySubscription(relayUrl, filters)
   }
 
   getRelays() {

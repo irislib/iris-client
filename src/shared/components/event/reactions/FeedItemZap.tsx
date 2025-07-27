@@ -240,11 +240,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
         onTouchStart={handleMouseDown}
         onTouchEnd={handleMouseUp}
       >
-        {false ? ( // isZapping temporarily disabled
-          <div className="loading loading-spinner loading-xs" />
-        ) : (
-          <Icon name={iconName} size={16} />
-        )}
+        <Icon name={iconName} size={16} />
         <span>{content.showReactionCounts ? formatAmount(zappedAmount) : ""}</span>
       </button>
     </>

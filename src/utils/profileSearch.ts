@@ -1,5 +1,5 @@
 // import {getProfileContent} from "applesauce-core/helpers" // unused
-import {loadProfileCache, profileCache} from "./profileCache"
+import {loadProfileCache, profileCache, ProfileData} from "./profileCache"
 import Fuse from "fuse.js"
 
 export type SearchResult = {
@@ -43,7 +43,10 @@ initializeSearchIndex().catch(console.error)
 
 export {searchIndex}
 
-export function handleProfile(pubKey: string, profile: any) {
+export function handleProfile(
+  pubKey: string,
+  profile: ProfileData & {created_at?: number}
+) {
   queueMicrotask(() => {
     const lastSeen = latestProfileEvents.get(pubKey) || 0
     if (profile.created_at && profile.created_at > lastSeen) {

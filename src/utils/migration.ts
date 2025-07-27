@@ -2,6 +2,7 @@ import {CHANNEL_MESSAGE} from "@/pages/chats/utils/constants"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import {useUserStore} from "../stores/user"
 import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
+import {NostrEvent} from "nostr-tools"
 
 export const migrateUserState = () => {
   const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
@@ -47,7 +48,7 @@ export const migratePublicChats = async () => {
   const channelIds = new Set<string>([DEFAULT_PUBLIC_CHAT_ID])
 
   // Fetch events using applesauce
-  const events: any[] = []
+  const events: NostrEvent[] = []
   const pool = getPool()
   const subscription = pool.subscription(DEFAULT_RELAYS, {
     kinds: [CHANNEL_MESSAGE],

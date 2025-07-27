@@ -1,5 +1,5 @@
 // import {getProfileContent} from "applesauce-core/helpers" // unused
-import {profileCache, addCachedProfile} from "@/utils/profileCache"
+import {profileCache, addCachedProfile, ProfileData} from "@/utils/profileCache"
 import {handleProfile} from "@/utils/profileSearch"
 import {subscribe} from "@/utils/applesauce"
 import debounce from "lodash/debounce"
@@ -7,7 +7,7 @@ import Fuse from "fuse.js"
 
 export interface DoubleRatchetUser {
   pubkey: string
-  profile: any
+  profile: ProfileData
 }
 
 // Fuse.js search index

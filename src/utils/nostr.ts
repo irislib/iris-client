@@ -1,9 +1,8 @@
-import {NostrEvent} from "nostr-tools"
+import {NostrEvent, nip19} from "nostr-tools"
 import {eventRegex} from "@/shared/components/embed/nostr/NostrNote"
 import {decode} from "light-bolt11-decoder"
 import {profileCache} from "./profileCache"
 import AnimalName from "./AnimalName"
-import {nip19} from "nostr-tools"
 import * as nip19Tools from "nostr-tools/nip19"
 import {subscribe} from "@/utils/applesauce"
 
@@ -288,14 +287,7 @@ export const getCachedName = (pubKey: string): string => {
   if (profile) {
     if (profile.name) {
       name = profile.name
-    } else if (!profile.name && profile.displayName) {
-      name = profile.displayName
-    } else if (
-      !profile.name &&
-      !profile.displayName &&
-      profile.display_name &&
-      typeof profile.display_name === "string" // can be number for some reason
-    ) {
+    } else if (!profile.name && profile.display_name) {
       name = profile.display_name
     }
   }

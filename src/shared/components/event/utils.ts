@@ -4,8 +4,8 @@ import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 // TODO: This function needs to be properly converted from NDK to applesauce
 export const handleEventContent = (
-  event: any,
-  setReferredEvent: (event: any) => void
+  event: NostrEvent,
+  setReferredEvent: (event: NostrEvent) => void
 ): (() => void) | undefined => {
   try {
     if (event.kind === 6 || event.kind === 7) {

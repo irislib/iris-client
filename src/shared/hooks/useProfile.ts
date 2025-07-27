@@ -18,11 +18,11 @@ export default function useProfile(pubKey?: string, shouldSubscribe = true) {
     }
   }, [pubKey])
 
-  const [profile, setProfile] = useState<any | null>(
+  const [profile, setProfile] = useState<Record<string, unknown> | null>(
     profileCache.get(pubKeyHex || "") || null
   )
 
-  const subscriptionRef = useRef<any | null>(null)
+  const subscriptionRef = useRef<{stop: () => void} | null>(null)
 
   useEffect(() => {
     // Clean up any existing subscription first

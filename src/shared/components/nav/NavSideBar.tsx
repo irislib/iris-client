@@ -63,7 +63,7 @@ const NavSideBar = () => {
             className="md:mb-2 xl:mb-0 mt-4 ml-4 md:ml-0 xl:ml-5 flex flex-row gap-2 items-center md:justify-center font-bold font-bold text-3xl"
             to="/"
           >
-            <img className="w-8 h-8" src={logoUrl} />
+            <img className="w-8 h-8" src={String(logoUrl)} />
             <span className="inline md:hidden xl:inline">{CONFIG.appName}</span>
           </NavLink>
           {isReadOnly && (
