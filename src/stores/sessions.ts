@@ -7,6 +7,7 @@ import {
 import {createJSONStorage, persist, PersistStorage} from "zustand/middleware"
 import {Filter, VerifiedEvent, UnsignedEvent} from "nostr-tools"
 import {NostrEventFromRawEvent, RawEvent} from "@/utils/nostr"
+import {publishEvent as applesaucePublishEvent} from "@/utils/applesauce"
 import {REACTION_KIND} from "@/pages/chats/utils/constants"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {hexToBytes} from "@noble/hashes/utils"
@@ -106,7 +107,8 @@ const store = create<SessionStore>()(
           const event = invite.getEvent() as RawEvent
           console.log("Publishing public invite...", event)
           try {
-            const res = await NostrEventFromRawEvent(event)
+            const nostrEvent = await NostrEventFromRawEvent(event)
+            const res = await applesaucePublishEvent(nostrEvent)
             console.log("Published public invite", res)
           } catch (e) {
             console.warn("Error publishing public invite:", e)
@@ -197,11 +199,11 @@ const store = create<SessionStore>()(
         // Optimistic update
         routeEventToStore(sessionId, message)
         try {
-          const e = await NostrEventFromRawEvent(publishedEvent)
-          // TODO: Implement publishing with applesauce
-          console.log("Event converted (publishing disabled):", e, publishedEvent.id)
+          const nostrEvent = await NostrEventFromRawEvent(publishedEvent)
+          await applesaucePublishEvent(nostrEvent)
+          console.log("Published message event:", nostrEvent, publishedEvent.id)
         } catch (err) {
-          console.warn("Error converting event:", err)
+          console.warn("Error publishing message event:", err)
         }
         // make sure we persist session state
         set({sessions: new Map(get().sessions)})
@@ -266,11 +268,11 @@ const store = create<SessionStore>()(
           encrypt
         )
         try {
-          const e = await NostrEventFromRawEvent(event)
-          // TODO: Implement publishing with applesauce
-          console.log("Event converted (publishing disabled):", e)
+          const nostrEvent = await NostrEventFromRawEvent(event)
+          await applesaucePublishEvent(nostrEvent)
+          console.log("Published invite event:", nostrEvent)
         } catch (e) {
-          console.warn("Error converting event:", e)
+          console.warn("Error publishing invite event:", e)
         }
         const sessionId = `${invite.inviter}:${session.name}`
         if (sessionListeners.has(sessionId)) {

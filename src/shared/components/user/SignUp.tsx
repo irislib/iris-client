@@ -4,6 +4,10 @@ import {bytesToHex} from "@noble/hashes/utils"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {publishEvent} from "@/utils/applesauce"
+import {addCachedProfile} from "@/utils/profileCache"
+import {handleProfile} from "@/utils/profileSearch"
+import {addDoubleRatchetUser} from "@/pages/chats/utils/doubleRatchetUsers"
+import {useSessionsStore} from "@/stores/sessions"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
 
@@ -67,15 +71,33 @@ export default function SignUp({onClose}: SignUpProps) {
     // Publish profile in background (non-blocking)
     const incognito = ctrlPressed && newUserName.trim() === ""
     if (!incognito) {
+      const profileData = {
+        display_name: newUserName.trim(),
+        lud16: `${npub}@npub.cash`,
+        created_at: Math.floor(Date.now() / 1000)
+      }
+      
       const template: EventTemplate = {
         kind: 0,
         created_at: Math.floor(Date.now() / 1000),
         tags: [],
-        content: JSON.stringify({
-          display_name: newUserName.trim(),
-          lud16: `${npub}@npub.cash`,
-        }),
+        content: JSON.stringify(profileData),
       }
+      
+      // Immediately update the profile cache so the name shows up
+      addCachedProfile(pk, profileData)
+      handleProfile(pk, profileData)
+      
+      // Add the user to their own double ratchet list for testing purposes
+      addDoubleRatchetUser(pk)
+      
+      // Create default invites for double-ratchet messaging
+      try {
+        useSessionsStore.getState().createDefaultInvites()
+      } catch (error) {
+        console.error("Failed to create default invites:", error)
+      }
+      
       publishEvent(template)
         .then(() => console.log("Profile published successfully for new user"))
         .catch((error) => console.error("Failed to publish profile event:", error))

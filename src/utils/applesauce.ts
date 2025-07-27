@@ -303,6 +303,12 @@ export async function publishEvent(template: EventTemplate, relayUrls?: string[]
   const signedEvent = await signer.signEvent(template)
   console.log("✅ Event signed:", signedEvent)
 
+  // Add to event store immediately for local availability
+  const eventStore = getEventStore()
+  eventStore.add(signedEvent)
+  console.log("💾 Event added to local store:", signedEvent.id)
+
+  // Try to publish to relays but don't fail the entire function if this fails
   const pool = getPool()
   const relays = relayUrls && relayUrls.length > 0 ? relayUrls : DEFAULT_RELAYS
   console.log("📡 Publishing to relays:", relays)
@@ -360,12 +366,12 @@ export async function publishEvent(template: EventTemplate, relayUrls?: string[]
     }
 
     if (publishResponses.length === 0) {
-      throw new Error("No relays responded to publish request")
+      console.warn("⚠️ No relays responded to publish request, but event is available locally")
     }
   } catch (error) {
-    console.error("❌ Failed to publish event:", error)
+    console.warn("⚠️ Failed to publish to relays, but event is available locally:", error)
     console.log("🔗 Relay status after error:", getRelayConnectionStatus())
-    throw error
+    // Don't throw the error - event is still available locally
   }
 
   return signedEvent

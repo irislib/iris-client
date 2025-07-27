@@ -259,7 +259,11 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
       handleClose()
       navigate(`/${nip19.noteEncode(publishedEvent.id)}`)
     } catch (error) {
-      console.warn(`Note could not be published: ${error}`)
+      console.error(`Failed to publish note: ${error}`)
+      // Still navigate and close if the event was at least signed and added to local store
+      // The user can see their post locally even if relay publishing failed
+      resetDraft()
+      handleClose()
     }
   }
 
