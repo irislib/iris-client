@@ -2,6 +2,9 @@ import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 import {Link, useNavigate} from "react-router"
 import {useUserStore} from "@/stores/user"
+import {Invite} from "nostr-double-ratchet/src"
+import {ndk} from "@/utils/ndk"
+import {Filter, VerifiedEvent} from "nostr-tools"
 
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
 import ProfileDropdownButton from "@/shared/components/user/ProfileDropdownButton"
@@ -17,12 +20,8 @@ import Header from "@/shared/components/header/Header"
 import {Name} from "@/shared/components/user/Name.tsx"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import Modal from "@/shared/components/ui/Modal.tsx"
-import {useSessionsStore} from "@/stores/sessions"
 import Icon from "@/shared/components/Icons/Icon"
-import {Filter, VerifiedEvent} from "nostr-tools"
-import {Invite} from "nostr-double-ratchet/src"
 import {Helmet} from "react-helmet"
-import {ndk} from "@/utils/ndk"
 
 const ProfileHeader = ({pubKey}: {pubKey: string}) => {
   const profile = useProfile(pubKey, true)
@@ -34,23 +33,45 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
 
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
-  const [invite, setInvite] = useState<Invite | undefined>(undefined)
+  const [hasInvites, setHasInvites] = useState(false)
 
   const navigate = useNavigate()
 
+  // Subscribe function for nostr events
+  const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
+    const sub = ndk().subscribe(filter)
+    sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
+    return () => sub.stop()
+  }
+
+  // Check for invites from other users
   useEffect(() => {
-    if (myPubKey === pubKeyHex) {
+    // Only check for invites if this is not our own profile and we have a pubkey
+    if (!myPubKey || myPubKey === pubKeyHex || !pubKeyHex) {
       return
     }
 
-    const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-      const sub = ndk().subscribe(filter)
-      sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
-      return () => sub.stop()
+    console.log("Checking for invites from user:", pubKeyHex)
+
+    const unsubscribe = Invite.fromUser(pubKeyHex, subscribe, (invite) => {
+      console.log("Found invite from user:", pubKeyHex, invite)
+      setHasInvites(true)
+    })
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log("Cleaning up invite subscription for user:", pubKeyHex)
+      unsubscribe()
     }
-    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => setInvite(invite))
-    return unsub
-  }, [myPubKey, pubKeyHex])
+  }, [pubKeyHex, myPubKey])
+
+  const handleStartChat = () => {
+    // Navigate directly to chat with userPubKey
+    // The chats store will handle session creation automatically
+    navigate("/chats/chat", {
+      state: {id: pubKeyHex},
+    })
+  }
 
   return (
     <>
@@ -101,19 +122,8 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
             )}
 
             <div className="flex flex-row gap-2" data-testid="profile-header-actions">
-              {invite && myPubKey && (
-                <button
-                  className="btn btn-circle btn-neutral"
-                  onClick={async () => {
-                    if (!invite) return
-                    const sessionId = await useSessionsStore
-                      .getState()
-                      .acceptInvite(invite.getUrl())
-                    navigate("/chats/chat", {
-                      state: {id: sessionId},
-                    })
-                  }}
-                >
+              {myPubKey && (myPubKey === pubKeyHex || hasInvites) && (
+                <button className="btn btn-circle btn-neutral" onClick={handleStartChat}>
                   <Icon name="mail-outline" className="w-6 h-6" />
                 </button>
               )}

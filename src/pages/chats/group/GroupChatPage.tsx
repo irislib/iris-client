@@ -3,7 +3,7 @@ import {useParams} from "react-router"
 import {useGroupsStore} from "@/stores/groups"
 import {useEventsStore} from "@/stores/events"
 import {useUserStore} from "@/stores/user"
-import {useSessionsStore} from "@/stores/sessions"
+import {useUserRecordsStore} from "@/stores/userRecords"
 import ChatContainer from "../components/ChatContainer"
 import MessageForm from "../message/MessageForm"
 import GroupChatHeader from "./GroupChatHeader"
@@ -19,7 +19,7 @@ const GroupChatPage = () => {
   // Fix: Use the events store with proper subscription to get reactive updates
   const {events} = useEventsStore()
   const myPubKey = useUserStore((state) => state.publicKey)
-  const {sendToUser} = useSessionsStore()
+  const {sendToUser} = useUserRecordsStore()
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
 
   if (!id || !group) {

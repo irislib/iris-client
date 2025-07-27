@@ -14,6 +14,7 @@ import WalletSettings from "./WalletSettings"
 import SystemSettings from "./SystemSettings"
 import Backup from "@/pages/settings/Backup"
 import PrivacySettings from "./Privacy"
+import ChatSettings from "./ChatSettings"
 import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import {ReactElement} from "react"
@@ -56,6 +57,12 @@ function Settings() {
           iconBg: "bg-purple-500",
           message: "iris.to username",
           path: "/settings/iris",
+        },
+        {
+          icon: <Icon name="mail-outline" className="w-5 h-5" />, // Consistent with sidebar
+          iconBg: "bg-blue-500",
+          message: "Chat",
+          path: "/settings/chat",
         },
       ],
     },
@@ -200,6 +207,7 @@ function Settings() {
             <Route path="notifications" element={<NotificationSettings />} />
             <Route path="privacy" element={<PrivacySettings />} />
             <Route path="system" element={<SystemSettings />} />
+            <Route path="chat" element={<ChatSettings />} />
             <Route path="/" element={<ProfileSettings />} />
           </Routes>
         </div>

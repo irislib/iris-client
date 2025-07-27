@@ -1,21 +1,21 @@
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import Header from "@/shared/components/header/Header"
-import {useSessionsStore} from "@/stores/sessions"
-import {useEventsStore} from "@/stores/events"
+import {usePrivateChatsStore} from "@/stores/privateChats"
 import ChatListItem from "./ChatListItem"
 import {NavLink} from "react-router"
 import classNames from "classnames"
 import {useEffect} from "react"
 import {useGroupsStore} from "@/stores/groups"
+import {useEventsStore} from "@/stores/events"
+import {SortedMap} from "@/utils/SortedMap/SortedMap"
+import {comparator} from "@/pages/chats/utils/messageGrouping"
 
 interface ChatListProps {
   className?: string
 }
 
 const ChatList = ({className}: ChatListProps) => {
-  const {sessions} = useSessionsStore()
-  const {events} = useEventsStore()
+  const {getChatsList} = usePrivateChatsStore()
   const {publicChats, timestamps, addOrRefreshChatById} = usePublicChatsStore()
   const {groups} = useGroupsStore()
 
@@ -29,9 +29,9 @@ const ChatList = ({className}: ChatListProps) => {
   }, [publicChats, addOrRefreshChatById])
 
   const latestForGroup = (id: string) => {
-    const groupEvents = events.get(id)
-    if (!groupEvents) return 0
-    const lastMsg = groupEvents.last()?.[1]
+    const events = useEventsStore.getState().events
+    const messages = events.get(id) ?? new SortedMap([], comparator)
+    const lastMsg = messages.last()?.[1]
     if (!lastMsg) return 0
     return lastMsg.created_at ? new Date(lastMsg.created_at * 1000).getTime() : 0
   }
@@ -41,22 +41,23 @@ const ChatList = ({className}: ChatListProps) => {
     return latest * 1000
   }
 
-  const latestForPrivateChat = (id: string) => {
-    const [, latest] = events.get(id)?.last() ?? []
-    return latest ? getMillisecondTimestamp(latest) : 0
+  const getLatest = (id: string, type: string) => {
+    if (type === "group") return latestForGroup(id)
+    if (type === "public") return latestForPublicChat(id)
+    // For private chats, use the lastMessageTime from chats store
+    const chatsList = getChatsList()
+    const chat = chatsList.find((c) => c.userPubKey === id)
+    return chat?.lastMessageTime || 0
   }
 
-  const getLatest = (id: string) => {
-    if (groups[id]) return latestForGroup(id)
-    if (publicChats[id]) return latestForPublicChat(id)
-    return latestForPrivateChat(id)
-  }
+  // Get private chats from chats store
+  const privateChatsList = getChatsList()
 
   const allChatItems = [
     ...Object.values(groups).map((group) => ({id: group.id, type: "group"})),
-    ...Array.from(sessions.keys()).map((chatId) => ({id: chatId, type: "private"})),
+    ...privateChatsList.map((chat) => ({id: chat.userPubKey, type: "private"})),
     ...Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"})),
-  ].sort((a, b) => getLatest(b.id) - getLatest(a.id))
+  ].sort((a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type))
 
   return (
     <nav className={className}>
@@ -80,7 +81,7 @@ const ChatList = ({className}: ChatListProps) => {
           </div>
         </NavLink>
         {allChatItems.map(({id, type}) => (
-          <ChatListItem key={id} id={id} isPublic={type === "public"} />
+          <ChatListItem key={id} id={id} isPublic={type === "public"} type={type} />
         ))}
       </div>
     </nav>

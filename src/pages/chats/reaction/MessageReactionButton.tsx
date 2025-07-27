@@ -1,6 +1,6 @@
 import {FloatingEmojiPicker} from "@/shared/components/emoji/FloatingEmojiPicker"
 import {RiHeartAddLine, RiReplyLine} from "@remixicon/react"
-import {useSessionsStore} from "@/stores/sessions"
+import {useUserRecordsStore} from "@/stores/userRecords"
 import {MouseEvent, useState} from "react"
 import classNames from "classnames"
 
@@ -24,7 +24,7 @@ const MessageReactionButton = ({
   onReply,
   onSendReaction,
 }: MessageReactionButtonProps) => {
-  const {sendMessage} = useSessionsStore()
+  const {sendMessage} = useUserRecordsStore()
   const [showReactionsPicker, setShowReactionsPicker] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<{clientY?: number}>({})
 

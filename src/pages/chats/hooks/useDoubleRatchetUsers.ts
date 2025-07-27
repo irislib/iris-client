@@ -1,6 +1,6 @@
 import {useEffect, useState, useCallback} from "react"
 import {useUserStore} from "@/stores/user"
-import {useSessionsStore} from "@/stores/sessions"
+import {useUserRecordsStore} from "@/stores/userRecords"
 import socialGraph from "@/utils/socialGraph"
 import {ndk} from "@/utils/ndk"
 import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
@@ -37,7 +37,7 @@ export const useDoubleRatchetUsers = () => {
 
     // Get all current session partners
     const getCurrentSessionPartners = (): Set<string> => {
-      const sessions = useSessionsStore.getState().sessions
+      const sessions = useUserRecordsStore.getState().userRecords
       const partners = new Set<string>()
       for (const sessionId of sessions.keys()) {
         const partner = getSessionPartner(sessionId)
@@ -88,7 +88,7 @@ export const useDoubleRatchetUsers = () => {
       previousSessionPartners = new Set(currentPartners)
 
       // Subscribe to future changes
-      sessionsUnsubscribe = useSessionsStore.subscribe(() => {
+      sessionsUnsubscribe = useUserRecordsStore.subscribe(() => {
         const currentPartners = getCurrentSessionPartners()
 
         // Find new partners

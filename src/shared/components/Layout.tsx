@@ -2,7 +2,6 @@ import {Outlet, useLocation, useNavigate, useNavigationType} from "react-router"
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import LoginDialog from "@/shared/components/user/LoginDialog"
 import NavSideBar from "@/shared/components/nav/NavSideBar"
-import {useInviteFromUrl} from "../hooks/useInviteFromUrl"
 import {clearNotifications} from "@/utils/notifications"
 import {socialGraphLoaded} from "@/utils/socialGraph"
 import Modal from "@/shared/components/ui/Modal.tsx"
@@ -32,8 +31,6 @@ const Layout = () => {
   const navigate = useNavigate()
   const navigationType = useNavigationType()
   const location = useLocation()
-
-  useInviteFromUrl()
 
   socialGraphLoaded.then() // just make sure we start loading social the graph
 
