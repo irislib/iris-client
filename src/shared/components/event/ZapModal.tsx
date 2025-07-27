@@ -6,38 +6,40 @@ import {
   useEffect,
   useState,
 } from "react"
-import {LnPayCb, NDKEvent, zapInvoiceFromEvent, NDKZapper} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+import {getTagValue} from "@/utils/nostr"
 import {RiCheckLine, RiFileCopyLine} from "@remixicon/react"
 import {decode} from "light-bolt11-decoder"
 
 import {Avatar} from "@/shared/components/user/Avatar"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {Name} from "@/shared/components/user/Name"
-import {useUserStore} from "@/stores/user"
+// import {useUserStore} from "@/stores/user" // Temporarily disabled
 import {useZapStore} from "@/stores/zap"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 interface ZapModalProps {
   onClose: () => void
-  event: NDKEvent
+  event: NostrEvent
   setZapped: Dispatch<SetStateAction<boolean>>
 }
 
 function ZapModal({onClose, event, setZapped}: ZapModalProps) {
   const {defaultZapAmount, setDefaultZapAmount} = useZapStore()
-  const {walletConnect: isWalletConnect} = useUserStore()
+  // Temporarily disabled for NDK migration
+  // const {walletConnect: isWalletConnect} = useUserStore()
   const [copiedPaymentRequest, setCopiedPaymentRequest] = useState(false)
   const [noAddress, setNoAddress] = useState(false)
-  const [showQRCode, setShowQRCode] = useState(false)
-  const [bolt11Invoice, setBolt11Invoice] = useState<string>("")
+  // const [showQRCode, setShowQRCode] = useState(false)
+  // const [bolt11Invoice, setBolt11Invoice] = useState<string>("")
   const [zapAmount, setZapAmount] = useState<string>(defaultZapAmount.toString())
   const [customAmount, setCustomAmount] = useState<string>("")
   const [zapMessage, setZapMessage] = useState<string>("")
   const [shouldSetDefault, setShouldSetDefault] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string>("")
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
-  const [zapRefresh, setZapRefresh] = useState(false)
+  // const [qrCodeUrl, setQrCodeUrl] = useState<string>("") // Temporarily disabled
+  // const [zapRefresh, setZapRefresh] = useState(false) // Temporarily disabled
 
   const amounts: Record<string, string> = {
     [defaultZapAmount.toString()]: "",
@@ -72,7 +74,7 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
   }
 
   const handleCopyPaymentRequest = () => {
-    navigator.clipboard.writeText(bolt11Invoice)
+    // navigator.clipboard.writeText(bolt11Invoice) // Disabled - zap functionality not available
     setCopiedPaymentRequest(true)
     setTimeout(() => {
       setCopiedPaymentRequest(false)
@@ -93,12 +95,15 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
       console.warn("Zap amount must be a number: ", error)
     }
     try {
-      const amount = Number(zapAmount) * 1000
+      // const amount = Number(zapAmount) * 1000 // Temporarily disabled
 
       if (shouldSetDefault) {
         setDefaultZapAmount(Number(zapAmount))
       }
 
+      // TODO: Implement zapping with applesauce - NDK functionality temporarily disabled
+      console.warn("Zapping functionality temporarily disabled - NDK replacement needed")
+      /*
       const lnPay: LnPayCb = async ({pr}) => {
         if (isWalletConnect) {
           try {
@@ -122,7 +127,7 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
 
       const zapper = new NDKZapper(event, amount, "msat", {
         comment: zapMessage,
-        ndk: ndk(),
+        // ndk: ndk(), // TODO: implement zapper with applesauce
         lnPay,
         tags: [
           ["e", event.id],
@@ -131,6 +136,7 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
       })
 
       await zapper.zap()
+      */
     } catch (error) {
       console.warn("Zap failed: ", error)
       if (error instanceof Error) {
@@ -151,14 +157,15 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
       ["#e"]: [event.id],
     }
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
-      sub?.on("event", async (event: NDKEvent) => {
+      sub?.on("event", async (event: NostrEvent) => {
         sub.stop()
-        const receiptInvoice = event.tagValue("bolt11")
+        const receiptInvoice = getTagValue(event, "bolt11")
         if (receiptInvoice) {
           const decodedInvoice = decode(receiptInvoice)
-          const zapRequest = zapInvoiceFromEvent(event)
+          // TODO: implement zapInvoiceFromEvent with applesauce
+          // const zapRequest = zapInvoiceFromEvent(event)
 
           const amountSection = decodedInvoice.sections.find(
             (section) => section.name === "amount"
@@ -167,9 +174,10 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
             amountSection && "value" in amountSection
               ? Math.floor(parseInt(amountSection.value) / 1000)
               : 0
-          const amountRequested = zapRequest?.amount ? zapRequest.amount / 1000 : -1
+          const amountRequested = -1 // zapRequest?.amount ? zapRequest.amount / 1000 : -1
 
-          if (bolt11Invoice === receiptInvoice && amountPaid === amountRequested) {
+          if (false && amountPaid === amountRequested) {
+            // bolt11Invoice === receiptInvoice
             setZapped(true)
             onClose()
           }
@@ -188,29 +196,30 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
     return () => {
       clearInterval(timer)
     }
-  }, [showQRCode])
+  }, []) // showQRCode disabled
 
   useEffect(() => {
-    if (showQRCode && bolt11Invoice) {
-      const generateQRCode = async () => {
-        try {
-          const QRCode = await import("qrcode")
-          QRCode.toDataURL(`lightning:${bolt11Invoice}`, function (error, url) {
-            if (error) {
-              setError("Failed to generate QR code")
-              console.error("Error generating QR code:", error)
-            } else {
-              setQrCodeUrl(url)
-            }
-          })
-        } catch (error) {
-          setError("Failed to generate QR code")
-          console.error("Error importing QRCode:", error)
-        }
-      }
-      generateQRCode()
-    }
-  }, [showQRCode, bolt11Invoice])
+    // QR code generation disabled - zap functionality not available
+    // if (showQRCode && bolt11Invoice) {
+    //   const generateQRCode = async () => {
+    //     try {
+    //       const QRCode = await import("qrcode")
+    //       QRCode.toDataURL(`lightning:${bolt11Invoice}`, function (error, url) {
+    //         if (error) {
+    //           setError("Failed to generate QR code")
+    //           console.error("Error generating QR code:", error)
+    //         } else {
+    //           setQrCodeUrl(url)
+    //         }
+    //       })
+    //     } catch (error) {
+    //       setError("Failed to generate QR code")
+    //       console.error("Error importing QRCode:", error)
+    //     }
+    //   }
+    //   generateQRCode()
+    // }
+  }, []) // showQRCode, bolt11Invoice disabled
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -245,15 +254,15 @@ function ZapModal({onClose, event, setZapped}: ZapModalProps) {
           ))}
         </div>
 
-        {showQRCode ? (
+        {false ? ( // showQRCode disabled
           <div className="flex flex-col items-center gap-4">
             <p>
               Scan the QR code to zap <b>{zapAmount} sats</b>
             </p>
             <div className="w-40 h-40">
-              {qrCodeUrl && <img id="qr-image" className="w-40 h-40" src={qrCodeUrl} />}
+              {false && <img id="qr-image" className="w-40 h-40" src="" />}
             </div>
-            <a href={`lightning:${bolt11Invoice}`} className="btn btn-primary w-full">
+            <a href={`lightning:undefined`} className="btn btn-primary w-full">
               Open in Wallet
             </a>
             <button

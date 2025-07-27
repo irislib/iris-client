@@ -2,7 +2,7 @@ import {getMarketImageUrls} from "@/shared/utils/marketUtils"
 import {useState, MouseEvent, useEffect} from "react"
 import {useSettingsStore} from "@/stores/settings"
 import MediaModal from "../../media/MediaModal"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import ProxyImg from "../../ProxyImg"
 import classNames from "classnames"
 import {EmbedEvent} from "../index"
@@ -13,8 +13,8 @@ interface SmallImageComponentProps {
   size?: number
 }
 
-function isNDKEvent(event: EmbedEvent): event is NDKEvent {
-  return event && typeof (event as NDKEvent).rawEvent !== "undefined"
+function isNostrEvent(event: EmbedEvent): event is NostrEvent {
+  return event && typeof event === "object" && "pubkey" in event
 }
 
 function SmallImageComponent({match, event, size = 80}: SmallImageComponentProps) {
@@ -42,7 +42,7 @@ function SmallImageComponent({match, event, size = 80}: SmallImageComponentProps
   const urls = match.trim().split(/\s+/)
 
   // Get all image URLs from tags if it's a market listing
-  const allImageUrls = event && isNDKEvent(event) ? getMarketImageUrls(event) : urls
+  const allImageUrls = event && isNostrEvent(event) ? getMarketImageUrls(event) : urls
 
   const handlePrev = () => {
     setCurrentImageIndex((prev) => (prev - 1 + allImageUrls.length) % allImageUrls.length)

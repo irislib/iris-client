@@ -1,7 +1,7 @@
 import {CHANNEL_MESSAGE} from "@/pages/chats/utils/constants"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import {useUserStore} from "../stores/user"
-import {ndk} from "@/utils/ndk"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 export const migrateUserState = () => {
   const migrateFromLocalStorage = <T>(key: string, defaultValue: T): T => {
@@ -46,16 +46,44 @@ export const migratePublicChats = async () => {
   const myPubKey = useUserStore.getState().publicKey
   const channelIds = new Set<string>([DEFAULT_PUBLIC_CHAT_ID])
 
-  const events = await ndk()
-    .fetchEvents({
-      kinds: [CHANNEL_MESSAGE],
-      authors: [myPubKey],
-      limit: 100,
-    })
-    .catch(console.error)
+  // Fetch events using applesauce
+  const events: any[] = []
+  const pool = getPool()
+  const subscription = pool.subscription(DEFAULT_RELAYS, {
+    kinds: [CHANNEL_MESSAGE],
+    authors: [myPubKey!],
+    limit: 100,
+  })
 
-  events?.forEach((event) => {
-    const channelIdTag = event.tags.find((tag) => tag[0] === "e" && tag[3] === "root")
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        resolve()
+      }, 10000) // 10 second timeout
+
+      subscription.subscribe({
+        next: (event) => {
+          if (typeof event !== "string") {
+            events.push(event)
+          } else if (event === "EOSE") {
+            clearTimeout(timeout)
+            resolve()
+          }
+        },
+        error: (error) => {
+          clearTimeout(timeout)
+          reject(error)
+        },
+      })
+    })
+  } catch (error) {
+    console.error("Migration fetch error:", error)
+  }
+
+  events.forEach((event) => {
+    const channelIdTag = event.tags.find(
+      (tag: string[]) => tag[0] === "e" && tag[3] === "root"
+    )
     if (channelIdTag && channelIdTag[1]) {
       channelIds.add(channelIdTag[1])
     }

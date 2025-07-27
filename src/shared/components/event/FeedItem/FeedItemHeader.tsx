@@ -8,11 +8,12 @@ import RelativeTime from "@/shared/components/event/RelativeTime.tsx"
 import FeedItemDropdown from "../reactions/FeedItemDropdown.tsx"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {EVENT_AVATAR_WIDTH} from "../../user/const.ts"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+import {getTagValue} from "@/utils/nostr"
 
 type FeedItemHeaderProps = {
-  event: NDKEvent
-  referredEvent?: NDKEvent
+  event: NostrEvent
+  referredEvent?: NostrEvent
   tight?: boolean
 }
 
@@ -25,9 +26,9 @@ function FeedItemHeader({event, referredEvent, tight}: FeedItemHeaderProps) {
 
   // handle long-form published timestamp
   useEffect(() => {
-    const getPublishedAt = (eventData: NDKEvent) => {
+    const getPublishedAt = (eventData: NostrEvent) => {
       if (eventData && eventData.kind === 30023) {
-        const published = eventData.tagValue("published_at")
+        const published = getTagValue(eventData, "published_at")
         if (published) {
           try {
             return Number(published)
@@ -76,8 +77,8 @@ function FeedItemHeader({event, referredEvent, tight}: FeedItemHeaderProps) {
           avatarWidth={EVENT_AVATAR_WIDTH}
           showHoverCard={true}
           pubKey={
-            (event.kind === 9735 && event.tagValue("P")
-              ? event.tagValue("P")
+            (event.kind === 9735 && getTagValue(event, "P")
+              ? getTagValue(event, "P")
               : referredEvent?.pubkey) || event.pubkey
           }
         />

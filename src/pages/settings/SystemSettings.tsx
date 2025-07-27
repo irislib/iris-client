@@ -38,8 +38,8 @@ export default function SystemSettings() {
         performance.memory
       ) {
         setMemoryUsage({
-          used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
-          total: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024),
+          used: Math.round((performance as any).memory?.usedJSHeapSize / 1024 / 1024),
+          total: Math.round((performance as any).memory?.jsHeapSizeLimit / 1024 / 1024),
         })
       }
     }

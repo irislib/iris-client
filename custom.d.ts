@@ -1,25 +1,39 @@
 /// <reference types="vite/client" />
 
+// Add any custom type declarations here
+
+// Nostr extension types
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>
+      signEvent(event: any): Promise<any>
+      nip04?: {
+        encrypt(pubkey: string, plaintext: string): Promise<string>
+        decrypt(pubkey: string, ciphertext: string): Promise<string>
+      }
+      nip44?: {
+        encrypt(pubkey: string, plaintext: string): Promise<string>
+        decrypt(pubkey: string, ciphertext: string): Promise<string>
+      }
+    }
+  }
+}
+
+export {}
+
+// Add missing module declarations
+declare module "tseep" {
+  export class EventEmitter {
+    emit(event: string, ...args: any[]): boolean
+    on(event: string, listener: (...args: any[]) => void): this
+    off(event: string, listener: (...args: any[]) => void): this
+  }
+}
+
 declare const CONFIG: {
   appName: string
-  appNameCapitalized: string
-  appTitle: string
-  hostname: string
-  nip05Domain: string
-  icon: string
-  navLogo: string
-  defaultTheme: string
-  navItems: string[]
-  aboutText: string
-  repository: string
-  features: {
-    analytics: boolean
-    showSubscriptionSettings: boolean
-  }
-  defaultSettings: {
-    notificationServer: string
-    irisApiUrl: string
-  }
+  [key: string]: any
 }
 
 interface Performance {

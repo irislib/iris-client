@@ -1,11 +1,11 @@
-import {getTag, NDKEventFromRawEvent} from "@/utils/nostr.ts"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
-import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {getTag, NostrEventFromRawEvent} from "@/utils/nostr.ts"
+import {NostrEvent, nip19} from "nostr-tools"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
+// TODO: This function needs to be properly converted from NDK to applesauce
 export const handleEventContent = (
-  event: NDKEvent,
-  setReferredEvent: (event: NDKEvent) => void
+  event: any,
+  setReferredEvent: (event: any) => void
 ): (() => void) | undefined => {
   try {
     if (event.kind === 6 || event.kind === 7) {
@@ -16,26 +16,28 @@ export const handleEventContent = (
         // ignore
       }
       if (originalEvent && originalEvent?.id) {
-        const ndkEvent = NDKEventFromRawEvent(originalEvent)
+        const ndkEvent = NostrEventFromRawEvent(originalEvent)
         setReferredEvent(ndkEvent)
         return undefined // No cleanup needed
       } else {
         const eTag = getTag("e", event.tags)
         if (eTag) {
-          const sub = ndk().subscribe({ids: [eTag]}, {closeOnEose: true})
-          
-          sub.on("event", (fetchedEvent: NDKEvent) => {
-            if (fetchedEvent && fetchedEvent.id) {
-              setReferredEvent(fetchedEvent)
-            }
+          const pool = getPool()
+          const subscription = pool.subscription(DEFAULT_RELAYS, {ids: [eTag]})
+
+          subscription.subscribe({
+            next: (fetchedEvent) => {
+              if (typeof fetchedEvent !== "string" && fetchedEvent && fetchedEvent.id) {
+                setReferredEvent(fetchedEvent)
+              }
+            },
+            error: (error) => {
+              console.error("Subscription error:", error)
+            },
           })
 
           return () => {
-            sub.stop()
-            // Force cleanup by removing from subscription manager (NDK bug workaround)
-            if (sub.ndk?.subManager) {
-              sub.ndk.subManager.subscriptions.delete(sub.internalId)
-            }
+            // RxJS subscriptions auto-cleanup
           }
         }
       }
@@ -43,10 +45,10 @@ export const handleEventContent = (
   } catch (error) {
     console.warn(error)
   }
-  
+
   return undefined
 }
-export const getEventIdHex = (event?: NDKEvent, eventId?: string) => {
+export const getEventIdHex = (event?: NostrEvent, eventId?: string) => {
   if (event?.id) {
     return event.id
   }

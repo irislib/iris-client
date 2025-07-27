@@ -1,11 +1,13 @@
-import {Hexpubkey, NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+
+type Hexpubkey = string
 import {useState} from "react"
 
 import ReportReasonForm from "./ReportReasonForm.tsx"
 
 interface MuteUserProps {
   user: Hexpubkey
-  event?: NDKEvent
+  event?: NostrEvent
 }
 
 function ReportUser({user, event}: MuteUserProps) {

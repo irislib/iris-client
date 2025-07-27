@@ -1,8 +1,8 @@
 import {useNavigate} from "react-router"
 import {useEffect, useState, useMemo, memo, MutableRefObject, useRef} from "react"
-import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
+import {NostrEvent, nip19} from "nostr-tools"
+import {Subscription} from "rxjs"
 import {decode} from "blurhash"
-import {nip19} from "nostr-tools"
 
 import {eventsByIdCache} from "@/utils/memcache.ts"
 import {IMAGE_REGEX, VIDEO_REGEX} from "@/shared/components/embed/media/MediaEmbed.tsx"
@@ -12,13 +12,13 @@ import {isMarketListing} from "@/shared/utils/marketUtils.ts"
 import ProxyImg from "../ProxyImg"
 import Icon from "../Icons/Icon"
 import {LRUCache} from "typescript-lru-cache"
-import {ndk} from "@/utils/ndk"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 interface ImageGridItemProps {
-  event: NDKEvent | {id: string}
+  event: NostrEvent | {id: string}
   index: number
-  setActiveItemIndex: (event: NDKEvent, url: string) => void
-  onEventFetched?: (event: NDKEvent) => void
+  setActiveItemIndex: (event: NostrEvent, url: string) => void
+  onEventFetched?: (event: NostrEvent) => void
   lastElementRef?: MutableRefObject<HTMLDivElement>
 }
 
@@ -70,11 +70,11 @@ const ImageGridItem = memo(function ImageGridItem({
   const navigate = useNavigate()
   const [loadErrors, setLoadErrors] = useState<Record<number, boolean>>({})
   const [proxyFailed, setProxyFailed] = useState<Record<number, boolean>>({})
-  const [event, setEvent] = useState<NDKEvent | undefined>(
+  const [event, setEvent] = useState<NostrEvent | undefined>(
     "content" in initialEvent ? initialEvent : undefined
   )
   const {content, imgproxy} = useSettingsStore()
-  const subscriptionRef = useRef<NDKSubscription | null>(null)
+  const subscriptionRef = useRef<Subscription | null>(null)
 
   const eventIdHex = useMemo(() => {
     return "content" in initialEvent ? initialEvent.id : initialEvent.id
@@ -83,11 +83,7 @@ const ImageGridItem = memo(function ImageGridItem({
   useEffect(() => {
     // Clean up any existing subscription first
     if (subscriptionRef.current) {
-      subscriptionRef.current.stop()
-      // Force cleanup by removing from subscription manager (NDK bug workaround)
-      if (subscriptionRef.current.ndk?.subManager) {
-        subscriptionRef.current.ndk.subManager.subscriptions.delete(subscriptionRef.current.internalId)
-      }
+      subscriptionRef.current.unsubscribe()
       subscriptionRef.current = null
     }
 
@@ -102,26 +98,29 @@ const ImageGridItem = memo(function ImageGridItem({
         setEvent(cached)
         onEventFetched?.(cached)
       } else {
-        const sub = ndk().subscribe({ids: [eventIdHex]}, {closeOnEose: true})
-        subscriptionRef.current = sub
+        const pool = getPool()
+        const poolSubscription = pool.subscription(DEFAULT_RELAYS, {ids: [eventIdHex]})
 
-        sub.on("event", (fetchedEvent: NDKEvent) => {
-          if (fetchedEvent && fetchedEvent.id) {
-            setEvent(fetchedEvent)
-            eventsByIdCache.set(eventIdHex, fetchedEvent)
-            onEventFetched?.(fetchedEvent)
-          }
+        const subscription = poolSubscription.subscribe({
+          next: (fetchedEvent) => {
+            if (typeof fetchedEvent !== "string" && fetchedEvent && fetchedEvent.id) {
+              setEvent(fetchedEvent)
+              eventsByIdCache.set(eventIdHex, fetchedEvent)
+              onEventFetched?.(fetchedEvent)
+            }
+          },
+          error: (error) => {
+            console.error("Event fetch error:", error)
+          },
         })
+
+        subscriptionRef.current = subscription
       }
     }
 
     return () => {
       if (subscriptionRef.current) {
-        subscriptionRef.current.stop()
-        // Force cleanup by removing from subscription manager (NDK bug workaround)
-        if (subscriptionRef.current.ndk?.subManager) {
-          subscriptionRef.current.ndk.subManager.subscriptions.delete(subscriptionRef.current.internalId)
-        }
+        subscriptionRef.current.unsubscribe()
         subscriptionRef.current = null
       }
     }

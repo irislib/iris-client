@@ -1,10 +1,9 @@
 import {RiVerifiedBadgeLine, RiErrorWarningLine} from "@remixicon/react"
 import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
 import {Navigate} from "@/shared/components/Navigate"
 
 interface ProfileNameProps {
-  profile?: NDKUserProfile
+  profile?: any
   pubkey: string
 }
 

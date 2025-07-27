@@ -4,9 +4,9 @@ import {
 } from "@/shared/components/embed/media/mediaUtils"
 import type {EncryptionMeta} from "@/types/global"
 import {bytesToHex} from "@noble/hashes/utils"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {EventTemplate} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {getCurrentSigner} from "@/utils/applesauce"
 
 type MediaServerProtocol = "blossom" | "nip96"
 
@@ -56,7 +56,7 @@ async function uploadToBlossom(
 
   // Create a Nostr event for authentication
   const currentTime = Math.floor(Date.now() / 1000)
-  const event = new NDKEvent(ndk(), {
+  const template: EventTemplate = {
     kind: 24242, // Blossom authorization event
     tags: [
       ["t", "upload"],
@@ -65,9 +65,14 @@ async function uploadToBlossom(
     ],
     content: file.name,
     created_at: currentTime,
-  })
-  await event.sign()
-  const nostrEvent = await event.toNostrEvent()
+  }
+
+  const signer = getCurrentSigner()
+  if (!signer) {
+    throw new Error("No signer available for file upload authentication")
+  }
+
+  const nostrEvent = await signer.signEvent(template)
 
   // Encode the event for the Authorization header
   const encodedEvent = btoa(JSON.stringify(nostrEvent))
@@ -129,7 +134,7 @@ async function uploadToNip96(
 
   // Create a NIP-98 event for authentication
   const currentTime = Math.floor(Date.now() / 1000)
-  const event = new NDKEvent(ndk(), {
+  const template: EventTemplate = {
     kind: 27235, // NIP-98 HTTP authentication
     tags: [
       ["u", url],
@@ -137,9 +142,14 @@ async function uploadToNip96(
     ],
     content: "",
     created_at: currentTime,
-  })
-  await event.sign()
-  const nostrEvent = await event.toNostrEvent()
+  }
+
+  const signer = getCurrentSigner()
+  if (!signer) {
+    throw new Error("No signer available for file upload authentication")
+  }
+
+  const nostrEvent = await signer.signEvent(template)
   const encodedEvent = btoa(JSON.stringify(nostrEvent))
   const headers = {
     accept: "application/json",

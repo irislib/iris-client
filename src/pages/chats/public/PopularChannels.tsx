@@ -2,7 +2,6 @@ import PopularChannelItem from "./PopularChannelItem"
 import {CHANNEL_MESSAGE} from "../utils/constants"
 import socialGraph from "@/utils/socialGraph"
 import {useState, useEffect} from "react"
-import {ndk} from "@/utils/ndk"
 
 type PopularChannel = {
   id: string
@@ -38,19 +37,20 @@ const PopularChannels = ({publicKey}: PopularChannelsProps) => {
 
       // Fetch channel messages from followed users
       console.log("Fetching channel messages from followed users")
-      const channelMessages = await ndk().fetchEvents({
+      // Use applesauce fetchEvents for this logic
+      const {fetchEvents} = await import("@/utils/applesauce")
+      const channelMessages = await fetchEvents({
         kinds: [CHANNEL_MESSAGE],
         authors: Array.from(followedUsers),
-        limit: 200,
       })
-      console.log("Channel messages count:", channelMessages.size)
+      console.log("Channel messages count:", channelMessages.length)
 
       // Process messages to identify channels and count unique authors
       const channelMap = new Map<string, {authors: Set<string>}>()
 
       for (const event of Array.from(channelMessages)) {
         // Extract channel ID from the 'e' tag
-        const channelIdTag = event.tags.find((tag) => tag[0] === "e")
+        const channelIdTag = event.tags.find((tag: any) => tag[0] === "e")
         if (!channelIdTag) continue
 
         const channelId = channelIdTag[1]

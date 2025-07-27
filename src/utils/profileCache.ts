@@ -1,4 +1,4 @@
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
+// import {getProfileContent} from "applesauce-core/helpers" // unused
 import {LRUCache} from "typescript-lru-cache"
 import throttle from "lodash/throttle"
 import localforage from "localforage"
@@ -7,7 +7,7 @@ import localforage from "localforage"
 const PROFILE_NAME_MAX_LENGTH = 50
 const PROFILE_PICTURE_URL_MAX_LENGTH = 500
 
-export const profileCache = new LRUCache<string, NDKUserProfile>({maxSize: 100000})
+export const profileCache = new LRUCache<string, any>({maxSize: 100000})
 
 // Helper functions for profile data sanitization
 const shouldRejectNip05 = (nip05: string, name: string): boolean => {
@@ -37,10 +37,10 @@ const sanitizePicture = (picture: string): string | undefined => {
   return picture.trim().replace(/^https:\/\//, "")
 }
 
-// Convert condensed array to NDKUserProfile
-const arrayToProfile = (item: string[]): NDKUserProfile => {
+// Convert condensed array to any
+const arrayToProfile = (item: string[]): any => {
   const [, name, nip05, picture] = item
-  const profile: NDKUserProfile = {}
+  const profile: any = {}
 
   if (name) {
     profile.name = name
@@ -56,8 +56,8 @@ const arrayToProfile = (item: string[]): NDKUserProfile => {
   return profile
 }
 
-// Convert NDKUserProfile to condensed array format
-const profileToArray = (pubkey: string, profile: NDKUserProfile): string[] => {
+// Convert any to condensed array format
+const profileToArray = (pubkey: string, profile: any): string[] => {
   const name = sanitizeName((profile.name || profile.username || "").toString())
   if (!name) return [] // Skip profiles without names
 
@@ -118,7 +118,7 @@ export const loadProfileCache = (): Promise<void> => {
           firstItem.length === 2 &&
           typeof firstItem[1] === "object"
         ) {
-          // Old format: [string, NDKUserProfile][] - delete it
+          // Old format: [string, any][] - delete it
           console.log("Found old format profile cache, deleting...")
           await localforage.removeItem("profileCache")
         }
@@ -147,7 +147,7 @@ export const loadProfileCache = (): Promise<void> => {
     })
 }
 
-export const addCachedProfile = (pubkey: string, profile: NDKUserProfile) => {
+export const addCachedProfile = (pubkey: string, profile: any) => {
   // Only cache profiles with names
   const name = sanitizeName(
     (profile.name || profile.display_name || profile.username || "").toString()

@@ -58,7 +58,7 @@ interface SubscriptionData {
 }
 
 const DebugApp = () => {
-  const [session, setSession] = useState<DebugSession | null>(null)
+  const [session, setSession] = useState<any | null>(null)
   const [sessionLink, setSessionLink] = useState<string>("")
   const [testValue, setTestValue] = useState<string>("")
   const [isConnected, setIsConnected] = useState<boolean>(false)
@@ -112,20 +112,23 @@ const DebugApp = () => {
     setSessionLink(linkWithKey)
 
     // Subscribe to test value changes
-    const unsubscribeTest = debugSession.subscribe("testInput", (value) => {
+    const unsubscribeTest = debugSession.subscribe("testInput", (value: any) => {
       if (typeof value === "string") {
         setTestValue(value)
       }
     })
 
     // Subscribe to subscriptions data
-    const unsubscribeSubscriptions = debugSession.subscribe("subscriptions", (value) => {
-      setSubscriptions(value as Record<string, SubscriptionData>)
-    })
+    const unsubscribeSubscriptions = debugSession.subscribe(
+      "subscriptions",
+      (value: any) => {
+        setSubscriptions(value as Record<string, SubscriptionData>)
+      }
+    )
 
     // Subscribe to heartbeat data to check if Iris browser is online
-    const unsubscribeData = debugSession.subscribe("data", (value, event) => {
-      const eventTime = event.created_at // Event timestamp in seconds
+    const unsubscribeData = debugSession.subscribe("data", (value: any, event: any) => {
+      const eventTime = event?.created_at // Event timestamp in seconds
       if (eventTime) {
         lastHeartbeatTime.current = eventTime // Store in seconds
         const now = Math.floor(Date.now() / 1000) // Current time in seconds
@@ -157,7 +160,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed debug data
     const unsubscribeMediaFeedDebug = debugSession.subscribe(
       "mediaFeed_debug",
-      (value) => {
+      (value: any) => {
         setMediaFeedDebug(value as MediaFeedDebug)
       }
     )
@@ -165,7 +168,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed performance data
     const unsubscribeMediaFeedPerformance = debugSession.subscribe(
       "mediaFeed_performance",
-      (value) => {
+      (value: any) => {
         setMediaFeedPerformance((prev) => {
           const newEntry = value as MediaFeedPerformance
           // Keep only last 20 performance entries to avoid memory buildup
@@ -178,7 +181,7 @@ const DebugApp = () => {
     // Subscribe to MediaFeed memory data
     const unsubscribeMediaFeedMemory = debugSession.subscribe(
       "mediaFeed_memory",
-      (value) => {
+      (value: any) => {
         setMediaFeedMemory((prev) => {
           const newEntry = value as MediaFeedMemory
           // Keep only last 20 memory entries to avoid memory buildup
@@ -190,7 +193,7 @@ const DebugApp = () => {
 
     // Monitor connection status periodically
     const checkConnection = () => {
-      setIsConnected(debugSession.isConnectedToRelay(TEMP_IRIS_RELAY))
+      setIsConnected(debugSession.isConnectedToRelay())
     }
 
     // Check heartbeat freshness periodically

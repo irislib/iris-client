@@ -3,6 +3,7 @@ import React, {FormEvent, useState} from "react"
 import {useUserStore} from "@/stores/user"
 import AccountName from "./AccountName"
 import {Link} from "react-router"
+import {CONFIG} from "@/utils/config"
 
 interface RegisterFormProps {
   minLength: number
@@ -54,7 +55,7 @@ function RegisterForm({minLength, subscriptionPlan, onRegister}: RegisterFormPro
 
     try {
       console.log(`Checking availability for: ${name}`)
-      const url = `${CONFIG.defaultSettings.irisApiUrl}/user/available?name=${encodeURIComponent(name)}&public_key=${pubKey}`
+      const url = `${CONFIG.defaultSettings?.irisApiUrl || "https://api.iris.to"}/user/available?name=${encodeURIComponent(name)}&public_key=${pubKey}`
 
       const response = await fetch(url)
       const text = await response.text()

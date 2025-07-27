@@ -1,9 +1,9 @@
 import {AvatarGroup} from "@/shared/components/user/AvatarGroup.tsx"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {RefObject} from "react"
 
 interface NewEventsButtonProps {
-  newEventsFiltered: NDKEvent[]
+  newEventsFiltered: NostrEvent[]
   newEventsFrom: Set<string>
   showNewEvents: () => void
   firstFeedItemRef: RefObject<HTMLDivElement | null>

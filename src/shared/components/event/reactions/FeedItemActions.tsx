@@ -1,4 +1,4 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 
 import FeedItemComment from "./FeedItemComment.tsx"
 import FeedItemRepost from "./FeedItemRepost.tsx"
@@ -9,7 +9,7 @@ import {RefObject} from "react"
 import {useSettingsStore} from "@/stores/settings"
 
 type FeedItemActionsProps = {
-  event: NDKEvent
+  event: NostrEvent
   feedItemRef: RefObject<HTMLDivElement | null>
 }
 

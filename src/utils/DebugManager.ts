@@ -1,6 +1,6 @@
 import {DebugSession} from "@/debug/DebugSession"
 import {useSettingsStore} from "@/stores/settings"
-import {ndk} from "./ndk"
+import {DEFAULT_RELAYS} from "./applesauce"
 
 class DebugManager {
   private static instance: DebugManager
@@ -68,48 +68,17 @@ class DebugManager {
           "memory" in performance &&
           performance.memory
         ) {
+          const memory = performance.memory as any
           memoryUsage = {
-            used: Math.round(performance.memory.usedJSHeapSize / 1024 / 1024),
-            total: Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024),
+            used: Math.round(memory.usedJSHeapSize / 1024 / 1024),
+            total: Math.round(memory.jsHeapSizeLimit / 1024 / 1024),
           }
         }
 
-        // Get NDK subscription manager info
-        const ndkInstance = ndk()
-        const subManager = ndkInstance.subManager
-
-        // Prepare compact subscription data for debug session
-        const subscriptionsData: Record<string, {filters: unknown[]; relays: string[]}> =
-          {}
-        subManager.subscriptions.forEach((subscription, id) => {
-          // Process filters to make them more compact
-          const compactFilters = subscription.filters.map((filter: unknown) => {
-            const compactFilter = {...(filter as Record<string, unknown>)}
-            // Replace large authors arrays with count
-            if (
-              compactFilter.authors &&
-              Array.isArray(compactFilter.authors) &&
-              compactFilter.authors.length > 10
-            ) {
-              compactFilter.authors = `[${compactFilter.authors.length} authors]`
-            }
-            return compactFilter
-          })
-
-          subscriptionsData[id] = {
-            filters: compactFilters,
-            relays: Array.from(subscription.relayFilters?.keys() || []),
-          }
-        })
-
-        const ndkInfo = {
-          subscriptionsCount: subManager.subscriptions.size,
-          seenEventsCount: subManager.seenEvents.size,
-          subscriptionIds: Array.from(subManager.subscriptions.keys()),
-          relayCount: ndkInstance.pool.relays.size,
-          connectedRelays: Array.from(ndkInstance.pool.relays.entries())
-            .filter(([, relay]) => relay.connected)
-            .map(([url]) => url),
+        // Get pool info
+        const poolInfo = {
+          relayCount: DEFAULT_RELAYS.length,
+          connectedRelays: DEFAULT_RELAYS,
         }
 
         const heartbeatData = {
@@ -121,17 +90,11 @@ class DebugManager {
             buildTime: import.meta.env.VITE_BUILD_TIME || "development",
             memoryUsage,
           },
-          ndkInfo,
+          poolInfo,
         }
         this.debugSession.publish("data", heartbeatData)
 
-        // Send subscription data separately to avoid size limits
-        console.log(
-          "📊 Sending subscription data:",
-          Object.keys(subscriptionsData).length,
-          "subscriptions"
-        )
-        this.debugSession.publish("subscriptions", subscriptionsData)
+        // Note: Subscription tracking not implemented for Applesauce yet
       }
     }
 

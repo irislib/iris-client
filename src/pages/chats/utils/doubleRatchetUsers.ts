@@ -1,13 +1,13 @@
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
+// import {getProfileContent} from "applesauce-core/helpers" // unused
 import {profileCache, addCachedProfile} from "@/utils/profileCache"
 import {handleProfile} from "@/utils/profileSearch"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 import debounce from "lodash/debounce"
 import Fuse from "fuse.js"
 
 export interface DoubleRatchetUser {
   pubkey: string
-  profile: NDKUserProfile
+  profile: any
 }
 
 // Fuse.js search index
@@ -70,7 +70,7 @@ const updateDoubleRatchetSearchIndexImmediate = () => {
 
   if (usersWithoutProfiles.length > 0) {
     console.log("Fetching profiles for", usersWithoutProfiles.length, "users")
-    const sub = ndk().subscribe(
+    const sub = subscribe(
       {kinds: [0], authors: usersWithoutProfiles},
       {closeOnEose: true}
     )

@@ -67,7 +67,9 @@ export const AboutPage = () => {
           <div className="flex flex-1 mx-4 my-4 lg:mx-8">
             <div className="prose max-w-prose">
               <h1>About</h1>
-              <p>{CONFIG.aboutText}</p>
+              <p>
+                Iris is a social networking app built on Nostr, a decentralized protocol.
+              </p>
               <p>
                 <a
                   href="https://soapbox.pub/blog/nostr101/"
@@ -88,7 +90,10 @@ export const AboutPage = () => {
                 </Link>
               </p>
               <p>
-                <a href={CONFIG.repository} className="flex items-center gap-1">
+                <a
+                  href="https://github.com/irislib/iris-client"
+                  className="flex items-center gap-1"
+                >
                   <RiGithubLine className="inline" /> Source code
                 </a>
               </p>

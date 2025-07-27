@@ -2,8 +2,8 @@ import {useEffect, useState, useCallback} from "react"
 import {useUserStore} from "@/stores/user"
 import {useSessionsStore} from "@/stores/sessions"
 import socialGraph from "@/utils/socialGraph"
-import {ndk} from "@/utils/ndk"
-import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
+import {subscribe} from "@/utils/applesauce"
+import {NostrEvent} from "nostr-tools"
 import {
   subscribeToDoubleRatchetUsersChanges,
   searchDoubleRatchetUsers,
@@ -24,7 +24,7 @@ export const useDoubleRatchetUsers = () => {
   useEffect(() => {
     if (!myPubKey) return
 
-    let currentSub: NDKSubscription | null = null
+    let currentSub: any | null = null
     let sessionsUnsubscribe: (() => void) | null = null
     let pollInterval: NodeJS.Timeout | null = null
     let socialGraphSize = 0
@@ -47,7 +47,7 @@ export const useDoubleRatchetUsers = () => {
     }
 
     // Handle incoming events
-    const handleEvent = (event: NDKEvent) => {
+    const handleEvent = (event: NostrEvent) => {
       console.log("Received event", event)
       if (event.kind !== 30078) {
         return
@@ -69,7 +69,7 @@ export const useDoubleRatchetUsers = () => {
       authors.push(myPubKey)
       socialGraphSize = authors.length - 1 // excluding myPubKey
 
-      currentSub = ndk().subscribe({
+      currentSub = subscribe({
         kinds: [30078],
         authors,
         "#l": ["double-ratchet/invites"],

@@ -1,10 +1,9 @@
 import {ChangeEvent, KeyboardEvent, useEffect, useRef, useState} from "react"
-import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
-import {NDKEvent, NDKPrivateKeySigner} from "@nostr-dev-kit/ndk"
+import {generateSecretKey, getPublicKey, nip19, EventTemplate} from "nostr-tools"
 import {bytesToHex} from "@noble/hashes/utils"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
-import {ndk} from "@/utils/ndk"
+import {publishEvent} from "@/utils/applesauce"
 
 const NSEC_NPUB_REGEX = /(nsec1|npub1)[a-zA-Z0-9]{20,65}/gi
 
@@ -42,8 +41,7 @@ export default function SignUp({onClose}: SignUpProps) {
     }
   }
 
-  function handleSubmit(ctrlPressed = false) {
-    ndk()
+  async function handleSubmit(ctrlPressed = false) {
     const sk = generateSecretKey()
     const pk = getPublicKey(sk)
     const npub = nip19.npubEncode(pk)
@@ -60,21 +58,28 @@ export default function SignUp({onClose}: SignUpProps) {
     // Keep these for backward compatibility
     localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
     localStorage.setItem("cashu.ndk.pubkey", pk)
-    const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
-    ndk().signer = privateKeySigner
 
+    // Note: watchUserSettings() will automatically update the signer when privateKey changes
+
+    // Close dialog immediately after setting up the user
+    setShowLoginDialog(false)
+
+    // Publish profile in background (non-blocking)
     const incognito = ctrlPressed && newUserName.trim() === ""
     if (!incognito) {
-      const profileEvent = new NDKEvent(ndk())
-      profileEvent.kind = 0
-      profileEvent.content = JSON.stringify({
-        display_name: newUserName.trim(),
-        lud16: `${npub}@npub.cash`,
-      })
-      profileEvent.publish()
+      const template: EventTemplate = {
+        kind: 0,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: JSON.stringify({
+          display_name: newUserName.trim(),
+          lud16: `${npub}@npub.cash`,
+        }),
+      }
+      publishEvent(template)
+        .then(() => console.log("Profile published successfully for new user"))
+        .catch((error) => console.error("Failed to publish profile event:", error))
     }
-
-    setShowLoginDialog(false)
   }
 
   return (

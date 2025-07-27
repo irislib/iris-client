@@ -1,11 +1,11 @@
-import {NDKEvent, NDKTag} from "@nostr-dev-kit/ndk"
+import {EventTemplate} from "nostr-tools"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 
 import {unmuteUser} from "@/shared/services/Mute"
 import socialGraph from "@/utils/socialGraph.ts"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {publishEvent} from "@/utils/applesauce"
 
 export function FollowButton({pubKey, small = true}: {pubKey: string; small?: boolean}) {
   const myPubKey = useUserStore((state) => state.publicKey)
@@ -55,8 +55,6 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
 
     setLocalIsFollowing(!localIsFollowing)
 
-    const event = new NDKEvent(ndk())
-    event.kind = 3
     const followedUsers = socialGraph().getFollowedByUser(myPubKey)
 
     if (isFollowing) {
@@ -68,8 +66,14 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
       }
     }
 
-    event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as NDKTag[]
-    event.publish().catch((e) => console.warn("Error publishing follow event:", e))
+    const template: EventTemplate = {
+      kind: 3,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: Array.from(followedUsers).map((pubKey) => ["p", pubKey]),
+      content: "",
+    }
+
+    publishEvent(template).catch((e) => console.warn("Error publishing follow event:", e))
 
     setTimeout(() => {
       setUpdated((updated) => updated + 1)

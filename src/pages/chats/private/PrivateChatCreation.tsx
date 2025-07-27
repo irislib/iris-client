@@ -1,10 +1,10 @@
 import {useEffect, useRef} from "react"
 import {useNavigate} from "react-router"
 import {VerifiedEvent} from "nostr-tools"
-import {NDKSubscription} from "@nostr-dev-kit/ndk"
+// Subscription pattern will be replaced with applesauce models
 import {useSessionsStore} from "@/stores/sessions"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 import {Invite} from "nostr-double-ratchet/src"
 import DoubleRatchetInfo from "../group/components/DoubleRatchetInfo"
 import {DoubleRatchetUserSearch} from "../components/DoubleRatchetUserSearch"
@@ -13,13 +13,13 @@ import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
 const PrivateChatCreation = () => {
   const navigate = useNavigate()
   const myPubKey = useUserStore((state) => state.publicKey)
-  const subRef = useRef<NDKSubscription | null>(null)
+  const subRef = useRef<any | null>(null)
 
   const handleStartChat = async (user: DoubleRatchetUser) => {
     if (!myPubKey) return
     // Subscribe function as in ProfileHeader
     subRef.current?.stop()
-    const sub = ndk().subscribe({
+    const sub = subscribe({
       kinds: [30078],
       authors: [user.pubkey],
       "#l": ["double-ratchet/invites"],

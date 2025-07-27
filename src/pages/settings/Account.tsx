@@ -3,22 +3,11 @@ import {useUserStore} from "@/stores/user"
 import {MouseEvent, useState} from "react"
 import {useNavigate} from "react-router"
 import localforage from "localforage"
-import {ndk} from "@/utils/ndk"
 
 function Account() {
   const store = useUserStore()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const navigate = useNavigate()
-
-  async function cleanupNDK() {
-    const ndkInstance = ndk()
-    ndkInstance.signer = undefined
-    ndkInstance.activeUser = undefined
-    ndkInstance.pool.relays.forEach((relay) => {
-      relay.disconnect()
-    })
-    ndkInstance.pool.relays.clear()
-  }
 
   async function cleanupStorage() {
     try {
@@ -61,7 +50,7 @@ function Account() {
           console.error("Error unsubscribing from push notifications:", e)
         }
 
-        await cleanupNDK()
+        // applesauce: cleanup handled elsewhere if needed
         const {reset} = useUserStore.getState()
         reset()
       } catch (e) {

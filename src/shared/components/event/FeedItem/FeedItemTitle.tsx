@@ -1,10 +1,10 @@
 import useProfile from "@/shared/hooks/useProfile.ts"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {Helmet} from "react-helmet"
 import {useMemo} from "react"
 
 type FeedItemTitleProps = {
-  event?: NDKEvent
+  event?: NostrEvent
 }
 
 const FeedItemTitle = ({event}: FeedItemTitleProps) => {

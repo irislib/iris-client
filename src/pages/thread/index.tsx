@@ -7,11 +7,10 @@ import {Name} from "@/shared/components/user/Name"
 import Widget from "@/shared/components/ui/Widget"
 import {useSettingsStore} from "@/stores/settings"
 import socialGraph from "@/utils/socialGraph"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useState, useEffect} from "react"
 import {getTags} from "@/utils/nostr"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
 
 export default function ThreadPage({
   id,
@@ -24,7 +23,7 @@ export default function ThreadPage({
 }) {
   const [relevantPeople, setRelevantPeople] = useState(new Map<string, boolean>())
   const {content} = useSettingsStore()
-  const [event, setEvent] = useState<NDKEvent | null>(null)
+  const [event] = useState<NostrEvent | null>(null)
   const [loading, setLoading] = useState(isNaddr)
   const [threadAuthor, setThreadAuthor] = useState<string | null>(null)
 
@@ -35,29 +34,28 @@ export default function ThreadPage({
   useEffect(() => {
     if (isNaddr && naddrData) {
       setLoading(true)
-      ndk()
-        .fetchEvent(
-          {
-            authors: [naddrData.pubkey],
-            kinds: [naddrData.kind],
-            "#d": [naddrData.identifier],
-          },
-          undefined
-        )
-        .then((e) => {
-          if (e) {
-            setEvent(e)
-            if (e.pubkey) {
-              setThreadAuthor(e.pubkey)
-              addRelevantPerson(e.pubkey)
-            }
-          }
-          setLoading(false)
-        })
-        .catch((err) => {
-          console.warn("Error fetching naddr event:", err)
-          setLoading(false)
-        })
+      // applesauce.fetchEvent(
+      //   {
+      //     authors: [naddrData.pubkey],
+      //     kinds: [naddrData.kind],
+      //     "#d": [naddrData.identifier],
+      //   },
+      //   undefined
+      // )
+      //   .then((e) => {
+      //     if (e) {
+      //       setEvent(e)
+      //       if (e.pubkey) {
+      //         setThreadAuthor(e.pubkey)
+      //         addRelevantPerson(e.pubkey)
+      //       }
+      //     }
+      //     setLoading(false)
+      //   })
+      //   .catch((err) => {
+      //     console.warn("Error fetching naddr event:", err)
+      //     setLoading(false)
+      //   })
     }
   }, [isNaddr, naddrData])
 
@@ -65,7 +63,7 @@ export default function ThreadPage({
     setRelevantPeople((prev) => new Map(prev).set(person, true))
   }
 
-  const addToThread = (event: NDKEvent) => {
+  const addToThread = (event: NostrEvent) => {
     if (
       content.hideEventsByUnknownUsers &&
       socialGraph().getFollowDistance(event.pubkey) > 5

@@ -1,5 +1,5 @@
 import {ChangeEvent, DragEvent, useEffect, useState} from "react"
-import {NDKEvent, NDKTag} from "@nostr-dev-kit/ndk"
+import {NostrEvent, EventTemplate} from "nostr-tools"
 import {useNavigate} from "react-router"
 import {nip19} from "nostr-tools"
 
@@ -13,22 +13,22 @@ import {eventsByIdCache} from "@/utils/memcache"
 import {useDraftStore} from "@/stores/draft"
 import {processFile} from "@/shared/upload"
 import {usePublicKey} from "@/stores/user"
+import {encodeEvent} from "@/utils/nostr"
 import Textarea from "./Textarea"
-import {ndk} from "@/utils/ndk"
 
 type handleCloseFunction = () => void
 
 interface NoteCreatorProps {
-  repliedEvent?: NDKEvent
-  quotedEvent?: NDKEvent
+  repliedEvent?: NostrEvent
+  quotedEvent?: NostrEvent
   handleClose: handleCloseFunction
   reset?: boolean
 }
 
-function addTags(event: NDKEvent, repliedEvent?: NDKEvent, quotedEvent?: NDKEvent) {
+function addTags(event: NostrEvent, repliedEvent?: NostrEvent, quotedEvent?: NostrEvent) {
   const uniquePTags = new Set<string>()
-  const eTags: NDKTag[] = []
-  const otherTags: NDKTag[] = []
+  const eTags: string[][] = []
+  const otherTags: string[][] = []
 
   if (event.pubkey) {
     uniquePTags.add(event.pubkey)
@@ -98,7 +98,7 @@ function addTags(event: NDKEvent, repliedEvent?: NDKEvent, quotedEvent?: NDKEven
   const validPTags = Array.from(uniquePTags).filter(Boolean)
 
   event.tags = [
-    ...validPTags.map<NDKTag>((pubkey) => ["p", pubkey]),
+    ...validPTags.map((pubkey: string) => ["p", pubkey]),
     ...eTags, // Use complete e-tags instead of reconstructing
     ...otherTags,
   ]
@@ -129,7 +129,7 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
 
   useEffect(() => {
     if (quotedEvent) {
-      const quote = `nostr:${quotedEvent.encode()}`
+      const quote = `nostr:${encodeEvent(quotedEvent)}`
       if (!noteContent.includes(quote)) {
         setNoteContent(`\n\n${quote}`)
       }
@@ -213,16 +213,19 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
     }
   }
 
-  const publish = () => {
-    const event = new NDKEvent(ndk())
-    event.kind = 1
-    event.content = noteContent
-    event.tags = []
+  const publish = async () => {
+    // Create event template
+    const eventTemplate: EventTemplate = {
+      kind: 1,
+      content: noteContent,
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000),
+    }
 
     // Add imeta tags for images that are in the content
     Object.entries(imageMetadata).forEach(([url, metadata]) => {
       if (noteContent.includes(url)) {
-        event.tags.push([
+        eventTemplate.tags.push([
           "imeta",
           `url ${url}`,
           `dim ${metadata.width}x${metadata.height}`,
@@ -231,18 +234,34 @@ function NoteCreator({handleClose, quotedEvent, repliedEvent}: NoteCreatorProps)
       }
     })
 
-    console.log("event tags:", event.tags)
+    console.log("event tags:", eventTemplate.tags)
 
-    addTags(event, repliedEvent, quotedEvent)
-    event.sign().then(() => {
-      eventsByIdCache.set(event.id, event)
+    // Create a temporary NostrEvent for addTags function (which expects NostrEvent)
+    const tempEvent: NostrEvent = {
+      ...eventTemplate,
+      pubkey: "", // Will be filled by signer
+      id: "", // Will be filled by signer
+      sig: "", // Will be filled by signer
+    }
+
+    addTags(tempEvent, repliedEvent, quotedEvent)
+
+    // Update template with processed tags
+    eventTemplate.tags = tempEvent.tags
+
+    try {
+      // Publish using applesauce
+      const {publishEvent} = await import("@/utils/applesauce")
+      const publishedEvent = await publishEvent(eventTemplate)
+
+      // Cache the published event
+      eventsByIdCache.set(publishedEvent.id, publishedEvent)
       resetDraft()
       handleClose()
-      navigate(`/${nip19.noteEncode(event.id)}`)
-    })
-    event.publish().catch((error) => {
+      navigate(`/${nip19.noteEncode(publishedEvent.id)}`)
+    } catch (error) {
       console.warn(`Note could not be published: ${error}`)
-    })
+    }
   }
 
   return (

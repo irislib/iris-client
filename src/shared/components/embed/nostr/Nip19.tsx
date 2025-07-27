@@ -1,29 +1,37 @@
 import {Link} from "react-router"
-import {nip19} from "nostr-tools"
+import {nip19, NostrEvent} from "nostr-tools"
 
 import {Name} from "@/shared/components/user/Name.tsx"
 
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem.tsx"
 import Embed from "../index.ts"
 
-import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {useState, useEffect} from "react"
-import {ndk} from "@/utils/ndk"
+import {getPool, DEFAULT_RELAYS} from "@/utils/applesauce"
 
 function Naddr({naddr, data}: {naddr: string; data: nip19.AddressPointer}) {
-  const [event, setEvent] = useState<NDKEvent | null>(null)
+  const [event, setEvent] = useState<NostrEvent | null>(null)
   useEffect(() => {
-    ndk()
-      .fetchEvent(
-        {
-          authors: [data.pubkey],
-          kinds: [data.kind],
-          "#d": [data.identifier],
-        },
-        undefined
-      )
-      .then((e) => e && e.id && setEvent(e))
-  })
+    const pool = getPool()
+    const subscription = pool.subscription(DEFAULT_RELAYS, {
+      authors: [data.pubkey],
+      kinds: [data.kind],
+      "#d": [data.identifier],
+    })
+
+    const sub = subscription.subscribe({
+      next: (e) => {
+        if (typeof e !== "string" && e && e.id) {
+          setEvent(e)
+        }
+      },
+      error: (error) => {
+        console.error("Subscription error:", error)
+      },
+    })
+
+    return () => sub.unsubscribe()
+  }, [data.pubkey, data.kind, data.identifier])
 
   if (!event) {
     return (

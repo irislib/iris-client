@@ -1,4 +1,4 @@
-import {NDKUserProfile} from "@nostr-dev-kit/ndk"
+// import {getProfileContent} from "applesauce-core/helpers" // unused
 import {loadProfileCache, profileCache} from "./profileCache"
 import Fuse from "fuse.js"
 
@@ -43,7 +43,7 @@ initializeSearchIndex().catch(console.error)
 
 export {searchIndex}
 
-export function handleProfile(pubKey: string, profile: NDKUserProfile) {
+export function handleProfile(pubKey: string, profile: any) {
   queueMicrotask(() => {
     const lastSeen = latestProfileEvents.get(pubKey) || 0
     if (profile.created_at && profile.created_at > lastSeen) {

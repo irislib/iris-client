@@ -11,7 +11,7 @@ import ReplyPreview from "./ReplyPreview"
 import classNames from "classnames"
 import {Link} from "react-router"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 import {GROUP_INVITE_KIND} from "../utils/constants"
 import {UserRow} from "@/shared/components/user/UserRow"
 
@@ -99,7 +99,7 @@ const Message = ({
       "#e": [message.id],
     }
 
-    const sub = ndk().subscribe(filter)
+    const sub = subscribe(filter)
 
     sub.on("event", (reactionEvent) => {
       if (!reactionEvent || !reactionEvent.id) return

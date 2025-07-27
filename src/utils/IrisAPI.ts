@@ -1,6 +1,6 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {Filter} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {publishEvent} from "@/utils/applesauce"
+import {CONFIG} from "@/utils/config"
 
 export interface PushNotifications {
   endpoint: string
@@ -126,7 +126,8 @@ export default class IrisAPI {
     body?: object,
     headers?: {[key: string]: string}
   ): Promise<T> {
-    const event = new NDKEvent(ndk(), {
+    // Use applesauce publishEvent for event creation/signing
+    const eventTemplate = {
       kind: 27235, // http authentication
       tags: [
         ["u", `${this.#url}${path}`],
@@ -134,13 +135,9 @@ export default class IrisAPI {
       ],
       content: "",
       created_at: Math.floor(Date.now() / 1000),
-    })
-    await event.sign()
-    const nostrEvent = await event.toNostrEvent()
-
-    // Ensure the event is encoded correctly
-    const encodedEvent = btoa(JSON.stringify(nostrEvent))
-
+    }
+    const signedEvent = await publishEvent(eventTemplate)
+    const encodedEvent = btoa(JSON.stringify(signedEvent))
     return this.#getJson<T>(path, method, body, {
       ...headers,
       authorization: `Nostr ${encodedEvent}`,

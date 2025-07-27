@@ -11,20 +11,25 @@ import {MessagesNavItem} from "./MessagesNavItem"
 import PublishButton from "../ui/PublishButton"
 import ErrorBoundary from "../ui/ErrorBoundary"
 import {formatAmount} from "@/utils/utils"
-import {usePublicKey} from "@/stores/user"
+import {usePublicKey, usePrivateKey, useNip07Login} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
 import {navItemsConfig} from "./navConfig"
 import {UserRow} from "../user/UserRow"
 import {useUIStore} from "@/stores/ui"
 import {NavItem} from "./NavItem"
-import {ndk} from "@/utils/ndk"
+import {CONFIG} from "@/utils/config"
 
 const NavSideBar = () => {
   const ref = useRef<HTMLDivElement>(null)
   const {isSidebarOpen, setIsSidebarOpen, setShowLoginDialog} = useUIStore()
   const {balance} = useWalletBalance()
   const myPubKey = usePublicKey()
+  const privateKey = usePrivateKey()
+  const nip07Login = useNip07Login()
   const {debug} = useSettingsStore()
+
+  // User is in read-only mode if they have a public key but no signing capability
+  const isReadOnly = myPubKey && !privateKey && !nip07Login
 
   const navItems = useMemo(() => {
     const configItems = navItemsConfig()
@@ -61,7 +66,7 @@ const NavSideBar = () => {
             <img className="w-8 h-8" src={logoUrl} />
             <span className="inline md:hidden xl:inline">{CONFIG.appName}</span>
           </NavLink>
-          {myPubKey && !ndk().signer && (
+          {isReadOnly && (
             <div
               title="Read-only mode"
               className="px-4 py-2 mx-2 md:mx-0 xl:mx-2 flex items-center gap-2 text-error text-xl"
@@ -112,7 +117,7 @@ const NavSideBar = () => {
               )
             })}
           </ul>
-          {myPubKey && ndk().signer && (
+          {myPubKey && (
             <div className="ml-2 md:ml-0 xl:ml-2 md:mt-2 xl:mt-0">
               <div className="hidden md:flex">
                 <PublishButton />

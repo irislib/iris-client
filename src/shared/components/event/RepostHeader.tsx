@@ -1,11 +1,11 @@
 import {Name} from "@/shared/components/user/Name"
 import {RiRepeatFill} from "@remixicon/react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {Link} from "react-router"
 import {nip19} from "nostr-tools"
 
 interface RepostHeaderProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 function RepostHeader({event}: RepostHeaderProps) {

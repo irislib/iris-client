@@ -1,6 +1,6 @@
 import {NavLink, Route, Routes, useLocation} from "react-router"
 import {useMemo, ReactNode, useState, useEffect} from "react"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import classNames from "classnames"
 
 import RightColumn from "@/shared/components/RightColumn"
@@ -16,7 +16,7 @@ import {getEventReplyingTo} from "@/utils/nostr"
 import socialGraph from "@/utils/socialGraph"
 import ProfileHeader from "./ProfileHeader"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 type Tab = {
   name: string
@@ -30,9 +30,9 @@ type Tab = {
     pubKey: string
     myPubKey: string
     showRepliedTo?: boolean
-    displayFilterFn?: (e: NDKEvent) => boolean
+    displayFilterFn?: (e: NostrEvent) => boolean
   }) => ReactNode
-  displayFilterFn?: (e: NDKEvent) => boolean
+  displayFilterFn?: (e: NostrEvent) => boolean
   showRepliedTo?: boolean
 }
 
@@ -40,7 +40,7 @@ const tabs: Tab[] = [
   {
     name: "Posts",
     path: "",
-    displayFilterFn: (e: NDKEvent) => !getEventReplyingTo(e),
+    displayFilterFn: (e: NostrEvent) => !getEventReplyingTo(e),
     element: ({pubKey, displayFilterFn}) => (
       <Feed
         key={`feed-${pubKey}`}
@@ -80,7 +80,7 @@ const tabs: Tab[] = [
   {
     name: "Media",
     path: "media",
-    displayFilterFn: (e: NDKEvent) => hasMedia(e),
+    displayFilterFn: (e: NostrEvent) => hasMedia(e),
     element: ({pubKey, displayFilterFn}) => (
       <Feed
         key={`feed-${pubKey}`}
@@ -127,7 +127,7 @@ function useHasMarketEvents(pubKey: string) {
     // Reset state when pubKey changes
     setHasMarketEvents(false)
 
-    const sub = ndk().subscribe({
+    const sub = subscribe({
       kinds: [30402],
       authors: [pubKey],
       limit: 1,

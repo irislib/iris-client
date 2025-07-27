@@ -3,7 +3,7 @@ import {useEventsStore} from "@/stores/events"
 import {useState, useEffect} from "react"
 import {MessageType} from "./Message"
 import classNames from "classnames"
-import {ndk} from "@/utils/ndk"
+import {fetchEvent} from "@/utils/applesauce"
 
 type ReplyPreviewProps = {
   isUser: boolean
@@ -51,9 +51,7 @@ const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
         }
 
         // For public chats (sessionId is just the channel ID)
-        const event = await ndk().fetchEvent({
-          ids: [replyToId],
-        })
+        const event = await fetchEvent(replyToId)
 
         if (event) {
           const message: MessageType = {

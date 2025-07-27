@@ -1,10 +1,12 @@
 import {ChangeEvent, Dispatch, SetStateAction, useCallback, useState} from "react"
-import {Hexpubkey, NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+
+type Hexpubkey = string
 
 import {submitReport} from "@/shared/services/Mute.tsx"
 
 interface ReportReasonFormProps {
-  event?: NDKEvent
+  event?: NostrEvent
   user: Hexpubkey
   setReported: Dispatch<SetStateAction<boolean>>
 }

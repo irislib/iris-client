@@ -1,6 +1,6 @@
 import {eventsByIdCache, addSeenEventId} from "@/utils/memcache.ts"
 import {useEffect, useMemo, useState, useRef, memo} from "react"
-import {NDKEvent, NDKSubscription} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import classNames from "classnames"
 
 import {getEventReplyingTo, getEventRoot, isRepost} from "@/utils/nostr.ts"
@@ -18,9 +18,9 @@ import FeedItemTitle from "./FeedItemTitle.tsx"
 import {Link, useNavigate} from "react-router"
 import LikeHeader from "../LikeHeader"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
-const replySortFn = (a: NDKEvent, b: NDKEvent) => {
+const replySortFn = (a: NostrEvent, b: NostrEvent) => {
   const followDistanceA = socialGraph().getFollowDistance(a.pubkey)
   const followDistanceB = socialGraph().getFollowDistance(b.pubkey)
   if (followDistanceA !== followDistanceB) {
@@ -32,7 +32,7 @@ const replySortFn = (a: NDKEvent, b: NDKEvent) => {
 }
 
 type FeedItemProps = {
-  event?: NDKEvent
+  event?: NostrEvent
   eventId?: string
   authorHints?: string[]
   truncate?: number
@@ -43,7 +43,7 @@ type FeedItemProps = {
   asEmbed?: boolean
   asRepliedTo?: boolean
   asReply?: boolean
-  onEvent?: (event: NDKEvent) => void
+  onEvent?: (event: NostrEvent) => void
   borderTop?: boolean
 }
 
@@ -65,7 +65,7 @@ function FeedItem({
   const [expanded, setExpanded] = useState(false)
   const [hasActualReplies, setHasActualReplies] = useState(false)
   const navigate = useNavigate()
-  const subscriptionRef = useRef<NDKSubscription | null>(null)
+  const subscriptionRef = useRef<any | null>(null)
 
   if ((!initialEvent || !initialEvent.id) && !eventId) {
     throw new Error(
@@ -91,8 +91,8 @@ function FeedItem({
     return getEventIdHex(initialEvent, eventId)
   }, [initialEvent, eventId])
 
-  const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
-  const [referredEvent, setReferredEvent] = useState<NDKEvent | undefined>()
+  const [event, setEvent] = useState<NostrEvent | undefined>(initialEvent)
+  const [referredEvent, setReferredEvent] = useState<NostrEvent | undefined>()
 
   if (!event && !eventId)
     throw new Error("FeedItem requires either an event or an eventId")
@@ -153,7 +153,9 @@ function FeedItem({
       subscriptionRef.current.stop()
       // Force cleanup by removing from subscription manager (NDK bug workaround)
       if (subscriptionRef.current.ndk?.subManager) {
-        subscriptionRef.current.ndk.subManager.subscriptions.delete(subscriptionRef.current.internalId)
+        subscriptionRef.current.ndk.subManager.subscriptions.delete(
+          subscriptionRef.current.internalId
+        )
       }
       subscriptionRef.current = null
     }
@@ -163,13 +165,13 @@ function FeedItem({
       if (cached) {
         setEvent(cached)
       } else {
-        const sub = ndk().subscribe(
+        const sub = subscribe(
           {ids: [eventIdHex], authors: authorHints},
           {closeOnEose: true}
         )
         subscriptionRef.current = sub
 
-        sub.on("event", (fetchedEvent: NDKEvent) => {
+        sub.on("event", (fetchedEvent: NostrEvent) => {
           if (fetchedEvent && fetchedEvent.id) {
             setEvent(fetchedEvent)
             eventsByIdCache.set(eventIdHex, fetchedEvent)
@@ -183,7 +185,9 @@ function FeedItem({
         subscriptionRef.current.stop()
         // Force cleanup by removing from subscription manager (NDK bug workaround)
         if (subscriptionRef.current.ndk?.subManager) {
-          subscriptionRef.current.ndk.subManager.subscriptions.delete(subscriptionRef.current.internalId)
+          subscriptionRef.current.ndk.subManager.subscriptions.delete(
+            subscriptionRef.current.internalId
+          )
         }
         subscriptionRef.current = null
       }
@@ -196,7 +200,7 @@ function FeedItem({
         setReferredEvent(referred)
         eventsByIdCache.set(eventIdHex, referred)
       })
-      
+
       return cleanup
     }
   }, [event, eventIdHex])
@@ -331,7 +335,7 @@ function FeedItem({
             showRepliedTo={false}
             asReply={true}
             filters={{"#e": [eventIdHex], kinds: [1]}}
-            displayFilterFn={(e: NDKEvent) => getEventReplyingTo(e) === event.id}
+            displayFilterFn={(e: NostrEvent) => getEventReplyingTo(e) === event.id}
             onEvent={(e) => {
               onEvent?.(e)
               setHasActualReplies(true)

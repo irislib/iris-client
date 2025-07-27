@@ -3,7 +3,7 @@ import {useSettingsStore} from "@/stores/settings"
 import {useSessionsStore} from "@/stores/sessions"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {NDKTag} from "@nostr-dev-kit/ndk"
+// string[][] is just string[][] in nostr-tools
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
 import IrisAPI from "./IrisAPI"
@@ -20,7 +20,7 @@ export interface Notification {
   kind: number
   time: number
   content: string
-  tags?: NDKTag[]
+  tags?: string[][]
 }
 
 export const notifications = new SortedMap<string, Notification>([], "time")

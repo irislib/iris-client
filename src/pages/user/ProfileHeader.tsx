@@ -22,7 +22,7 @@ import Icon from "@/shared/components/Icons/Icon"
 import {Filter, VerifiedEvent} from "nostr-tools"
 import {Invite} from "nostr-double-ratchet/src"
 import {Helmet} from "react-helmet"
-import {ndk} from "@/utils/ndk"
+import {subscribe as applesauceSubscribe} from "@/utils/applesauce"
 
 const ProfileHeader = ({pubKey}: {pubKey: string}) => {
   const profile = useProfile(pubKey, true)
@@ -43,12 +43,17 @@ const ProfileHeader = ({pubKey}: {pubKey: string}) => {
       return
     }
 
-    const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-      const sub = ndk().subscribe(filter)
+    const subscribeToEvents = (
+      filter: Filter,
+      onEvent: (event: VerifiedEvent) => void
+    ) => {
+      const sub = applesauceSubscribe(filter)
       sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
       return () => sub.stop()
     }
-    const unsub = Invite.fromUser(pubKeyHex, subscribe, (invite) => setInvite(invite))
+    const unsub = Invite.fromUser(pubKeyHex, subscribeToEvents, (invite) =>
+      setInvite(invite)
+    )
     return unsub
   }, [myPubKey, pubKeyHex])
 

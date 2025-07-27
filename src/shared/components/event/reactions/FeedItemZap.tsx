@@ -1,5 +1,5 @@
-import {LnPayCb, NDKEvent, NDKZapper, NDKPaymentConfirmationLN} from "@nostr-dev-kit/ndk"
-import {useWebLNProvider} from "@/shared/hooks/useWebLNProvider"
+import {NostrEvent} from "nostr-tools"
+// import {useWebLNProvider} from "@/shared/hooks/useWebLNProvider" // Temporarily disabled
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
 import {RefObject, useEffect, useState, useRef} from "react"
 import useProfile from "@/shared/hooks/useProfile.ts"
@@ -12,15 +12,16 @@ import {useZapStore} from "@/stores/zap"
 import Icon from "../../Icons/Icon.tsx"
 import ZapModal from "../ZapModal.tsx"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
+import {getTagValue} from "@/utils/nostr"
 import {useSettingsStore} from "@/stores/settings"
 
-const zapsByEventCache = new LRUCache<string, Map<string, NDKEvent[]>>({
+const zapsByEventCache = new LRUCache<string, Map<string, NostrEvent[]>>({
   maxSize: 100,
 })
 
 interface FeedItemZapProps {
-  event: NDKEvent
+  event: NostrEvent
   feedItemRef: RefObject<HTMLDivElement | null>
 }
 
@@ -28,28 +29,29 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
   const {content} = useSettingsStore()
   const myPubKey = usePublicKey()
   const {defaultZapAmount} = useZapStore()
-  const [isZapping, setIsZapping] = useState(false)
+  // Temporarily disabled for NDK migration
+  // const [isZapping, setIsZapping] = useState(false)
   const longPressTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [isLongPress, setIsLongPress] = useState(false)
-  const provider = useWebLNProvider()
+  // const provider = useWebLNProvider()
 
   const profile = useProfile(event.pubkey)
 
   const [showZapModal, setShowZapModal] = useState(false)
 
-  const [zapsByAuthor, setZapsByAuthor] = useState<Map<string, NDKEvent[]>>(
+  const [zapsByAuthor, setZapsByAuthor] = useState<Map<string, NostrEvent[]>>(
     zapsByEventCache.get(event.id) || new Map()
   )
 
   const canQuickZap = !!defaultZapAmount
 
   const calculateZappedAmount = async (
-    zaps: Map<string, NDKEvent[]>
+    zaps: Map<string, NostrEvent[]>
   ): Promise<number> => {
     return Array.from(zaps.values())
       .flat()
       .reduce((sum, zap) => {
-        const invoice = zap.tagValue("bolt11")
+        const invoice = getTagValue(zap, "bolt11")
         if (invoice) {
           const decodedInvoice = decode(invoice)
           const amountSection = decodedInvoice.sections.find(
@@ -89,35 +91,40 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
   }
 
   const handleOneClickZap = async () => {
+    console.warn("Zapping functionality temporarily disabled - NDK replacement needed")
+    // TODO: Implement zapping with applesauce
+    /*
     try {
       setIsZapping(true)
       flashElement()
       const amount = Number(defaultZapAmount) * 1000
 
-      const lnPay: LnPayCb = async ({
-        pr,
-      }): Promise<NDKPaymentConfirmationLN | undefined> => {
-        if (provider) {
-          await provider.sendPayment(pr)
-          setShowZapModal(false)
-          return {preimage: ""} // TODO: Get actual preimage from provider
-        }
-        return undefined
-      }
+      // NDK-specific code temporarily removed
+      // const lnPay: LnPayCb = async ({
+      //   pr,
+      // }): Promise<NDKPaymentConfirmationLN | undefined> => {
+      //   if (provider) {
+      //     await provider.sendPayment(pr)
+      //     setShowZapModal(false)
+      //     return {preimage: ""} // TODO: Get actual preimage from provider
+      //   }
+      //   return undefined
+      // }
 
-      const zapper = new NDKZapper(event, amount, "msat", {
-        comment: "",
-        ndk: ndk(),
-        lnPay,
-        tags: [["e", event.id]],
-      })
+      // const zapper = new NDKZapper(event, amount, "msat", {
+      //   comment: "",
+      //   ndk: ndk(),
+      //   lnPay,
+      //   tags: [["e", event.id]],
+      // })
 
-      await zapper.zap()
+      // await zapper.zap()
     } catch (error) {
       console.warn("Unable to one-click zap:", error)
     } finally {
       setIsZapping(false)
     }
+    */
   }
 
   const handleMouseDown = () => {
@@ -149,15 +156,15 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
     }
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
       const debouncedUpdateAmount = debounce(async (zapsByAuthor) => {
         const amount = await calculateZappedAmount(zapsByAuthor)
         setZappedAmount(amount)
       }, 300)
 
-      sub?.on("event", async (zapEvent: NDKEvent) => {
+      sub?.on("event", async (zapEvent: NostrEvent) => {
         // if (shouldHideEvent(zapEvent)) return // blah. disabling this check enables fake receipts but what can we do
-        const invoice = zapEvent.tagValue("bolt11")
+        const invoice = getTagValue(zapEvent, "bolt11")
         if (invoice) {
           const decodedInvoice = decode(invoice)
           const amountSection = decodedInvoice.sections.find(
@@ -233,7 +240,7 @@ function FeedItemZap({event, feedItemRef}: FeedItemZapProps) {
         onTouchStart={handleMouseDown}
         onTouchEnd={handleMouseUp}
       >
-        {isZapping ? (
+        {false ? ( // isZapping temporarily disabled
           <div className="loading loading-spinner loading-xs" />
         ) : (
           <Icon name={iconName} size={16} />

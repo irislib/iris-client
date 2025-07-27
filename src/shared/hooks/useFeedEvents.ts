@@ -1,23 +1,23 @@
 import {useEffect, useMemo, useRef, useState, useCallback} from "react"
 import {eventComparator} from "../components/feed/utils"
-import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
+import {NostrEvent, Filter} from "nostr-tools"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {shouldHideAuthor} from "@/utils/visibility"
 import socialGraph from "@/utils/socialGraph"
 import {feedCache} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 interface UseFeedEventsProps {
-  filters: NDKFilter
+  filters: Filter
   cacheKey: string
   displayCount: number
-  displayFilterFn?: (event: NDKEvent) => boolean
-  fetchFilterFn?: (event: NDKEvent) => boolean
+  displayFilterFn?: (event: NostrEvent) => boolean
+  fetchFilterFn?: (event: NostrEvent) => boolean
   hideEventsByUnknownUsers: boolean
   sortLikedPosts?: boolean
-  sortFn?: (a: NDKEvent, b: NDKEvent) => number
+  sortFn?: (a: NostrEvent, b: NostrEvent) => number
   relayUrls?: string[]
 }
 
@@ -30,18 +30,18 @@ export default function useFeedEvents({
   sortFn,
   hideEventsByUnknownUsers,
   sortLikedPosts = false,
-  relayUrls,
+  relayUrls: _relayUrls, // Temporarily unused in applesauce migration
 }: UseFeedEventsProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
   const [localFilter, setLocalFilter] = useState(filters)
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
-  const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())
+  const [newEvents, setNewEvents] = useState(new Map<string, NostrEvent>())
   const eventsRef = useRef(
     feedCache.get(cacheKey) ||
       new SortedMap(
         [],
         sortFn
-          ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
+          ? ([, a]: [string, NostrEvent], [, b]: [string, NostrEvent]) => sortFn(a, b)
           : eventComparator
       )
   )
@@ -65,7 +65,7 @@ export default function useFeedEvents({
   }
 
   const filterEvents = useCallback(
-    (event: NDKEvent) => {
+    (event: NostrEvent) => {
       if (!event.created_at) return false
       if (displayFilterFn && !displayFilterFn(event)) return false
       const inAuthors = localFilter.authors?.includes(event.pubkey)
@@ -135,7 +135,7 @@ export default function useFeedEvents({
       return
     }
 
-    const sub = ndk().subscribe(localFilter, relayUrls ? {relayUrls} : undefined)
+    const sub = subscribe(localFilter)
 
     // Reset these flags when subscription changes
     hasReceivedEventsRef.current = eventsRef.current.size > 0

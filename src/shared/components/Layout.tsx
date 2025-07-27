@@ -13,6 +13,7 @@ import {trackEvent} from "@/utils/IrisAPI"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {Helmet} from "react-helmet"
+import {CONFIG} from "@/utils/config"
 import {useEffect} from "react"
 
 const openedAt = Math.floor(Date.now() / 1000)

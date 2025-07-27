@@ -1,10 +1,11 @@
 import {fetchZappedAmount} from "@/utils/nostr"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+import {getTagValue} from "@/utils/nostr"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
 
 interface ZapraiserProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 function Zapraiser({event}: ZapraiserProps) {
@@ -14,7 +15,7 @@ function Zapraiser({event}: ZapraiserProps) {
     fetchZappedAmount(event).then((amount: number) => {
       if (amount > 0) {
         try {
-          const targetAmount = Number(event.tagValue("zapraiser"))
+          const targetAmount = Number(getTagValue(event, "zapraiser"))
           const percent = Math.round((amount / targetAmount) * 100)
           if (percent > 100) {
             setZapProgress(100)
@@ -31,9 +32,9 @@ function Zapraiser({event}: ZapraiserProps) {
   return (
     <div className="flex flex-col gap-2 px-4">
       <h1 className="flex gap-2">
-        <b>{event.tagValue("title")}</b>
+        <b>{getTagValue(event, "title")}</b>
         <span className="text-gray-500">
-          in repository <b>{event.tagValue("repo")}</b>
+          in repository <b>{getTagValue(event, "repo")}</b>
         </span>
       </h1>
       <HyperText>{event.content}</HyperText>

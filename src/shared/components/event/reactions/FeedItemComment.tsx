@@ -1,8 +1,8 @@
-import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
+import {NostrEvent, Filter} from "nostr-tools"
 import {shouldHideAuthor} from "@/utils/visibility"
 import {useEffect, useState} from "react"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
@@ -15,7 +15,7 @@ import {getEventReplyingTo} from "@/utils/nostr"
 import {LRUCache} from "typescript-lru-cache"
 
 interface FeedItemCommentProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 const replyCountByEventCache = new LRUCache({maxSize: 100})
@@ -42,7 +42,7 @@ function FeedItemComment({event}: FeedItemCommentProps) {
 
     const replies = new Set<string>()
     setReplyCount(replyCountByEventCache.get(event.id) || 0)
-    const filter: NDKFilter = {
+    const filter: Filter = {
       kinds: [1],
       ["#e"]: [event.id],
     }
@@ -53,11 +53,10 @@ function FeedItemComment({event}: FeedItemCommentProps) {
     }, 300)
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
-      sub?.on("event", (e: NDKEvent) => {
-        if (shouldHideAuthor(e.author.pubkey) || getEventReplyingTo(e) !== event.id)
-          return
+      sub?.on("event", (e: NostrEvent) => {
+        if (shouldHideAuthor(e.pubkey) || getEventReplyingTo(e) !== event.id) return
         replies.add(e.id)
         debouncedSetReplyCount(replies.size)
       })

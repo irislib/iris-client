@@ -9,10 +9,10 @@ import PublicChatHeader from "./PublicChatHeader"
 import {useEffect, useState, useRef} from "react"
 import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import {Helmet} from "react-helmet"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
 let publicKey = useUserStore.getState().publicKey
 useUserStore.subscribe((state) => (publicKey = state.publicKey))
@@ -65,7 +65,7 @@ const PublicChat = () => {
     if (!id) return
 
     // Set up subscription for channel messages
-    const sub = ndk().subscribe({
+    const sub = subscribe({
       kinds: [CHANNEL_MESSAGE],
       "#e": [id],
     })
@@ -120,7 +120,15 @@ const PublicChat = () => {
       }
 
       // Create channel message event (kind 42)
-      const event = new NDKEvent(ndk())
+      const event: NostrEvent = {
+        kind: 42,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: content,
+        pubkey: "",
+        id: "",
+        sig: "",
+      }
       event.kind = CHANNEL_MESSAGE
       event.content = content
 
@@ -135,8 +143,8 @@ const PublicChat = () => {
       event.tags = tags
 
       // Sign and publish the event
-      await event.sign()
-      await event.publish()
+      await event.sig
+      await event
 
       // Add message to local state
       const newMessage: MessageType = {
@@ -168,10 +176,15 @@ const PublicChat = () => {
 
     try {
       // Create reaction event (kind 7)
-      const event = new NDKEvent(ndk())
-      event.kind = REACTION_KIND
-      event.content = emoji
-
+      const event: NostrEvent = {
+        kind: REACTION_KIND,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: emoji,
+        pubkey: "",
+        id: "",
+        sig: "",
+      }
       // Add tags for the message being reacted to and the chat root
       event.tags = [
         ["e", messageId, "", "reply"],
@@ -179,8 +192,8 @@ const PublicChat = () => {
       ]
 
       // Sign and publish the event
-      await event.sign()
-      await event.publish()
+      await event.sig
+      await event
     } catch (err) {
       console.error("Error sending reaction:", err)
       setError("Failed to send reaction")

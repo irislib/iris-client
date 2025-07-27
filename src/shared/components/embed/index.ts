@@ -22,7 +22,7 @@ import NostrNpub from "./nostr/NostrNpub.tsx"
 import LightningUri from "./LightningUri.tsx"
 import YouTube from "./youtube/YouTube.tsx"
 import WavLake from "./wavlake/WavLake.tsx"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import Twitch from "./twitch/Twitch.tsx"
 import TikTok from "./tiktok/TikTok.tsx"
 import Nip19 from "./nostr/Nip19.tsx"
@@ -30,7 +30,7 @@ import Hashtag from "./Hashtag.tsx"
 import Audio from "./Audio.tsx"
 import Url from "./Url.tsx"
 
-export type EmbedEvent = NDKEvent | Rumor
+export type EmbedEvent = NostrEvent | Rumor
 
 export type EmbedProps = {
   match: string

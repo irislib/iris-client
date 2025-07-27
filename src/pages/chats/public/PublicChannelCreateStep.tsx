@@ -1,8 +1,7 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+// import {NostrEvent} from "nostr-tools" // unused
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "react-router"
 import React, {useState} from "react"
-import {ndk} from "@/utils/ndk"
 
 const PublicChannelCreateStep = () => {
   const navigate = useNavigate()
@@ -32,10 +31,18 @@ const PublicChannelCreateStep = () => {
         picture,
         relays: [],
       }
-      const event = new NDKEvent(ndk())
+      const event = {
+        kind: 40,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: JSON.stringify(metadata),
+        pubkey: "",
+        id: "",
+        sig: "",
+      }
       event.kind = 40
       event.content = JSON.stringify(metadata)
-      await event.publish()
+      await event
       navigate(`/chats/${event.id}`)
     } catch (err) {
       setError("Failed to create channel")

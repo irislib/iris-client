@@ -1,8 +1,8 @@
 import {useState, MouseEvent} from "react"
 import {Link} from "react-router"
-import type {NDKRelay} from "@nostr-dev-kit/ndk"
+// NDKRelay type no longer needed - using direct relay URLs
 
-export default function RelayList({relays}: {relays: NDKRelay[]}) {
+export default function RelayList({relays}: {relays: string[]}) {
   const [showAll, setShowAll] = useState(false)
   const maxToShow = 5
 
@@ -15,7 +15,7 @@ export default function RelayList({relays}: {relays: NDKRelay[]}) {
 
   // Deduplicate relays by normalized URL
   const dedupedRelays = Array.from(
-    new Map(relays.map((r) => [normalizeUrl(r.url), r])).values()
+    new Map(relays.map((r) => [normalizeUrl(r), r])).values()
   )
 
   const relaysToShow = showAll ? dedupedRelays : dedupedRelays.slice(0, maxToShow)
@@ -26,12 +26,12 @@ export default function RelayList({relays}: {relays: NDKRelay[]}) {
     <div className="px-4 pb-2 pt-1 text-xs text-base-content/50 flex flex-col gap-1 items-start">
       {relaysToShow.map((relay, i) => (
         <Link
-          key={relay.url + i}
-          to={`/relay/${normalizeUrl(relay.url)}`}
+          key={relay + i}
+          to={`/relay/${normalizeUrl(relay)}`}
           className="truncate max-w-full text-primary hover:underline"
           onClick={(e: MouseEvent) => e.stopPropagation()}
         >
-          {normalizeUrl(relay.url)}
+          {normalizeUrl(relay)}
         </Link>
       ))}
       {dedupedRelays.length > maxToShow && (

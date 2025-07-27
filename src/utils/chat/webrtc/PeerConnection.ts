@@ -1,7 +1,7 @@
 import type {RTCSessionDescriptionInit, RTCIceCandidateInit} from "@/types/dom-types"
 import {EventEmitter} from "tseep"
 
-import {getCachedName, NDKEventFromRawEvent} from "@/utils/nostr"
+import {getCachedName, NostrEventFromRawEvent} from "@/utils/nostr"
 import {Rumor, Session} from "nostr-double-ratchet/src"
 import {useSessionsStore} from "@/stores/sessions"
 import socialGraph from "@/utils/socialGraph"
@@ -221,7 +221,7 @@ export default class PeerConnection extends EventEmitter {
       (Math.floor(Date.now() / 1000) + 5 * 60).toString(),
     ])
     const {event} = this.session.sendEvent(eventData)
-    NDKEventFromRawEvent(event).publish()
+    NostrEventFromRawEvent(event)
     this.log("Sent event:", eventData)
     return event
   }

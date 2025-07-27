@@ -1,10 +1,11 @@
-import {NDKEvent, NDKRelayList, NDKTag} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {eventRegex} from "@/shared/components/embed/nostr/NostrNote"
 import {decode} from "light-bolt11-decoder"
 import {profileCache} from "./profileCache"
 import AnimalName from "./AnimalName"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import * as nip19Tools from "nostr-tools/nip19"
+import {subscribe} from "@/utils/applesauce"
 
 export const ISSUE_REGEX =
   /^\/apps\/git\/repos\/[a-zA-Z0-9_-]+\/issues\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/title$/
@@ -67,7 +68,7 @@ export function formatUnixTimestamp(timestamp: number): string {
   }
 }
 
-export function getEventReplyingTo(event: NDKEvent) {
+export function getEventReplyingTo(event: NostrEvent) {
   if (event.kind !== 1) {
     return undefined
   }
@@ -84,7 +85,7 @@ export function getEventReplyingTo(event: NDKEvent) {
   return undefined
 }
 
-export function isRepost(event: NDKEvent) {
+export function isRepost(event: NostrEvent) {
   if (event.kind === 6) {
     return true
   }
@@ -97,7 +98,7 @@ export function isRepost(event: NDKEvent) {
   return false
 }
 
-export function getZappingUser(event: NDKEvent, npub = true) {
+export function getZappingUser(event: NostrEvent, npub = true) {
   const description = event.tags?.find((t) => t[0] === "description")?.[1]
   if (!description) {
     return null
@@ -114,8 +115,8 @@ export function getZappingUser(event: NDKEvent, npub = true) {
   return obj.pubkey
 }
 
-export async function getZapAmount(event: NDKEvent) {
-  const invoice = event.tagValue("bolt11")
+export async function getZapAmount(event: NostrEvent) {
+  const invoice = getTagValue(event, "bolt11")
   if (invoice) {
     const decodedInvoice = decode(invoice)
     const amountSection = decodedInvoice.sections.find(
@@ -129,7 +130,7 @@ export async function getZapAmount(event: NDKEvent) {
   return 0
 }
 
-export function getEventRoot(event: NDKEvent) {
+export function getEventRoot(event: NostrEvent) {
   const rootEvent = event?.tags?.find((t) => t[0] === "e" && t[3] === "root")?.[1]
   if (rootEvent) {
     return rootEvent
@@ -139,17 +140,17 @@ export function getEventRoot(event: NDKEvent) {
   return event?.tags?.find((t) => t[0] === "e" && t[1] !== quotedEvent)?.[1]
 }
 
-export function getLikedEventId(event: NDKEvent) {
+export function getLikedEventId(event: NostrEvent) {
   if (!event.tags) {
     return undefined
   }
   return event.tags
     .slice()
     .reverse()
-    .find((tag: NDKTag) => tag[0] === "e")?.[1]
+    .find((tag: string[]) => tag[0] === "e")?.[1]
 }
 
-export const getTag = (key: string, tags: NDKTag[]): string => {
+export const getTag = (key: string, tags: string[][]): string => {
   for (const t of tags) {
     if (t[0] === key) {
       return t[1]
@@ -158,7 +159,7 @@ export const getTag = (key: string, tags: NDKTag[]): string => {
   return ""
 }
 
-export const getTags = (key: string, tags: NDKTag[]): string[] => {
+export const getTags = (key: string, tags: string[][]): string[] => {
   const res: string[] = []
   for (const t of tags) {
     if (t[0] == key) {
@@ -166,6 +167,10 @@ export const getTags = (key: string, tags: NDKTag[]): string[] => {
     }
   }
   return res
+}
+
+export const getTagValue = (event: NostrEvent, key: string): string => {
+  return getTag(key, event.tags)
 }
 
 export const npubToHex = (npub: string): string | void => {
@@ -176,7 +181,7 @@ export const npubToHex = (npub: string): string | void => {
   }
 }
 
-export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
+export const fetchZappedAmount = async (event: NostrEvent): Promise<number> => {
   return new Promise((resolve) => {
     let zappedAmount = 0
     const filter = {
@@ -184,10 +189,10 @@ export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
       ["#e"]: [event.id],
     }
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
       sub?.on("event", async (event) => {
-        const invoice = event.tagValue("bolt11")
+        const invoice = event.tags?.find((tag) => tag[0] === "bolt11")?.[1]
         if (invoice) {
           const decodedInvoice = decode(invoice)
           const amountSection = decodedInvoice.sections.find(
@@ -220,11 +225,11 @@ export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
 //   }
 // }
 
-export const sortEventArrayDesc = (events: NDKEvent[]): NDKEvent[] => {
+export const sortEventArrayDesc = (events: NostrEvent[]): NostrEvent[] => {
   return events.sort((a, b) => (b?.created_at || 0) - (a?.created_at || 0))
 }
 
-export const extractUrls = (relays: NDKRelayList): string[] => {
+export const extractUrls = (relays: {tags: string[][]}): string[] => {
   const urls: string[] = []
   relays.tags.forEach((relay) => {
     urls.push(relay[1])
@@ -242,19 +247,18 @@ export type RawEvent = {
   pubkey: string
 }
 
-export const NDKEventFromRawEvent = (rawEvent: RawEvent): NDKEvent => {
-  const ndkEvent = new NDKEvent()
-  ndkEvent.ndk = ndk()
-  ndkEvent.kind = rawEvent.kind
-  ndkEvent.id = rawEvent.id
-  ndkEvent.content = rawEvent.content
-  ndkEvent.tags = rawEvent.tags
-  ndkEvent.created_at = rawEvent.created_at
-  ndkEvent.sig = rawEvent.sig
-  ndkEvent.pubkey = rawEvent.pubkey
-  return ndkEvent
+export const NostrEventFromRawEvent = (rawEvent: RawEvent): NostrEvent => {
+  return {
+    kind: rawEvent.kind,
+    id: rawEvent.id,
+    content: rawEvent.content,
+    tags: rawEvent.tags,
+    created_at: rawEvent.created_at,
+    sig: rawEvent.sig,
+    pubkey: rawEvent.pubkey,
+  }
 }
-export const serializeEvent = (event: NDKEvent): string => {
+export const serializeEvent = (event: NostrEvent): string => {
   return JSON.stringify({
     id: event?.id,
     pubkey: event?.pubkey,
@@ -265,18 +269,17 @@ export const serializeEvent = (event: NDKEvent): string => {
     sig: event?.sig,
   })
 }
-export const deserializeEvent = (event: string): NDKEvent => {
+export const deserializeEvent = (event: string): NostrEvent => {
   const parsedEvent = JSON.parse(event)
-  const ndkEvent = new NDKEvent()
-  ndkEvent.ndk = ndk()
-  ndkEvent.id = parsedEvent.id
-  ndkEvent.kind = parsedEvent.kind
-  ndkEvent.pubkey = parsedEvent.pubkey
-  ndkEvent.created_at = parsedEvent.created_at
-  ndkEvent.content = parsedEvent.content
-  ndkEvent.tags = parsedEvent.tags
-  ndkEvent.sig = parsedEvent.sig
-  return ndkEvent
+  return {
+    id: parsedEvent.id,
+    kind: parsedEvent.kind,
+    pubkey: parsedEvent.pubkey,
+    created_at: parsedEvent.created_at,
+    content: parsedEvent.content,
+    tags: parsedEvent.tags,
+    sig: parsedEvent.sig,
+  }
 }
 export const getCachedName = (pubKey: string): string => {
   const profile = profileCache.get(pubKey)
@@ -300,8 +303,8 @@ export const getCachedName = (pubKey: string): string => {
   return name || AnimalName(pubKey)
 }
 
-export const getQuotedEvent = (event: NDKEvent): string | false => {
-  const qTag = event.tagValue("q")
+export const getQuotedEvent = (event: NostrEvent): string | false => {
+  const qTag = getTagValue(event, "q")
   if (event.kind === 1 && qTag) return qTag
   const mentionTag = event.tags
     .filter((tag) => tag[0] === "e")
@@ -312,6 +315,26 @@ export const getQuotedEvent = (event: NDKEvent): string | false => {
   return false
 }
 
-export const isQuote = (event: NDKEvent): boolean => {
+export const isQuote = (event: NostrEvent): boolean => {
   return !!getQuotedEvent(event)
+}
+
+// NDK compatibility functions for NostrEvent objects
+export const encodeEvent = (event: NostrEvent): string => {
+  return nip19Tools.noteEncode(event.id)
+}
+
+export const deleteEvent = async (event: NostrEvent): Promise<void> => {
+  // TODO: Implement event deletion with applesauce
+  console.warn("Event deletion not yet implemented with applesauce", event.id)
+}
+
+export const reactToEvent = async (event: NostrEvent, content: string): Promise<void> => {
+  // TODO: Implement event reaction with applesauce
+  console.warn("Event reaction not yet implemented with applesauce", event.id, content)
+}
+
+export const repostEvent = async (event: NostrEvent): Promise<void> => {
+  // TODO: Implement event repost with applesauce
+  console.warn("Event repost not yet implemented with applesauce", event.id)
 }

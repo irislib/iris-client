@@ -1,9 +1,10 @@
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useEffect, useState} from "react"
 import Markdown from "markdown-to-jsx"
+import {getTagValue} from "@/utils/nostr"
 
 interface LongFormProps {
-  event: NDKEvent
+  event: NostrEvent
   standalone: boolean | undefined
 }
 
@@ -14,16 +15,16 @@ function LongForm({event, standalone}: LongFormProps) {
   const [summary, setSummary] = useState<string>("")
 
   useEffect(() => {
-    const title = event.tagValue("title")
+    const title = event.tags.find((tag) => tag[0] === "title")?.[1]
     if (title) setTitle(title)
 
-    const hashtags = event.tagValue("t")
+    const hashtags = getTagValue(event, "t")
     if (hashtags) setTopics(hashtags)
 
     const textBody = event.content
     setTextBody(textBody)
 
-    const summaryTag = event.tagValue("summary")
+    const summaryTag = getTagValue(event, "summary")
     if (summaryTag) setSummary(summaryTag)
   }, [event])
 

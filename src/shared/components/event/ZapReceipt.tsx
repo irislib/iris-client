@@ -1,17 +1,18 @@
 import {decode} from "light-bolt11-decoder"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+import {getTagValue} from "@/utils/nostr"
 import {useEffect, useState} from "react"
 import {UserRow} from "../user/UserRow"
 
 interface ZapReceiptProps {
-  event: NDKEvent
+  event: NostrEvent
 }
 
 function ZapReceipt({event}: ZapReceiptProps) {
   const [zappedAmount, setZappedAmount] = useState<number>()
 
   useEffect(() => {
-    const invoice = event.tagValue("bolt11")
+    const invoice = getTagValue(event, "bolt11")
     if (invoice) {
       const decodedInvoice = decode(invoice)
       const amountSection = decodedInvoice.sections.find(
@@ -27,7 +28,7 @@ function ZapReceipt({event}: ZapReceiptProps) {
     <div>
       <div className="flex items-center gap-2 px-4">
         <p className="">Zapped {zappedAmount} sats to</p>
-        <UserRow pubKey={event.tagValue("p") || ""} avatarWidth={30} />
+        <UserRow pubKey={getTagValue(event, "p") || ""} avatarWidth={30} />
       </div>
       <p>{event.content}</p>
     </div>

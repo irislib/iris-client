@@ -1,11 +1,11 @@
 import {getZapAmount, getZappingUser} from "@/utils/nostr.ts"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {ReactionContent} from "./ReactionContent"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
 import {useEffect, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {subscribe} from "@/utils/applesauce"
 
-export default function Zaps({event}: {event: NDKEvent}) {
+export default function Zaps({event}: {event: NostrEvent}) {
   const [zapAmountByUser, setZapAmountByUser] = useState(new Map<string, number>())
   const [commentByUser, setCommentByUser] = useState(new Map<string, string>())
 
@@ -17,9 +17,9 @@ export default function Zaps({event}: {event: NDKEvent}) {
         kinds: [9735],
         ["#e"]: [event.id],
       }
-      const sub = ndk().subscribe(filter)
+      const sub = subscribe(filter)
 
-      sub?.on("event", async (event: NDKEvent) => {
+      sub?.on("event", async (event: NostrEvent) => {
         // if (shouldHideEvent(event)) return // enables fake zap receipts but what can we do.
         const user = getZappingUser(event)
         const amount = await getZapAmount(event)

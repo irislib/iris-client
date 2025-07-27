@@ -1,6 +1,7 @@
 import MarketListing from "../../market/MarketListing"
 import ChannelCreation from "../ChannelCreation.tsx"
-import {NDKEvent} from "@nostr-dev-kit/ndk"
+import {NostrEvent} from "nostr-tools"
+import {getTagValue} from "@/utils/nostr"
 import ZapReceipt from "../ZapReceipt.tsx"
 import Zapraiser from "../Zapraiser.tsx"
 import Highlight from "../Highlight.tsx"
@@ -9,8 +10,8 @@ import LongForm from "../LongForm.tsx"
 import {memo} from "react"
 
 type ContentProps = {
-  event: NDKEvent | undefined
-  referredEvent: NDKEvent | undefined
+  event: NostrEvent | undefined
+  referredEvent: NostrEvent | undefined
   standalone?: boolean
   truncate: number
 }
@@ -22,7 +23,7 @@ const FeedItemContent = ({event, referredEvent, standalone, truncate}: ContentPr
     return <TextNote event={referredEvent} truncate={truncate} />
   } else if (event.kind === 9735) {
     return <ZapReceipt event={event} />
-  } else if (event.kind === 1 && event.tagValue("zapraiser")) {
+  } else if (event.kind === 1 && getTagValue(event, "zapraiser")) {
     return <Zapraiser event={event} />
   } else if (event.kind === 9802) {
     return <Highlight event={event} />
