@@ -27,6 +27,34 @@ declare const self: ServiceWorkerGlobalScope & {
 precacheAndRoute(self.__WB_MANIFEST)
 clientsClaim()
 
+// Prevent excessive background downloads by limiting concurrent requests
+let activeRequests = 0
+const MAX_CONCURRENT_REQUESTS = 2
+
+self.addEventListener("fetch", (event) => {
+  // Only throttle image requests
+  if (
+    event.request.destination === "image" &&
+    activeRequests >= MAX_CONCURRENT_REQUESTS
+  ) {
+    // Return a network-only response without caching when throttled
+    event.respondWith(fetch(event.request))
+    return
+  }
+
+  if (event.request.destination === "image") {
+    activeRequests++
+    event.waitUntil(
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          activeRequests--
+          resolve()
+        }, 1000) // Release slot after 1 second
+      })
+    )
+  }
+})
+
 // Prevent caching of graph-api.iris.to requests
 registerRoute(({url}) => url.origin === "https://graph-api.iris.to", new NetworkOnly())
 
@@ -52,11 +80,12 @@ registerRoute(
         ))
     )
   },
-  new CacheFirst({
+  new StaleWhileRevalidate({
     cacheName: "avatar-cache",
     plugins: [
       new ExpirationPlugin({
-        maxEntries: 100, // gif avatars can still be large
+        maxEntries: 50, // Reduced from 100
+        maxAgeSeconds: 86400, // 24 hours cache for avatars
         matchOptions: {
           ignoreVary: true,
         },
@@ -68,15 +97,16 @@ registerRoute(
   })
 )
 
-// Cache images from any domain with size limit
+// Cache images from any domain with size limit - using StaleWhileRevalidate for less aggressive caching
 registerRoute(
   // match images except gif
   ({request, url}) => request.destination === "image" && !url.pathname.endsWith(".gif"),
-  new CacheFirst({
+  new StaleWhileRevalidate({
     cacheName: "image-cache",
     plugins: [
       new ExpirationPlugin({
-        maxEntries: 50,
+        maxEntries: 20, // Reduced from 50
+        maxAgeSeconds: 3600, // 1 hour cache
         matchOptions: {
           ignoreVary: true,
         },
@@ -97,21 +127,6 @@ registerRoute(
     plugins: [
       new ExpirationPlugin({maxAgeSeconds: 24 * 60 * 60}),
       new CacheableResponsePlugin({statuses: [0, 200]}),
-    ],
-  })
-)
-
-registerRoute(
-  ({url}) =>
-    url.origin === "https://api.snort.social" &&
-    url.pathname.startsWith("/api/v1/translate"),
-  new CacheFirst({
-    cacheName: "translate-cache",
-    plugins: [
-      new ExpirationPlugin({maxEntries: 1000}),
-      new CacheableResponsePlugin({
-        statuses: [0, 200, 204],
-      }),
     ],
   })
 )

@@ -173,39 +173,14 @@ const ImageGridItem = memo(function ImageGridItem({
     })
   }, [imetaTags])
 
-  // if it's not a gif and imeta indicates it's fairly small, load the original
-  // otherwise we might run out of mem and crash on mobile
+  // On mobile, never load original images to prevent memory issues
   const loadOriginalIfProxyFails = useMemo(() => {
-    return urls.map((url, i) => {
+    return urls.map(() => {
       // On desktop, always load original if proxy fails
-      if (!isMobile) return true
-
-      // On mobile, only load original for small, non-gif images
-      const tag = imetaTags[i]
-      if (!tag) return false
-
-      // Check if it's not a gif
-      const mimeType = tag.find((part) => part.startsWith("m "))?.split(" ")[1]
-      const isGif = mimeType === "image/gif" || url.toLowerCase().includes(".gif")
-      if (isGif) return false
-
-      // Check if it's fairly small (under 500KB or dimensions under 800x600)
-      const sizeStr = tag.find((part) => part.startsWith("size "))?.split(" ")[1]
-      const dimStr = tag.find((part) => part.startsWith("dim "))?.split(" ")[1]
-
-      if (sizeStr) {
-        const size = parseInt(sizeStr, 10)
-        if (size < 500000) return true // Less than 500KB
-      }
-
-      if (dimStr) {
-        const [width, height] = dimStr.split("x").map((d) => parseInt(d, 10))
-        if (width && height && width < 800 && height < 800) return true
-      }
-
-      return false
+      // On mobile, never load original to prevent crashes
+      return !isMobile
     })
-  }, [urls, imetaTags, isMobile])
+  }, [urls, isMobile])
 
   const blurhashUrls = useMemo(() => {
     return blurhashes.map((blurhash) => {
@@ -239,7 +214,10 @@ const ImageGridItem = memo(function ImageGridItem({
     return <MarketGridItem event={event} shouldBlur={shouldBlur} width={width} />
   }
 
-  return urls.map((url, i) => {
+  // In grid view, only show the first image/video
+  const urlsToRender = urls.slice(0, 1)
+
+  return urlsToRender.map((url, i) => {
     const isVideo = !imageMatch
     const hasError = loadErrors[i]
 

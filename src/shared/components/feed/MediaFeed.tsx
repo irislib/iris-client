@@ -1,6 +1,6 @@
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import {INITIAL_DISPLAY_COUNT, DISPLAY_INCREMENT} from "./utils"
-import {useMemo, useCallback} from "react"
+import {useMemo, useCallback, memo} from "react"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import MediaModal from "../media/MediaModal"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
@@ -18,7 +18,7 @@ interface MediaFeedProps {
   onBottomVisibleTimestampChange?: (timestamp: number) => void
 }
 
-export default function MediaFeed({
+function MediaFeed({
   events,
   eventsToHighlight,
   useVirtualization = false,
@@ -134,3 +134,5 @@ export default function MediaFeed({
     </>
   )
 }
+
+export default memo(MediaFeed)

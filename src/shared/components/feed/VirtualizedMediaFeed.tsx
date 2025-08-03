@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, memo} from "react"
 import {NDKEvent} from "@nostr-dev-kit/ndk"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import MediaModal from "../media/MediaModal"
@@ -15,12 +15,14 @@ interface MediaFeedProps {
 }
 
 const GRID_COLUMNS = 3
-const ITEM_HEIGHT = window.innerWidth <= 767 ? window.innerWidth / 3 : 245
-const BUFFER_SIZE = 10 // Render extra rows above/below viewport
-const SCROLL_DEBOUNCE = 100
-const OVERSCAN = 5 // Extra items to render for smooth scrolling
+const ITEM_HEIGHT = window.innerWidth <= 767 ? Math.floor(window.innerWidth / 3) : 245
+const BUFFER_ROWS = 3 // Reduced buffer for faster rendering
+const SCROLL_DEBOUNCE = 50 // Reduced debounce for more responsive scrolling
 
-export default function VirtualizedMediaFeed({
+// Memoized grid item wrapper for better performance
+const MemoizedGridItem = memo(ImageGridItem)
+
+function VirtualizedMediaFeed({
   events,
   eventsToHighlight,
   onNewEventsShown,
@@ -28,40 +30,51 @@ export default function VirtualizedMediaFeed({
 }: MediaFeedProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollPositionRef = useRef(0)
-  const [visibleRange, setVisibleRange] = useState({start: 0, end: 20})
-  const [containerHeight, setContainerHeight] = useState(0)
+  const isInitialMount = useRef(true)
 
-  // Store scroll position in history state for back navigation
+  // Initialize visible range based on saved scroll position
   const [savedScrollPosition, setSavedScrollPosition] = useHistoryState(
     0,
     "scrollPosition"
   )
+
+  // Calculate initial visible range from saved scroll position
+  const getInitialVisibleRange = () => {
+    const startRow = Math.floor(savedScrollPosition / ITEM_HEIGHT)
+    const visibleRowCount = Math.ceil(window.innerHeight / ITEM_HEIGHT)
+    return {startRow, endRow: startRow + visibleRowCount}
+  }
+
+  const [visibleRange, setVisibleRange] = useState(getInitialVisibleRange)
+  const [containerHeight, setContainerHeight] = useState(window.innerHeight)
 
   // Use custom hooks for better organization
   const {calculateAllMedia} = useMediaExtraction()
   const {showModal, activeItemIndex, modalMedia, openModal, closeModal} = useMediaModal()
   const {fetchedEventsMap, handleEventFetched} = useMediaCache()
 
-  // Calculate total rows and height
+  // Calculate total rows
   const totalRows = Math.ceil(events.length / GRID_COLUMNS)
-  const totalHeight = totalRows * ITEM_HEIGHT
 
-  // Get visible items based on scroll position with overscan
+  // Get visible items based on scroll position - with optimized memoization
   const visibleItems = useMemo(() => {
-    const startRow = Math.max(0, visibleRange.start - BUFFER_SIZE)
-    const endRow = Math.min(totalRows, visibleRange.end + BUFFER_SIZE + OVERSCAN)
+    const startRow = Math.max(0, visibleRange.startRow - BUFFER_ROWS)
+    const endRow = Math.min(totalRows, visibleRange.endRow + BUFFER_ROWS)
     const startIndex = startRow * GRID_COLUMNS
     const endIndex = Math.min(events.length, endRow * GRID_COLUMNS)
 
-    return events.slice(startIndex, endIndex).map((event, index) => ({
-      event,
-      index: startIndex + index,
-      row: Math.floor((startIndex + index) / GRID_COLUMNS),
-      column: (startIndex + index) % GRID_COLUMNS,
-    }))
-  }, [events, visibleRange, totalRows])
+    // Only map the visible slice
+    return {
+      items: events.slice(startIndex, endIndex).map((event, i) => ({
+        event,
+        index: startIndex + i,
+      })),
+      startOffset: startRow * ITEM_HEIGHT,
+      endOffset: Math.max(0, (totalRows - endRow) * ITEM_HEIGHT),
+    }
+  }, [events, visibleRange.startRow, visibleRange.endRow, totalRows])
 
-  // Handle scroll with debouncing
+  // Handle scroll with optimized debouncing
   const handleScroll = useCallback(() => {
     if (!containerRef.current) return
 
@@ -69,10 +82,10 @@ export default function VirtualizedMediaFeed({
     scrollPositionRef.current = scrollTop
 
     const startRow = Math.floor(scrollTop / ITEM_HEIGHT)
-    const visibleRows = Math.ceil(containerHeight / ITEM_HEIGHT)
-    const endRow = startRow + visibleRows
+    const visibleRowCount = Math.ceil(containerHeight / ITEM_HEIGHT)
+    const endRow = startRow + visibleRowCount
 
-    setVisibleRange({start: startRow, end: endRow})
+    setVisibleRange({startRow, endRow})
     setSavedScrollPosition(scrollTop)
 
     // Update bottom visible timestamp
@@ -85,20 +98,33 @@ export default function VirtualizedMediaFeed({
     }
   }, [containerHeight, setSavedScrollPosition, events, onBottomVisibleTimestampChange])
 
-  // Debounced scroll handler
+  // Debounced scroll handler with RAF
   useEffect(() => {
     let timeoutId: number
+    let rafId: number
+
     const debouncedScroll = () => {
       clearTimeout(timeoutId)
-      timeoutId = window.setTimeout(handleScroll, SCROLL_DEBOUNCE)
+      cancelAnimationFrame(rafId)
+
+      rafId = requestAnimationFrame(() => {
+        timeoutId = window.setTimeout(handleScroll, SCROLL_DEBOUNCE)
+      })
     }
 
-    window.addEventListener("scroll", debouncedScroll)
+    window.addEventListener("scroll", debouncedScroll, {passive: true})
+
+    // Only call handleScroll on mount if we don't have a saved position
+    if (savedScrollPosition === 0) {
+      handleScroll()
+    }
+
     return () => {
       clearTimeout(timeoutId)
+      cancelAnimationFrame(rafId)
       window.removeEventListener("scroll", debouncedScroll)
     }
-  }, [handleScroll])
+  }, [handleScroll, savedScrollPosition])
 
   // Update container height on resize
   useEffect(() => {
@@ -106,33 +132,27 @@ export default function VirtualizedMediaFeed({
       setContainerHeight(window.innerHeight)
     }
 
-    updateHeight()
-    window.addEventListener("resize", updateHeight)
+    window.addEventListener("resize", updateHeight, {passive: true})
     return () => window.removeEventListener("resize", updateHeight)
   }, [])
 
-  // Restore scroll position on mount
+  // Restore scroll position on mount - optimized
   useEffect(() => {
-    if (savedScrollPosition > 0 && containerRef.current) {
-      // Use requestAnimationFrame to ensure DOM is ready
-      requestAnimationFrame(() => {
-        window.scrollTo(0, containerRef.current!.offsetTop + savedScrollPosition)
-      })
-    } else {
-      // Set initial bottom visible timestamp
-      handleScroll()
+    if (isInitialMount.current && savedScrollPosition > 0 && containerRef.current) {
+      isInitialMount.current = false
+      // Immediate scroll restoration without RAF for instant positioning
+      window.scrollTo(0, containerRef.current.offsetTop + savedScrollPosition)
     }
-  }, [])
+  }, [savedScrollPosition])
 
-  // Handle new events shown - reset scroll position when new events are added
+  // Handle new events shown
   useEffect(() => {
     if (eventsToHighlight && eventsToHighlight.size > 0) {
-      // New events were added, scroll to top
       setSavedScrollPosition(0)
       window.scrollTo(0, 0)
       onNewEventsShown?.()
     }
-  }, [eventsToHighlight])
+  }, [eventsToHighlight, onNewEventsShown, setSavedScrollPosition])
 
   const handleImageClick = useCallback(
     (event: NDKEvent, clickedUrl: string) => {
@@ -176,30 +196,29 @@ export default function VirtualizedMediaFeed({
         />
       )}
 
-      <div ref={containerRef} style={{height: totalHeight, position: "relative"}}>
-        <div className="grid grid-cols-3 gap-px md:gap-1">
-          {visibleItems.map(({event, index, row, column}) => (
-            <div
-              key={`${event.id}_${index}`}
-              style={{
-                position: "absolute",
-                top: row * ITEM_HEIGHT,
-                left: `${(column * 100) / GRID_COLUMNS}%`,
-                width: `${100 / GRID_COLUMNS}%`,
-                height: ITEM_HEIGHT,
-              }}
-            >
-              <ImageGridItem
-                event={event}
-                index={index}
-                setActiveItemIndex={handleImageClick}
-                onEventFetched={handleEventFetched}
-                highlightAsNew={eventsToHighlight?.has(event.id) || false}
-              />
-            </div>
+      <div
+        ref={containerRef}
+        style={{
+          paddingTop: visibleItems.startOffset,
+          paddingBottom: visibleItems.endOffset,
+          minHeight: totalRows * ITEM_HEIGHT,
+        }}
+      >
+        <div className="grid grid-cols-3 gap-[1px]">
+          {visibleItems.items.map(({event, index}) => (
+            <MemoizedGridItem
+              key={event.id}
+              event={event}
+              index={index}
+              setActiveItemIndex={handleImageClick}
+              onEventFetched={handleEventFetched}
+              highlightAsNew={eventsToHighlight?.has(event.id) || false}
+            />
           ))}
         </div>
       </div>
     </>
   )
 }
+
+export default memo(VirtualizedMediaFeed)
