@@ -110,7 +110,7 @@ const Feed = memo(function Feed({
   )
   const firstFeedItemRef = useRef<HTMLDivElement>(null)
   const [bottomVisibleEventTimestamp, setBottomVisibleEventTimestamp] =
-    useState<number>(Infinity)
+    useHistoryState<number>(Infinity, "bottomVisibleTimestamp")
 
   const [showEventsByUnknownUsers, setShowEventsByUnknownUsers] = useState(false)
 
@@ -332,7 +332,17 @@ const Feed = memo(function Feed({
         {filteredEvents.length > 0 && (
           <InfiniteScroll onLoadMore={loadMoreItems}>
             {displayAs === "grid" ? (
-              <MediaFeed events={gridEvents} eventsToHighlight={eventsToHighlight} />
+              <MediaFeed
+                events={gridEvents}
+                eventsToHighlight={eventsToHighlight}
+                onNewEventsShown={() => {
+                  // Clear highlight after virtualized feed handles new events
+                  setTimeout(() => {
+                    setEventsToHighlight(new Set())
+                  }, 2000)
+                }}
+                onBottomVisibleTimestampChange={setBottomVisibleEventTimestamp}
+              />
             ) : (
               <>
                 {filteredEvents.slice(0, displayCount).map((event, index) => (

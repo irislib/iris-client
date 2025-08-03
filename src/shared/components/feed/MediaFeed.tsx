@@ -8,19 +8,28 @@ import ImageGridItem from "./ImageGridItem"
 import {useMediaExtraction} from "@/shared/hooks/useMediaExtraction"
 import {useMediaModal} from "@/shared/hooks/useMediaModal"
 import {useMediaCache} from "@/shared/hooks/useMediaCache"
+import VirtualizedMediaFeed from "./VirtualizedMediaFeed"
 
 interface MediaFeedProps {
   events: (NDKEvent | {id: string})[]
   eventsToHighlight?: Set<string>
+  useVirtualization?: boolean
+  onNewEventsShown?: () => void
+  onBottomVisibleTimestampChange?: (timestamp: number) => void
 }
 
-export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
+export default function MediaFeed({
+  events,
+  eventsToHighlight,
+  useVirtualization = false,
+  onNewEventsShown,
+  onBottomVisibleTimestampChange,
+}: MediaFeedProps) {
+  // All hooks must be called unconditionally
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,
     "displayCount"
   )
-
-  // Use custom hooks for better organization
   const {calculateAllMedia} = useMediaExtraction()
   const {showModal, activeItemIndex, modalMedia, openModal, closeModal} = useMediaModal()
   const {fetchedEventsMap, handleEventFetched} = useMediaCache()
@@ -35,7 +44,7 @@ export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
       return true
     }
     return false
-  }, [events.length, displayCount])
+  }, [events.length, displayCount, setDisplayCount])
 
   const handleImageClick = useCallback(
     (event: NDKEvent, clickedUrl: string) => {
@@ -82,6 +91,20 @@ export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
       event: item.event,
     }))
   }, [modalMedia])
+
+  // Use virtualized version on mobile or when explicitly enabled
+  const shouldVirtualize = useVirtualization || window.innerWidth <= 767
+
+  if (shouldVirtualize) {
+    return (
+      <VirtualizedMediaFeed
+        events={events}
+        eventsToHighlight={eventsToHighlight}
+        onNewEventsShown={onNewEventsShown}
+        onBottomVisibleTimestampChange={onBottomVisibleTimestampChange}
+      />
+    )
+  }
 
   return (
     <>
