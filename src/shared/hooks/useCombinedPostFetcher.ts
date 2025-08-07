@@ -1,10 +1,9 @@
 import {useState, useEffect, useRef, useCallback} from "react"
 import {NDKEvent, NDKFilter} from "@nostr-dev-kit/ndk"
 import {ndk} from "@/utils/ndk"
-import {addSeenEventId, seenEventIds} from "@/utils/memcache"
+import {addSeenEventId} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
 import {useUserStore} from "@/stores/user"
-import {getEventReplyingTo} from "@/utils/nostr"
 
 interface CombinedPostFetcherCache {
   events?: NDKEvent[]
@@ -18,7 +17,6 @@ interface CombinedPostFetcherProps {
   hasChronologicalData: boolean
   cache: CombinedPostFetcherCache
   popularRatio?: number
-  refreshSignal?: number
 }
 
 export default function useCombinedPostFetcher({
@@ -28,13 +26,11 @@ export default function useCombinedPostFetcher({
   hasChronologicalData,
   cache,
   popularRatio = 0.5,
-  refreshSignal,
 }: CombinedPostFetcherProps) {
   const [events, setEvents] = useState<NDKEvent[]>(cache.events || [])
   const [loading, setLoading] = useState<boolean>(false)
   const hasLoadedInitial = useRef(cache.hasLoadedInitial || false)
   const myPubKey = useUserStore((state) => state.publicKey)
-  const lastRefreshSignal = useRef(refreshSignal)
   const isLoadingRef = useRef(false) // Track loading state in ref to prevent concurrent calls
 
   useEffect(() => {
@@ -50,14 +46,26 @@ export default function useCombinedPostFetcher({
       const popularCount = Math.floor(batchSize * popularRatio)
       const chronologicalCount = batchSize - popularCount
 
-      console.log("loadBatch - requesting", popularCount, "popular and", chronologicalCount, "chronological")
-      
+      console.log(
+        "loadBatch - requesting",
+        popularCount,
+        "popular and",
+        chronologicalCount,
+        "chronological"
+      )
+
       const popularIds = hasPopularData ? getNextPopular(popularCount) : []
       const chronologicalIds = hasChronologicalData
         ? getNextChronological(chronologicalCount)
         : []
 
-      console.log("loadBatch - got", popularIds.length, "popular IDs and", chronologicalIds.length, "chronological IDs")
+      console.log(
+        "loadBatch - got",
+        popularIds.length,
+        "popular IDs and",
+        chronologicalIds.length,
+        "chronological IDs"
+      )
 
       let allIds = [...new Set([...popularIds, ...chronologicalIds])]
 
@@ -81,22 +89,14 @@ export default function useCombinedPostFetcher({
         ids: allIds,
       }
 
+      console.log("loadBatch - fetching events with filter:", postFilter)
+
       const fetchedEvents = await ndk().fetchEvents(postFilter)
+      console.log("loadBatch - fetched", fetchedEvents)
       const eventsArray = Array.from(fetchedEvents)
+      console.log("loadBatch - converting to array, total events:", eventsArray.length)
 
-      // Filter out replies and own posts
-      const filteredEvents = eventsArray.filter((event) => {
-        // Filter out own posts
-        if (event.pubkey === myPubKey) return false
-
-        // Filter out replies using the existing utility function
-        const replyingTo = getEventReplyingTo(event)
-        if (replyingTo) return false
-
-        return true
-      })
-
-      const shuffledEvents = shuffle(filteredEvents)
+      const shuffledEvents = shuffle(eventsArray)
 
       return shuffledEvents
     },
@@ -109,42 +109,6 @@ export default function useCombinedPostFetcher({
       myPubKey,
     ]
   )
-
-  // Handle refresh signal - filter seen events and load more if needed
-  useEffect(() => {
-    if (
-      !refreshSignal ||
-      refreshSignal === 0 ||
-      refreshSignal === lastRefreshSignal.current
-    ) {
-      return
-    }
-
-    lastRefreshSignal.current = refreshSignal
-
-    // Filter out seen events from current state
-    setEvents((currentEvents) => {
-      const unseenEvents = currentEvents.filter((event) => !seenEventIds.has(event.id))
-
-      // If we have too few events left after filtering, load more
-      if (unseenEvents.length < 5 && (hasPopularData || hasChronologicalData)) {
-        // Load more events to replace the filtered ones
-        loadBatch(10).then((newEvents) => {
-          if (newEvents.length > 0) {
-            newEvents.forEach((event) => addSeenEventId(event.id))
-            setEvents((prev) => {
-              // Only deduplicate if there might be duplicates
-              const existingIds = new Set(prev.map((e) => e.id))
-              const uniqueNewEvents = newEvents.filter((e) => !existingIds.has(e.id))
-              return uniqueNewEvents.length > 0 ? [...prev, ...uniqueNewEvents] : prev
-            })
-          }
-        })
-      }
-
-      return unseenEvents
-    })
-  }, [refreshSignal, hasPopularData, hasChronologicalData, loadBatch])
 
   const loadInitial = useCallback(async () => {
     setLoading(true)
@@ -162,11 +126,11 @@ export default function useCombinedPostFetcher({
       console.log("loadMore skipped - already loading")
       return
     }
-    
+
     console.log("loadMore called in useCombinedPostFetcher")
     isLoadingRef.current = true
     setLoading(true)
-    
+
     try {
       const newEvents = await loadBatch(10)
       console.log("loadMore fetched", newEvents.length, "new events")
@@ -188,10 +152,18 @@ export default function useCombinedPostFetcher({
         // Only deduplicate if there might be duplicates
         const existingIds = new Set(prevEvents.map((e) => e.id))
         const uniqueNewEvents = newEvents.filter((e) => !existingIds.has(e.id))
-        console.log("loadMore adding", uniqueNewEvents.length, "unique events, had", prevEvents.length, "total")
-        return uniqueNewEvents.length > 0 ? [...prevEvents, ...uniqueNewEvents] : prevEvents
+        console.log(
+          "loadMore adding",
+          uniqueNewEvents.length,
+          "unique events, had",
+          prevEvents.length,
+          "total"
+        )
+        return uniqueNewEvents.length > 0
+          ? [...prevEvents, ...uniqueNewEvents]
+          : prevEvents
       })
-      
+
       isLoadingRef.current = false
       setLoading(false)
     } catch (error) {

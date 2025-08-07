@@ -12,7 +12,6 @@ interface FeedDisplayOptions {
 interface AlgorithmicFeedProps {
   type: FeedType
   displayOptions?: FeedDisplayOptions
-  refreshSignal?: number
 }
 
 const defaultDisplayOptions: FeedDisplayOptions = {
@@ -29,7 +28,7 @@ const feedConfigs = {
     loadingMessage: "Loading popular posts...",
   },
   "for-you": {
-    filterSeen: true,
+    filterSeen: false,
     includeChronological: true,
     emptyMessage: "No posts found for you",
     loadingMessage: "Loading your personalized feed...",
@@ -39,7 +38,6 @@ const feedConfigs = {
 const AlgorithmicFeed = function AlgorithmicFeed({
   type,
   displayOptions = {},
-  refreshSignal,
 }: AlgorithmicFeedProps) {
   const {small, showDisplaySelector, randomSort} = {
     ...defaultDisplayOptions,
@@ -55,7 +53,6 @@ const AlgorithmicFeed = function AlgorithmicFeed({
   const {events, loadMore, loading} = useAlgorithmicFeed(cache, {
     filterSeen: config.filterSeen,
     popularRatio: config.includeChronological ? 0.5 : 1.0,
-    refreshSignal,
   })
 
   if (loading && events.length === 0) {

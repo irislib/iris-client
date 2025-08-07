@@ -30,8 +30,6 @@ interface FeedProps {
   displayAs?: "list" | "grid"
   showDisplayAsSelector?: boolean
   onDisplayAsChange?: (display: "list" | "grid") => void
-  refreshSignal?: number
-  openedAt?: number
 }
 
 const DefaultEmptyPlaceholder = (
@@ -51,8 +49,6 @@ const Feed = memo(function Feed({
   displayAs: initialDisplayAs = "list",
   showDisplayAsSelector = true,
   onDisplayAsChange,
-  refreshSignal,
-  openedAt,
 }: FeedProps) {
   if (!feedConfig?.filter) {
     throw new Error("Feed component requires feedConfig with filter")
@@ -143,8 +139,6 @@ const Feed = memo(function Feed({
     hideEventsByUnknownUsers: false,
     sortFn,
     relayUrls: feedConfig.relayUrls,
-    refreshSignal,
-    openedAt,
     bottomVisibleEventTimestamp,
     displayAs,
   })

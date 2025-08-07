@@ -50,6 +50,7 @@ const FeedWidget = memo(function FeedWidget({
   }
 
   if (displayEvents.length === 0) {
+    // Don't wrap empty content in InfiniteScroll - it causes endless loops
     return (
       <div className={small ? "px-4 py-2" : "p-8 flex items-center justify-center"}>
         <span className="text-base-content/50 text-sm">{emptyMessage}</span>
@@ -86,7 +87,14 @@ const FeedWidget = memo(function FeedWidget({
       )}
 
       {loadMore ? (
-        <InfiniteScroll onLoadMore={loadMore}>{renderEvents()}</InfiniteScroll>
+        <InfiniteScroll
+          onLoadMore={() => {
+            console.warn("FeedWidget loadMore triggered (with events)")
+            loadMore()
+          }}
+        >
+          {renderEvents()}
+        </InfiniteScroll>
       ) : (
         renderEvents()
       )}

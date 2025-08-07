@@ -42,11 +42,10 @@ interface FeedCache {
 interface FeedConfig {
   filterSeen?: boolean
   popularRatio?: number
-  refreshSignal?: number
 }
 
 export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig = {}) {
-  const {filterSeen = false, popularRatio = 0.5, refreshSignal} = config
+  const {filterSeen = false, popularRatio = 0.5} = config
 
   const {currentFilters, expandFilters} = usePopularityFilters(cache.popularityFilters)
 
@@ -67,7 +66,6 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     hasChronologicalData,
     cache: cache.combinedPostFetcher || {},
     popularRatio,
-    refreshSignal,
   })
 
   return result

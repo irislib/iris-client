@@ -216,9 +216,8 @@ function HomeFeedEvents() {
               if (activeFeedConfig?.feedStrategy)
                 return (
                   <AlgorithmicFeed
-                    key={activeFeedConfig.feedStrategy}
+                    key={`${activeFeedConfig.feedStrategy}-${feedRefreshSignal}`}
                     type={activeFeedConfig.feedStrategy}
-                    refreshSignal={feedRefreshSignal}
                   />
                 )
 
@@ -229,7 +228,6 @@ function HomeFeedEvents() {
                   showDisplayAsSelector={follows.length > 1}
                   forceUpdate={0}
                   emptyPlaceholder={""}
-                  refreshSignal={feedRefreshSignal}
                 />
               )
             })()}

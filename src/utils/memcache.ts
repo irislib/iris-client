@@ -111,3 +111,17 @@ export const addSeenEventId = (id: string) => {
   seenEventIds.set(id, true)
   throttledSave()
 }
+
+export const clearAlgorithmicFeedCaches = () => {
+  // Clear popular feed cache
+  popularHomeFeedCache.postFetcher = {}
+  popularHomeFeedCache.reactionSubscription = {}
+  popularHomeFeedCache.popularityFilters = {}
+  popularHomeFeedCache.chronologicalSubscription = {}
+
+  // Clear for-you feed cache
+  forYouFeedCache.combinedPostFetcher = {}
+  forYouFeedCache.reactionSubscription = {}
+  forYouFeedCache.chronologicalSubscription = {}
+  forYouFeedCache.popularityFilters = {}
+}

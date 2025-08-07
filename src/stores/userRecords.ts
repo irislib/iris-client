@@ -650,10 +650,7 @@ export const useUserRecordsStore = create<UserRecordsStore>()(
               isOurself: invite.inviter === myPubKey,
             })
 
-            if (
-              userPubKey === myPubKey &&
-              inviteDeviceId === ourDeviceId
-            ) {
+            if (userPubKey === myPubKey && inviteDeviceId === ourDeviceId) {
               console.log(
                 "Skipping invite from our own device to prevent loop:",
                 inviteDeviceId

@@ -1,6 +1,7 @@
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
 import {KIND_TEXT_NOTE, KIND_CLASSIFIED, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
+import {clearAlgorithmicFeedCaches} from "@/utils/memcache"
 
 export type FeedType = "popular" | "for-you"
 
@@ -253,6 +254,7 @@ export const useFeedStore = create<FeedState>()(
           })
         },
         triggerFeedRefresh: () => {
+          clearAlgorithmicFeedCaches()
           set({feedRefreshSignal: Date.now()})
         },
       }

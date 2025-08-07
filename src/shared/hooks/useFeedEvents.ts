@@ -28,8 +28,6 @@ interface UseFeedEventsProps {
   hideEventsByUnknownUsers: boolean
   sortFn?: (a: NDKEvent, b: NDKEvent) => number
   relayUrls?: string[]
-  refreshSignal?: number
-  openedAt?: number
   bottomVisibleEventTimestamp?: number
   displayAs?: "list" | "grid"
 }
@@ -42,8 +40,6 @@ export default function useFeedEvents({
   hideEventsByUnknownUsers,
   sortFn,
   relayUrls,
-  refreshSignal,
-  openedAt,
   bottomVisibleEventTimestamp = Infinity,
   displayAs = "list",
 }: UseFeedEventsProps) {
@@ -104,18 +100,8 @@ export default function useFeedEvents({
       }
     }
 
-    if (feedConfig.excludeSeen) {
-      if (
-        feedConfig.id === "unseen" &&
-        refreshSignal &&
-        openedAt &&
-        refreshSignal > openedAt &&
-        seenEventIds.has(event.id)
-      ) {
-        return false
-      } else if (feedConfig.id !== "unseen" && seenEventIds.has(event.id)) {
-        return false
-      }
+    if (feedConfig.excludeSeen && seenEventIds.has(event.id)) {
+      return false
     }
 
     // Relay filtering (from combinedDisplayFilterFn)
@@ -263,78 +249,6 @@ export default function useFeedEvents({
       setUntilTimestamp(undefined)
     }
   }, [filters])
-
-  // Handle refresh signal - decide what to do based on feed configuration
-  useEffect(() => {
-    console.log(
-      "[useFeedEvents] refreshSignal:",
-      refreshSignal,
-      "feedConfig:",
-      feedConfig
-    )
-    if (refreshSignal && refreshSignal > 0) {
-      console.log(
-        "[useFeedEvents] Processing refresh for feed:",
-        feedConfig.id,
-        "excludeSeen:",
-        feedConfig.excludeSeen
-      )
-      if (feedConfig.excludeSeen) {
-        // For feeds that exclude seen events, just remove them from existing events
-        const seenEventIdsToRemove: string[] = []
-        for (const [id] of eventsRef.current.entries()) {
-          if (seenEventIds.has(id)) {
-            seenEventIdsToRemove.push(id)
-          }
-        }
-        console.log("[useFeedEvents] Removing seen events:", seenEventIdsToRemove.length)
-
-        // Remove the seen events
-        for (const id of seenEventIdsToRemove) {
-          eventsRef.current.delete(id)
-        }
-
-        // Also remove from new events
-        const updatedNewEvents = new Map(newEvents)
-        for (const id of seenEventIdsToRemove) {
-          updatedNewEvents.delete(id)
-        }
-        if (seenEventIdsToRemove.length > 0) {
-          setNewEvents(updatedNewEvents)
-        }
-
-        // Trigger re-render to update the filtered events
-        if (seenEventIdsToRemove.length > 0) {
-          console.log("[useFeedEvents] Triggering re-render after removing seen events")
-          setEventsVersion((prev) => prev + 1)
-        } else {
-          console.log("[useFeedEvents] No seen events to remove")
-        }
-      } else {
-        console.log("[useFeedEvents] Doing full refresh for feed without excludeSeen")
-        // For other feeds, do a full refresh
-        eventsRef.current.clear()
-        setNewEvents(new Map())
-        setNewEventsFrom(new Set())
-
-        // Clear future events
-        for (const futureEvent of futureEventsRef.current.values()) {
-          clearTimeout(futureEvent.timer)
-        }
-        futureEventsRef.current.clear()
-
-        // Reset state
-        oldestRef.current = undefined
-        setUntilTimestamp(undefined)
-        initialLoadDoneRef.current = false
-        setInitialLoadDoneState(false)
-        hasReceivedEventsRef.current = false
-
-        // Trigger re-render
-        setEventsVersion((prev) => prev + 1)
-      }
-    }
-  }, [refreshSignal, feedConfig.excludeSeen])
 
   useEffect(() => {
     if (filters.authors && filters.authors.length === 0) {
