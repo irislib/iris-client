@@ -31,6 +31,11 @@ const InfiniteScroll = ({onLoadMore, children}: Props) => {
       while (element) {
         const style = window.getComputedStyle(element)
         if (style.overflowY === "scroll" || style.overflowY === "auto") {
+          // Skip the PullToRefresh data-scrollable div to find the actual scroll container
+          if (element.hasAttribute("data-scrollable")) {
+            element = element.parentElement
+            continue
+          }
           return element
         }
         element = element.parentElement
