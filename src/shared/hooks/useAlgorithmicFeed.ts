@@ -15,13 +15,11 @@ interface CombinedPostFetcherCache {
 }
 
 interface ReactionSubscriptionCache {
-  hasInitialData?: boolean
   pendingReactionCounts?: Map<string, Set<string>>
   showingReactionCounts?: Map<string, Set<string>>
 }
 
 interface ChronologicalSubscriptionCache {
-  hasInitialData?: boolean
   pendingPosts?: Map<string, number>
   showingPosts?: Map<string, number>
   timeRange?: number
@@ -41,32 +39,47 @@ interface FeedCache {
 
 interface FeedConfig {
   filterSeen?: boolean
+  showReplies?: boolean
   popularRatio?: number
 }
 
 export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig = {}) {
-  const {filterSeen = false, popularRatio = 0.5} = config
+  const {showReplies = false, filterSeen = false, popularRatio = 0.5} = config
 
   const {currentFilters, expandFilters} = usePopularityFilters(cache.popularityFilters)
 
-  const {getNextMostPopular, hasInitialData: hasPopularData} = useReactionSubscription(
+  const {getNextMostPopular} = useReactionSubscription(
     currentFilters,
     expandFilters,
     cache.reactionSubscription,
     filterSeen
   )
 
-  const {getNextChronological, hasInitialData: hasChronologicalData} =
-    useChronologicalSubscription(cache.chronologicalSubscription || {}, filterSeen)
+  const {getNextChronological} = useChronologicalSubscription(
+    cache.chronologicalSubscription || {},
+    filterSeen,
+    showReplies
+  )
 
   const result = useCombinedPostFetcher({
     getNextPopular: getNextMostPopular,
     getNextChronological,
-    hasPopularData,
-    hasChronologicalData,
     cache: cache.combinedPostFetcher || {},
     popularRatio,
   })
 
-  return result
+  const getPopularPendingCount = () => {
+    return cache.reactionSubscription.pendingReactionCounts?.size || 0
+  }
+
+  const getChronologicalPendingCount = () => {
+    return cache.chronologicalSubscription?.pendingPosts?.size || 0
+  }
+
+  const isStuck =
+    result.events.length === 0 &&
+    !result.loading &&
+    (getPopularPendingCount() > 0 || getChronologicalPendingCount() > 0)
+
+  return {...result, isStuck}
 }
