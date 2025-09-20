@@ -112,14 +112,12 @@ function FeedItem({
   }
 
   const eventIdHex = useMemo(() => {
-    return getEventIdHex(initialEvent, eventId)
+    return getEventIdHex(initialEvent || eventId)
   }, [initialEvent, eventId])
 
   const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
+  const [loadingEvent, setLoadingEvent] = useState<boolean>(!initialEvent && !!eventId)
   const [referredEvent, setReferredEvent] = useState<NDKEvent | undefined>()
-
-  if (!event && !eventId)
-    throw new Error("FeedItem requires either an event or an eventId")
 
   const repliedToEventId = useMemo(() => event && getEventReplyingTo(event), [event])
   const rootId = useMemo(() => event && getEventRoot(event), [event])
@@ -135,7 +133,6 @@ function FeedItem({
   }, [event, onEvent])
 
   useEffect(() => {
-    // Clean up any existing subscription first
     if (subscriptionRef.current) {
       subscriptionRef.current.stop()
       subscriptionRef.current = null
@@ -145,6 +142,7 @@ function FeedItem({
       const cached = eventsByIdCache.get(eventIdHex)
       if (cached) {
         setEvent(cached)
+        setLoadingEvent(false)
       } else {
         const sub = ndk().subscribe(
           {ids: [eventIdHex], authors: authorHints},
@@ -155,10 +153,13 @@ function FeedItem({
         sub.on("event", (fetchedEvent: NDKEvent) => {
           if (fetchedEvent && fetchedEvent.id) {
             setEvent(fetchedEvent)
+            setLoadingEvent(false)
             eventsByIdCache.set(eventIdHex, fetchedEvent)
           }
         })
       }
+    } else {
+      setLoadingEvent(false)
     }
 
     return () => {
@@ -173,7 +174,7 @@ function FeedItem({
     if (event) {
       const cleanup = handleEventContent(event, (referred) => {
         setReferredEvent(referred)
-        eventsByIdCache.set(eventIdHex, referred)
+        if (eventIdHex) eventsByIdCache.set(eventIdHex, referred)
       })
 
       return cleanup
@@ -199,7 +200,7 @@ function FeedItem({
     </>
   )
 
-  if (!event) {
+  if (!event && loadingEvent && eventIdHex) {
     return (
       <div className={wrapperClasses}>
         <FeedItemPlaceholder
@@ -209,6 +210,14 @@ function FeedItem({
           onClick={(e) => onClick(e, event, referredEvent, eventId, navigate)}
         />
         {expandOverlay}
+      </div>
+    )
+  }
+
+  if (!event) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center text-base-content/50">
+        <div className="text-sm">Event not found</div>
       </div>
     )
   }
@@ -385,7 +394,7 @@ function FeedItem({
               repliesTo: event.id,
               sortType: "followDistance",
               showRepliedTo: false,
-              filter: {kinds: [KIND_TEXT_NOTE], "#e": [eventIdHex]},
+              filter: {kinds: [KIND_TEXT_NOTE], "#e": eventIdHex ? [eventIdHex] : []},
               followDistance:
                 useSettingsStore.getState().content.maxFollowDistanceForReplies,
             }}

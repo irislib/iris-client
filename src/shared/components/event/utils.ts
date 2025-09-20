@@ -3,6 +3,7 @@ import {NDKEvent} from "@nostr-dev-kit/ndk"
 import {nip19} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
 import {KIND_REPOST, KIND_REACTION, KIND_ZAP_RECEIPT} from "@/utils/constants"
+import {Hex} from "@/shared/utils/Hex"
 
 export const handleEventContent = (
   event: NDKEvent,
@@ -47,19 +48,28 @@ export const handleEventContent = (
 
   return undefined
 }
-export const getEventIdHex = (event?: NDKEvent, eventId?: string) => {
-  if (event?.id) {
-    return event.id
+
+const tryDecodeNip19 = (eventId: string) => {
+  try {
+    const decoded = nip19.decode(eventId)
+    if (typeof decoded.data === "string") return decoded.data
+    if (decoded.type === "nevent") return decoded.data.id
+  } catch {
+    return null
   }
-  if (eventId!.indexOf("n") === 0) {
-    const data = nip19.decode(eventId!).data
-    if (typeof data === "string") {
-      return data
-    }
-    return (data as nip19.EventPointer).id || ""
+}
+
+const tryParseHex = (eventId: string) => {
+  try {
+    const hex = new Hex(eventId, 64)
+    return hex.toString()
+  } catch {
+    return null
   }
-  if (!eventId) {
-    throw new Error("FeedItem requires either an event or an eventId")
-  }
-  return eventId
+}
+
+export const getEventIdHex = (eventOrId?: NDKEvent | string) => {
+  if (!eventOrId) return null
+  if (typeof eventOrId !== "string") return eventOrId.id
+  return  tryDecodeNip19(eventOrId)||tryParseHex(eventOrId) || null
 }
