@@ -37,6 +37,7 @@ type ScenarioStep =
   | {type: "expectAll"; actor: ActorId; messages: string[]}
   | {type: "close"; actor: ActorId}
   | {type: "restart"; actor: ActorId}
+  | {type: "clearEvents"}
   | {type: "noop"}
 
 type ScenarioDefinition = {
@@ -54,6 +55,7 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioCont
   }
 
   for (const step of def.steps) {
+    console.log(`\n--- Executing step: ${JSON.stringify(step)} ---`)
     switch (step.type) {
       case "send":
         await sendMessage(context, step.from, step.to, step.message)
@@ -72,6 +74,9 @@ export async function runScenario(def: ScenarioDefinition): Promise<ScenarioCont
         break
       case "noop":
         await Promise.resolve()
+        break
+      case "clearEvents":
+        context.relay.clearEvents()
         break
       default: {
         const exhaustive: never = step

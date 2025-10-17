@@ -112,6 +112,13 @@ export class MockRelay {
     return message.includes("invalid mac") || message.includes("failed to decrypt header")
   }
 
+  clearEvents(): void {
+    this.events = []
+    for (const sub of this.subscribers.values()) {
+      sub.delivered.clear()
+    }
+  }
+
   reset(): void {
     this.events = []
     this.subscribers.clear()

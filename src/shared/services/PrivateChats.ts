@@ -12,6 +12,11 @@ const createSubscribe = (ndk: NDK): NostrSubscribe => {
     const subscription = ndk.subscribe(filter)
 
     subscription.on("event", (event: NDKEvent) => {
+      // if (localStorage.getItem(event.id)) {
+      //   console.warn("Duplicate event, skipping", event.id)
+      //   return
+      // }
+      // localStorage.setItem(event.id, "1")
       onEvent(event as unknown as VerifiedEvent)
     })
 

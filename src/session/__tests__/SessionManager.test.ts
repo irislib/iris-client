@@ -77,7 +77,7 @@ describe("SessionManager", () => {
 
     expect(bobReceivedMessages)
   })
-  it.skip("should handle back to back messages after initial, answer, and then", async () => {
+  it("should handle back to back messages after initial, answer, and then", async () => {
     await runScenario({
       steps: [
         {type: "send", from: "alice", to: "bob", message: "alice to bob 1"},
@@ -146,7 +146,7 @@ describe("SessionManager", () => {
     })
   })
 
-  it.skip("should deliver alice's message after bob restarts", async () => {
+  it("should deliver alice's message after bob restarts", async () => {
     await runScenario({
       steps: [
         {type: "send", from: "alice", to: "bob", message: "alice to bob 1"},
@@ -165,7 +165,7 @@ describe("SessionManager", () => {
     })
   })
 
-  it.skip("should not accumulate additional sessions after restart", async () => {
+  it("should not accumulate additional sessions after restart", async () => {
     const sharedRelay = new MockRelay(true)
 
     const {
@@ -202,7 +202,6 @@ describe("SessionManager", () => {
       })
     })
 
-    console.log("\n\n\n Sesnigng initial messages")
     await aliceManager.sendMessage(bobPubkey, msg1)
     await bobManager.sendMessage(alicePubkey, msg2)
 
@@ -249,6 +248,35 @@ describe("SessionManager", () => {
     console.log("b", bobDeviceRecords)
     ;[...aliceDeviceRecords, ...bobDeviceRecords].forEach((record) => {
       expect(record.inactiveSessions.length).toBeLessThanOrEqual(1)
+    })
+  })
+
+  it("should deliver when receiver restarts multiple times", async () => {
+    await runScenario({
+      steps: [
+        {type: "send", from: "alice", to: "bob", message: "1"},
+        {type: "send", from: "bob", to: "alice", message: "2"},
+        {type: "send", from: "alice", to: "bob", message: "3"},
+        {type: "restart", actor: "alice"},
+        {type: "send", from: "bob", to: "alice", message: "4"},
+        {type: "restart", actor: "alice"},
+        {type: "send", from: "bob", to: "alice", message: "5"},
+      ],
+    })
+  })
+
+  it("should deliver when receiver restarts multiple times (clearEvents)", async () => {
+    await runScenario({
+      steps: [
+        {type: "send", from: "alice", to: "bob", message: "1"},
+        {type: "send", from: "bob", to: "alice", message: "2"},
+        {type: "send", from: "alice", to: "bob", message: "3"},
+        {type: "restart", actor: "alice"},
+        {type: "send", from: "bob", to: "alice", message: "4"},
+        {type: "clearEvents"},
+        {type: "restart", actor: "alice"},
+        {type: "send", from: "bob", to: "alice", message: "5"},
+      ],
     })
   })
 })
