@@ -67,7 +67,7 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   const lastSeenPrivateTime = usePrivateMessagesStore(
     (state) => state.lastSeen.get(id) || 0
   )
-  const updateLastSeenPrivate = usePrivateMessagesStore((state) => state.updateLastSeen)
+  const markPrivateChatOpened = usePrivateMessagesStore((state) => state.markOpened)
 
   // Use ref to avoid effect recreation when store updates
   const updateLatestMessageRef = useRef(updateLatestMessage)
@@ -230,7 +230,15 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
         unreadBadge = <div className="indicator-item badge badge-primary badge-xs" />
       }
     }
-  } else if (!group) {
+  } else if (group) {
+    if (actualLatest?.created_at && actualLatest.pubkey !== myPubKey) {
+      const latestTimestamp = getMillisecondTimestamp(actualLatest as MessageType)
+      const hasUnread = latestTimestamp > lastSeenPrivateTime
+      if (!lastSeenPrivateTime || hasUnread) {
+        unreadBadge = <div className="indicator-item badge badge-primary badge-xs" />
+      }
+    }
+  } else {
     if (actualLatest?.created_at && actualLatest.pubkey !== myPubKey) {
       const latestTimestamp = getMillisecondTimestamp(actualLatest as MessageType)
       const hasUnread = latestTimestamp > lastSeenPrivateTime
@@ -259,8 +267,8 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
       onClick={() => {
         if (isPublic) {
           updateLastSeenPublic(id)
-        } else if (!group) {
-          updateLastSeenPrivate(id)
+        } else {
+          markPrivateChatOpened(id)
         }
       }}
       className={classNames("px-2 py-4 flex items-center border-b border-custom", {

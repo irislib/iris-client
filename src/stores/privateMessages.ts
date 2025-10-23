@@ -4,6 +4,7 @@ import * as messageRepository from "@/utils/messageRepository"
 import {KIND_REACTION} from "@/utils/constants"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {create} from "zustand"
+import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {useUserStore} from "./user"
 
 const addToMap = (
@@ -32,6 +33,7 @@ interface PrivateMessagesStoreActions {
     updates: Partial<MessageType>
   ) => Promise<void>
   updateLastSeen: (chatId: string, timestamp?: number) => void
+  markOpened: (chatId: string) => void
   removeSession: (chatId: string) => Promise<void>
   removeMessage: (chatId: string, messageId: string) => Promise<void>
   clear: () => Promise<void>
@@ -39,7 +41,7 @@ interface PrivateMessagesStoreActions {
 
 type PrivateMessagesStore = PrivateMessagesStoreState & PrivateMessagesStoreActions
 
-export const usePrivateMessagesStore = create<PrivateMessagesStore>((set) => {
+export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) => {
   const rehydration = Promise.all([
     messageRepository.loadAll(),
     messageRepository.loadLastSeen(),
@@ -170,6 +172,24 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set) => {
         return {lastSeen}
       })
       messageRepository.saveLastSeen(chatId, effectiveTimestamp).catch(console.error)
+    },
+
+    markOpened: (chatId: string) => {
+      if (!chatId) return
+      const state = get()
+      const events = state.events
+      const messageMap = events.get(chatId)
+      const latestEntry = messageMap?.last()
+      const latestMessage = latestEntry ? latestEntry[1] : undefined
+      const latestTimestamp = latestMessage
+        ? getMillisecondTimestamp(latestMessage)
+        : undefined
+      const targetTimestamp = Math.max(Date.now(), latestTimestamp ?? 0)
+      const current = state.lastSeen.get(chatId) || 0
+      if (targetTimestamp <= current) {
+        return
+      }
+      state.updateLastSeen(chatId, targetTimestamp)
     },
   }
 })

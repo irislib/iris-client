@@ -22,28 +22,18 @@ const Chat = ({id}: {id: string}) => {
 
   // Get messages reactively from events store - this will update when new messages are added
   const eventsMap = usePrivateMessagesStore((state) => state.events)
-  const updateLastSeen = usePrivateMessagesStore((state) => state.updateLastSeen)
+  const markOpened = usePrivateMessagesStore((state) => state.markOpened)
   const messages = eventsMap.get(id) ?? new SortedMap<string, MessageType>([], comparator)
   const lastMessageEntry = messages.last()
   const lastMessage = lastMessageEntry ? lastMessageEntry[1] : undefined
   const lastMessageTimestamp = lastMessage
     ? getMillisecondTimestamp(lastMessage)
     : undefined
-  const lastMessageId = lastMessage?.id
 
   const markChatOpened = useCallback(() => {
     if (!id) return
-    const events = usePrivateMessagesStore.getState().events
-    const latestMessage = events.get(id)?.last()?.[1]
-    const latestTimestamp = latestMessage
-      ? getMillisecondTimestamp(latestMessage)
-      : undefined
-    const targetTimestamp = Math.max(Date.now(), latestTimestamp ?? 0)
-    const current = usePrivateMessagesStore.getState().lastSeen.get(id) || 0
-    if (targetTimestamp > current) {
-      updateLastSeen(id, targetTimestamp)
-    }
-  }, [id, updateLastSeen])
+    markOpened(id)
+  }, [id, markOpened])
 
   useEffect(() => {
     if (!id) {
@@ -89,11 +79,8 @@ const Chat = ({id}: {id: string}) => {
 
   useEffect(() => {
     if (!id || lastMessageTimestamp === undefined) return
-    const existing = usePrivateMessagesStore.getState().lastSeen.get(id) || 0
-    if (lastMessageTimestamp > existing) {
-      updateLastSeen(id, lastMessageTimestamp)
-    }
-  }, [id, lastMessageId, lastMessageTimestamp, updateLastSeen])
+    markOpened(id)
+  }, [id, lastMessageTimestamp, markOpened])
 
   const handleSendReaction = async (messageId: string, emoji: string) => {
     const myPubKey = useUserStore.getState().publicKey
