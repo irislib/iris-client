@@ -1,4 +1,4 @@
-name: Tests
+name: Tests - NDK
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  ndk:
     runs-on: ubuntu-latest
 
     steps:
@@ -37,16 +37,15 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
-      - name: Run tests
-        run: yarn test:ci
-
-      - name: Build
-        run: yarn build
+      - name: Run NDK tests
+        env:
+          VITE_USE_LOCAL_RELAY: "true"
+        run: yarn playwright test tests/webrtc-blossom-ndk.spec.ts --reporter=list
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: ${{ always() && hashFiles('playwright-report/**') != '' }}
         with:
-          name: playwright-report
+          name: playwright-report-ndk
           path: playwright-report/
           retention-days: 30

@@ -1,0 +1,51 @@
+name: Tests - E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Cache wellorder dataset
+        uses: actions/cache@v4
+        with:
+          path: dev-relay/nostr-wellorder-early-500k-v1.jsonl.bz2
+          key: wellorder-dataset-v1
+
+      - name: Start local relay with Docker
+        run: (cd dev-relay && docker compose up -d --wait --wait-timeout 60)
+
+      - name: Seed relay with test data
+        run: (cd dev-relay && bash quick-seed.sh 80000)
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium
+
+      - name: Run e2e tests
+        env:
+          VITE_USE_LOCAL_RELAY: "true"
+        run: yarn playwright test --reporter=list
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('playwright-report/**') != '' }}
+        with:
+          name: playwright-report-e2e
+          path: playwright-report/
+          retention-days: 30
