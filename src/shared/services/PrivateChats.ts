@@ -1,6 +1,6 @@
 import SessionManager from "../../session/SessionManager"
 import {VerifiedEvent} from "nostr-tools"
-import {LocalStorageAdapter} from "../../session/StorageAdapter"
+import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {NostrPublish, NostrSubscribe} from "nostr-double-ratchet"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
@@ -67,7 +67,7 @@ export const getSessionManager = (): SessionManager => {
     getOrCreateDeviceId(),
     createSubscribe(ndkInstance),
     createPublish(ndkInstance),
-    new LocalStorageAdapter("private")
+    new LocalForageStorageAdapter()
   )
 
   return manager
@@ -106,9 +106,9 @@ export const deleteDeviceInvite = async (deviceId: string) => {
 
   console.log("Published invite tombstone for device:", deviceId)
 
-  // Delete invite from localStorage to prevent republishing
-  const {LocalStorageAdapter} = await import("../../session/StorageAdapter")
-  const storage = new LocalStorageAdapter("private")
+  // Delete invite from our local persistence to prevent republishing
+  const {LocalForageStorageAdapter} = await import("../../session/StorageAdapter")
+  const storage = new LocalForageStorageAdapter()
   await storage.del(`invite/${deviceId}`)
 }
 

@@ -264,50 +264,166 @@ type DecryptResult =
       sessionId: string
     }
 
-const tryDecryptPrivateDM = async (data: PushData): Promise<DecryptResult> => {
+const SESSION_STORAGE = localforage.createInstance({
+  name: "iris-session-manager",
+  storeName: "session-private",
+})
+
+const SESSION_STORAGE_PREFIX = "private"
+const USER_RECORD_PREFIX = "v1/user/"
+
+type StoredSessionEntry = string
+
+interface StoredDeviceRecord {
+  deviceId: string
+  activeSession: StoredSessionEntry | null
+  inactiveSessions: StoredSessionEntry[]
+  staleAt?: number
+}
+
+interface StoredUserRecord {
+  publicKey: string
+  devices: StoredDeviceRecord[]
+}
+
+interface StoredSessionState {
+  sessionId: string
+  serializedState: StoredSessionEntry
+}
+
+const fetchStoredSessions = async (): Promise<StoredSessionState[]> => {
+  console.warn("DM decrypt: loading stored sessions from localforage")
   try {
-    const wrapper = await localforage.getItem("sessions")
-    if (wrapper) {
-      const parsed = typeof wrapper === "string" ? JSON.parse(wrapper) : wrapper
-      const sessionEntries: [string, string][] =
-        parsed?.state?.sessions ?? parsed?.sessions ?? []
+    const keys = await SESSION_STORAGE.keys()
+    const userRecordKeys = keys.filter((key) =>
+      key.startsWith(`${SESSION_STORAGE_PREFIX}${USER_RECORD_PREFIX}`)
+    )
 
-      for (const [sessionId, serState] of sessionEntries) {
-        const state = deserializeSessionState(serState)
-        const foundMatchingPubKey =
-          state.theirCurrentNostrPublicKey === data.event.pubkey ||
-          state.theirNextNostrPublicKey === data.event.pubkey
+    const sessions: StoredSessionState[] = []
 
-        if (!foundMatchingPubKey) {
-          continue
+    for (const key of userRecordKeys) {
+      const record = await SESSION_STORAGE.getItem<StoredUserRecord>(key)
+      if (!record?.devices?.length) continue
+
+      for (const device of record.devices) {
+        if (device.staleAt !== undefined) continue
+        if (device.activeSession) {
+          sessions.push({sessionId: record.publicKey, serializedState: device.activeSession})
         }
-
-        const session = new Session((_, onEvent) => {
-          onEvent(data.event as unknown as VerifiedEvent)
-          return () => {}
-        }, state)
-
-        let unsubscribe: (() => void) | undefined
-        const innerEvent = await new Promise<Rumor | null>((resolve) => {
-          unsubscribe = session.onEvent((event) => {
-            resolve(event)
-          })
-        })
-
-        unsubscribe?.()
-
-        return innerEvent === null
-          ? {
-              success: false,
-            }
-          : {
-              success: true,
-              kind: innerEvent.kind,
-              content: innerEvent.content,
-              sessionId,
-            }
+        for (const serialized of device.inactiveSessions) {
+          sessions.push({sessionId: record.publicKey, serializedState: serialized})
+        }
       }
     }
+
+    console.warn("DM decrypt: sessions prepared", {
+      userRecords: userRecordKeys.length,
+      sessionCount: sessions.length,
+    })
+    return sessions
+  } catch (error) {
+    console.error("Failed to load stored sessions:", error)
+    return []
+  }
+}
+
+const tryDecryptPrivateDM = async (data: PushData): Promise<DecryptResult> => {
+  try {
+    const sessionEntries = await fetchStoredSessions()
+    if (!sessionEntries.length) {
+      console.warn("DM decrypt: no stored sessions available")
+    }
+
+    for (const {sessionId, serializedState} of sessionEntries) {
+      let state
+      try {
+        state = deserializeSessionState(serializedState)
+      } catch (error) {
+        console.error("Failed to deserialize session state:", error)
+        continue
+      }
+
+      const foundMatchingPubKey =
+        state.theirCurrentNostrPublicKey === data.event.pubkey ||
+        state.theirNextNostrPublicKey === data.event.pubkey
+
+      if (!foundMatchingPubKey) {
+        console.warn("DM decrypt: no pubkey match for session", {
+          sessionId,
+          theirCurrent: state.theirCurrentNostrPublicKey,
+          theirNext: state.theirNextNostrPublicKey,
+          eventPubkey: data.event.pubkey,
+        })
+        continue
+      }
+
+      console.warn("DM decrypt: found matching session", {
+        sessionId,
+        eventPubkey: data.event.pubkey,
+      })
+
+      const headerTag = data.event.tags.find(([key]) => key === "header")
+      console.warn("DM decrypt: delivering event to session", {
+        sessionId,
+        hasHeaderTag: Boolean(headerTag?.[1]),
+        headerLength: headerTag?.[1]?.length ?? 0,
+        eventId: data.event.id,
+      })
+
+      const eventForSession: VerifiedEvent = {
+        ...data.event,
+        tags: data.event.tags.filter(([key]) => key === "header"),
+      }
+
+      const session = new Session((_, onEvent) => {
+        onEvent(eventForSession)
+        return () => {}
+      }, state)
+
+      let unsubscribe: (() => void) | undefined
+      const innerEvent = await new Promise<Rumor | null>((resolve) => {
+        console.warn("DM decrypt: waiting for session to emit decrypted rumor", {
+          sessionId,
+          eventId: data.event.id,
+        })
+        const timeout = setTimeout(() => {
+          console.warn("DM decrypt: timed out waiting for decrypted rumor", {
+            sessionId,
+            eventId: data.event.id,
+          })
+          resolve(null)
+        }, 1500)
+        unsubscribe = session.onEvent((event) => {
+          console.warn("DM decrypt: session emitted rumor", {
+            sessionId,
+            kind: event.kind,
+            hasContent: Boolean(event.content),
+          })
+          clearTimeout(timeout)
+          resolve(event)
+        })
+      })
+
+      unsubscribe?.()
+
+      console.warn("DM decrypt: session processing complete", {
+        sessionId,
+        result: innerEvent ? "success" : "null",
+      })
+
+      return innerEvent === null
+        ? {
+            success: false,
+          }
+        : {
+            success: true,
+            kind: innerEvent.kind,
+            content: innerEvent.content,
+            sessionId,
+          }
+    }
+
+    console.warn("DM decrypt: exhausted stored sessions without finding a match")
   } catch (err) {
     console.error("DM decryption failed:", err)
   }
@@ -320,22 +436,32 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     (async () => {
       // Check if we should show notification based on page visibility
-      const clients = await self.clients.matchAll({
-        type: "window",
-        includeUncontrolled: true,
-      })
-      const isPageVisible = clients.some((client) => client.visibilityState === "visible")
-      if (isPageVisible) {
-        console.debug("Page is visible, ignoring web push")
-        return
-      }
+      // const clients = await self.clients.matchAll({
+      //   type: "window",
+      //   includeUncontrolled: true,
+      // })
+      // const isPageVisible = clients.some((client) => client.visibilityState === "visible")
+      // if (isPageVisible) {
+      //   console.debug("Page is visible, ignoring web push")
+      //   return
+      // }
 
       const data = event.data?.json() as PushData | undefined
       if (!data?.event) return
 
+      console.warn("Service worker received push event", {
+        kind: data.event.kind,
+        id: data.event.id,
+        pubkey: data.event.pubkey,
+      })
+
       if (data.event.kind === MESSAGE_EVENT_KIND) {
         const result = await tryDecryptPrivateDM(data)
         if (result.success) {
+          console.warn("DM decrypt: notification will use decrypted content", {
+            kind: result.kind,
+            sessionId: result.sessionId,
+          })
           if (result.kind === KIND_CHANNEL_CREATE) {
             await self.registration.showNotification("New group invite", {
               icon: NOTIFICATION_CONFIGS[MESSAGE_EVENT_KIND].icon,
@@ -359,16 +485,32 @@ self.addEventListener("push", (event) => {
           }
           return
         }
+
+        const headerTag = data.event.tags.find(([key]) => key === "header")
+        console.warn("DM decrypt: failed to decrypt, falling back to generic notification", {
+          eventId: data.event.id,
+          pubkey: data.event.pubkey,
+          hasHeaderTag: Boolean(headerTag?.[1]),
+        })
       }
 
       if (NOTIFICATION_CONFIGS[data.event.kind]) {
         const config = NOTIFICATION_CONFIGS[data.event.kind]
+        console.warn("Showing notification via NOTIFICATION_CONFIGS", {
+          kind: data.event.kind,
+          title: config.title,
+        })
         await self.registration.showNotification(config.title, {
           icon: config.icon,
           data: {url: config.url, event: data.event},
         })
         return
       }
+
+      console.warn("Showing notification via data payload", {
+        title: data.title,
+        kind: data.event.kind,
+      })
 
       const imgproxySettings = (await localforage.getItem("imgproxy-settings")) as {
         url: string
