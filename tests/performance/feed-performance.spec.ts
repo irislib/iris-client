@@ -7,6 +7,11 @@ import {
   getMemoryUsage,
   measureMemoryGrowthDuringScroll,
   getDOMNodeCount,
+  getComponentMetrics,
+  clearReactMetrics,
+  isReactProfilingEnabled,
+  profileCPUDuringAction,
+  measureLongTasksDuringAction,
 } from "../utils/performance"
 import * as fs from "fs"
 import * as path from "path"
@@ -234,6 +239,158 @@ test.describe("Navigation Performance", () => {
         growth,
         `Navigation should not leak more than ${baselines.memoryGrowthMaxMB}MB`
       ).toBeLessThanOrEqual(baselines.memoryGrowthMaxMB)
+    }
+  })
+})
+
+test.describe("React Render Profiling", () => {
+  test.beforeEach(async ({page}) => {
+    const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
+    await signUp(page, targetNpub)
+  })
+
+  test("Feed component render count during initial load", async ({page}) => {
+    // Check if profiling is enabled
+    const profilingEnabled = await isReactProfilingEnabled(page)
+    if (!profilingEnabled) {
+      console.log("React profiling not enabled, skipping test")
+      test.skip()
+      return
+    }
+
+    // Wait for feed to load
+    await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+    await page.waitForTimeout(1000)
+
+    const metrics = await getComponentMetrics(page, "Feed")
+    if (!metrics) {
+      console.log("No Feed metrics available")
+      return
+    }
+
+    console.log(
+      `Feed renders: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms, avg=${metrics.avgActualDuration}ms, max=${metrics.maxActualDuration}ms`
+    )
+    saveResults("feed-render-count", {
+      renderCount: metrics.renderCount,
+      totalDuration: metrics.totalActualDuration,
+      avgDuration: metrics.avgActualDuration,
+      maxDuration: metrics.maxActualDuration,
+    })
+
+    // Soft assertion - log warning if too many renders
+    if (metrics.renderCount > 20) {
+      console.warn(
+        `Warning: Feed rendered ${metrics.renderCount} times during initial load (expected <20)`
+      )
+    }
+  })
+
+  test("Feed render count during scroll", async ({page}) => {
+    const profilingEnabled = await isReactProfilingEnabled(page)
+    if (!profilingEnabled) {
+      test.skip()
+      return
+    }
+
+    // Wait for feed to load
+    await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+    await page.waitForTimeout(1000)
+
+    // Clear metrics before scroll test
+    await clearReactMetrics(page)
+
+    // Perform scroll action
+    await page.evaluate(() => {
+      window.scrollBy(0, 2000)
+    })
+    await page.waitForTimeout(1000)
+
+    const metrics = await getComponentMetrics(page, "Feed")
+    if (!metrics) {
+      console.log("No Feed metrics available after scroll")
+      return
+    }
+
+    console.log(
+      `Feed renders during scroll: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms`
+    )
+    saveResults("feed-render-scroll", {
+      renderCount: metrics.renderCount,
+      totalDuration: metrics.totalActualDuration,
+    })
+
+    // Scrolling shouldn't cause excessive re-renders
+    if (metrics.renderCount > 10) {
+      console.warn(
+        `Warning: Feed rendered ${metrics.renderCount} times during scroll (expected <10)`
+      )
+    }
+  })
+})
+
+test.describe("CPU Profiling", () => {
+  test.beforeEach(async ({page}) => {
+    const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
+    await signUp(page, targetNpub)
+  })
+
+  test("CPU profile during feed scroll", async ({page}) => {
+    // Wait for feed to load
+    await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+    await page.waitForTimeout(1000)
+
+    const cpuProfile = await profileCPUDuringAction(
+      page,
+      async () => {
+        // Scroll down and up
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollBy(0, 1000))
+          await page.waitForTimeout(200)
+        }
+        for (let i = 0; i < 3; i++) {
+          await page.evaluate(() => window.scrollBy(0, -1000))
+          await page.waitForTimeout(200)
+        }
+      },
+      15
+    )
+
+    console.log(`CPU profile: totalTime=${cpuProfile.totalTime}µs`)
+    console.log("Hot functions:")
+    for (const fn of cpuProfile.hotFunctions.slice(0, 10)) {
+      console.log(`  ${fn.name}: ${fn.percentage}% (${fn.selfTime}µs)`)
+    }
+
+    saveResults("cpu-profile-scroll", {
+      totalTime: cpuProfile.totalTime,
+      hotFunctions: JSON.stringify(cpuProfile.hotFunctions),
+    })
+  })
+
+  test("long tasks during feed load", async ({page}) => {
+    // Start observing before navigation
+    await page.goto("http://localhost:5173/")
+
+    const longTasks = await measureLongTasksDuringAction(page, async () => {
+      // Wait for feed to fully load
+      await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+      await page.waitForTimeout(2000)
+    })
+
+    console.log(
+      `Long tasks: count=${longTasks.count}, total=${longTasks.totalDuration}ms, max=${longTasks.maxDuration}ms`
+    )
+    saveResults("long-tasks-load", longTasks)
+
+    // Warn if there are many long tasks
+    if (longTasks.count > 5) {
+      console.warn(`Warning: ${longTasks.count} long tasks (>50ms) detected during load`)
+    }
+    if (longTasks.maxDuration > 200) {
+      console.warn(
+        `Warning: Longest task was ${longTasks.maxDuration}ms (expected <200ms)`
+      )
     }
   })
 })
