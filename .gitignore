@@ -22,6 +22,9 @@ test-results/
 /blob-report/
 /playwright/.cache/
 
+# Performance test results (baselines are tracked, results are not)
+performance-results/
+
 # Test fixtures
 src/lib/example/
 

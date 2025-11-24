@@ -1,0 +1,10 @@
+{
+  "feedRenderTimeMs": 3000,
+  "feedRenderTime10ItemsMs": 5000,
+  "scrollAvgFrameTimeMs": 20,
+  "scrollMaxFrameTimeMs": 50,
+  "scrollDroppedFramesMax": 5,
+  "memoryUsageMaxMB": 150,
+  "memoryGrowthMaxMB": 50,
+  "domNodeMaxCount": 5000
+}
