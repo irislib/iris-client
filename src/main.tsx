@@ -91,7 +91,9 @@ const initializeApp = async () => {
   })
 
   // Load social graph before rendering
-  const {socialGraphLoaded, setupSocialGraphSubscriptions} = await import("@/utils/socialGraph")
+  const {socialGraphLoaded, setupSocialGraphSubscriptions} = await import(
+    "@/utils/socialGraph"
+  )
   await socialGraphLoaded
   log("✅ Social graph initialized")
   await setupSocialGraphSubscriptions()
