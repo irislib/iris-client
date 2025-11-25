@@ -34,6 +34,7 @@
     "test:ui": "VITE_USE_TEST_RELAY=true playwright test --ui",
     "test:ui:local": "VITE_USE_LOCAL_RELAY=true playwright test --ui",
     "test:performance": "VITE_USE_TEST_RELAY=true playwright test tests/performance/ --reporter=list",
+    "test:performance:prod": "playwright test tests/performance/ --reporter=list",
     "performance:baseline": "tsx ./scripts/performance-baseline.ts",
     "format": "prettier --write \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
     "format:check": "prettier --check \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
