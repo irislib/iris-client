@@ -5,6 +5,9 @@ import {generateSecretKey} from "nostr-tools"
 import {signIn} from "./auth.setup"
 import {readFileSync} from "fs"
 
+// Run WebRTC tests serially to avoid interference when multiple workers connect to same relay
+test.describe.configure({mode: "serial"})
+
 test.describe("WebRTC Blossom via NDK", () => {
   test("user posts blossom URL, other user fetches via p2p", async ({browser}) => {
     // Generate test private key

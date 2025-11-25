@@ -19,11 +19,11 @@ test.describe("Market Map Location Tags", () => {
     const mapBtn = page.locator('button:has-text("Map")')
 
     // At least one of these buttons should be visible
-    const hasCategoriesBtn = await categoriesBtn
+    await categoriesBtn
       .first()
       .isVisible()
       .catch(() => false)
-    const hasMapBtn = await mapBtn
+    await mapBtn
       .first()
       .isVisible()
       .catch(() => false)

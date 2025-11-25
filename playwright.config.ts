@@ -11,8 +11,21 @@ export default defineConfig({
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",
     video: "on-first-retry",
+    headless: true,
+    ignoreHTTPSErrors: true,
     launchOptions: {
-      args: ["--enable-precise-memory-info"],
+      args: [
+        "--enable-precise-memory-info",
+        "--disable-dev-shm-usage",
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--ignore-certificate-errors",
+        "--disable-extensions",
+        "--disable-background-networking",
+        "--disable-sync",
+      ],
     },
   },
   projects: [

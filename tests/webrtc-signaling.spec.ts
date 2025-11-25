@@ -3,6 +3,9 @@ import {bytesToHex} from "@noble/hashes/utils"
 import {generateSecretKey} from "nostr-tools"
 import {signIn} from "./auth.setup"
 
+// Run WebRTC tests serially to avoid interference when multiple workers connect to same relay
+test.describe.configure({mode: "serial"})
+
 test.describe("WebRTC Signaling", () => {
   test("two sessions with same key should send and receive hellos", async ({browser}) => {
     // Generate test private key (hex format)

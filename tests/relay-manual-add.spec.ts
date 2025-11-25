@@ -58,7 +58,7 @@ test("manually added relay connects and shows in count", async ({page}) => {
 
   // Verify the relay appears in the settings list
   await page.waitForTimeout(1000)
-  const relayList = page.locator("text=/relay\.primal\.net/")
+  const relayList = page.locator("text=/relay\\.primal\\.net/")
   await expect(relayList).toBeVisible({timeout: 5000})
 
   console.log("✓ Relay added to settings successfully")
