@@ -27,6 +27,10 @@ interface PerformanceBaselines {
   memoryUsageMaxMB: number
   memoryGrowthMaxMB: number
   domNodeMaxCount: number
+  longTasksMaxCount: number
+  longTaskMaxDurationMs: number
+  feedRenderCountInitialMax: number
+  feedRenderCountScrollMax: number
 }
 
 // Load baselines from file
@@ -46,6 +50,10 @@ function loadBaselines(): PerformanceBaselines {
     memoryUsageMaxMB: 150,
     memoryGrowthMaxMB: 50,
     domNodeMaxCount: 5000,
+    longTasksMaxCount: 10,
+    longTaskMaxDurationMs: 200,
+    feedRenderCountInitialMax: 25,
+    feedRenderCountScrollMax: 15,
   }
 }
 
@@ -246,6 +254,8 @@ test.describe("Navigation Performance", () => {
 })
 
 test.describe("React Render Profiling", () => {
+  const baselines = loadBaselines()
+
   test.beforeEach(async ({page}) => {
     const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
     await signUp(page, targetNpub)
@@ -271,7 +281,7 @@ test.describe("React Render Profiling", () => {
     }
 
     console.log(
-      `Feed renders: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms, avg=${metrics.avgActualDuration}ms, max=${metrics.maxActualDuration}ms`
+      `Feed renders: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms, avg=${metrics.avgActualDuration}ms, max=${metrics.maxActualDuration}ms (threshold: ${baselines.feedRenderCountInitialMax})`
     )
     saveResults("feed-render-count", {
       renderCount: metrics.renderCount,
@@ -280,12 +290,10 @@ test.describe("React Render Profiling", () => {
       maxDuration: metrics.maxActualDuration,
     })
 
-    // Soft assertion - log warning if too many renders
-    if (metrics.renderCount > 20) {
-      console.warn(
-        `Warning: Feed rendered ${metrics.renderCount} times during initial load (expected <20)`
-      )
-    }
+    expect(
+      metrics.renderCount,
+      `Feed should render fewer than ${baselines.feedRenderCountInitialMax} times during initial load`
+    ).toBeLessThanOrEqual(baselines.feedRenderCountInitialMax)
   })
 
   test("Feed render count during scroll", async ({page}) => {
@@ -315,23 +323,23 @@ test.describe("React Render Profiling", () => {
     }
 
     console.log(
-      `Feed renders during scroll: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms`
+      `Feed renders during scroll: count=${metrics.renderCount}, total=${metrics.totalActualDuration}ms (threshold: ${baselines.feedRenderCountScrollMax})`
     )
     saveResults("feed-render-scroll", {
       renderCount: metrics.renderCount,
       totalDuration: metrics.totalActualDuration,
     })
 
-    // Scrolling shouldn't cause excessive re-renders
-    if (metrics.renderCount > 10) {
-      console.warn(
-        `Warning: Feed rendered ${metrics.renderCount} times during scroll (expected <10)`
-      )
-    }
+    expect(
+      metrics.renderCount,
+      `Feed should render fewer than ${baselines.feedRenderCountScrollMax} times during scroll`
+    ).toBeLessThanOrEqual(baselines.feedRenderCountScrollMax)
   })
 })
 
 test.describe("CPU Profiling", () => {
+  const baselines = loadBaselines()
+
   test.beforeEach(async ({page}) => {
     const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
     await signUp(page, targetNpub)
@@ -381,19 +389,19 @@ test.describe("CPU Profiling", () => {
     })
 
     console.log(
-      `Long tasks: count=${longTasks.count}, total=${longTasks.totalDuration}ms, max=${longTasks.maxDuration}ms`
+      `Long tasks: count=${longTasks.count}, total=${longTasks.totalDuration}ms, max=${longTasks.maxDuration}ms (thresholds: count=${baselines.longTasksMaxCount}, max=${baselines.longTaskMaxDurationMs}ms)`
     )
     saveResults("long-tasks-load", longTasks)
 
-    // Warn if there are many long tasks
-    if (longTasks.count > 5) {
-      console.warn(`Warning: ${longTasks.count} long tasks (>50ms) detected during load`)
-    }
-    if (longTasks.maxDuration > 200) {
-      console.warn(
-        `Warning: Longest task was ${longTasks.maxDuration}ms (expected <200ms)`
-      )
-    }
+    expect(
+      longTasks.count,
+      `Should have fewer than ${baselines.longTasksMaxCount} long tasks during load`
+    ).toBeLessThanOrEqual(baselines.longTasksMaxCount)
+
+    expect(
+      longTasks.maxDuration,
+      `Longest task should be under ${baselines.longTaskMaxDurationMs}ms`
+    ).toBeLessThanOrEqual(baselines.longTaskMaxDurationMs)
   })
 })
 

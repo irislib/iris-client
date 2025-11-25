@@ -6,5 +6,9 @@
   "scrollDroppedFramesMax": 5,
   "memoryUsageMaxMB": 150,
   "memoryGrowthMaxMB": 50,
-  "domNodeMaxCount": 5000
+  "domNodeMaxCount": 5000,
+  "longTasksMaxCount": 10,
+  "longTaskMaxDurationMs": 200,
+  "feedRenderCountInitialMax": 25,
+  "feedRenderCountScrollMax": 15
 }
