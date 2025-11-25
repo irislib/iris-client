@@ -40,17 +40,17 @@ interface ReactPerfCollector {
   isEnabled: () => boolean
 }
 
-// Check if profiling is enabled
-const isProfilingEnabled = (): boolean => {
-  if (typeof window === "undefined") return false
-  // Enable in test mode or when explicitly enabled
-  return (
-    import.meta.env.VITE_PERF_PROFILING === "true" ||
+// Check if profiling is enabled - computed once at module load time
+// Vite resolves import.meta.env at build time, so this becomes a constant in production
+const PROFILING_ENABLED =
+  typeof window !== "undefined" &&
+  (import.meta.env.VITE_PERF_PROFILING === "true" ||
     import.meta.env.VITE_USE_TEST_RELAY === "true" ||
     import.meta.env.VITE_USE_LOCAL_RELAY === "true" ||
-    import.meta.env.MODE === "test"
-  )
-}
+    import.meta.env.MODE === "test")
+
+// Keep function for backward compatibility with collector.isEnabled()
+const isProfilingEnabled = (): boolean => PROFILING_ENABLED
 
 // Create the collector
 function createPerfCollector(): ReactPerfCollector {
@@ -121,7 +121,7 @@ export function getReactPerfCollector(): ReactPerfCollector {
   if (!collector) {
     collector = createPerfCollector()
     // Expose to window for test access
-    if (typeof window !== "undefined" && isProfilingEnabled()) {
+    if (PROFILING_ENABLED) {
       ;(window as unknown as {__REACT_PERF__: ReactPerfCollector}).__REACT_PERF__ =
         collector
     }
@@ -130,7 +130,7 @@ export function getReactPerfCollector(): ReactPerfCollector {
 }
 
 // Initialize on import if profiling is enabled
-if (isProfilingEnabled()) {
+if (PROFILING_ENABLED) {
   getReactPerfCollector()
 }
 
@@ -145,7 +145,7 @@ export const onRenderCallback: ProfilerOnRenderCallback = (
   startTime,
   commitTime
 ) => {
-  if (!isProfilingEnabled()) return
+  if (!PROFILING_ENABLED) return
 
   const collector = getReactPerfCollector()
   collector.renders.push({
@@ -168,6 +168,7 @@ interface PerfProfilerProps {
 
 /**
  * Conditional profiler wrapper - only profiles when enabled
+ * Uses module-level constant for zero runtime overhead in production.
  *
  * Usage:
  *   <PerfProfiler id="Feed">
@@ -175,7 +176,9 @@ interface PerfProfilerProps {
  *   </PerfProfiler>
  */
 export function PerfProfiler({id, children}: PerfProfilerProps): ReactNode {
-  if (!isProfilingEnabled()) {
+  // PROFILING_ENABLED is a module-level constant resolved at build time
+  // In production builds, this entire branch can be eliminated by the bundler
+  if (!PROFILING_ENABLED) {
     return children
   }
 
