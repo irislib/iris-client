@@ -562,3 +562,240 @@ export async function measureLongTasksDuringAction(
     maxDuration: Math.round(maxDuration),
   }
 }
+
+// ============================================================================
+// Web Worker Profiling
+// ============================================================================
+
+export interface WorkerInfo {
+  url: string
+  id: string
+}
+
+export interface WorkerMessageMetrics {
+  messageType: string
+  count: number
+  totalDuration: number
+  avgDuration: number
+  maxDuration: number
+}
+
+/**
+ * Get list of active web workers via CDP
+ */
+export async function getActiveWorkers(page: Page): Promise<WorkerInfo[]> {
+  const client = await page.context().newCDPSession(page)
+  await client.send("Target.setAutoAttach", {
+    autoAttach: true,
+    waitForDebuggerOnStart: false,
+    flatten: true,
+  })
+
+  const workers: WorkerInfo[] = []
+
+  // Get all targets
+  const {targetInfos} = await client.send("Target.getTargets")
+  for (const target of targetInfos) {
+    if (target.type === "worker" || target.type === "service_worker") {
+      workers.push({
+        url: target.url,
+        id: target.targetId,
+      })
+    }
+  }
+
+  debug("Found %d workers", workers.length)
+  return workers
+}
+
+/**
+ * Profile a specific worker by target ID
+ */
+export async function profileWorker(
+  page: Page,
+  workerId: string,
+  action: () => Promise<void>,
+  topN = 10
+): Promise<CPUProfileSummary | null> {
+  const client = await page.context().newCDPSession(page)
+
+  try {
+    // Attach to worker
+    const {sessionId} = await client.send("Target.attachToTarget", {
+      targetId: workerId,
+      flatten: true,
+    })
+
+    // Send profiler commands to the worker session
+    await client.send("Runtime.runIfWaitingForDebugger", {}, sessionId)
+    await client.send("Profiler.enable", {}, sessionId)
+    await client.send("Profiler.start", {}, sessionId)
+
+    debug("Started profiling worker %s", workerId)
+
+    // Run the action
+    await action()
+
+    // Stop profiling
+    const {profile} = (await client.send("Profiler.stop", {}, sessionId)) as {
+      profile: CPUProfile
+    }
+    await client.send("Profiler.disable", {}, sessionId)
+
+    debug("Worker profile: %d samples", profile.samples?.length || 0)
+    return analyzeCPUProfile(profile, topN)
+  } catch (err) {
+    debug("Failed to profile worker: %s", err)
+    return null
+  }
+}
+
+/**
+ * Measure relay worker message round-trip times
+ * Injects timing instrumentation into postMessage
+ */
+export async function measureWorkerMessageLatency(
+  page: Page,
+  durationMs = 5000
+): Promise<{messages: WorkerMessageMetrics[]; totalMessages: number}> {
+  // Inject timing code
+  await page.evaluate(() => {
+    const messageTimings: Array<{type: string; duration: number}> = []
+    const pendingMessages = new Map<string, number>()
+
+    // Store original postMessage
+    const workers = (window as unknown as {__RELAY_WORKER__?: Worker}).__RELAY_WORKER__
+    if (!workers) {
+      console.warn("No relay worker found")
+      return
+    }
+
+    // Intercept worker messages
+    const originalOnMessage = workers.onmessage
+    workers.onmessage = (event) => {
+      const data = event.data
+      if (data.id && pendingMessages.has(data.id)) {
+        const startTime = pendingMessages.get(data.id)!
+        const duration = performance.now() - startTime
+        messageTimings.push({type: data.type, duration})
+        pendingMessages.delete(data.id)
+      }
+      if (originalOnMessage) {
+        originalOnMessage.call(workers, event)
+      }
+    }
+
+    // Intercept postMessage
+    const originalPostMessage = workers.postMessage.bind(workers)
+    workers.postMessage = (message: {type: string; id?: string}) => {
+      if (message.id) {
+        pendingMessages.set(message.id, performance.now())
+      }
+      originalPostMessage(message)
+    }
+    ;(
+      window as unknown as {__WORKER_MESSAGE_TIMINGS__: typeof messageTimings}
+    ).__WORKER_MESSAGE_TIMINGS__ = messageTimings
+  })
+
+  // Wait for measurements
+  await page.waitForTimeout(durationMs)
+
+  // Collect results
+  const timings = await page.evaluate(() => {
+    return (
+      (
+        window as unknown as {
+          __WORKER_MESSAGE_TIMINGS__?: Array<{type: string; duration: number}>
+        }
+      ).__WORKER_MESSAGE_TIMINGS__ || []
+    )
+  })
+
+  // Aggregate by message type
+  const byType = new Map<string, number[]>()
+  for (const timing of timings) {
+    if (!byType.has(timing.type)) {
+      byType.set(timing.type, [])
+    }
+    byType.get(timing.type)!.push(timing.duration)
+  }
+
+  const messages: WorkerMessageMetrics[] = Array.from(byType.entries()).map(
+    ([type, durations]) => ({
+      messageType: type,
+      count: durations.length,
+      totalDuration: Math.round(durations.reduce((a, b) => a + b, 0)),
+      avgDuration:
+        Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 100) / 100,
+      maxDuration: Math.round(Math.max(...durations) * 100) / 100,
+    })
+  )
+
+  debug(
+    "Worker message timings: %d types, %d total messages",
+    messages.length,
+    timings.length
+  )
+
+  return {messages, totalMessages: timings.length}
+}
+
+/**
+ * Get relay worker stats (subscriptions, cache hits, etc)
+ */
+export async function getRelayWorkerStats(
+  page: Page
+): Promise<{totalEvents: number; eventsByKind: Record<number, number>} | null> {
+  return await page.evaluate(async () => {
+    const worker = (window as unknown as {__RELAY_WORKER__?: Worker}).__RELAY_WORKER__
+    if (!worker) return null
+
+    return new Promise((resolve) => {
+      const id = `stats-${Date.now()}`
+      const handler = (event: MessageEvent) => {
+        if (event.data.type === "stats" && event.data.id === id) {
+          worker.removeEventListener("message", handler)
+          resolve(event.data.stats)
+        }
+      }
+      worker.addEventListener("message", handler)
+      worker.postMessage({type: "getStats", id})
+
+      // Timeout after 5s
+      setTimeout(() => {
+        worker.removeEventListener("message", handler)
+        resolve(null)
+      }, 5000)
+    })
+  })
+}
+
+/**
+ * Get relay connection statuses from worker
+ */
+export async function getRelayStatuses(
+  page: Page
+): Promise<Array<{url: string; status: number; stats: object}> | null> {
+  return await page.evaluate(async () => {
+    const worker = (window as unknown as {__RELAY_WORKER__?: Worker}).__RELAY_WORKER__
+    if (!worker) return null
+
+    return new Promise((resolve) => {
+      const id = `relay-status-${Date.now()}`
+      const handler = (event: MessageEvent) => {
+        if (event.data.type === "relayStatus" && event.data.id === id) {
+          worker.removeEventListener("message", handler)
+          resolve(event.data.relayStatuses)
+        }
+      }
+      worker.addEventListener("message", handler)
+      worker.postMessage({type: "getRelayStatus", id})
+
+      setTimeout(() => {
+        worker.removeEventListener("message", handler)
+        resolve(null)
+      }, 5000)
+    })
+  })
+}

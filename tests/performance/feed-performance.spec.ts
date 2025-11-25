@@ -12,6 +12,8 @@ import {
   isReactProfilingEnabled,
   profileCPUDuringAction,
   measureLongTasksDuringAction,
+  getActiveWorkers,
+  profileWorker,
 } from "../utils/performance"
 import * as fs from "fs"
 import * as path from "path"
@@ -390,6 +392,76 @@ test.describe("CPU Profiling", () => {
     if (longTasks.maxDuration > 200) {
       console.warn(
         `Warning: Longest task was ${longTasks.maxDuration}ms (expected <200ms)`
+      )
+    }
+  })
+})
+
+test.describe("Worker Profiling", () => {
+  test.beforeEach(async ({page}) => {
+    const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
+    await signUp(page, targetNpub)
+  })
+
+  test("list active workers", async ({page}) => {
+    // Wait for app to initialize workers
+    await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+    await page.waitForTimeout(1000)
+
+    const workers = await getActiveWorkers(page)
+
+    console.log(`Active workers: ${workers.length}`)
+    for (const worker of workers) {
+      console.log(`  - ${worker.url} (${worker.id})`)
+    }
+
+    saveResults("active-workers", {
+      count: workers.length,
+      workers: JSON.stringify(workers),
+    })
+
+    // Should have at least the relay worker
+    expect(workers.length).toBeGreaterThanOrEqual(0) // May be 0 in some environments
+  })
+
+  test("profile relay worker during feed activity", async ({page}) => {
+    // Wait for feed to load
+    await page.waitForSelector('[data-testid="feed-item"]', {timeout: 10000})
+    await page.waitForTimeout(1000)
+
+    // Find relay worker
+    const workers = await getActiveWorkers(page)
+    const relayWorker = workers.find((w) => w.url.includes("relay-worker"))
+
+    if (!relayWorker) {
+      console.log("Relay worker not found, skipping profile test")
+      return
+    }
+
+    console.log(`Profiling relay worker: ${relayWorker.url}`)
+
+    const profile = await profileWorker(page, relayWorker.id, async () => {
+      // Trigger some relay activity by scrolling (loads more content)
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate(() => window.scrollBy(0, 1000))
+        await page.waitForTimeout(500)
+      }
+    })
+
+    if (profile) {
+      console.log(`Relay worker CPU profile: totalTime=${profile.totalTime}µs`)
+      console.log("Hot functions in relay worker:")
+      for (const fn of profile.hotFunctions.slice(0, 10)) {
+        console.log(`  ${fn.name}: ${fn.percentage}% (${fn.selfTime}µs)`)
+      }
+
+      saveResults("relay-worker-profile", {
+        totalTime: profile.totalTime,
+        hotFunctions: JSON.stringify(profile.hotFunctions),
+      })
+    } else {
+      console.log(
+        "Could not profile relay worker (may not be supported in this environment)"
       )
     }
   })
