@@ -271,7 +271,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
     }
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = ndk().subscribe(filter, {closeOnEose: true})
       const debouncedUpdateAmount = debounce(async (zapsByAuthor) => {
         const amount = await calculateZappedAmount(zapsByAuthor)
         setZappedAmount(amount)

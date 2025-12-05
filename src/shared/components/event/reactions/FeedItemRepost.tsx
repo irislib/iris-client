@@ -68,7 +68,7 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
     }
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = ndk().subscribe(filter, {closeOnEose: true})
 
       const debouncedUpdate = debounce((repostsByAuthor) => {
         setRepostCount(repostsByAuthor.size)

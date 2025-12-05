@@ -9,9 +9,11 @@ import type {NDKRelay, NDKRelayConnectionStats} from "."
 import {NDKRelayStatus} from "."
 import {NDKRelayKeepalive, probeRelayConnection} from "./keepalive"
 import type {NDKRelaySubscription} from "./subscription"
+import {NDKRelaySubscriptionStatus} from "./subscription"
 
 const MAX_RECONNECT_ATTEMPTS = 5
 const FLAPPING_THRESHOLD_MS = 1000
+const MAX_CONCURRENT_SHORT_LIVED_REQS = 8
 
 export type CountResolver = {
   resolve: (count: number) => void
@@ -45,6 +47,9 @@ export class NDKRelayConnectivity {
   private pendingAuthPublishes = new Map<string, NostrEvent>()
   private serial = 0
   public baseEoseTimeout = 4_400
+  private pendingEphemeralReqs: NDKRelaySubscription[] = []
+  private inFlightEphemeralSubIds: Set<string> = new Set()
+  private maxConcurrentEphemeralReqs = MAX_CONCURRENT_SHORT_LIVED_REQS
 
   // Keepalive and monitoring
   private keepalive?: NDKRelayKeepalive
@@ -622,7 +627,7 @@ export class NDKRelayConnectivity {
           return
         }
         case "CLOSED": {
-          const so = this.openSubs.get(id)
+          const so = this.removeOpenSubscription(id)
           if (!so) return
           so.onclosed(data[2] as string)
           return
@@ -743,6 +748,82 @@ export class NDKRelayConnectivity {
    */
   private onError(error: Error | Event): void {
     this.debug(`WebSocket error on ${this.ndkRelay.url}:`, error)
+  }
+
+  private dispatchSubscription(relaySub: NDKRelaySubscription): void {
+    if (relaySub.status === NDKRelaySubscriptionStatus.CLOSED) {
+      this.debug(`Skipping dispatch for closed subscription ${relaySub.subId}`)
+      return
+    }
+    if (this.isShortLivedSubscription(relaySub)) {
+      this.inFlightEphemeralSubIds.add(relaySub.subId)
+    }
+    this.send(
+      `["REQ","${relaySub.subId}",${JSON.stringify(relaySub.executeFilters).substring(1)}`
+    )
+    this.openSubs.set(relaySub.subId, relaySub)
+  }
+
+  private enqueueEphemeralSubscription(relaySub: NDKRelaySubscription): void {
+    this.pendingEphemeralReqs.push(relaySub)
+    this.debug(
+      `Queued REQ ${relaySub.subId}. active=${this.inFlightEphemeralSubIds.size}, queued=${this.pendingEphemeralReqs.length}`
+    )
+  }
+
+  private flushThrottledSubscriptions(): void {
+    if (!this.pendingEphemeralReqs.length) return
+
+    while (
+      this.pendingEphemeralReqs.length > 0 &&
+      this.inFlightEphemeralSubIds.size < this.maxConcurrentEphemeralReqs
+    ) {
+      const next = this.pendingEphemeralReqs.shift()
+      if (!next) continue
+      if (next.status === NDKRelaySubscriptionStatus.CLOSED || next.items.size === 0) {
+        continue
+      }
+      this.dispatchSubscription(next)
+    }
+  }
+
+  private removeOpenSubscription(subId: string): NDKRelaySubscription | undefined {
+    const sub = this.openSubs.get(subId)
+    if (!sub) return undefined
+    this.openSubs.delete(subId)
+    if (this.inFlightEphemeralSubIds.delete(subId)) {
+      this.flushThrottledSubscriptions()
+    }
+    return sub
+  }
+
+  private shouldThrottleSubscription(relaySub: NDKRelaySubscription): boolean {
+    if (!this.isShortLivedSubscription(relaySub)) return false
+    return this.inFlightEphemeralSubIds.size >= this.maxConcurrentEphemeralReqs
+  }
+
+  private isShortLivedSubscription(relaySub: NDKRelaySubscription): boolean {
+    if (!relaySub || relaySub.items.size === 0) {
+      return false
+    }
+
+    const allCloseOnEose = Array.from(relaySub.items.values()).every((item) => {
+      const subscription = item.subscription
+      return !!subscription?.closeOnEose
+    })
+
+    if (allCloseOnEose) {
+      return true
+    }
+
+    const filters = relaySub.executeFilters || []
+    if (!filters.length) return false
+
+    const allUseSpecificIds = filters.every(
+      (filter) => Array.isArray(filter.ids) && filter.ids.length > 0
+    )
+
+    return allUseSpecificIds
   }
 
   /**
@@ -1056,8 +1137,7 @@ export class NDKRelayConnectivity {
 
   public close(subId: string, reason?: string): void {
     this.send(`["CLOSE","${subId}"]`)
-    const sub = this.openSubs.get(subId)
-    this.openSubs.delete(subId)
+    const sub = this.removeOpenSubscription(subId)
     if (sub) sub.onclose(reason)
   }
 
@@ -1069,8 +1149,11 @@ export class NDKRelayConnectivity {
    * @returns A new NDKRelaySubscription instance.
    */
   public req(relaySub: NDKRelaySubscription): void {
-    ;`${this.send(`["REQ","${relaySub.subId}",${JSON.stringify(relaySub.executeFilters).substring(1)}`)}]`
-    this.openSubs.set(relaySub.subId, relaySub)
+    if (this.shouldThrottleSubscription(relaySub)) {
+      this.enqueueEphemeralSubscription(relaySub)
+      return
+    }
+    this.dispatchSubscription(relaySub)
   }
 
   /**

@@ -2,6 +2,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import type {NDK} from "../ndk"
 import {NDKRelayConnectivity} from "./connectivity"
 import {type NDKRelay, NDKRelayStatus} from "./index"
+import type {NDKRelaySubscription} from "./subscription"
+import {NDKRelaySubscriptionStatus} from "./subscription"
 
 // Mock WebSocket
 class MockWebSocket {
@@ -30,6 +32,41 @@ global.WebSocket.CONNECTING = 0
 global.WebSocket.OPEN = 1
 global.WebSocket.CLOSING = 2
 global.WebSocket.CLOSED = 3
+
+const createRelaySub = (
+  id: string,
+  closeOnEose: boolean,
+  filters: Record<string, any>[] = [{}]
+): NDKRelaySubscription => {
+  const subscriptionMock = {
+    closeOnEose,
+    filters: [],
+    internalId: `${id}-internal`,
+    eoseReceived: vi.fn(),
+    closedReceived: vi.fn(),
+  }
+
+  const relaySub = {
+    subId: id,
+    items: new Map([
+      [
+        `${id}-item`,
+        {
+          subscription: subscriptionMock,
+          filters: [],
+        },
+      ],
+    ]),
+    executeFilters: filters as any,
+    status: NDKRelaySubscriptionStatus.RUNNING,
+    onclose: vi.fn(),
+    onclosed: vi.fn(),
+    oneose: vi.fn(),
+    onevent: vi.fn(),
+  }
+
+  return relaySub as unknown as NDKRelaySubscription
+}
 
 describe("NDKRelayConnectivity", () => {
   let mockRelay: NDKRelay
@@ -193,6 +230,63 @@ describe("NDKRelayConnectivity", () => {
       connectivity["onConnect"]()
 
       expect(connectivity["wasIdle"]).toBe(false)
+    })
+  })
+
+  describe("REQ throttling", () => {
+    it("queues close-on-EOSE subscriptions beyond the limit and flushes later", () => {
+      vi.spyOn(connectivity as any, "send").mockResolvedValue(undefined)
+      ;(connectivity as any).maxConcurrentEphemeralReqs = 2
+
+      const sub1 = createRelaySub("sub-1", true)
+      const sub2 = createRelaySub("sub-2", true)
+      const sub3 = createRelaySub("sub-3", true)
+
+      connectivity.req(sub1)
+      connectivity.req(sub2)
+      connectivity.req(sub3)
+
+      expect(connectivity.openSubs.size).toBe(2)
+      expect((connectivity as any).pendingEphemeralReqs.length).toBe(1)
+
+      connectivity.close(sub1.subId)
+
+      expect(connectivity.openSubs.has(sub2.subId)).toBe(true)
+      expect(connectivity.openSubs.has(sub3.subId)).toBe(true)
+      expect((connectivity as any).pendingEphemeralReqs.length).toBe(0)
+    })
+
+    it("does not throttle long-lived subscriptions", () => {
+      vi.spyOn(connectivity as any, "send").mockResolvedValue(undefined)
+      ;(connectivity as any).maxConcurrentEphemeralReqs = 1
+
+      const shortLived = createRelaySub("short", true)
+      const streaming = createRelaySub("stream", false)
+
+      connectivity.req(shortLived)
+      connectivity.req(streaming)
+
+      expect(connectivity.openSubs.size).toBe(2)
+      expect((connectivity as any).pendingEphemeralReqs.length).toBe(0)
+    })
+
+    it("treats id-only filters as short-lived even without closeOnEose flag", () => {
+      vi.spyOn(connectivity as any, "send").mockResolvedValue(undefined)
+      ;(connectivity as any).maxConcurrentEphemeralReqs = 1
+
+      const idFetch = createRelaySub("id-fetch", false, [{ids: ["abc"]}])
+      const second = createRelaySub("second", false, [{ids: ["def"]}])
+
+      connectivity.req(idFetch)
+      connectivity.req(second)
+
+      expect(connectivity.openSubs.size).toBe(1)
+      expect((connectivity as any).pendingEphemeralReqs.length).toBe(1)
+
+      connectivity.close("id-fetch")
+
+      expect(connectivity.openSubs.has("second")).toBe(true)
+      expect((connectivity as any).pendingEphemeralReqs.length).toBe(0)
     })
   })
 

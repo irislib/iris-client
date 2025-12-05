@@ -53,7 +53,7 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
     }, 300)
 
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = ndk().subscribe(filter, {closeOnEose: true})
 
       sub?.on("event", (e: NDKEvent) => {
         if (shouldHideUser(e.author.pubkey)) return

@@ -27,7 +27,7 @@ export function useReactionsByAuthor(eventId: string) {
       ["#e"]: [eventId],
     }
 
-    const sub = ndk().subscribe(filter)
+    const sub = ndk().subscribe(filter, {closeOnEose: true})
 
     sub?.on("event", (reactionEvent: NDKEvent) => {
       if (shouldHideUser(reactionEvent.author.pubkey)) return
