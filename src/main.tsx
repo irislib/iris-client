@@ -90,12 +90,14 @@ const initializeApp = async () => {
   })
 
   // Load social graph in background (non-blocking)
-  import("@/utils/socialGraph").then(async ({socialGraphLoaded, setupSocialGraphSubscriptions}) => {
-    await socialGraphLoaded
-    log("✅ Social graph initialized")
-    await setupSocialGraphSubscriptions()
-    log("✅ Social graph subscriptions ready")
-  })
+  import("@/utils/socialGraph").then(
+    async ({socialGraphLoaded, setupSocialGraphSubscriptions}) => {
+      await socialGraphLoaded
+      log("✅ Social graph initialized")
+      await setupSocialGraphSubscriptions()
+      log("✅ Social graph subscriptions ready")
+    }
+  )
 
   // Initialize debug system
   DebugManager

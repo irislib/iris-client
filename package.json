@@ -31,6 +31,7 @@
     "test": "vitest run && VITE_USE_TEST_RELAY=true playwright test --reporter=list",
     "test:unit": "vitest run",
     "test:ci": "vitest run && VITE_USE_LOCAL_RELAY=true playwright test --reporter=list",
+    "test:ci:e2e": "VITE_USE_LOCAL_RELAY=true playwright test --reporter=list",
     "test:local": "vitest run && VITE_USE_LOCAL_RELAY=true playwright test --reporter=list --workers=1",
     "test:ui": "VITE_USE_TEST_RELAY=true playwright test --ui",
     "test:ui:local": "VITE_USE_LOCAL_RELAY=true playwright test --ui",

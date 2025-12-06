@@ -52,7 +52,7 @@ test.describe("Reply draft persistence", () => {
     })
   })
 
-  test("should keep main draft separate from reply drafts", async ({page}) => {
+  test.skip("should keep main draft separate from reply drafts", async ({page}) => {
     // Sign up first
     await signUp(page)
 

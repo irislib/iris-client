@@ -43,6 +43,8 @@ RUN apt-get update && apt-get install -y \
     liblmdb0 \
     libflatbuffers1 \
     libzstd1 \
+    bash \
+    coreutils \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
