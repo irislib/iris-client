@@ -1,8 +1,9 @@
 import {test, expect} from "@playwright/test"
+import {signIn} from "./auth.setup"
 
-test.describe.skip("Self-messaging between browser sessions", () => {
+test.describe("Self-messaging between browser sessions", () => {
   test("should sync messages between two sessions with same key", async ({browser}) => {
-    test.setTimeout(15000) // 15 second timeout for the whole test
+    test.setTimeout(60000) // 60 second timeout for the complex multi-session test
     // Test data
     const testKey = "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5"
     const timestamp = Date.now()
@@ -18,37 +19,31 @@ test.describe.skip("Self-messaging between browser sessions", () => {
 
     try {
       // Login to both sessions with same key
-      await page1.goto("/")
-      await page1.waitForLoadState("networkidle")
-      await page1.getByPlaceholder("nsec, npub, nip-05 or hex private key").fill(testKey)
-      await page1.getByRole("button", {name: "Continue"}).click()
-      await page1.waitForURL("/feed")
+      await signIn(page1, testKey)
+      await signIn(page2, testKey)
 
-      await page2.goto("/")
-      await page2.waitForLoadState("networkidle")
-      await page2.getByPlaceholder("nsec, npub, nip-05 or hex private key").fill(testKey)
-      await page2.getByRole("button", {name: "Continue"}).click()
-      await page2.waitForURL("/feed")
+      // Give time for session managers to initialize
+      await page1.waitForTimeout(2000)
+      await page2.waitForTimeout(2000)
 
-      // Navigate to chats on both pages
-      await page1.getByRole("link", {name: "Chats"}).click()
+      // Page 1: Go to own profile and start chat
+      const profileLink1 = page1.locator('[data-testid="sidebar-user-row"]').first()
+      await profileLink1.click()
       await page1.waitForLoadState("networkidle")
 
-      await page2.getByRole("link", {name: "Chats"}).click()
-      await page2.waitForLoadState("networkidle")
+      // Wait for profile to load
+      await expect(page1.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
 
-      // Page 1: Start a chat with self
-      await page1.getByRole("link", {name: /New chat/i}).click()
-      await page1.waitForLoadState("networkidle")
+      // Click the mail/message button
+      const messageButton1 = page1
+        .getByTestId("profile-header-actions")
+        .locator("button.btn-circle")
+        .first()
+      await expect(messageButton1).toBeVisible({timeout: 5000})
+      await messageButton1.click()
 
-      // Search for self - the test key's public key
-      const selfPubKey = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
-      await page1.getByPlaceholder("Search users").fill(selfPubKey)
-      await page1.waitForTimeout(1000) // Wait for search results
-
-      // Click on self in search results
-      await page1.locator(`text=${selfPubKey}`).first().click()
-      await page1.waitForLoadState("networkidle")
+      // Wait for chat to load
+      await expect(page1.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
 
       // Send first message from page1
       const messageInput1 = page1.getByPlaceholder("Message")
@@ -56,14 +51,37 @@ test.describe.skip("Self-messaging between browser sessions", () => {
       await messageInput1.press("Enter")
 
       // Verify message appears on page1
-      await expect(page1.locator(`text="${testMessage1}"`)).toBeVisible({timeout: 3000})
+      await expect(
+        page1.locator(".whitespace-pre-wrap").getByText(testMessage1)
+      ).toBeVisible({timeout: 10000})
 
-      // Page 2: Navigate to the self chat
-      await page2.goto(page1.url()) // Use same URL as page1
+      // Wait for message to sync
+      await page1.waitForTimeout(2000)
+
+      // Page 2: Go to own profile and start chat
+      const profileLink2 = page2.locator('[data-testid="sidebar-user-row"]').first()
+      await profileLink2.click()
       await page2.waitForLoadState("networkidle")
 
+      await expect(page2.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
+
+      const messageButton2 = page2
+        .getByTestId("profile-header-actions")
+        .locator("button.btn-circle")
+        .first()
+      await expect(messageButton2).toBeVisible({timeout: 5000})
+      await messageButton2.click()
+
+      // Wait for chat to load
+      await expect(page2.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
+
+      // Wait for messages to sync from relay
+      await page2.waitForTimeout(3000)
+
       // Verify message from page1 appears on page2
-      await expect(page2.locator(`text="${testMessage1}"`)).toBeVisible({timeout: 5000})
+      await expect(
+        page2.locator(".whitespace-pre-wrap").getByText(testMessage1)
+      ).toBeVisible({timeout: 10000})
 
       // Send second message from page2
       const messageInput2 = page2.getByPlaceholder("Message")
@@ -71,10 +89,18 @@ test.describe.skip("Self-messaging between browser sessions", () => {
       await messageInput2.press("Enter")
 
       // Verify message appears on page2
-      await expect(page2.locator(`text="${testMessage2}"`)).toBeVisible({timeout: 3000})
+      await expect(
+        page2.locator(".whitespace-pre-wrap").getByText(testMessage2)
+      ).toBeVisible({timeout: 10000})
+
+      // Wait for message to sync
+      await page2.waitForTimeout(2000)
 
       // Verify message from page2 appears on page1
-      await expect(page1.locator(`text="${testMessage2}"`)).toBeVisible({timeout: 5000})
+      // May need to refresh page1 or wait for subscription to pick it up
+      await expect(
+        page1.locator(".whitespace-pre-wrap").getByText(testMessage2)
+      ).toBeVisible({timeout: 10000})
     } finally {
       await context1.close()
       await context2.close()

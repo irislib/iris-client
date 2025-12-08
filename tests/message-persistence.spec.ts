@@ -1,42 +1,31 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 
-async function setupChatWithSelf(page, username) {
-  // Go to chats
-  await page.getByRole("link", {name: "Chats"}).click()
+async function setupChatWithSelf(page) {
+  // Go to own profile via the sidebar user row
+  const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
+  await profileLink.click()
   await page.waitForLoadState("networkidle")
 
-  // Wait for the New Chat header to be visible
-  await expect(page.locator("header").getByText("New Chat")).toBeVisible({timeout: 10000})
+  // Wait for profile to load
+  await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
 
-  // We're already on the new chat page at /chats
-  // No need to click any link since /chats now shows NewChat by default
+  // Click the mail/message button (it's a circle button with mail-outline icon)
+  const messageButton = page
+    .getByTestId("profile-header-actions")
+    .locator("button.btn-circle")
+    .first()
+  await expect(messageButton).toBeVisible({timeout: 5000})
+  await messageButton.click()
 
-  // Search for self by username
-  const searchInput = page.getByPlaceholder("Search for users")
-  await expect(searchInput).toBeVisible()
-  await searchInput.fill(username)
-  await page.waitForTimeout(1000)
-
-  // Wait for the self user result button to be visible and click it
-  const selfButton = page.locator(`button[aria-label="${username}"]`).first()
-  try {
-    await expect(selfButton).toBeVisible({timeout: 5000})
-  } catch (e) {
-    const allLabels = await page.locator("button[aria-label]").allTextContents()
-    console.error("User result buttons found:", allLabels)
-    throw e
-  }
-  await selfButton.click()
-
-  // Wait for navigation to chat view
-  await expect(page).toHaveURL(/\/chats\/chat/, {timeout: 10000})
+  // Wait for the chat UI to load - look for the message input
+  await expect(page.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
 }
 
-test.describe.skip("Message persistence with double ratchet", () => {
+test.describe("Message persistence with double ratchet", () => {
   test("messages persist after page refresh", async ({page}) => {
-    const username = await signUp(page)
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     // Send a message
     const messageInput = page.getByPlaceholder("Message")
@@ -47,16 +36,19 @@ test.describe.skip("Message persistence with double ratchet", () => {
     // Verify message appears
     await expect(
       page.locator(".whitespace-pre-wrap").getByText(testMessage)
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
+
+    // Wait for message to persist
+    await page.waitForTimeout(1000)
 
     // Refresh the page
     await page.reload()
     await page.waitForLoadState("networkidle")
 
     // Verify message still appears
-    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible(
-      {timeout: 10000}
-    )
+    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible({
+      timeout: 10000,
+    })
 
     // Send another message after refresh
     const messageAfterRefresh = "Message after refresh"
@@ -69,12 +61,12 @@ test.describe.skip("Message persistence with double ratchet", () => {
     ).toBeVisible()
     await expect(
       page.locator(".whitespace-pre-wrap").getByText(messageAfterRefresh)
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
   })
 
   test("can continue conversation after refresh", async ({page}) => {
-    const username = await signUp(page)
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     // Send initial messages
     const messageInput = page.getByPlaceholder("Message")
@@ -83,8 +75,13 @@ test.describe.skip("Message persistence with double ratchet", () => {
     for (const msg of messages) {
       await messageInput.fill(msg)
       await messageInput.press("Enter")
-      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible()
+      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible({
+        timeout: 10000,
+      })
     }
+
+    // Wait for messages to persist
+    await page.waitForTimeout(1000)
 
     // Refresh the page
     await page.reload()
@@ -103,7 +100,9 @@ test.describe.skip("Message persistence with double ratchet", () => {
     for (const msg of continuedMessages) {
       await messageInput.fill(msg)
       await messageInput.press("Enter")
-      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible()
+      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible({
+        timeout: 10000,
+      })
     }
 
     // Verify all messages (before and after refresh) are visible
@@ -114,8 +113,8 @@ test.describe.skip("Message persistence with double ratchet", () => {
   })
 
   test("session state persists across multiple refreshes", async ({page}) => {
-    const username = await signUp(page)
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     // Send initial message
     const messageInput = page.getByPlaceholder("Message")
@@ -125,7 +124,10 @@ test.describe.skip("Message persistence with double ratchet", () => {
     // Wait for initial message to appear
     await expect(
       page.locator(".whitespace-pre-wrap").getByText("Initial message")
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
+
+    // Wait for message to persist
+    await page.waitForTimeout(1000)
 
     // Do multiple refreshes
     for (let i = 1; i <= 3; i++) {
@@ -142,7 +144,12 @@ test.describe.skip("Message persistence with double ratchet", () => {
       await messageInput.fill(msg)
       await messageInput.press("Enter")
 
-      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible()
+      await expect(page.locator(".whitespace-pre-wrap").getByText(msg)).toBeVisible({
+        timeout: 10000,
+      })
+
+      // Wait for message to persist
+      await page.waitForTimeout(500)
     }
 
     // Verify all messages are still visible

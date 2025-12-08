@@ -1,7 +1,7 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 
-test.describe.skip("Notifications", () => {
+test.describe("Notifications", () => {
   test("user should see highlighted notification when post is liked by followed user", async ({
     browser,
   }) => {
@@ -65,15 +65,19 @@ test.describe.skip("Notifications", () => {
 
       await pageA.locator("#main-content").getByTestId("new-post-button").click()
       const postContent = "Test post for notification test"
-      await pageA.getByPlaceholder("What's on your mind?").fill(postContent)
-      await pageA.getByRole("button", {name: "Publish"}).click()
+      await pageA
+        .getByRole("dialog")
+        .getByPlaceholder("What's on your mind?")
+        .fill(postContent)
+      await pageA.getByRole("dialog").getByRole("button", {name: "Post"}).click()
 
       await expect(pageA.getByText(postContent).first()).toBeVisible()
 
-      await pageB.goto("/")
+      // User B navigates to User A's profile to find and like the post
+      await pageB.goto(userAProfileLink)
       await expect(pageB.getByText(postContent).first()).toBeVisible({timeout: 20000})
 
-      const postElement = pageB.locator("div").filter({hasText: postContent}).first()
+      const postElement = pageB.locator('[data-testid="feed-item"]').filter({hasText: postContent}).first()
       await postElement.getByTestId("like-button").click()
 
       await pageA.goto("/notifications")

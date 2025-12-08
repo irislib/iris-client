@@ -25,7 +25,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "VITE_USE_TEST_RELAY=true yarn dev",
+    command: "VITE_USE_TEST_RELAY=true npm run dev",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
     env: {

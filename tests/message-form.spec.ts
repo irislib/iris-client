@@ -1,46 +1,32 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 
-async function setupChatWithSelf(page, username) {
-  // Go to chats
-  await page.getByRole("link", {name: "Chats"}).click()
+async function setupChatWithSelf(page) {
+  // Go to own profile via the sidebar user row
+  const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
+  await profileLink.click()
   await page.waitForLoadState("networkidle")
 
-  // Wait for the New Chat header to be visible
-  await expect(page.locator("header").getByText("New Chat")).toBeVisible({timeout: 10000})
+  // Wait for profile to load
+  await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
 
-  // We're already on the new chat page at /chats
-  // No need to click any link since /chats now shows NewChat by default
+  // Click the mail/message button (it's a circle button with mail-outline icon)
+  // The button should appear for own profile since myPubKey === pubKeyHex
+  const messageButton = page
+    .getByTestId("profile-header-actions")
+    .locator("button.btn-circle")
+    .first()
+  await expect(messageButton).toBeVisible({timeout: 5000})
+  await messageButton.click()
 
-  // Search for self by username (use first in case of duplicates)
-  const searchInput = page.getByPlaceholder("Search for users").first()
-  await expect(searchInput).toBeVisible()
-  await searchInput.fill(username)
-  await page.waitForTimeout(1000)
-
-  // Wait for the self user result button to be visible and click it
-  const selfButton = page.locator(`button[aria-label="${username}"]`).first()
-  try {
-    await expect(selfButton).toBeVisible({timeout: 5000})
-  } catch (e) {
-    const allLabels = await page.locator("button[aria-label]").allTextContents()
-    console.error("User result buttons found:", allLabels)
-    throw e
-  }
-  await selfButton.click()
-
-  // Wait for navigation to chat view
-  await expect(page).toHaveURL(/\/chats\/chat/, {timeout: 10000})
+  // Wait for the chat UI to load - look for the message input
+  await expect(page.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
 }
 
-test.describe.skip("Message Form - Desktop", () => {
-  let username
-  test.beforeEach(async ({page}) => {
-    username = await signUp(page)
-  })
-
+test.describe("Message Form - Desktop", () => {
   test("can send a basic text message using Enter key", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
     const testMessage = "Hello, this is a test message!"
@@ -50,13 +36,14 @@ test.describe.skip("Message Form - Desktop", () => {
     // Look for the message in the chat area specifically
     await expect(
       page.locator(".whitespace-pre-wrap").getByText(testMessage)
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
 
     await expect(page.getByRole("button", {name: "Send message"})).not.toBeVisible()
   })
 
   test("empty message cannot be sent", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
     await messageInput.fill("   ") // Just spaces
@@ -69,7 +56,8 @@ test.describe.skip("Message Form - Desktop", () => {
   })
 
   test("shift + enter adds a new line", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
     await messageInput.fill("Hello, this is a test message!")
@@ -79,7 +67,8 @@ test.describe.skip("Message Form - Desktop", () => {
   })
 
   test("multiple shift + enter presses add multiple new lines", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
     await messageInput.pressSequentially("Hello, this is a test message!")
@@ -96,11 +85,12 @@ test.describe.skip("Message Form - Desktop", () => {
       "Hello, this is a test message!\n\n\nThis text should appear after three newlines"
     await expect(
       page.locator(".whitespace-pre-wrap").getByText(expectedMessage)
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
   })
 
   test("New lines are trimmed but exist in the middle of the message", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
     await messageInput.fill(
@@ -113,11 +103,12 @@ test.describe.skip("Message Form - Desktop", () => {
       "Hello, this is a test message!\nThis is a new line\nThis is another new line"
     await expect(
       page.locator(".whitespace-pre-wrap").getByText(expectedMessage)
-    ).toBeVisible()
+    ).toBeVisible({timeout: 10000})
   })
 
   test("textarea resizes based on content", async ({page}) => {
-    await setupChatWithSelf(page, username)
+    await signUp(page)
+    await setupChatWithSelf(page)
 
     const messageInput = page.getByPlaceholder("Message").first()
 

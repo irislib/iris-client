@@ -90,6 +90,9 @@ test.describe("Reply draft persistence", () => {
       .fill(mainDraft)
     await page.keyboard.press("Escape")
 
+    // Wait for main draft to persist to localforage
+    await page.waitForTimeout(1000)
+
     // Navigate back to the post we created
     await page.goto(noteUrl)
     // Wait for feed item to load (may take time to fetch from relay)
@@ -99,15 +102,21 @@ test.describe("Reply draft persistence", () => {
     const replyDraft = "This is a reply draft"
     await page.getByPlaceholder("Write your reply...").fill(replyDraft)
 
+    // Wait for drafts to persist to localforage
+    await page.waitForTimeout(1000)
+
     // Reload the page
     await page.reload()
     await page.waitForLoadState("networkidle")
+
+    // Wait for draft store to hydrate from localforage
+    await page.waitForTimeout(2000)
 
     // Check that main draft is still there
     await page.locator("#main-content").getByTestId("new-post-button").click()
     await expect(
       page.getByRole("dialog").getByPlaceholder("What's on your mind?")
-    ).toHaveValue(mainDraft)
+    ).toHaveValue(mainDraft, {timeout: 10000})
     await page.keyboard.press("Escape")
 
     // Check that reply draft is still there

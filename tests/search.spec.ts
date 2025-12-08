@@ -9,5 +9,5 @@ test("can search for content", async ({page}) => {
   await searchInput.press("Enter")
 
   // Wait for navigation to complete
-  await expect(page.url()).toContain("/search")
+  await expect(page).toHaveURL(/\/search/, {timeout: 10000})
 })

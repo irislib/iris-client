@@ -1,6 +1,7 @@
 import {test} from "@playwright/test"
 
-test("debug market map dots for Electronics category", async ({page}) => {
+// Debug utility test - skip in normal runs
+test.skip("debug market map dots for Electronics category", async ({page}) => {
   // Capture console logs
   page.on("console", (msg) => {
     if (
