@@ -1,5 +1,4 @@
 import {vi} from "vitest"
-import SessionManager from "../../SessionManager"
 import {
   Filter,
   generateSecretKey,
@@ -7,7 +6,7 @@ import {
   UnsignedEvent,
   VerifiedEvent,
 } from "nostr-tools"
-import {InMemoryStorageAdapter} from "../../StorageAdapter"
+import {InMemoryStorageAdapter, SessionManager} from "nostr-double-ratchet/src"
 import {MockRelay} from "./mockRelay"
 
 export const createMockSessionManager = async (
