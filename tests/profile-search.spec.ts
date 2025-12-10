@@ -28,8 +28,8 @@ test.describe("Profile Search Worker", () => {
     await searchInput.fill("bitcoin")
     await searchInput.press("Enter")
 
-    // Should navigate to search page
-    await expect(page).toHaveURL(/\/search/)
+    // Should navigate to search page - wait for URL change with increased timeout for parallel execution
+    await expect(page).toHaveURL(/\/search/, {timeout: 10000})
   })
 
   test("search shows user results when available", async ({page}) => {

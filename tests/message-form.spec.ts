@@ -45,14 +45,23 @@ test.describe("Message Form - Desktop", () => {
     await signUp(page)
     await setupChatWithSelf(page)
 
+    // Get initial message count in the chat container
+    const chatMessages = page.locator('[data-testid="chat-message"]')
+    const initialCount = await chatMessages.count()
+
     const messageInput = page.getByPlaceholder("Message").first()
     await messageInput.fill("   ") // Just spaces
     await messageInput.press("Enter")
 
-    // Verify empty message doesn't appear in chat
-    await expect(
-      page.locator(".whitespace-pre-wrap").getByText("   ", {exact: true})
-    ).not.toBeVisible()
+    // Wait a moment to ensure any message would have been sent
+    await page.waitForTimeout(500)
+
+    // Verify no new message was added
+    const newCount = await chatMessages.count()
+    expect(newCount).toBe(initialCount)
+
+    // Verify input still has the spaces (wasn't cleared)
+    await expect(messageInput).toHaveValue("   ")
   })
 
   test("shift + enter adds a new line", async ({page}) => {

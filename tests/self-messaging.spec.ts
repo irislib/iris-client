@@ -1,14 +1,9 @@
 import {test, expect} from "@playwright/test"
-import {signIn} from "./auth.setup"
+import {signUp} from "./auth.setup"
 
 test.describe("Self-messaging between browser sessions", () => {
   test("should sync messages between two sessions with same key", async ({browser}) => {
     test.setTimeout(60000) // 60 second timeout for the complex multi-session test
-    // Test data
-    const testKey = "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5"
-    const timestamp = Date.now()
-    const testMessage1 = `Test message 1: ${timestamp}`
-    const testMessage2 = `Test message 2: ${timestamp}`
 
     // Create two browser contexts (sessions)
     const context1 = await browser.newContext()
@@ -18,9 +13,25 @@ test.describe("Self-messaging between browser sessions", () => {
     const page2 = await context2.newPage()
 
     try {
-      // Login to both sessions with same key
-      await signIn(page1, testKey)
-      await signIn(page2, testKey)
+      // Sign up on page1 to get a unique private key
+      const {privateKey} = await signUp(page1)
+      if (!privateKey) {
+        throw new Error("Could not get private key from signup")
+      }
+
+      // Sign in on page2 with the same key
+      await page2.goto("/")
+      await page2.getByRole("button", {name: "Sign up"}).click()
+      await expect(page2.getByRole("heading", {name: "Sign up"})).toBeVisible()
+      await page2.getByText("Already have an account?").click()
+      await expect(page2.getByRole("heading", {name: "Sign in"})).toBeVisible({timeout: 10000})
+      await page2.getByPlaceholder(/paste.*key/i).fill(privateKey)
+      await expect(page2.getByRole("heading", {name: "Sign in"})).not.toBeVisible({timeout: 10000})
+      await expect(page2.locator("#main-content").getByTestId("new-post-button")).toBeVisible({timeout: 10000})
+
+      const timestamp = Date.now()
+      const testMessage1 = `Test message 1: ${timestamp}`
+      const testMessage2 = `Test message 2: ${timestamp}`
 
       // Give time for session managers to initialize
       await page1.waitForTimeout(2000)
@@ -55,10 +66,8 @@ test.describe("Self-messaging between browser sessions", () => {
         page1.locator(".whitespace-pre-wrap").getByText(testMessage1)
       ).toBeVisible({timeout: 10000})
 
-      // Wait for message to sync
-      await page1.waitForTimeout(2000)
-
       // Page 2: Go to own profile and start chat
+      // Do this AFTER page1 sends the message so page2's subscription can fetch it
       const profileLink2 = page2.locator('[data-testid="sidebar-user-row"]').first()
       await profileLink2.click()
       await page2.waitForLoadState("networkidle")
@@ -72,13 +81,11 @@ test.describe("Self-messaging between browser sessions", () => {
       await expect(messageButton2).toBeVisible({timeout: 5000})
       await messageButton2.click()
 
-      // Wait for chat to load
+      // Wait for chat to load and subscription to fetch messages
       await expect(page2.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
 
-      // Wait for messages to sync from relay
-      await page2.waitForTimeout(3000)
-
       // Verify message from page1 appears on page2
+      // The chat should fetch historical messages when opened
       await expect(
         page2.locator(".whitespace-pre-wrap").getByText(testMessage1)
       ).toBeVisible({timeout: 10000})

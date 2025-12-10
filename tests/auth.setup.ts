@@ -50,7 +50,7 @@ async function signUp(page, username = "Test User") {
 
   // Get the private key or public key from store
   const storeData = await page.evaluate(() => {
-    const userStore = localStorage.getItem("user-store")
+    const userStore = localStorage.getItem("user-storage")
     if (!userStore) return null
     const parsed = JSON.parse(userStore)
     return {

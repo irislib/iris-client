@@ -15,16 +15,17 @@ test.describe("Post liking", () => {
       .fill(postContent)
     await page.getByRole("dialog").getByRole("button", {name: "Post"}).click()
 
-    // Wait for navigation to post detail page
-    await page.waitForURL(/\/note[a-z0-9]+/, {timeout: 10000})
+    // Wait for dialog to close
+    await expect(page.getByRole("dialog")).not.toBeVisible({timeout: 10000})
 
-    // Wait for the post content to actually appear
-    // The detail page needs time to fetch the event from relay
+    // Wait for the post to appear in the feed and scroll to it
     const postElement = page
       .getByTestId("feed-item")
       .filter({hasText: postContent})
       .first()
-    await expect(postElement).toBeVisible({timeout: 30000})
+    await postElement.waitFor({state: "attached", timeout: 30000})
+    await postElement.scrollIntoViewIfNeeded()
+    await expect(postElement).toBeVisible({timeout: 5000})
 
     // Wait for the like button within this specific post
     const likeButton = postElement.getByTestId("like-button")
