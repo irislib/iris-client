@@ -22,7 +22,6 @@ test.describe("Note draft persistence", () => {
     // Reload the page
     await page.reload()
     await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(2000) // Wait for stores to hydrate from localForage
 
     // Open note creator again
     await page.locator("#main-content").getByTestId("new-post-button").click()

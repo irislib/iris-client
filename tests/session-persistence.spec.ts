@@ -8,10 +8,7 @@ test.describe("Session persistence", () => {
 
     // Refresh the page
     await page.reload()
-
-    // Wait for the page to load and profile to be fetched
     await page.waitForLoadState("networkidle")
-    await page.waitForTimeout(2000) // Give extra time for profile to load
 
     // Verify user is still logged in by checking for the new post button (more reliable)
     await expect(

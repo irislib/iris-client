@@ -19,9 +19,6 @@ test("home page loads", async ({page}) => {
   const loadTime = Date.now() - startTime
   console.log(`✅ App loaded in ${loadTime}ms`)
 
-  // Wait a bit for negentropy syncs to complete
-  await page.waitForTimeout(3000)
-
   // Verify main UI elements are visible
   await expect(page.locator("#main-content")).toBeVisible()
 })

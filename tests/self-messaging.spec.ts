@@ -33,10 +33,6 @@ test.describe("Self-messaging between browser sessions", () => {
       const testMessage1 = `Test message 1: ${timestamp}`
       const testMessage2 = `Test message 2: ${timestamp}`
 
-      // Give time for session managers to initialize
-      await page1.waitForTimeout(2000)
-      await page2.waitForTimeout(2000)
-
       // Page 1: Go to own profile and start chat
       const profileLink1 = page1.locator('[data-testid="sidebar-user-row"]').first()
       await profileLink1.click()
@@ -99,9 +95,6 @@ test.describe("Self-messaging between browser sessions", () => {
       await expect(
         page2.locator(".whitespace-pre-wrap").getByText(testMessage2)
       ).toBeVisible({timeout: 10000})
-
-      // Wait for message to sync
-      await page2.waitForTimeout(2000)
 
       // Verify message from page2 appears on page1
       // May need to refresh page1 or wait for subscription to pick it up

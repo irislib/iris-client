@@ -14,6 +14,7 @@
 - When creating new Playwright tests or debugging failing ones, capture screenshots (`page.screenshot()`) at key points to understand the visual state. Use temp directory (e.g., `/tmp/playwright-debug/`) or remove screenshots after debugging. Agents: Use headless mode if possible. Don't use the html reporter
 - Dont add "edited/deleted this" comments
 - If tests are not passing, adding long timeouts is usually not the solution. Publish & subscribe over nostr is fast.
+- **E2E Test Guidelines**: Keep test times fast (~50s total). Avoid static waits (`waitForTimeout`) - use Playwright's auto-waiting assertions (`toBeVisible`, `toHaveURL`, etc.) instead. Tests run with 100% workers in parallel, so ensure tests are isolated and don't depend on shared state.
 - Be careful with react hook dependency arrays — they can easily cause refresh loops
 - Note that we're not using react-router-dom: we have our own custom stack router which keeps N previous views open in the background for fast back & fwd nav
 - **Stack Router Navigation Pattern**: Background views stay mounted with `display: none` and continue executing useEffect hooks. Always guard navigation/history operations with `useIsTopOfStack()`:

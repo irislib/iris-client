@@ -53,15 +53,12 @@ test.describe("Message Form - Desktop", () => {
     await messageInput.fill("   ") // Just spaces
     await messageInput.press("Enter")
 
-    // Wait a moment to ensure any message would have been sent
-    await page.waitForTimeout(500)
+    // Verify input still has the spaces (wasn't cleared) - this confirms message wasn't sent
+    await expect(messageInput).toHaveValue("   ")
 
     // Verify no new message was added
     const newCount = await chatMessages.count()
     expect(newCount).toBe(initialCount)
-
-    // Verify input still has the spaces (wasn't cleared)
-    await expect(messageInput).toHaveValue("   ")
   })
 
   test("shift + enter adds a new line", async ({page}) => {

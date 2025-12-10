@@ -25,10 +25,8 @@ async function signUp(page, username = "Test User") {
     // Click the Go button for new accounts
     const goButton = page.getByRole("button", {name: "Go"})
     await goButton.click()
-  } else {
-    // For keys, wait a bit for auto-login to trigger
-    await page.waitForTimeout(1000)
   }
+  // For keys, auto-login triggers automatically - dialog will close
 
   // Wait for signup to complete
   await expect(page.getByRole("heading", {name: "Sign up"})).not.toBeVisible({

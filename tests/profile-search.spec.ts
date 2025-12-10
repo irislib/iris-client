@@ -40,21 +40,15 @@ test.describe("Profile Search Worker", () => {
     // Search for the user we just created
     await searchInput.fill("SearchTest")
 
-    // Wait a moment for async worker results
-    await page.waitForTimeout(500)
-
     // Check if dropdown is visible with results
     const dropdown = page.locator(".dropdown-content")
-    const isVisible = await dropdown.isVisible()
 
-    if (isVisible) {
-      // If we have results, verify the dropdown structure
-      await expect(dropdown).toBeVisible()
-    }
+    // Dropdown should appear with search results
+    await expect(dropdown).toBeVisible({timeout: 5000})
 
-    // Clear and verify
+    // Clear search
     await searchInput.fill("")
-    await page.waitForTimeout(200)
+    await expect(dropdown).not.toBeVisible({timeout: 2000})
   })
 
   test("search handles npub input directly", async ({page}) => {
@@ -75,18 +69,17 @@ test.describe("Profile Search Worker", () => {
 
     const searchInput = page.getByPlaceholder("Search")
 
-    // Perform a search and select a result
+    // Perform a search
     await searchInput.fill("test")
-    await page.waitForTimeout(500)
+
+    // Wait for dropdown to appear
+    const dropdown = page.locator(".dropdown-content")
+    await expect(dropdown).toBeVisible({timeout: 5000})
 
     // Focus on search to show recent searches
     await searchInput.click()
 
-    // The recent searches section may or may not be visible depending on history
-    const dropdown = page.locator(".dropdown-content")
-    const isVisible = await dropdown.isVisible()
-
-    // Just verify the search input works
-    expect(isVisible !== undefined).toBeTruthy()
+    // Just verify the dropdown works
+    await expect(dropdown).toBeVisible()
   })
 })

@@ -49,34 +49,26 @@ test.describe("WebRTC Signaling", () => {
     await signIn(page2, testPrivateKey)
     await page2.screenshot({path: "/tmp/page2-after-signin.png"})
 
-    console.log("Both pages loaded, waiting for WebRTC setup...")
+    console.log("Both pages loaded, waiting for WebRTC hellos...")
 
-    // Wait for WebRTC to initialize and hellos to be exchanged
-    await page1.waitForTimeout(20000)
+    // Poll for hello messages in logs instead of static wait
+    await expect
+      .poll(
+        () => {
+          const page1SentHello = logs1.some((log) => log.toLowerCase().includes("hello"))
+          const page2SentHello = logs2.some((log) => log.toLowerCase().includes("hello"))
+          return page1SentHello && page2SentHello
+        },
+        {
+          message: "Both pages should send WebRTC hellos",
+          timeout: 15000,
+        }
+      )
+      .toBeTruthy()
 
     console.log("\n=== Checking logs ===")
     console.log(`Page 1: ${logs1.length} log entries`)
     console.log(`Page 2: ${logs2.length} log entries`)
-
-    // Filter for WebRTC/hello logs
-    const webrtcLogs1 = logs1.filter(
-      (log) => log.toLowerCase().includes("webrtc") || log.toLowerCase().includes("hello")
-    )
-    const webrtcLogs2 = logs2.filter(
-      (log) => log.toLowerCase().includes("webrtc") || log.toLowerCase().includes("hello")
-    )
-
-    console.log("\n=== Page 1 WebRTC logs ===")
-    webrtcLogs1.forEach((log) => console.log(log))
-    console.log("\n=== Page 2 WebRTC logs ===")
-    webrtcLogs2.forEach((log) => console.log(log))
-
-    // Check that both pages sent hellos
-    const page1SentHello = webrtcLogs1.some((log) => log.includes("hello"))
-    const page2SentHello = webrtcLogs2.some((log) => log.includes("hello"))
-
-    expect(page1SentHello).toBeTruthy()
-    expect(page2SentHello).toBeTruthy()
 
     await context1.close()
     await context2.close()
