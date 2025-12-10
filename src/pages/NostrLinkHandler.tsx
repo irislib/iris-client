@@ -51,14 +51,12 @@ export default function NostrLinkHandler() {
           const decoded = nip19.decode(link)
           naddrData = decoded.data as {pubkey: string; kind: number; identifier: string}
         } else if (!isNote && !isProfile && !isAddress) {
-          // Username/nip05 - check if pubkey was passed in state first
-          if (statePubkey) {
-            pubkey = statePubkey
-          } else if (myPubKey && getCachedUsername(myPubKey) === link) {
-            // Check if it's our own cached username
+          // Username/nip05 - check cache first
+          if (myPubKey && getCachedUsername(myPubKey) === link) {
+            // It's our own cached username
             pubkey = myPubKey
           } else {
-            // Username/nip05 - needs async resolution
+            // Username/nip05 - needs async resolution (statePubkey used as fallback)
             needsAsyncResolution = true
           }
         }
@@ -99,12 +97,19 @@ export default function NostrLinkHandler() {
             linkLower.includes("@") ? linkLower : `${linkLower}@iris.to`,
             true
           )
+        } else if (statePubkey) {
+          // Username not found but we have pubkey from navigation state - use it
+          setAsyncPubkey(statePubkey)
         } else {
-          // Username not found - fallback to 404
+          // Username not found and no fallback - show 404
           setLoading(false)
         }
       } catch (err) {
         console.error("Resolution error:", err)
+        if (statePubkey) {
+          // NIP-05 lookup failed but we have pubkey from navigation state - use it
+          setAsyncPubkey(statePubkey)
+        }
         setLoading(false)
       } finally {
         setLoading(false)
@@ -112,7 +117,7 @@ export default function NostrLinkHandler() {
     }
 
     resolveLink()
-  }, [link, linkData.needsAsyncResolution])
+  }, [link, linkData.needsAsyncResolution, statePubkey])
 
   // Use either sync or async pubkey
   const finalPubkey = linkData.pubkey || asyncPubkey
