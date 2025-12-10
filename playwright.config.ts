@@ -5,7 +5,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: "50%",
+  workers: process.env.CI ? 4 : "50%",
   reporter: "html",
   use: {
     baseURL: "http://localhost:5173",
@@ -21,6 +21,15 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
       },
+      testIgnore: /webrtc.*\.spec\.ts/,
+    },
+    {
+      name: "webrtc",
+      use: {
+        ...devices["Desktop Chrome"],
+      },
+      testMatch: /webrtc.*\.spec\.ts/,
+      fullyParallel: false,
     },
   ],
   webServer: {

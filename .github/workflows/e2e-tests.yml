@@ -9,6 +9,10 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
 
     steps:
       - uses: actions/checkout@v4
@@ -60,12 +64,12 @@ jobs:
         run: npx playwright install chromium
 
       - name: Run E2E tests
-        run: yarn test:ci:e2e
+        run: yarn test:ci:e2e --shard=${{ matrix.shard }}/4
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 30
