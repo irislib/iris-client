@@ -27,7 +27,8 @@ export function useReactionsByAuthor(eventId: string) {
       ["#e"]: [eventId],
     }
 
-    const sub = ndk().subscribe(filter)
+    // Closed on eose because NDK will otherwise send too many concurrent REQs for all the feed item reaction subscriptions
+    const sub = ndk().subscribe(filter, {closeOnEose: true})
 
     sub?.on("event", (reactionEvent: NDKEvent) => {
       if (shouldHideUser(reactionEvent.author.pubkey)) return
