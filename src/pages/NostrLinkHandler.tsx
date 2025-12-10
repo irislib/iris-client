@@ -79,21 +79,24 @@ export default function NostrLinkHandler() {
 
     const resolveLink = async () => {
       try {
+        // Lowercase the link for NIP-05 lookup
+        const linkLower = link.toLowerCase()
+
         // Try exact match first
-        let resolved = await nip05.queryProfile(link)
+        let resolved = await nip05.queryProfile(linkLower)
 
         // If not found and doesn't include @iris.to, try with @iris.to
-        if (!resolved && !link.includes("@iris.to")) {
-          const withIris = `${link}@iris.to`
+        if (!resolved && !linkLower.includes("@iris.to")) {
+          const withIris = `${linkLower}@iris.to`
           resolved = await nip05.queryProfile(withIris)
         }
 
         if (resolved) {
           setAsyncPubkey(resolved.pubkey)
-          // Cache the resolved username
+          // Cache the resolved username (lowercased)
           addUsernameToCache(
             resolved.pubkey,
-            link.includes("@") ? link : `${link}@iris.to`,
+            linkLower.includes("@") ? linkLower : `${linkLower}@iris.to`,
             true
           )
         } else {
