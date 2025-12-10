@@ -1050,7 +1050,7 @@ export class NDKRelayConnectivity {
     const ret = new Promise<number>((resolve, reject) => {
       this.openCountRequests.set(id, {resolve, reject})
     })
-    this.send(`["COUNT","${id}",${JSON.stringify(filters).substring(1)}`)
+    this.send(JSON.stringify(["COUNT", id, ...filters]))
     return ret
   }
 
@@ -1069,7 +1069,12 @@ export class NDKRelayConnectivity {
    * @returns A new NDKRelaySubscription instance.
    */
   public req(relaySub: NDKRelaySubscription): void {
-    ;`${this.send(`["REQ","${relaySub.subId}",${JSON.stringify(relaySub.executeFilters).substring(1)}`)}]`
+    const filters = relaySub.executeFilters
+    if (!filters || filters.length === 0) {
+      // NIP-01 requires at least one filter - skip empty subscriptions
+      return
+    }
+    this.send(JSON.stringify(["REQ", relaySub.subId, ...filters]))
     this.openSubs.set(relaySub.subId, relaySub)
   }
 
