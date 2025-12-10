@@ -37,5 +37,29 @@ describe("nip05", () => {
 
       expect(result?.nip46).toEqual(["wss://relay.nsec.app", "wss://other-relay.org"])
     })
+
+    it("should lowercase the name in the query", async () => {
+      const json = {
+        names: {
+          bitcoinpainter: "abc123def456",
+        },
+      }
+
+      const fetchMock = vi.fn(() =>
+        Promise.resolve({
+          json: (): Promise<any> => Promise.resolve(json),
+        } as Response)
+      )
+
+      const result = await getNip05For(ndk, "Bitcoinpainter@iris.to", fetchMock)
+
+      // Verify the fetch was called with lowercase name
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://iris.to/.well-known/nostr.json?name=bitcoinpainter",
+        {}
+      )
+
+      expect(result?.pubkey).toEqual("abc123def456")
+    })
   })
 })

@@ -37,6 +37,7 @@ export async function getNip05For(
       if (!match) return null
 
       const [_, name = "_", domain] = match
+      const nameLower = name.toLowerCase()
 
       // Validate domain has at least one dot (e.g., example.com, not just "example")
       if (!domain.includes(".")) {
@@ -49,12 +50,12 @@ export async function getNip05For(
 
       try {
         const res = await _fetch(
-          `https://${domain}/.well-known/nostr.json?name=${name}`,
+          `https://${domain}/.well-known/nostr.json?name=${nameLower}`,
           fetchOpts
         )
         const {names, relays, nip46} = parseNIP05Result(await res.json())
 
-        const pubkey = names[name.toLowerCase()]
+        const pubkey = names[nameLower]
         let profile: ProfilePointer | null = null
         if (pubkey) {
           profile = {pubkey, relays: relays?.[pubkey], nip46: nip46?.[pubkey]}
