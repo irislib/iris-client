@@ -1,7 +1,6 @@
-import SessionManager from "../../session/SessionManager"
 import {VerifiedEvent} from "nostr-tools"
 import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
-import {NostrPublish, NostrSubscribe} from "nostr-double-ratchet"
+import {NostrPublish, NostrSubscribe, SessionManager} from "nostr-double-ratchet/src"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"
