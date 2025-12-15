@@ -3,12 +3,14 @@ import FeedItem from "../event/FeedItem/FeedItem"
 import {NDKEvent} from "@/lib/ndk"
 import {EmbedEvent} from "../embed/index"
 import ProxyImg from "../ProxyImg"
+import {generateVideoProxyUrl} from "@/shared/utils/imgproxy"
 import Icon from "../Icons/Icon"
 import Modal from "../ui/Modal"
 import {SwipableCarousel} from "../ui/SwipableCarousel"
 import {SwipeItem} from "@/shared/hooks/useSwipable"
 import {RiArrowLeftSLine, RiArrowRightSLine} from "@remixicon/react"
 import {useMediaModalSidebarVisible, useUIStore} from "@/stores/ui"
+import {useSettingsStore} from "@/stores/settings"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -61,6 +63,7 @@ function MediaModal({
   const setMediaModalSidebarVisible = useUIStore(
     (state) => state.setMediaModalSidebarVisible
   )
+  const {imgproxy} = useSettingsStore()
 
   // Get the current event from the media array or fallback to the prop
   const currentEvent = (mediaItems[currentModalIndex]?.event as EmbedEvent) || event
@@ -110,6 +113,11 @@ function MediaModal({
         src={item.url}
         controls
         className="max-w-full max-h-full"
+        poster={generateVideoProxyUrl(item.url, {
+          url: imgproxy.vidproxyUrl,
+          key: imgproxy.key,
+          salt: imgproxy.salt,
+        })}
       />
     ) : (
       <ProxyImg

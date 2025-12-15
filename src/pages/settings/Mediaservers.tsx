@@ -6,7 +6,7 @@ import {getDefaultServers, stripHttps} from "./mediaservers-utils"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {SettingsInputItem} from "@/shared/components/settings/SettingsInputItem"
-import {DefaultImgProxy} from "@/shared/utils/imgproxy"
+import {DefaultImgProxy, DefaultVidProxy} from "@/shared/utils/imgproxy"
 
 function MediaServers() {
   const {
@@ -225,10 +225,18 @@ function MediaServers() {
             </SettingsGroupItem>
 
             <SettingsInputItem
-              label="Proxy URL"
+              label="Image Proxy URL"
               value={imgproxy.url}
               placeholder={DefaultImgProxy.url}
               onChange={(value) => updateImgproxy({url: value})}
+              type="url"
+            />
+
+            <SettingsInputItem
+              label="Video Proxy URL"
+              value={imgproxy.vidproxyUrl}
+              placeholder={DefaultVidProxy.url}
+              onChange={(value) => updateImgproxy({vidproxyUrl: value})}
               type="url"
             />
 

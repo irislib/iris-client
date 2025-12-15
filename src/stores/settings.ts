@@ -30,6 +30,7 @@ export interface SettingsState {
   // Imgproxy settings
   imgproxy: {
     url: string
+    vidproxyUrl: string
     key: string
     salt: string
     enabled: boolean
@@ -109,6 +110,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       imgproxy: {
         url: "",
+        vidproxyUrl: "",
         key: "",
         salt: "",
         enabled: true,

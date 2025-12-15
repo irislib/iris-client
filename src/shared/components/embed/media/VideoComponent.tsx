@@ -1,6 +1,6 @@
 import {calculateDimensions, generateBlurhashUrl} from "./mediaUtils"
 import {useEffect, useRef, useState, useMemo, memo, useCallback} from "react"
-import {generateProxyUrl} from "../../../utils/imgproxy"
+import {generateVideoProxyUrl} from "../../../utils/imgproxy"
 import {useSettingsStore} from "@/stores/settings"
 import classNames from "classnames"
 import {EmbedEvent} from "../index"
@@ -177,15 +177,11 @@ function HlsVideoComponent({
         autoPlay={content.autoplayVideos && hasVideoTrack}
         playsInline
         loop
-        poster={generateProxyUrl(
-          match,
-          {height: 638},
-          {
-            url: imgproxy.url,
-            key: imgproxy.key,
-            salt: imgproxy.salt,
-          }
-        )}
+        poster={generateVideoProxyUrl(match, {
+          url: imgproxy.vidproxyUrl,
+          key: imgproxy.key,
+          salt: imgproxy.salt,
+        })}
       ></video>
     </div>
   )

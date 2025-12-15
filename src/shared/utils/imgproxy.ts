@@ -9,6 +9,12 @@ export const DefaultImgProxy = {
   salt: "5e608e60945dcd2a787e8465d76ba34149894765061d39287609fb9d776caa0c",
 }
 
+export const DefaultVidProxy = {
+  url: "https://vidproxy.iris.to",
+  key: "f66233cb160ea07078ff28099bfa3e3e654bc10aa4a745e12176c433d79b8996",
+  salt: "5e608e60945dcd2a787e8465d76ba34149894765061d39287609fb9d776caa0c",
+}
+
 function urlSafe(s: string) {
   return s.replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_")
 }
@@ -64,6 +70,24 @@ export function generateProxyUrl(
   }
 
   const path = `/${opts.join("/")}/${encodedUrl}`
+  const signature = signUrl(path, proxyConfig.key, proxyConfig.salt)
+
+  return `${proxyConfig.url}/${signature}${path}`
+}
+
+export function generateVideoProxyUrl(
+  originalSrc: string,
+  config?: Partial<ImgProxyConfig>
+) {
+  const proxyConfig = {
+    url: config?.url || DefaultVidProxy.url,
+    key: config?.key || DefaultVidProxy.key,
+    salt: config?.salt || DefaultVidProxy.salt,
+  }
+  const te = new TextEncoder()
+  const encodedUrl = urlSafe(base64.encode(te.encode(originalSrc)))
+
+  const path = `/thumb/${encodedUrl}`
   const signature = signUrl(path, proxyConfig.key, proxyConfig.salt)
 
   return `${proxyConfig.url}/${signature}${path}`

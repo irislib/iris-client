@@ -251,7 +251,7 @@ const ImageGridItem = memo(function ImageGridItem({
     // For other events, check if it's a video URL
     const isVideo =
       event?.kind !== KIND_PICTURE_FIRST &&
-      (videoMatch?.includes(url) || (!imageMatch && videoMatch))
+      !!(videoMatch?.includes(url) || (!imageMatch && videoMatch))
     const hasError = loadErrors[i]
 
     const shouldBlur =
@@ -318,7 +318,7 @@ const ImageGridItem = memo(function ImageGridItem({
             }
             loadOriginalIfProxyFails={loadOriginalIfProxyFails[i]}
             hideBroken={true}
-            // Loading is handled by the ProxyImg component internally
+            isVideo={isVideo}
           />
         )}
         {isVideo && imgproxy.enabled && !hasError && (

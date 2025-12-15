@@ -1,5 +1,5 @@
 import {CSSProperties, useEffect, useState, MouseEvent, useRef} from "react"
-import {generateProxyUrl} from "../utils/imgproxy"
+import {generateProxyUrl, generateVideoProxyUrl} from "../utils/imgproxy"
 import {imgproxyFailureCache, loadedImageCache} from "@/utils/memcache"
 import {useSettingsStore} from "@/stores/settings"
 import {useBlossomCache} from "@/shared/hooks/useBlossomCache"
@@ -17,6 +17,7 @@ type Props = {
   hideBroken?: boolean
   loadOriginalIfProxyFails?: boolean
   authorPubkey?: string
+  isVideo?: boolean
 }
 
 const safeOrigins = ["data:image"]
@@ -65,15 +66,23 @@ const ProxyImg = (props: Props) => {
       (!shouldSkipProxy(props.src) || props.width)
 
     if (shouldUseProxy) {
-      mySrc = generateProxyUrl(
-        mySrc,
-        {width: props.width, square: props.square},
-        {
-          url: imgproxy.url,
+      if (props.isVideo) {
+        mySrc = generateVideoProxyUrl(mySrc, {
+          url: imgproxy.vidproxyUrl,
           key: imgproxy.key,
           salt: imgproxy.salt,
-        }
-      )
+        })
+      } else {
+        mySrc = generateProxyUrl(
+          mySrc,
+          {width: props.width, square: props.square},
+          {
+            url: imgproxy.url,
+            key: imgproxy.key,
+            salt: imgproxy.salt,
+          }
+        )
+      }
     }
 
     setSrc(mySrc)

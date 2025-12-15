@@ -129,6 +129,7 @@ function SmallThumbnailComponent({match, event}: SmallThumbnailComponentProps) {
             src={match}
             width={96}
             alt={altText}
+            isVideo={true}
           />
           {/* Fallback placeholder in case ProxyImg renders nothing */}
           {!error && (
