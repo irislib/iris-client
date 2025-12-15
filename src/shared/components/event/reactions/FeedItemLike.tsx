@@ -23,6 +23,7 @@ export const FeedItemLike = ({
 }) => {
   const myPubKey = useUserStore((state) => state.publicKey)
   const reactionsByAuthor = useReactionsByAuthor(event.id)
+  const [optimisticLike, setOptimisticLike] = useState<string | null>(null)
 
   const likesByAuthor = useMemo(() => {
     if (!showReactionCounts) return new Set<string>()
@@ -30,11 +31,15 @@ export const FeedItemLike = ({
     for (const [pubkey] of reactionsByAuthor) {
       likesSet.add(pubkey)
     }
+    // Include optimistic like if not already in reactions
+    if (optimisticLike && myPubKey && !likesSet.has(myPubKey)) {
+      likesSet.add(myPubKey)
+    }
     return likesSet
-  }, [reactionsByAuthor, showReactionCounts])
+  }, [reactionsByAuthor, showReactionCounts, optimisticLike, myPubKey])
 
   const myReactionEvent = reactionsByAuthor.get(myPubKey || "")
-  const myReaction = myReactionEvent?.content || "+"
+  const myReaction = myReactionEvent?.content || optimisticLike || "+"
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [pickerPosition, setPickerPosition] = useState<{clientY?: number}>({})
@@ -66,20 +71,24 @@ export const FeedItemLike = ({
 
   const like = async () => {
     if (!myPubKey || likesByAuthor.has(myPubKey)) return
+    setOptimisticLike("+")
     try {
       await reactWithExpiration(event, "+")
     } catch (error) {
       console.warn(`Could not publish reaction: ${error}`)
+      setOptimisticLike(null)
     }
   }
 
   const handleEmojiSelect = async (emoji: EmojiType) => {
     if (!myPubKey) return
+    setOptimisticLike(emoji.native)
+    setShowEmojiPicker(false)
     try {
       await reactWithExpiration(event, emoji.native)
-      setShowEmojiPicker(false)
     } catch (error) {
       console.warn(`Could not publish reaction: ${error}`)
+      setOptimisticLike(null)
     }
   }
 

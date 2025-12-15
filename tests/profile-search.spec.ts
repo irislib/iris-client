@@ -25,11 +25,13 @@ test.describe("Profile Search Worker", () => {
     await signUp(page)
 
     const searchInput = page.getByPlaceholder("Search")
+    await expect(searchInput).toBeVisible()
+    await searchInput.click()
     await searchInput.fill("bitcoin")
     await searchInput.press("Enter")
 
     // Should navigate to search page - wait for URL change with increased timeout for parallel execution
-    await expect(page).toHaveURL(/\/search/, {timeout: 10000})
+    await expect(page).toHaveURL(/\/search/, {timeout: 15000})
   })
 
   test("search shows user results when available", async ({page}) => {

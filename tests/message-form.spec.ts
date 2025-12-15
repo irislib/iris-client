@@ -34,9 +34,9 @@ test.describe("Message Form - Desktop", () => {
     await messageInput.press("Enter")
 
     // Look for the message in the chat area specifically
-    await expect(
-      page.locator(".whitespace-pre-wrap").getByText(testMessage)
-    ).toBeVisible({timeout: 10000})
+    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible(
+      {timeout: 10000}
+    )
 
     await expect(page.getByRole("button", {name: "Send message"})).not.toBeVisible()
   })

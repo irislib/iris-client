@@ -54,14 +54,14 @@ test.describe.skip("Multi-device group messaging", () => {
       await messageInput1.press("Enter")
 
       // Verify message appears on device 1
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message1)
-      ).toBeVisible({timeout: 10000})
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message1)).toBeVisible(
+        {timeout: 10000}
+      )
 
       // Verify message appears on device 2
-      await expect(
-        page2.locator(".whitespace-pre-wrap").getByText(message1)
-      ).toBeVisible({timeout: 15000})
+      await expect(page2.locator(".whitespace-pre-wrap").getByText(message1)).toBeVisible(
+        {timeout: 15000}
+      )
 
       // User 2 sends a message
       const message2 = "Hello from device 2"
@@ -70,14 +70,14 @@ test.describe.skip("Multi-device group messaging", () => {
       await messageInput2.press("Enter")
 
       // Verify message appears on device 2
-      await expect(
-        page2.locator(".whitespace-pre-wrap").getByText(message2)
-      ).toBeVisible({timeout: 10000})
+      await expect(page2.locator(".whitespace-pre-wrap").getByText(message2)).toBeVisible(
+        {timeout: 10000}
+      )
 
       // Verify message appears on device 1
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message2)
-      ).toBeVisible({timeout: 15000})
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message2)).toBeVisible(
+        {timeout: 15000}
+      )
 
       // Wait for messages to persist
       await page1.waitForTimeout(1000)
@@ -87,12 +87,12 @@ test.describe.skip("Multi-device group messaging", () => {
       await page1.waitForLoadState("networkidle")
 
       // Verify both messages still appear after refresh
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message1)
-      ).toBeVisible({timeout: 10000})
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message2)
-      ).toBeVisible({timeout: 10000})
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message1)).toBeVisible(
+        {timeout: 10000}
+      )
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message2)).toBeVisible(
+        {timeout: 10000}
+      )
 
       // Send another message after refresh
       const message3 = "Message after refresh"
@@ -101,12 +101,12 @@ test.describe.skip("Multi-device group messaging", () => {
       await refreshedInput.press("Enter")
 
       // Verify it appears on both devices
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message3)
-      ).toBeVisible({timeout: 10000})
-      await expect(
-        page2.locator(".whitespace-pre-wrap").getByText(message3)
-      ).toBeVisible({timeout: 15000})
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message3)).toBeVisible(
+        {timeout: 10000}
+      )
+      await expect(page2.locator(".whitespace-pre-wrap").getByText(message3)).toBeVisible(
+        {timeout: 15000}
+      )
     } finally {
       await device1.close()
       await device2.close()
@@ -165,20 +165,20 @@ test.describe.skip("Multi-device group messaging", () => {
         const input = page.getByPlaceholder("Message")
         await input.fill(text)
         await input.press("Enter")
-        await expect(
-          page.locator(".whitespace-pre-wrap").getByText(text)
-        ).toBeVisible({timeout: 10000})
+        await expect(page.locator(".whitespace-pre-wrap").getByText(text)).toBeVisible({
+          timeout: 10000,
+        })
         await page.waitForTimeout(500)
       }
 
       // Verify messages appear on both devices
       for (const {text} of messagesBefore) {
-        await expect(
-          page1.locator(".whitespace-pre-wrap").getByText(text)
-        ).toBeVisible({timeout: 10000})
-        await expect(
-          page2.locator(".whitespace-pre-wrap").getByText(text)
-        ).toBeVisible({timeout: 10000})
+        await expect(page1.locator(".whitespace-pre-wrap").getByText(text)).toBeVisible({
+          timeout: 10000,
+        })
+        await expect(page2.locator(".whitespace-pre-wrap").getByText(text)).toBeVisible({
+          timeout: 10000,
+        })
       }
 
       // User 3 joins the group
@@ -191,9 +191,9 @@ test.describe.skip("Multi-device group messaging", () => {
 
       // User 3 should see all previous messages
       for (const {text} of messagesBefore) {
-        await expect(
-          page3.locator(".whitespace-pre-wrap").getByText(text)
-        ).toBeVisible({timeout: 15000})
+        await expect(page3.locator(".whitespace-pre-wrap").getByText(text)).toBeVisible({
+          timeout: 15000,
+        })
       }
 
       // User 3 sends a message
@@ -203,15 +203,15 @@ test.describe.skip("Multi-device group messaging", () => {
       await input3.press("Enter")
 
       // Verify it appears on all devices
-      await expect(
-        page3.locator(".whitespace-pre-wrap").getByText(message3)
-      ).toBeVisible({timeout: 10000})
-      await expect(
-        page1.locator(".whitespace-pre-wrap").getByText(message3)
-      ).toBeVisible({timeout: 15000})
-      await expect(
-        page2.locator(".whitespace-pre-wrap").getByText(message3)
-      ).toBeVisible({timeout: 15000})
+      await expect(page3.locator(".whitespace-pre-wrap").getByText(message3)).toBeVisible(
+        {timeout: 10000}
+      )
+      await expect(page1.locator(".whitespace-pre-wrap").getByText(message3)).toBeVisible(
+        {timeout: 15000}
+      )
+      await expect(page2.locator(".whitespace-pre-wrap").getByText(message3)).toBeVisible(
+        {timeout: 15000}
+      )
     } finally {
       await device1.close()
       await device2.close()

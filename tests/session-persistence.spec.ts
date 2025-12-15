@@ -64,29 +64,31 @@ test.describe("Session persistence", () => {
     await page.waitForLoadState("networkidle")
 
     // Post should be visible on detail page with feed-item
+    // Use locator that matches only visible elements to avoid background stack views
     const detailPost = page
-      .getByTestId("feed-item")
+      .locator('[data-testid="feed-item"]:visible')
       .filter({hasText: postContent})
       .first()
-    await expect(detailPost).toBeVisible({timeout: 10000})
+    await expect(detailPost).toBeVisible({timeout: 15000})
 
     // Refresh the page to test session persistence
     await page.reload()
     await page.waitForLoadState("networkidle")
 
     // Post should still be visible after refresh
+    // Use locator that matches only visible elements to avoid background stack views
     const postAfterRefresh = page
-      .getByTestId("feed-item")
+      .locator('[data-testid="feed-item"]:visible')
       .filter({hasText: postContent})
       .first()
-    await expect(postAfterRefresh).toBeVisible({timeout: 10000})
+    await expect(postAfterRefresh).toBeVisible({timeout: 15000})
 
     // Find and click the like button
     const likeButton = postAfterRefresh.getByTestId("like-button")
     await expect(likeButton).toBeVisible({timeout: 5000})
     await likeButton.click()
 
-    // Verify like registered
+    // Verify like registered (optimistic UI updates immediately)
     await expect(postAfterRefresh.getByTestId("like-count")).toHaveText("1")
     await expect(likeButton).toHaveClass(/text-error/)
   })
