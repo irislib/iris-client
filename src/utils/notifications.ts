@@ -1,4 +1,8 @@
-import {INVITE_RESPONSE_KIND, MESSAGE_EVENT_KIND, SessionManager} from "nostr-double-ratchet/src"
+import {
+  INVITE_RESPONSE_KIND,
+  MESSAGE_EVENT_KIND,
+  SessionManager,
+} from "nostr-double-ratchet/src"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"

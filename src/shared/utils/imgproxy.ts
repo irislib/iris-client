@@ -4,9 +4,9 @@ import {hmac} from "@noble/hashes/hmac"
 import {base64} from "@scure/base"
 
 export const DefaultImgProxy = {
-  url: "https://imgproxy.coracle.social",
-  key: "a82fcf26aa0ccb55dfc6b4bd6a1c90744d3be0f38429f21a8828b43449ce7cebe6bdc2b09a827311bef37b18ce35cb1e6b1c60387a254541afa9e5b4264ae942",
-  salt: "a897770d9abf163de055e9617891214e75a9016d748f8ef865e6ffbcb9ed932295659549773a22a019a5f06d0b440c320be411e3fddfe784e199e4f03d74bd9b",
+  url: "https://imgproxy.iris.to",
+  key: "f66233cb160ea07078ff28099bfa3e3e654bc10aa4a745e12176c433d79b8996",
+  salt: "5e608e60945dcd2a787e8465d76ba34149894765061d39287609fb9d776caa0c",
 }
 
 function urlSafe(s: string) {
@@ -42,9 +42,13 @@ interface ImgProxyConfig {
 export function generateProxyUrl(
   originalSrc: string,
   options: ImgProxyOptions = {},
-  config?: ImgProxyConfig
+  config?: Partial<ImgProxyConfig>
 ) {
-  const proxyConfig = config || DefaultImgProxy
+  const proxyConfig = {
+    url: config?.url || DefaultImgProxy.url,
+    key: config?.key || DefaultImgProxy.key,
+    salt: config?.salt || DefaultImgProxy.salt,
+  }
   const te = new TextEncoder()
   const encodedUrl = urlSafe(base64.encode(te.encode(originalSrc)))
 

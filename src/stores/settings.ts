@@ -108,7 +108,7 @@ export const useSettingsStore = create<SettingsState>()(
         hideZapsBarInStandalone: false, // Hide zaps bar in standalone posts
       },
       imgproxy: {
-        url: "https://imgproxy.coracle.social",
+        url: "",
         key: "",
         salt: "",
         enabled: true,

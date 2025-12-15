@@ -6,6 +6,7 @@ import {getDefaultServers, stripHttps} from "./mediaservers-utils"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {SettingsInputItem} from "@/shared/components/settings/SettingsInputItem"
+import {DefaultImgProxy} from "@/shared/utils/imgproxy"
 
 function MediaServers() {
   const {
@@ -226,7 +227,7 @@ function MediaServers() {
             <SettingsInputItem
               label="Proxy URL"
               value={imgproxy.url}
-              placeholder="https://imgproxy.coracle.social"
+              placeholder={DefaultImgProxy.url}
               onChange={(value) => updateImgproxy({url: value})}
               type="url"
             />
@@ -234,14 +235,14 @@ function MediaServers() {
             <SettingsInputItem
               label="Key"
               value={imgproxy.key}
-              placeholder="Optional"
+              placeholder={`Default: ${DefaultImgProxy.key.slice(0, 16)}...`}
               onChange={(value) => updateImgproxy({key: value})}
             />
 
             <SettingsInputItem
               label="Salt"
               value={imgproxy.salt}
-              placeholder="Optional"
+              placeholder={`Default: ${DefaultImgProxy.salt.slice(0, 16)}...`}
               onChange={(value) => updateImgproxy({salt: value})}
             />
 
