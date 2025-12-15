@@ -15,24 +15,23 @@ test.describe("Post liking", () => {
       .fill(postContent)
     await page.getByRole("dialog").getByRole("button", {name: "Post"}).click()
 
-    // Wait for dialog to close
-    await expect(page.getByRole("dialog")).not.toBeVisible({timeout: 10000})
+    // After posting, we're navigated to the post detail page
+    await page.waitForURL(/\/note/, {timeout: 10000})
+    await page.waitForLoadState("networkidle")
 
-    // Wait for the post to appear in the feed and scroll to it
+    // Wait for the post to appear - use visible selector to avoid background stack views
     const postElement = page
-      .getByTestId("feed-item")
+      .locator('[data-testid="feed-item"]:visible')
       .filter({hasText: postContent})
       .first()
-    await postElement.waitFor({state: "attached", timeout: 30000})
-    await postElement.scrollIntoViewIfNeeded()
-    await expect(postElement).toBeVisible({timeout: 5000})
+    await expect(postElement).toBeVisible({timeout: 15000})
 
     // Wait for the like button within this specific post
     const likeButton = postElement.getByTestId("like-button")
     await expect(likeButton).toBeVisible({timeout: 5000})
     await likeButton.click()
 
-    // Verify like count increased and heart is filled
+    // Verify like count increased and heart is filled (optimistic UI updates immediately)
     await expect(postElement.getByTestId("like-count")).toHaveText("1")
     await expect(likeButton).toHaveClass(/text-error/)
   })

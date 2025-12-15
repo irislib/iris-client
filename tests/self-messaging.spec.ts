@@ -24,10 +24,16 @@ test.describe("Self-messaging between browser sessions", () => {
       await page2.getByRole("button", {name: "Sign up"}).click()
       await expect(page2.getByRole("heading", {name: "Sign up"})).toBeVisible()
       await page2.getByText("Already have an account?").click()
-      await expect(page2.getByRole("heading", {name: "Sign in"})).toBeVisible({timeout: 10000})
+      await expect(page2.getByRole("heading", {name: "Sign in"})).toBeVisible({
+        timeout: 10000,
+      })
       await page2.getByPlaceholder(/paste.*key/i).fill(privateKey)
-      await expect(page2.getByRole("heading", {name: "Sign in"})).not.toBeVisible({timeout: 10000})
-      await expect(page2.locator("#main-content").getByTestId("new-post-button")).toBeVisible({timeout: 10000})
+      await expect(page2.getByRole("heading", {name: "Sign in"})).not.toBeVisible({
+        timeout: 10000,
+      })
+      await expect(
+        page2.locator("#main-content").getByTestId("new-post-button")
+      ).toBeVisible({timeout: 10000})
 
       const timestamp = Date.now()
       const testMessage1 = `Test message 1: ${timestamp}`
@@ -39,7 +45,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await page1.waitForLoadState("networkidle")
 
       // Wait for profile to load
-      await expect(page1.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
+      await expect(page1.getByTestId("profile-header-actions")).toBeVisible({
+        timeout: 10000,
+      })
 
       // Click the mail/message button
       const messageButton1 = page1
@@ -68,7 +76,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await profileLink2.click()
       await page2.waitForLoadState("networkidle")
 
-      await expect(page2.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
+      await expect(page2.getByTestId("profile-header-actions")).toBeVisible({
+        timeout: 10000,
+      })
 
       const messageButton2 = page2
         .getByTestId("profile-header-actions")

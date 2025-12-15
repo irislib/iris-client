@@ -77,7 +77,10 @@ test.describe("Notifications", () => {
       await pageB.goto(userAProfileLink)
       await expect(pageB.getByText(postContent).first()).toBeVisible({timeout: 20000})
 
-      const postElement = pageB.locator('[data-testid="feed-item"]').filter({hasText: postContent}).first()
+      const postElement = pageB
+        .locator('[data-testid="feed-item"]')
+        .filter({hasText: postContent})
+        .first()
       await postElement.getByTestId("like-button").click()
 
       await pageA.goto("/notifications")

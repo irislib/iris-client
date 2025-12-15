@@ -34,9 +34,9 @@ test.describe("Message persistence with double ratchet", () => {
     await messageInput.press("Enter")
 
     // Verify message appears
-    await expect(
-      page.locator(".whitespace-pre-wrap").getByText(testMessage)
-    ).toBeVisible({timeout: 10000})
+    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible(
+      {timeout: 10000}
+    )
 
     // Wait for message to persist
     await page.waitForTimeout(1000)
@@ -46,9 +46,11 @@ test.describe("Message persistence with double ratchet", () => {
     await page.waitForLoadState("networkidle")
 
     // Verify message still appears
-    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible({
-      timeout: 10000,
-    })
+    await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible(
+      {
+        timeout: 10000,
+      }
+    )
 
     // Send another message after refresh
     const messageAfterRefresh = "Message after refresh"

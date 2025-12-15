@@ -54,8 +54,16 @@ test.describe("Note draft persistence", () => {
       page.getByRole("dialog").getByPlaceholder("What's on your mind?")
     ).not.toBeVisible()
 
-    // Open note creator again
-    await page.locator("#main-content").getByTestId("new-post-button").click()
+    // Go back to home to test draft from there
+    await page.goto("/")
+    await page.waitForLoadState("networkidle")
+
+    // Open note creator again - use visible selector to avoid background stack views
+    const newPostButton = page.locator(
+      '#main-content:visible [data-testid="new-post-button"]'
+    )
+    await expect(newPostButton).toBeVisible({timeout: 10000})
+    await newPostButton.click()
 
     // Verify the content is cleared
     await expect(
