@@ -97,7 +97,7 @@
     "lodash": "^4.17.21",
     "markdown-to-jsx": "^7.7.13",
     "minidenticons": "^4.2.1",
-    "nostr-double-ratchet": "^0.0.36",
+    "nostr-double-ratchet": "0.0.37",
     "nostr-social-graph": "^1.0.33",
     "nostr-tools": "^2.16.2",
     "nostr-wasm": "^0.1.0",
