@@ -76,7 +76,7 @@ test.describe("WebRTC Blossom via NDK", () => {
     // Page1: Create post with blossom URL
     await page1.locator("#main-content").getByTestId("new-post-button").click()
 
-    const blossomUrl = `https://files.iris.to/${testHash}.jpeg`
+    const blossomUrl = `https://cdn.iris.to/${testHash}.jpeg`
     await page1
       .getByRole("dialog")
       .getByPlaceholder("What's on your mind?")

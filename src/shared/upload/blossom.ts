@@ -71,7 +71,7 @@ export async function uploadToBlossom(
         try {
           const data = JSON.parse(xhr.responseText)
           if (data.url) {
-            resolve(data.url.replace("blossom.iris.to", "files.iris.to"))
+            resolve(data.url.replace("blossom.iris.to", "cdn.iris.to"))
           } else {
             reject(new Error(`URL not found in response from ${url}`))
           }
