@@ -50,10 +50,9 @@ export function useNotePublisher(params: UseNotePublisherParams) {
       // Add to hot cache immediately for instant detail page loading
       cacheEvent(event)
 
-      // Await publish to ensure cache operations complete before navigation
-      // The publish() method now awaits cache writes, which is necessary for
-      // offline-first behavior - events must be in cache before we navigate away
-      await event.publish().catch((error) => {
+      // Fire and forget - event is already cached for offline-first behavior
+      // Don't await relay responses as that causes spinner to hang
+      event.publish().catch((error) => {
         console.error("Failed to publish note:", error)
       })
 
