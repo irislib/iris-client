@@ -14,7 +14,7 @@ import {precacheAndRoute, PrecacheEntry} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {registerRoute} from "workbox-routing"
-import {clientsClaim} from "workbox-core"
+import {clientsClaim, RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 import {KIND_CHANNEL_CREATE} from "./utils/constants"
@@ -42,11 +42,11 @@ precacheAndRoute(self.__WB_MANIFEST)
 clientsClaim()
 
 // Prevent caching of graph-api.iris.to requests
-registerRoute(({url}) => url.origin === "https://graph-api.iris.to", new NetworkOnly())
+registerRoute(({url}: RouteMatchCallbackOptions) => url.origin === "https://graph-api.iris.to", new NetworkOnly())
 
 // Cache icons.svg for faster loading on mobile
 registerRoute(
-  ({url}) => url.pathname.endsWith("/icons.svg"),
+  ({url}: RouteMatchCallbackOptions) => url.pathname.endsWith("/icons.svg"),
   new StaleWhileRevalidate({
     cacheName: "icons-cache",
     plugins: [
@@ -57,7 +57,7 @@ registerRoute(
 )
 
 registerRoute(
-  ({url}) => url.pathname.endsWith("/.well-known/nostr.json"),
+  ({url}: RouteMatchCallbackOptions) => url.pathname.endsWith("/.well-known/nostr.json"),
   new StaleWhileRevalidate({
     cacheName: "nostr-json-cache",
     plugins: [new ExpirationPlugin({maxAgeSeconds: 4 * 60 * 60})],
@@ -66,7 +66,7 @@ registerRoute(
 
 // Avatars
 registerRoute(
-  ({request, url}) => {
+  ({request, url}: RouteMatchCallbackOptions) => {
     return (
       request.destination === "image" &&
       url.href.startsWith("https://imgproxy.") &&
@@ -97,7 +97,7 @@ registerRoute(
 // Cache images from any domain with size limit
 registerRoute(
   // match images except gif
-  ({request, url}) => request.destination === "image" && !url.pathname.endsWith(".gif"),
+  ({request, url}: RouteMatchCallbackOptions) => request.destination === "image" && !url.pathname.endsWith(".gif"),
   new CacheFirst({
     cacheName: "image-cache",
     plugins: [
@@ -115,7 +115,7 @@ registerRoute(
 )
 
 registerRoute(
-  ({url}) =>
+  ({url}: RouteMatchCallbackOptions) =>
     url.origin === "https://nostr.api.v0l.io" &&
     url.pathname.startsWith("/api/v1/preview"),
   new CacheFirst({
@@ -128,7 +128,7 @@ registerRoute(
 )
 
 registerRoute(
-  ({url}) =>
+  ({url}: RouteMatchCallbackOptions) =>
     url.origin === "https://api.snort.social" &&
     url.pathname.startsWith("/api/v1/translate"),
   new CacheFirst({
