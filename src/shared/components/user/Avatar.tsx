@@ -16,7 +16,6 @@ export const Avatar = ({
   showBadge = true,
   showTooltip = true,
   showHoverCard = false,
-  showOnlineIndicator = false,
   cornerBadge,
 }: {
   width?: number
@@ -24,7 +23,6 @@ export const Avatar = ({
   showBadge?: boolean
   showTooltip?: boolean
   showHoverCard?: boolean
-  showOnlineIndicator?: boolean
   cornerBadge?: {
     content: ReactNode
     position?: "top-right" | "bottom-right"

@@ -9,7 +9,6 @@ import NDK, {
 import {NDKWorkerTransport} from "@/lib/ndk-transport-worker"
 import {NDKTauriTransport} from "@/lib/ndk-transport-tauri"
 import {useUserStore} from "@/stores/user"
-import {useSettingsStore} from "@/stores/settings"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import {createDebugLogger} from "@/utils/createDebugLogger"

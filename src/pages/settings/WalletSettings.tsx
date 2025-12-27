@@ -477,7 +477,6 @@ const WalletSettings = () => {
                               avatarWidth={32}
                               showBadge={true}
                               showHoverCard={false}
-                              showOnlineIndicator={false}
                               linkToProfile={true}
                             />
                           ) : (

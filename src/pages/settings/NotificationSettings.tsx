@@ -159,9 +159,8 @@ const NotificationSettings = () => {
       // Tauri notifications (desktop or mobile)
       log("[Test Notification] Sending Tauri notification")
       try {
-        const {sendNotification, isPermissionGranted, requestPermission} = await import(
-          "@tauri-apps/plugin-notification"
-        )
+        const {sendNotification, isPermissionGranted, requestPermission} =
+          await import("@tauri-apps/plugin-notification")
 
         // Check permission first
         let granted = await isPermissionGranted()

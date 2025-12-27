@@ -37,9 +37,8 @@ test.skip("Negentropy sync with relay", async ({page}) => {
   const result = await page.evaluate(
     async ({pubkey, relayUrl}) => {
       const {NDKRelay} = await import("/src/lib/ndk/index.js")
-      const {buildStorageVector, negentropySync} = await import(
-        "/src/lib/ndk/negentropy/index.js"
-      )
+      const {buildStorageVector, negentropySync} =
+        await import("/src/lib/ndk/negentropy/index.js")
 
       try {
         // Connect to relay
@@ -142,9 +141,8 @@ test.skip("Negentropy incremental sync", async ({page}) => {
   const result = await page.evaluate(
     async ({pubkey, relayUrl}) => {
       const {NDKRelay} = await import("/src/lib/ndk/index.js")
-      const {buildStorageVector, negentropySync} = await import(
-        "/src/lib/ndk/negentropy/index.js"
-      )
+      const {buildStorageVector, negentropySync} =
+        await import("/src/lib/ndk/negentropy/index.js")
 
       try {
         const relay = new NDKRelay(relayUrl, undefined, {} as Record<string, unknown>)
@@ -229,9 +227,8 @@ test.skip("Negentropy with frame size limit", async ({page}) => {
   const result = await page.evaluate(
     async ({pubkey, relayUrl}) => {
       const {NDKRelay} = await import("/src/lib/ndk/index.js")
-      const {buildStorageVector, negentropySync} = await import(
-        "/src/lib/ndk/negentropy/index.js"
-      )
+      const {buildStorageVector, negentropySync} =
+        await import("/src/lib/ndk/negentropy/index.js")
 
       try {
         const relay = new NDKRelay(relayUrl, undefined, {} as Record<string, unknown>)

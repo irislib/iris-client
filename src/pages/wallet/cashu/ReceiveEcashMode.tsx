@@ -120,9 +120,8 @@ export default function ReceiveEcashMode({
       }
 
       // Check if we have send metadata for this token (means we sent it originally)
-      const {getPaymentMetadata, savePaymentMetadata} = await import(
-        "@/stores/paymentMetadata"
-      )
+      const {getPaymentMetadata, savePaymentMetadata} =
+        await import("@/stores/paymentMetadata")
       const trimmedToken = tokenInput.trim()
       const existingMetadata = await getPaymentMetadata(trimmedToken)
 

@@ -122,9 +122,8 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
       const trimmedToken = match.trim()
 
       // Save metadata BEFORE redeeming so it's available when history entry is created
-      const {getPaymentMetadata, savePaymentMetadata} = await import(
-        "@/stores/paymentMetadata"
-      )
+      const {getPaymentMetadata, savePaymentMetadata} =
+        await import("@/stores/paymentMetadata")
 
       // Check if we have send metadata for this token (means we sent it originally)
       const existingMetadata = await getPaymentMetadata(trimmedToken)
@@ -263,9 +262,8 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
 
       if (anySpent) {
         // Update metadata if we haven't already recorded redemption
-        const {getPaymentMetadata, savePaymentMetadata} = await import(
-          "@/stores/paymentMetadata"
-        )
+        const {getPaymentMetadata, savePaymentMetadata} =
+          await import("@/stores/paymentMetadata")
         const metadata = await getPaymentMetadata(trimmedToken)
         if (!metadata?.sender) {
           // Token was spent but we don't have receive metadata

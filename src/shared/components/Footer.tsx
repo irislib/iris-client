@@ -95,12 +95,7 @@ const Footer = () => {
                     "border-transparent": !isActive,
                   })}
                 >
-                  <Avatar
-                    pubKey={myPubKey}
-                    width={28}
-                    showBadge={false}
-                    showOnlineIndicator={false}
-                  />
+                  <Avatar pubKey={myPubKey} width={28} showBadge={false} />
                 </div>
               )}
             </ProfileLink>

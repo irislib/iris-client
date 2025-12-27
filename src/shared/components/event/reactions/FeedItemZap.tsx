@@ -206,9 +206,8 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
         // Send donation zaps if enabled
         if (zapDonationEnabled && zapDonationRecipients.length > 0) {
           try {
-            const {calculateMultiRecipientDonations, sendDonationZaps} = await import(
-              "@/utils/nostr"
-            )
+            const {calculateMultiRecipientDonations, sendDonationZaps} =
+              await import("@/utils/nostr")
             const donations = calculateMultiRecipientDonations(
               amount / 1000,
               zapDonationRecipients,

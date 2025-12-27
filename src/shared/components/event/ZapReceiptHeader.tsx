@@ -62,17 +62,10 @@ function ZapReceiptHeader({
         <span className="text-yellow-600 font-semibold">
           {formatAmount(zappedAmount || 0)}₿
         </span>
-        {showAuthor && (
-          <UserRow pubKey={zappingUser} avatarWidth={20} showOnlineIndicator={false} />
-        )}
+        {showAuthor && <UserRow pubKey={zappingUser} avatarWidth={20} />}
         <span className="text-base-content/50">→</span>
         {zapRecipient && (
-          <UserRow
-            pubKey={zapRecipient}
-            avatarWidth={20}
-            showOnlineIndicator={false}
-            showAvatar={!referredEvent}
-          />
+          <UserRow pubKey={zapRecipient} avatarWidth={20} showAvatar={!referredEvent} />
         )}
         {zapComment && (
           <>

@@ -10,7 +10,6 @@ interface ImageComponentProps {
   blur?: boolean
   limitHeight?: boolean
   imeta?: string[]
-  authorPubkey?: string
 }
 
 const ImageComponent = ({
@@ -19,7 +18,6 @@ const ImageComponent = ({
   blur,
   limitHeight,
   imeta,
-  authorPubkey,
 }: ImageComponentProps) => {
   const [hasError, setHasError] = useState(false)
 
@@ -91,7 +89,6 @@ const ImageComponent = ({
       })}
       style={styleWithDimensions}
       src={match}
-      authorPubkey={authorPubkey}
     />
   )
 }

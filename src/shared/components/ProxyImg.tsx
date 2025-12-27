@@ -2,7 +2,6 @@ import {CSSProperties, useEffect, useState, MouseEvent, useRef} from "react"
 import {generateProxyUrl, generateVideoProxyUrl} from "../utils/imgproxy"
 import {imgproxyFailureCache, loadedImageCache} from "@/utils/memcache"
 import {useSettingsStore} from "@/stores/settings"
-import {useBlossomCache} from "@/shared/hooks/useBlossomCache"
 
 type Props = {
   src: string
@@ -16,7 +15,6 @@ type Props = {
   alt?: string
   hideBroken?: boolean
   loadOriginalIfProxyFails?: boolean
-  authorPubkey?: string
   isVideo?: boolean
 }
 
@@ -36,9 +34,6 @@ const ProxyImg = (props: Props) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
 
-  // Try blossom p2p fetch first
-  const blossomCachedUrl = useBlossomCache(props.src, props.authorPubkey)
-
   useEffect(() => {
     // Check if we have this image cached
     const cacheKey = `${props.src}_${props.width}_${props.square}`
@@ -48,17 +43,12 @@ const ProxyImg = (props: Props) => {
       return
     }
 
-    // Use blossom cached URL if available (blob: URL from p2p)
-    let mySrc = blossomCachedUrl
+    let mySrc = props.src
 
     // Check if this URL has previously failed through imgproxy
     const hasProxyFailed = imgproxyFailureCache.has(props.src)
 
-    // Skip imgproxy for blob: URLs (from p2p)
-    const isBlobUrl = mySrc.startsWith("blob:")
-
     const shouldUseProxy =
-      !isBlobUrl &&
       imgproxy.enabled &&
       props.src &&
       !props.src.startsWith("data:image") &&
@@ -94,7 +84,7 @@ const ProxyImg = (props: Props) => {
         clearTimeout(timeoutRef.current)
       }
     }
-  }, [props.src, props.width, props.square, imgproxy, blossomCachedUrl])
+  }, [props.src, props.width, props.square, imgproxy])
 
   useEffect(() => {
     // If we've already switched to the original, do NOT set the timer again
