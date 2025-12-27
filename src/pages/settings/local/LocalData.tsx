@@ -5,7 +5,6 @@ import {SettingsButton} from "@/shared/components/settings/SettingsButton"
 import {useState, useEffect, MouseEvent} from "react"
 import {confirm} from "@/utils/utils"
 import Dexie from "dexie"
-import {BlobList} from "./BlobList"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {getTauriTransport, getWorkerTransport} from "@/utils/ndk"
@@ -380,8 +379,6 @@ export function LocalData() {
           )}
         </>
       )}
-
-      <BlobList />
 
       {idbDatabases.length > 0 && (
         <SettingsGroup title="All IndexedDB Databases">

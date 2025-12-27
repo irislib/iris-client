@@ -9,7 +9,6 @@ import {Badge} from "@/shared/components/user/Badge"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import AnimalName from "@/utils/AnimalName.ts"
 import {AVATAR_DEFAULT_WIDTH} from "./const"
-import {useIsUserOnline} from "@/shared/hooks/useIsUserOnline"
 
 export const Avatar = ({
   width = AVATAR_DEFAULT_WIDTH,
@@ -48,7 +47,6 @@ export const Avatar = ({
 
   const profile = useProfile(pubKeyHex, true)
   const [image, setImage] = useState(String(profile?.picture || ""))
-  const isOnline = useIsUserOnline(showOnlineIndicator ? pubKeyHex : undefined)
 
   useEffect(() => {
     setImage(profile?.picture ? String(profile.picture) : "")
@@ -110,12 +108,6 @@ export const Avatar = ({
           <MinidenticonImg username={pubKeyHex} alt="User Avatar" />
         )}
       </div>
-      {showOnlineIndicator && isOnline && (
-        <span
-          className="absolute bottom-0 left-0 w-3 h-3 bg-success rounded-full border-2 border-base-100"
-          title="Online"
-        />
-      )}
       {cornerBadge && (
         <span
           className={`${getCornerBadgePosition()} bg-base-100 border border-base-300 leading-none flex items-center justify-center rounded-full ${

@@ -12,8 +12,6 @@ import {useUserStore} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
-import {WebRTCTransportPlugin} from "@/utils/chat/webrtc/WebRTCTransportPlugin"
-import {setWebRTCPlugin} from "@/utils/chat/webrtc/p2pMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {isTauri} from "@/utils/utils"
@@ -151,9 +149,6 @@ async function performInit(opts?: NDKConstructorParams) {
     ndk.signer = nip07Signer
   }
 
-  // Set initial P2P mode
-  ndk.p2pOnlyMode = useSettingsStore.getState().network.p2pOnlyMode
-
   // Set initial activeUser from store (important for cache queries after refresh)
   if (store.publicKey) {
     ndk.activeUser = new NDKUser({hexpubkey: store.publicKey})
@@ -165,8 +160,6 @@ async function performInit(opts?: NDKConstructorParams) {
 
   // Setup visibility reconnection (forwards to worker)
   setupVisibilityReconnection()
-
-  setupWebRTCTransport(ndk)
 
   log("NDK instance initialized", ndk)
 }
@@ -218,29 +211,7 @@ function setupVisibilityReconnection() {
   }
 }
 
-/**
- * Setup WebRTC transport plugin for P2P event distribution
- */
-function setupWebRTCTransport(instance: NDK) {
-  const plugin = new WebRTCTransportPlugin()
-  plugin.initialize(instance)
-  setWebRTCPlugin(plugin)
-
-  // Register plugin with NDK (native hook support)
-  instance.transportPlugins.push(plugin)
-
-  log("WebRTC transport plugin initialized")
-}
-
 function watchLocalSettings(instance: NDK) {
-  // Watch P2P-only mode setting
-  useSettingsStore.subscribe((state, prevState) => {
-    if (state.network.p2pOnlyMode !== prevState.network.p2pOnlyMode) {
-      instance.p2pOnlyMode = state.network.p2pOnlyMode
-      log("P2P-only mode:", state.network.p2pOnlyMode ? "enabled" : "disabled")
-    }
-  })
-
   useUserStore.subscribe((state, prevState) => {
     // Outbox model changes are handled by page reload in Network.tsx
     // No need to recreate NDK instance here

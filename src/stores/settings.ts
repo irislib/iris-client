@@ -50,13 +50,6 @@ export interface SettingsState {
   }
   // Network settings
   network: {
-    webrtcEnabled: boolean
-    webrtcMaxOutbound: number
-    webrtcMaxInbound: number
-    webrtcConnectToOwnDevices: boolean
-    p2pOnlyMode: boolean
-    webrtcCallsEnabled: boolean
-    webrtcFileReceivingEnabled: boolean
     negentropyEnabled: boolean
   }
   // Desktop settings
@@ -128,13 +121,6 @@ export const useSettingsStore = create<SettingsState>()(
         },
       },
       network: {
-        webrtcEnabled: true,
-        webrtcMaxOutbound: 5,
-        webrtcMaxInbound: 5,
-        webrtcConnectToOwnDevices: true,
-        p2pOnlyMode: false,
-        webrtcCallsEnabled: true,
-        webrtcFileReceivingEnabled: true,
         negentropyEnabled: false,
       },
       desktop: {
@@ -203,43 +189,21 @@ export const useSettingsStore = create<SettingsState>()(
         // Migrate old settings without network config
         if (state && !state.network) {
           state.network = {
-            webrtcEnabled: true,
-            webrtcMaxOutbound: 5,
-            webrtcMaxInbound: 5,
-            webrtcConnectToOwnDevices: true,
-            p2pOnlyMode: false,
-            webrtcCallsEnabled: true,
-            webrtcFileReceivingEnabled: true,
             negentropyEnabled: false,
           }
         }
-        // Migrate network settings without new fields
+        // Clean up deprecated WebRTC settings
         if (state?.network) {
-          if (state.network.webrtcMaxOutbound === undefined) {
-            state.network.webrtcMaxOutbound = 5
-          }
-          if (state.network.webrtcMaxInbound === undefined) {
-            state.network.webrtcMaxInbound = 5
-          }
-          if (state.network.webrtcConnectToOwnDevices === undefined) {
-            state.network.webrtcConnectToOwnDevices = true
-          }
-          if (state.network.p2pOnlyMode === undefined) {
-            state.network.p2pOnlyMode = false
-          }
-          // Clean up deprecated settings
-          if ((state.network as any).useWorkerTransport !== undefined) {
-            delete (state.network as any).useWorkerTransport
-          }
-          if ((state.network as any).webrtcLogLevel !== undefined) {
-            delete (state.network as any).webrtcLogLevel
-          }
-          if (state.network.webrtcCallsEnabled === undefined) {
-            state.network.webrtcCallsEnabled = true
-          }
-          if (state.network.webrtcFileReceivingEnabled === undefined) {
-            state.network.webrtcFileReceivingEnabled = true
-          }
+          const network = state.network as any
+          delete network.webrtcEnabled
+          delete network.webrtcMaxOutbound
+          delete network.webrtcMaxInbound
+          delete network.webrtcConnectToOwnDevices
+          delete network.p2pOnlyMode
+          delete network.webrtcCallsEnabled
+          delete network.webrtcFileReceivingEnabled
+          delete network.useWorkerTransport
+          delete network.webrtcLogLevel
           if (state.network.negentropyEnabled === undefined) {
             state.network.negentropyEnabled = false
           }

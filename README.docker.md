@@ -44,9 +44,9 @@ docker-compose exec iris-dev zsh
 
 Inside container:
 
-- `yarn dev` - Run development server
-- `yarn test` - Run Playwright tests
-- `yarn lint` - Run linter
+- `pnpm dev` - Run development server
+- `pnpm test` - Run Playwright tests
+- `pnpm lint` - Run linter
 - `nvim` - Neovim with your config
 - `claude` - Claude CLI (auto-aliased with --dangerously-skip-permissions)
 

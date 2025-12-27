@@ -14,31 +14,31 @@ Source code for [iris.to](https://iris.to)
 
 ```bash
 # Install dependencies
-yarn
+pnpm install
 
 # Start development server
-yarn dev
+pnpm dev
 
 # Build for production
-yarn build
+pnpm build
 
 # Run tests
-yarn test    # Run all tests
-yarn test:ui # E2E tests with UI mode
+pnpm test    # Run all tests
+pnpm test:ui # E2E tests with UI mode
 ```
 
 ### Tauri
 
 ```bash
 # Desktop
-yarn tauri dev
-yarn tauri build
+pnpm tauri dev
+pnpm tauri build
 
 # Mobile
-yarn tauri [android|ios] init
-yarn tauri [android|ios] dev
+pnpm tauri [android|ios] init
+pnpm tauri [android|ios] dev
 
 # App Store builds
-yarn tauri ios build --open        # Opens Xcode → Archive → Distribute
-yarn tauri android build --aab     # Requires keystore setup: https://v2.tauri.app/distribute/sign/android/
+pnpm tauri ios build --open        # Opens Xcode → Archive → Distribute
+pnpm tauri android build --aab     # Requires keystore setup: https://v2.tauri.app/distribute/sign/android/
 ```

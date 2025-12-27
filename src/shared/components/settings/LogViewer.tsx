@@ -152,12 +152,12 @@ export function LogViewer() {
               type="text"
               value={debugFilter}
               onChange={(e) => handleDebugFilterChange(e.target.value)}
-              placeholder="e.g., ndk:*,webrtc:peer:lifecycle or cashu:wallet"
+              placeholder="e.g., ndk:*, cashu:wallet, or ui:feed"
               className="bg-base-200 rounded-lg px-3 py-2 text-sm border border-base-content/20"
             />
             <p className="text-xs text-base-content/60">
               Format: namespace patterns separated by commas. Use * for wildcard.
-              Examples: ndk:relay, webrtc:peer:lifecycle, webrtc:peer:messages, cashu:*
+              Examples: ndk:relay, ndk:subscription, cashu:wallet, ui:feed
             </p>
           </div>
 

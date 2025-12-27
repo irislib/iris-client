@@ -78,13 +78,6 @@ export const DEBUG_NAMESPACES = {
   NDK_WORKER_WARN: "ndk:worker:warn",
   NDK_TRANSPORT: "ndk:transport",
 
-  // WebRTC
-  WEBRTC_PEER: "webrtc:peer",
-  WEBRTC_PEER_LIFECYCLE: "webrtc:peer:lifecycle", // connect/disconnect/state changes
-  WEBRTC_PEER_MESSAGES: "webrtc:peer:messages", // offer/answer/ICE candidates
-  WEBRTC_PEER_DATA: "webrtc:peer:data", // data channel events
-  WEBRTC_SIGNALING: "webrtc:signaling",
-
   // Cashu
   CASHU_WALLET: "cashu:wallet",
   CASHU_WALLET_ERROR: "cashu:wallet:error",

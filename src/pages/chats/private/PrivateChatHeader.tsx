@@ -1,6 +1,4 @@
-import {ConnectionStatus} from "@/shared/components/connection/ConnectionStatus"
-import {getPeerConnection} from "@/utils/chat/webrtc/PeerConnection"
-import {RiMoreLine, RiAttachment2} from "@remixicon/react"
+import {RiMoreLine} from "@remixicon/react"
 import {UserRow} from "@/shared/components/user/UserRow"
 import Header from "@/shared/components/header/Header"
 import Dropdown from "@/shared/components/ui/Dropdown"
@@ -51,50 +49,15 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
     setDropdownOpen(false)
   }
 
-  const handleSendFile = async () => {
-    // WebRTC disabled until session metadata is restored
-    const peerConnection = await getPeerConnection(id, {
-      ask: false,
-      create: true,
-      connect: true,
-    })
-    if (!peerConnection) return
-
-    const fileInput = document.createElement("input")
-    fileInput.type = "file"
-    fileInput.style.display = "none"
-    fileInput.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
-        peerConnection.sendFile(file)
-      }
-    }
-    document.body.appendChild(fileInput)
-    fileInput.click()
-    document.body.removeChild(fileInput)
-  }
-
   const user = id.split(":").shift()!
-
-  const showWebRtc = false // button hidden until WebRTC flow is re-enabled
 
   return (
     <Header showNotifications={false} scrollDown={true} slideUp={false} bold={false}>
       <div className="flex items-center justify-between w-full">
         <div className="flex flex-row items-center gap-2">
           {id && <UserRow avatarWidth={32} pubKey={user} />}
-          <ConnectionStatus peerId={id} showDisconnect={true} />
         </div>
         <div className="flex items-center gap-2 relative">
-          {showWebRtc && (
-            <button
-              onClick={handleSendFile}
-              className="btn btn-ghost btn-sm btn-circle"
-              title="Send file"
-            >
-              <RiAttachment2 className="h-5 w-5 cursor-pointer text-base-content/50" />
-            </button>
-          )}
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
             className="btn btn-ghost btn-sm btn-circle"

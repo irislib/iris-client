@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.4.0",
   "type": "module",
-  "packageManager": "yarn@1.22.22",
+  "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20.0.0"
   },
@@ -38,9 +38,9 @@
     "test:performance": "VITE_USE_TEST_RELAY=true playwright test tests/performance/ --reporter=list",
     "test:performance:prod": "playwright test tests/performance/ --reporter=list",
     "performance:baseline": "tsx ./scripts/performance-baseline.ts",
-    "lighthouse": "yarn build && node ./scripts/lighthouse-test.js",
-    "lighthouse:json": "yarn build && node ./scripts/lighthouse-test.js --json",
-    "lighthouse:open": "yarn build && node ./scripts/lighthouse-test.js --open",
+    "lighthouse": "pnpm build && node ./scripts/lighthouse-test.js",
+    "lighthouse:json": "pnpm build && node ./scripts/lighthouse-test.js --json",
+    "lighthouse:open": "pnpm build && node ./scripts/lighthouse-test.js --open",
     "format": "prettier --write \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
     "format:check": "prettier --check \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
     "typecheck": "tsc --noEmit",

@@ -1,4 +1,3 @@
-import {ConnectionStatus} from "@/shared/components/connection/ConnectionStatus"
 import RelativeTime from "@/shared/components/event/RelativeTime"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {usePublicChatsStore} from "@/stores/publicChats"
@@ -299,7 +298,6 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
                   />
                 </span>
               )}
-              {!isPublic && !group && <ConnectionStatus peerId={id} />}
             </div>
           </div>
           <div className="flex flex-row items-center justify-between gap-2">
