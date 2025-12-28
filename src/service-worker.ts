@@ -28,7 +28,7 @@ let cacheAdapter: NDKCacheAdapterDexie | null = null
 
 function getCacheAdapter(): NDKCacheAdapterDexie {
   if (!cacheAdapter) {
-    cacheAdapter = new NDKCacheAdapterDexie({dbName: "treelike-nostr"})
+    cacheAdapter = new NDKCacheAdapterDexie({dbName: "treelike-nostr", eventCacheSize: 5000})
   }
   return cacheAdapter
 }

@@ -132,6 +132,7 @@ async function initialize(relayUrls?: string[], initialSettings?: SettingsState)
     cache = new NDKCacheAdapterDexie({
       dbName: "treelike-nostr",
       saveSig: true,
+      eventCacheSize: 5000,
     })
     log("[Relay Worker] Cache adapter ready (write-only, main thread queries)")
 
