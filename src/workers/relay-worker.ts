@@ -683,6 +683,10 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       }
       break
 
+    case "ping":
+      self.postMessage({type: "pong", id} as WorkerResponse)
+      break
+
     default:
       warn("[Relay Worker] Unknown message type:", type)
   }

@@ -44,6 +44,7 @@ export interface WorkerMessage {
     | "browserOnline"
     | "updateSettings"
     | "search"
+    | "ping"
   id?: string
   filters?: NDKFilter[]
   event?: unknown
@@ -60,6 +61,7 @@ export interface WorkerMessage {
 export interface WorkerResponse {
   type:
     | "ready"
+    | "pong"
     | "event"
     | "eose"
     | "notice"

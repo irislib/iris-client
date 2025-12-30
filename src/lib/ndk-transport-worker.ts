@@ -48,6 +48,12 @@ export class NDKWorkerTransport {
   >()
   private searchReady = false
 
+  // Heartbeat monitoring - detects unresponsive workers (infinite loops, deadlocks)
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private lastPong: number = Date.now()
+  private readonly HEARTBEAT_INTERVAL_MS = 5000 // Send ping every 5s
+  private readonly HEARTBEAT_TIMEOUT_MS = 15000 // 3 missed beats = unresponsive
+
   constructor(workerOrUrl: Worker | string = "/relay-worker.js") {
     if (typeof workerOrUrl === "string") {
       this.workerUrl = workerOrUrl
@@ -72,6 +78,7 @@ export class NDKWorkerTransport {
           worker.removeEventListener("message", handler)
           this.restartAttempts = 0 // Reset on successful init
           this.flushMessageQueue()
+          this.startHeartbeat()
           resolve()
         }
       }
@@ -88,7 +95,38 @@ export class NDKWorkerTransport {
     this.setupMessageHandler(worker)
   }
 
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    this.lastPong = Date.now()
+
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.ready) {
+        return
+      }
+
+      // Check if worker is unresponsive
+      if (Date.now() - this.lastPong > this.HEARTBEAT_TIMEOUT_MS) {
+        console.error(
+          "[Worker Transport] Worker unresponsive (no pong received), restarting..."
+        )
+        this.handleWorkerCrash()
+        return
+      }
+
+      // Send ping
+      this.worker.postMessage({type: "ping", id: Date.now().toString()} as WorkerMessage)
+    }, this.HEARTBEAT_INTERVAL_MS)
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
   private async handleWorkerCrash() {
+    this.stopHeartbeat()
     this.restartAttempts++
     this.ready = false
 
@@ -328,6 +366,8 @@ export class NDKWorkerTransport {
   }
 
   close(): void {
+    this.stopHeartbeat()
+
     // Remove event listeners
     if (typeof window !== "undefined") {
       window.removeEventListener("offline", this.handleOffline)
@@ -452,6 +492,10 @@ export class NDKWorkerTransport {
       const {type, subId, event, relay, notice, error, id} = e.data
 
       switch (type) {
+        case "pong":
+          this.lastPong = Date.now()
+          break
+
         case "event":
           if (subId && event && this.ndk) {
             const {NDKEvent} = await import("./ndk/events")
