@@ -78,6 +78,18 @@ function Logout() {
     }
   }
 
+  async function cleanupSessionManagerStorage() {
+    try {
+      await localforage.dropInstance({
+        name: "iris-session-manager",
+        storeName: "session-private",
+      })
+      log("Cleared session manager storage")
+    } catch (err) {
+      error("Error clearing session manager storage:", err)
+    }
+  }
+
   async function cleanupStores() {
     try {
       // Clear events store (clears message repository)
@@ -142,7 +154,14 @@ function Logout() {
     } finally {
       try {
         log("[Logout] Final cleanup")
-        await withTimeout(Promise.all([cleanupStorage(), cleanupServiceWorker()]), 5000)
+        await withTimeout(
+          Promise.all([
+            cleanupStorage(),
+            cleanupSessionManagerStorage(),
+            cleanupServiceWorker(),
+          ]),
+          5000
+        )
       } catch (e) {
         error("Error during final cleanup:", e)
       } finally {
