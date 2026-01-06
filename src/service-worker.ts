@@ -28,7 +28,10 @@ let cacheAdapter: NDKCacheAdapterDexie | null = null
 
 function getCacheAdapter(): NDKCacheAdapterDexie {
   if (!cacheAdapter) {
-    cacheAdapter = new NDKCacheAdapterDexie({dbName: "treelike-nostr", eventCacheSize: 5000})
+    cacheAdapter = new NDKCacheAdapterDexie({
+      dbName: "treelike-nostr",
+      eventCacheSize: 5000,
+    })
   }
   return cacheAdapter
 }
@@ -42,7 +45,10 @@ precacheAndRoute(self.__WB_MANIFEST)
 clientsClaim()
 
 // Prevent caching of graph-api.iris.to requests
-registerRoute(({url}: RouteMatchCallbackOptions) => url.origin === "https://graph-api.iris.to", new NetworkOnly())
+registerRoute(
+  ({url}: RouteMatchCallbackOptions) => url.origin === "https://graph-api.iris.to",
+  new NetworkOnly()
+)
 
 // Cache icons.svg for faster loading on mobile
 registerRoute(
@@ -97,7 +103,8 @@ registerRoute(
 // Cache images from any domain with size limit
 registerRoute(
   // match images except gif
-  ({request, url}: RouteMatchCallbackOptions) => request.destination === "image" && !url.pathname.endsWith(".gif"),
+  ({request, url}: RouteMatchCallbackOptions) =>
+    request.destination === "image" && !url.pathname.endsWith(".gif"),
   new CacheFirst({
     cacheName: "image-cache",
     plugins: [
