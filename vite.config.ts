@@ -51,7 +51,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
-        main: "index.html",
+        main: "apps/iris/index.html",
         debug: "debug.html",
       },
       external: [],

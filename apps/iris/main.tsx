@@ -1,18 +1,18 @@
 import "@/index.css"
 
 import {NavigationProvider, Router} from "@/navigation"
-import {useUserStore} from "./stores/user"
+import {useUserStore} from "@/stores/user"
 import ReactDOM from "react-dom/client"
 
-import {subscribeToDMNotifications, subscribeToNotifications} from "./utils/notifications"
-import {migrateUserState, migratePublicChats} from "./utils/migration"
-import pushNotifications from "./utils/pushNotifications"
+import {subscribeToDMNotifications, subscribeToNotifications} from "@/utils/notifications"
+import {migrateUserState, migratePublicChats} from "@/utils/migration"
+import pushNotifications from "@/utils/pushNotifications"
 import {useSettingsStore} from "@/stores/settings"
-import {ndk} from "./utils/ndk"
-import DebugManager from "./utils/DebugManager"
+import {ndk} from "@/utils/ndk"
+import DebugManager from "@/utils/DebugManager"
 import Layout from "@/shared/components/Layout"
-import {isTauri, isMobileTauri} from "./utils/utils"
-import {initializeDebugLogging, createDebugLogger} from "./utils/createDebugLogger"
+import {isTauri, isMobileTauri} from "@/utils/utils"
+import {initializeDebugLogging, createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -24,8 +24,8 @@ import {
 import {
   attachSessionEventListener,
   cleanupSessionEventListener,
-} from "./utils/dmEventHandler"
-import {hasWriteAccess} from "./utils/auth"
+} from "@/utils/dmEventHandler"
+import {hasWriteAccess} from "@/utils/auth"
 
 // Register deep link handler for hot starts (when app already open)
 // Note: Cold start (app closed) doesn't work due to Tauri bug #13580
@@ -85,16 +85,16 @@ const initializeApp = async () => {
   // Start NDK initialization in background (non-blocking)
   import("@/utils/ndk").then(async ({initNDK}) => {
     await initNDK()
-    log("✅ NDK initialized")
+    log("NDK initialized")
   })
 
   // Load social graph in background (non-blocking)
   import("@/utils/socialGraph").then(
     async ({socialGraphLoaded, setupSocialGraphSubscriptions}) => {
       await socialGraphLoaded
-      log("✅ Social graph initialized")
+      log("Social graph initialized")
       await setupSocialGraphSubscriptions()
-      log("✅ Social graph subscriptions ready")
+      log("Social graph subscriptions ready")
     }
   )
 
@@ -143,7 +143,7 @@ const initializeApp = async () => {
           pushNotifications.init().catch(error)
         } else {
           log("[Init] Initializing desktop notifications")
-          const {initDesktopNotifications} = await import("./utils/desktopNotifications")
+          const {initDesktopNotifications} = await import("@/utils/desktopNotifications")
           initDesktopNotifications().catch(error)
         }
       })().catch(error)
