@@ -34,7 +34,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
-        chat: "index.html",
+        chat: path.resolve(__dirname, "apps/chat/index.html"),
       },
       external: [],
       onLog(level, log, handler) {
