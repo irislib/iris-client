@@ -1,10 +1,17 @@
 import {useState, useEffect} from "react"
 import {useUserStore} from "@/stores/user"
-import {RiDeleteBin6Line} from "@remixicon/react"
+import {RiDeleteBin6Line, RiAddLine, RiFileCopyLine, RiCheckLine} from "@remixicon/react"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {getSessionManager} from "@/shared/services/PrivateChats"
 import {confirm, alert} from "@/utils/utils"
+import {bytesToHex} from "@noble/hashes/utils"
+import {
+  generateEphemeralKeypair,
+  generateSharedSecret,
+  generateDeviceId,
+} from "nostr-double-ratchet/src/inviteUtils"
+import {generateSecretKey, getPublicKey} from "nostr-tools"
 
 interface DeviceInfo {
   id: string
@@ -18,6 +25,11 @@ const ChatSettings = () => {
   const [devices, setDevices] = useState<DeviceInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [showStale, setShowStale] = useState(false)
+  const [showPairingModal, setShowPairingModal] = useState(false)
+  const [pairingCode, setPairingCode] = useState("")
+  const [pairingLabel, setPairingLabel] = useState("")
+  const [copied, setCopied] = useState(false)
+  const [creatingDevice, setCreatingDevice] = useState(false)
 
   type SessionManagerInstance = NonNullable<ReturnType<typeof getSessionManager>>
 
@@ -196,6 +208,75 @@ const ChatSettings = () => {
     }
   }
 
+  const handleCreateDelegateDevice = async () => {
+    if (!pairingLabel.trim()) {
+      await alert("Please enter a device name")
+      return
+    }
+
+    setCreatingDevice(true)
+    try {
+      const manager = getSessionManager()
+      await manager.init()
+
+      // Generate device credentials
+      const devicePrivateKey = generateSecretKey()
+      const devicePublicKey = getPublicKey(devicePrivateKey)
+      const ephemeralKeypair = generateEphemeralKeypair()
+      const sharedSecret = generateSharedSecret()
+      const deviceId = generateDeviceId()
+      const deviceLabel = pairingLabel.trim()
+
+      // Create pairing code with all credentials
+      const credentials = {
+        devicePublicKey,
+        devicePrivateKey: bytesToHex(devicePrivateKey),
+        ephemeralPublicKey: ephemeralKeypair.publicKey,
+        ephemeralPrivateKey: bytesToHex(ephemeralKeypair.privateKey),
+        sharedSecret,
+        deviceId,
+        deviceLabel,
+      }
+
+      const code = btoa(JSON.stringify(credentials))
+      setPairingCode(code)
+
+      // Add device to InviteList
+      await manager.addSecondaryDevice({
+        devicePubkey: devicePublicKey,
+        ephemeralPubkey: ephemeralKeypair.publicKey,
+        sharedSecret,
+        deviceId,
+        deviceLabel,
+      })
+
+      await refreshDeviceList(manager)
+    } catch (error) {
+      console.error("Failed to create delegate device:", error)
+      await alert("Failed to create delegate device")
+      setShowPairingModal(false)
+    } finally {
+      setCreatingDevice(false)
+    }
+  }
+
+  const handleCopyPairingCode = async () => {
+    try {
+      await navigator.clipboard.writeText(pairingCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      await alert("Failed to copy to clipboard")
+    }
+  }
+
+  const handleClosePairingModal = () => {
+    setShowPairingModal(false)
+    setPairingCode("")
+    setPairingLabel("")
+    setCopied(false)
+  }
+
   if (!publicKey) {
     return (
       <div className="bg-base-200 min-h-full">
@@ -216,6 +297,16 @@ const ChatSettings = () => {
             Your devices / apps for private messaging. Each device / app has a unique
             invite that allows other users to establish secure sessions.
           </p>
+        </div>
+
+        <div className="mb-6">
+          <button
+            className="btn btn-primary gap-2"
+            onClick={() => setShowPairingModal(true)}
+          >
+            <RiAddLine size={18} />
+            Pair Delegate Device
+          </button>
         </div>
 
         {currentDevice && (
@@ -277,6 +368,104 @@ const ChatSettings = () => {
           </SettingsGroup>
         </div>
       </div>
+
+      {showPairingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="card w-full max-w-md bg-base-100 shadow-xl m-4">
+            <div className="card-body">
+              {!pairingCode ? (
+                <>
+                  <h2 className="card-title">Pair Delegate Device</h2>
+                  <p className="text-base-content/70 text-sm">
+                    Create a pairing code to set up a chat-only delegate device that can
+                    receive your encrypted messages.
+                  </p>
+
+                  <div className="form-control mt-4">
+                    <label className="label">
+                      <span className="label-text">Device Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input input-bordered"
+                      placeholder="e.g., Work laptop, Phone"
+                      value={pairingLabel}
+                      onChange={(e) => setPairingLabel(e.target.value)}
+                      disabled={creatingDevice}
+                    />
+                  </div>
+
+                  <div className="card-actions justify-end mt-6">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={handleClosePairingModal}
+                      disabled={creatingDevice}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={handleCreateDelegateDevice}
+                      disabled={creatingDevice || !pairingLabel.trim()}
+                    >
+                      {creatingDevice ? (
+                        <span className="loading loading-spinner loading-sm" />
+                      ) : (
+                        "Create Pairing Code"
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="card-title">Pairing Code Ready</h2>
+                  <p className="text-base-content/70 text-sm">
+                    Copy this code and paste it in the Iris Chat app on your delegate
+                    device.
+                  </p>
+
+                  <div className="mt-4 relative">
+                    <textarea
+                      className="textarea textarea-bordered w-full h-24 font-mono text-xs"
+                      value={pairingCode}
+                      readOnly
+                    />
+                    <button
+                      className="btn btn-sm btn-ghost absolute top-2 right-2 gap-1"
+                      onClick={handleCopyPairingCode}
+                    >
+                      {copied ? (
+                        <>
+                          <RiCheckLine size={14} />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <RiFileCopyLine size={14} />
+                          Copy
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="alert alert-warning mt-4">
+                    <span className="text-sm">
+                      This code contains private keys. Only share it with your own devices
+                      and do not reuse it.
+                    </span>
+                  </div>
+
+                  <div className="card-actions justify-end mt-6">
+                    <button className="btn btn-primary" onClick={handleClosePairingModal}>
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

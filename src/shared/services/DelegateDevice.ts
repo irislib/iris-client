@@ -13,10 +13,37 @@ import {
   getEphemeralPrivateKeyBytes,
   DelegateDeviceCredentials,
 } from "@/stores/delegateDevice"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {getTag} from "@/utils/tagUtils"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+
+let unsubscribeEvents: (() => void) | null = null
+
+/**
+ * Attach event listener to handle incoming messages on delegate device
+ */
+const attachDelegateEventListener = (
+  deviceManager: SecondaryDeviceManager,
+  ownerPublicKey: string
+) => {
+  unsubscribeEvents?.()
+  unsubscribeEvents = deviceManager.onEvent((event, fromPubkey) => {
+    log("Delegate device received event from:", fromPubkey)
+
+    const pTag = getTag("p", event.tags)
+    if (!pTag) return
+
+    const from = fromPubkey === ownerPublicKey ? pTag : fromPubkey
+    const to = fromPubkey === ownerPublicKey ? ownerPublicKey : pTag
+
+    if (!from || !to) return
+
+    void usePrivateMessagesStore.getState().upsert(from, to, event)
+  })
+}
 
 const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
   return (filter: NDKFilter, onEvent: (event: VerifiedEvent) => void) => {
@@ -88,7 +115,7 @@ export const createSecondaryDeviceManager = (
  * Initialize the delegate device and wait for activation
  * Returns the owner's public key once activated
  */
-export const initializeDelegateDevice = async (timeoutMs?: number): Promise<string> => {
+export const initializeDelegateDevice = async (timeoutMs = 60000): Promise<string> => {
   const deviceManager = getSecondaryDeviceManager()
   if (!deviceManager) {
     throw new Error("No delegate device credentials")
@@ -102,17 +129,25 @@ export const initializeDelegateDevice = async (timeoutMs?: number): Promise<stri
     log("Delegate device already activated, owner:", ownerKey)
     useDelegateDeviceStore.getState().setOwnerPublicKey(ownerKey)
     useDelegateDeviceStore.getState().setActivated(true)
+    attachDelegateEventListener(deviceManager, ownerKey)
     deviceManager.startListening()
     return ownerKey
   }
 
-  // Wait for activation
+  // Give NDK time to connect to relays
+  log("Waiting for relay connections...")
+  await new Promise((resolve) => setTimeout(resolve, 2000))
+
+  // Wait for activation with timeout
   log("Waiting for delegate device activation...")
   const activatedOwnerKey = await deviceManager.waitForActivation(timeoutMs)
   log("Delegate device activated by:", activatedOwnerKey)
 
   useDelegateDeviceStore.getState().setOwnerPublicKey(activatedOwnerKey)
   useDelegateDeviceStore.getState().setActivated(true)
+
+  // Attach event listener for incoming messages
+  attachDelegateEventListener(deviceManager, activatedOwnerKey)
 
   // Start listening for messages
   deviceManager.startListening()
