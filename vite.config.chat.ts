@@ -3,9 +3,14 @@ import {visualizer} from "rollup-plugin-visualizer"
 import react from "@vitejs/plugin-react"
 import {defineConfig} from "vite"
 import config from "config"
+import path from "path"
+
+const __dirname = path.dirname(new URL(import.meta.url).pathname)
 
 // Chat-only build configuration
 export default defineConfig({
+  root: path.resolve(__dirname, "apps/chat"),
+  publicDir: path.resolve(__dirname, "public"),
   plugins: [
     nodePolyfills(),
     react({
@@ -14,22 +19,22 @@ export default defineConfig({
     visualizer({
       open: false,
       gzipSize: true,
-      filename: "build/chat-stats.html",
+      filename: path.resolve(__dirname, "build/chat-stats.html"),
     }),
   ],
   resolve: {
     alias: {
-      "@": "/src",
-      "@core": "/src/lib/cashu/core",
+      "@": path.resolve(__dirname, "src"),
+      "@core": path.resolve(__dirname, "src/lib/cashu/core"),
     },
   },
   build: {
-    outDir: "dist-chat",
+    outDir: path.resolve(__dirname, "dist-chat"),
     reportCompressedSize: true,
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       input: {
-        chat: "apps/chat/index.html",
+        chat: "index.html",
       },
       external: [],
       onLog(level, log, handler) {
