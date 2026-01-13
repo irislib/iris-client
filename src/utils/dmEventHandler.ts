@@ -28,6 +28,8 @@ export const attachSessionEventListener = () => {
       .init()
       .then(() => {
         unsubscribeSessionEvents?.()
+        // Note: SessionManager now resolves delegate pubkeys to owner pubkeys internally
+        // so pubKey is always the owner's pubkey, even for messages from delegate devices
         unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey) => {
           const {publicKey} = useUserStore.getState()
           if (!publicKey) return
@@ -83,8 +85,10 @@ export const attachSessionEventListener = () => {
           const pTag = getTag("p", event.tags)
           if (!pTag) return
 
+          // from = the other party in the conversation
+          // to = us (always our publicKey)
           const from = pubKey === publicKey ? pTag : pubKey
-          const to = pubKey === publicKey ? publicKey : pTag
+          const to = publicKey
 
           if (!from || !to) return
 

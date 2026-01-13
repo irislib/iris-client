@@ -27,7 +27,9 @@ const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 let unsubscribeEvents: (() => void) | null = null
 
 /**
- * Attach event listener to handle incoming messages on delegate device
+ * Attach event listener to handle incoming messages on delegate device.
+ * Note: SessionManager now resolves delegate pubkeys to owner pubkeys internally,
+ * so fromPubkey is always the owner's pubkey, even for messages from delegate devices.
  */
 const attachDelegateEventListener = (
   sessionManager: SessionManager,
@@ -40,8 +42,14 @@ const attachDelegateEventListener = (
     const pTag = getTag("p", event.tags)
     if (!pTag) return
 
-    const from = fromPubkey === ownerPublicKey ? pTag : fromPubkey
-    const to = fromPubkey === ownerPublicKey ? ownerPublicKey : pTag
+    // Check if message is from us (either owner or this delegate device)
+    // fromPubkey is already resolved to owner by SessionManager
+    const isFromUs = fromPubkey === ownerPublicKey
+
+    // from = the other party in the conversation
+    // to = us (always owner's pubkey, regardless of which device received it)
+    const from = isFromUs ? pTag : fromPubkey
+    const to = ownerPublicKey
 
     if (!from || !to) return
 
@@ -106,17 +114,12 @@ export const getDelegateSessionManager = (): SessionManager | null => {
 
   const ndkInstance = ndk()
 
-  // Use owner's pubkey for message attribution (so messages show on correct side)
-  // Device's private key is still used for encryption/decryption
-  if (!credentials.ownerPublicKey) {
-    log(
-      "Warning: Creating SessionManager without ownerPublicKey - messages may display incorrectly"
-    )
-  }
-  const attributionPubkey = credentials.ownerPublicKey || credentials.devicePublicKey
-
+  // IMPORTANT: Must use delegate's own devicePublicKey (not owner's pubkey) for DH encryption
+  // to work correctly. The pubkey passed to SessionManager is used for DH key derivation
+  // during invite handshakes, so it MUST match the private key being used.
+  // UI attribution (showing messages on correct side) is handled separately in the event listener.
   sessionManager = new SessionManager(
-    attributionPubkey,
+    credentials.devicePublicKey,
     getDevicePrivateKeyBytes(credentials),
     credentials.deviceId,
     createSubscribe(ndkInstance),
