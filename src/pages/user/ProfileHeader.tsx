@@ -137,7 +137,8 @@ const ProfileHeader = ({
             )}
 
             <div className="flex flex-row gap-2" data-testid="profile-header-actions">
-              {myPubKey && (myPubKey === pubKeyHex || hasInvites) && (
+              {/* TODO: restore condition: myPubKey && (myPubKey === pubKeyHex || hasInvites) */}
+              {myPubKey && (
                 <button className="btn btn-circle btn-neutral" onClick={handleStartChat}>
                   <Icon name="mail-outline" className="w-6 h-6" />
                 </button>
