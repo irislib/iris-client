@@ -1,5 +1,9 @@
-import {useState} from "react"
+import {useState, useEffect, useRef} from "react"
 import {RiFileCopyLine, RiCheckLine, RiRefreshLine} from "@remixicon/react"
+import {
+  initializeDelegateDevice,
+  closeDelegateDevice,
+} from "@/shared/services/DelegateDevice"
 import {useDelegateDeviceStore, DelegateDeviceCredentials} from "@/stores/delegateDevice"
 import {
   DeviceManager,
@@ -17,7 +21,7 @@ interface DelegateSetupProps {
   onActivated: () => void
 }
 
-type SetupStep = "generating" | "showCode" | "waiting" | "error"
+type SetupStep = "generating" | "showCode" | "error"
 
 /**
  * Create pairing code from stored credentials (public info only)
@@ -49,6 +53,32 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
   const [deviceLabel, setDeviceLabel] = useState(() => credentials?.deviceLabel ?? "")
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState("")
+  const [isWaiting, setIsWaiting] = useState(false)
+  const activationStarted = useRef(false)
+
+  // Start waiting for activation as soon as we have credentials and are showing code
+  useEffect(() => {
+    if (step !== "showCode" || !credentials || activationStarted.current) return
+
+    activationStarted.current = true
+    setIsWaiting(true)
+
+    initializeDelegateDevice(120000) // 2 minute timeout
+      .then(() => {
+        onActivated()
+      })
+      .catch((err) => {
+        console.error("Activation failed:", err)
+        setError(err.message || "Activation timed out")
+        setStep("error")
+        setIsWaiting(false)
+      })
+
+    return () => {
+      // Cleanup on unmount
+      closeDelegateDevice()
+    }
+  }, [step, credentials, onActivated])
 
   const generatePairingCode = (label: string) => {
     const ndkInstance = ndk()
@@ -114,12 +144,9 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
     }
   }
 
-  const handleContinue = () => {
-    setStep("waiting")
-    onActivated()
-  }
-
   const handleStartOver = () => {
+    activationStarted.current = false
+    closeDelegateDevice()
     useDelegateDeviceStore.getState().clear()
     setPairingCode("")
     setDeviceLabel("")
@@ -217,34 +244,21 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
               </span>
             </div>
 
+            {isWaiting && (
+              <div className="flex items-center gap-3 mt-4 p-3 bg-base-200 rounded-lg">
+                <span className="loading loading-spinner loading-sm" />
+                <span className="text-sm text-base-content/70">
+                  Waiting for your main device to authorize...
+                </span>
+              </div>
+            )}
+
             <div className="flex gap-2 mt-6">
               <button className="btn btn-ghost flex-1" onClick={handleStartOver}>
                 <RiRefreshLine size={16} />
                 Start Over
               </button>
-              <button className="btn btn-primary flex-1" onClick={handleContinue}>
-                Code Added
-              </button>
             </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (step === "waiting") {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
-        <div className="card w-full max-w-md bg-base-100 shadow-xl">
-          <div className="card-body text-center">
-            <span className="loading loading-spinner loading-lg mx-auto" />
-            <h2 className="card-title justify-center mt-4">Waiting for Activation</h2>
-            <p className="text-base-content/70">
-              Waiting for your main device to add this delegate to its invite list...
-            </p>
-            <button className="btn btn-ghost btn-sm mt-4" onClick={handleStartOver}>
-              Cancel
-            </button>
           </div>
         </div>
       </div>
