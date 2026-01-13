@@ -108,14 +108,17 @@ export const getSessionManager = (): SessionManager => {
   // Initialize DeviceManager in background to publish InviteList
   if (privateKey) {
     const deviceManager = getDeviceManager()
-    deviceManager.init().then(() => {
-      // After init, ephemeral keys are available - update SessionManager
-      const ephemeralKeypair = deviceManager.getEphemeralKeypair()
-      const sharedSecret = deviceManager.getSharedSecret()
-      if (ephemeralKeypair && sharedSecret) {
-        sessionManagerInstance?.setEphemeralKeys(ephemeralKeypair, sharedSecret)
-      }
-    }).catch(console.error)
+    deviceManager
+      .init()
+      .then(() => {
+        // After init, ephemeral keys are available - update SessionManager
+        const ephemeralKeypair = deviceManager.getEphemeralKeypair()
+        const sharedSecret = deviceManager.getSharedSecret()
+        if (ephemeralKeypair && sharedSecret) {
+          sessionManagerInstance?.setEphemeralKeys(ephemeralKeypair, sharedSecret)
+        }
+      })
+      .catch(console.error)
   }
 
   return sessionManagerInstance

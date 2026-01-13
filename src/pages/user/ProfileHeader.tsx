@@ -1,10 +1,7 @@
 import {PublicKey} from "@/shared/utils/PublicKey"
-import {useMemo, useState, useEffect} from "react"
+import {useMemo, useState} from "react"
 import {Link, useNavigate} from "@/navigation"
 import {useUserStore} from "@/stores/user"
-import {Invite} from "nostr-double-ratchet/src"
-import {ndk} from "@/utils/ndk"
-import {Filter, VerifiedEvent} from "nostr-tools"
 import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
 import {NIP05_REGEX} from "@/utils/validation"
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
@@ -24,10 +21,6 @@ import useProfile from "@/shared/hooks/useProfile.ts"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import Icon from "@/shared/components/Icons/Icon"
 import {Helmet} from "react-helmet"
-import {createDebugLogger} from "@/utils/createDebugLogger"
-import {DEBUG_NAMESPACES} from "@/utils/constants"
-
-const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const ProfileHeader = ({
   pubKey,
@@ -46,37 +39,11 @@ const ProfileHeader = ({
 
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
   const [showBannerModal, setShowBannerModal] = useState(false)
-  const [hasInvites, setHasInvites] = useState(false)
-
   const navigate = useNavigate()
 
-  // Subscribe function for nostr events
-  const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-    const sub = ndk().subscribe(filter)
-    sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
-    return () => sub.stop()
-  }
-
-  // Check for invites from other users
-  useEffect(() => {
-    // Only check for invites if this is not our own profile and we have a pubkey
-    if (!myPubKey || myPubKey === pubKeyHex || !pubKeyHex) {
-      return
-    }
-
-    log("Checking for invites from user:", pubKeyHex)
-
-    const unsubscribe = Invite.fromUser(pubKeyHex, subscribe, (invite) => {
-      log("Found invite from user:", pubKeyHex, invite)
-      setHasInvites(true)
-    })
-
-    // Cleanup subscription on unmount
-    return () => {
-      log("Cleaning up invite subscription for user:", pubKeyHex)
-      unsubscribe()
-    }
-  }, [pubKeyHex, myPubKey])
+  // TODO: Restore invite checking once delegate messaging works fully
+  // const [hasInvites, setHasInvites] = useState(false)
+  // useEffect to check for invites from other users...
 
   const handleStartChat = () => {
     // Navigate directly to chat with userPubKey

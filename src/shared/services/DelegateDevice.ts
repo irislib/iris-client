@@ -106,8 +106,17 @@ export const getDelegateSessionManager = (): SessionManager | null => {
 
   const ndkInstance = ndk()
 
+  // Use owner's pubkey for message attribution (so messages show on correct side)
+  // Device's private key is still used for encryption/decryption
+  if (!credentials.ownerPublicKey) {
+    log(
+      "Warning: Creating SessionManager without ownerPublicKey - messages may display incorrectly"
+    )
+  }
+  const attributionPubkey = credentials.ownerPublicKey || credentials.devicePublicKey
+
   sessionManager = new SessionManager(
-    credentials.devicePublicKey,
+    attributionPubkey,
     getDevicePrivateKeyBytes(credentials),
     credentials.deviceId,
     createSubscribe(ndkInstance),
