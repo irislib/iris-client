@@ -1,5 +1,19 @@
 import {test, expect} from "@playwright/test"
-import {signUp} from "./auth.setup"
+import {signUp, signIn} from "./auth.setup"
+
+async function waitForConnectedRelays(page) {
+  const relayIndicator = page.locator('[title*="relays connected"]').first()
+  await expect(relayIndicator).toBeVisible({timeout: 10000})
+  await expect
+    .poll(
+      async () => {
+      const text = await relayIndicator.textContent()
+      return parseInt(text?.match(/\d+/)?.[0] || "0", 10)
+      },
+      {timeout: 10000}
+    )
+    .toBeGreaterThan(0)
+}
 
 test.describe("Self-messaging between browser sessions", () => {
   test("should sync messages between two sessions with same key", async ({browser}) => {
@@ -20,20 +34,10 @@ test.describe("Self-messaging between browser sessions", () => {
       }
 
       // Sign in on page2 with the same key
-      await page2.goto("/")
-      await page2.getByRole("button", {name: "Sign up"}).click()
-      await expect(page2.getByRole("heading", {name: "Sign up"})).toBeVisible()
-      await page2.getByText("Already have an account?").click()
-      await expect(page2.getByRole("heading", {name: "Sign in"})).toBeVisible({
-        timeout: 10000,
-      })
-      await page2.getByPlaceholder(/paste.*key/i).fill(privateKey)
-      await expect(page2.getByRole("heading", {name: "Sign in"})).not.toBeVisible({
-        timeout: 10000,
-      })
-      await expect(
-        page2.locator("#main-content").getByTestId("new-post-button")
-      ).toBeVisible({timeout: 10000})
+      await signIn(page2, privateKey)
+
+      await waitForConnectedRelays(page1)
+      await waitForConnectedRelays(page2)
 
       const timestamp = Date.now()
       const testMessage1 = `Test message 1: ${timestamp}`

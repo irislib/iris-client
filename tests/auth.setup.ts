@@ -1,17 +1,55 @@
 import {expect} from "@playwright/test"
 
-async function signUp(page, username = "Test User") {
-  // Start from the home page
+async function openLoginDialog(page) {
   await page.goto("/")
+  await page.waitForLoadState("domcontentloaded")
+  await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
 
-  // Wait for any signup button to be visible and click it
-  const signUpButtons = page.locator(".signup-btn")
-  const visibleButton = signUpButtons.filter({hasText: "Sign up"}).first()
-  await visibleButton.waitFor({state: "visible", timeout: 10000})
-  await visibleButton.click()
+  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  const signInHeading = page.getByRole("heading", {name: "Sign in"})
 
-  // Wait for the signup dialog to appear
-  await expect(page.getByRole("heading", {name: "Sign up"})).toBeVisible()
+  if ((await signUpHeading.isVisible()) || (await signInHeading.isVisible())) {
+    return
+  }
+
+  const signUpButton = page.locator("button:visible", {hasText: "Sign up"}).first()
+  await expect(signUpButton).toBeVisible({timeout: 10000})
+  await signUpButton.click()
+  await expect(page.locator("dialog.modal")).toBeVisible({timeout: 10000})
+}
+
+async function ensureSignUpDialog(page) {
+  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  if (await signUpHeading.isVisible()) {
+    return
+  }
+
+  const signInHeading = page.getByRole("heading", {name: "Sign in"})
+  if (await signInHeading.isVisible()) {
+    const dialog = page.locator("dialog.modal")
+    await dialog.getByRole("button", {name: "Sign up"}).click()
+  }
+
+  await expect(signUpHeading).toBeVisible({timeout: 10000})
+}
+
+async function ensureSignInDialog(page) {
+  const signInHeading = page.getByRole("heading", {name: "Sign in"})
+  if (await signInHeading.isVisible()) {
+    return
+  }
+
+  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  if (await signUpHeading.isVisible()) {
+    await page.getByText("Already have an account?").click()
+  }
+
+  await expect(signInHeading).toBeVisible({timeout: 10000})
+}
+
+async function signUp(page, username = "Test User") {
+  await openLoginDialog(page)
+  await ensureSignUpDialog(page)
 
   // Enter a name/key (supports npub, nsec, or name)
   const nameInput = page.getByPlaceholder("What's your name?")
@@ -61,19 +99,8 @@ async function signUp(page, username = "Test User") {
 }
 
 async function signIn(page, privateKey: string) {
-  await page.goto("/")
-
-  // Click "Sign up" button to open dialog
-  await page.getByRole("button", {name: "Sign up"}).click()
-
-  // Wait for signup dialog to appear
-  await expect(page.getByRole("heading", {name: "Sign up"})).toBeVisible()
-
-  // Click "Already have an account?" to switch to sign in
-  await page.getByText("Already have an account?").click()
-
-  // Wait for sign in dialog
-  await expect(page.getByRole("heading", {name: "Sign in"})).toBeVisible({timeout: 10000})
+  await openLoginDialog(page)
+  await ensureSignInDialog(page)
 
   // Paste the private key - should auto-login
   const keyInput = page.getByPlaceholder(/paste.*key/i)

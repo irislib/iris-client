@@ -1,5 +1,6 @@
 import {
   MouseEvent as ReactMouseEvent,
+  KeyboardEvent as ReactKeyboardEvent,
   useEffect,
   useRef,
   useState,
@@ -300,6 +301,29 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
       handleSelectResult(pubKey, query)
     }
 
+    const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== "Enter" || displayedLength > 0 || !searchNotes) {
+        return
+      }
+
+      const rawQuery = value.trim()
+      if (!rawQuery) return
+
+      const withoutPrefix = rawQuery.replace(/^(nostr:|web\+nostr:)/i, "")
+      if (
+        rawQuery.toLowerCase().startsWith("lightning:") ||
+        withoutPrefix.match(NOSTR_REGEX) ||
+        withoutPrefix.match(HEX_REGEX) ||
+        withoutPrefix.match(NIP05_REGEX)
+      ) {
+        return
+      }
+
+      // Allow immediate search when results haven't populated yet.
+      event.preventDefault()
+      handleSelectResult("search-notes", rawQuery)
+    }
+
     return (
       <div
         className={classNames("dropdown dropdown-open w-full", className)}
@@ -312,6 +336,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
           onChange={(e) => setValue(e.target.value)}
           onClear={() => setValue("")}
           onFocus={() => setIsFocused(true)}
+          onKeyDown={handleInputKeyDown}
           containerClassName={className}
         />
         {(searchResults.length > 0 ||
