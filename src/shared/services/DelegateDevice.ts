@@ -3,7 +3,11 @@ import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {
   NostrPublish,
   NostrSubscribe,
-  SecondaryDeviceManager,
+  DeviceManager,
+  SessionManager,
+  InviteList,
+  INVITE_LIST_EVENT_KIND,
+  Rumor,
 } from "nostr-double-ratchet/src"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
@@ -26,11 +30,11 @@ let unsubscribeEvents: (() => void) | null = null
  * Attach event listener to handle incoming messages on delegate device
  */
 const attachDelegateEventListener = (
-  deviceManager: SecondaryDeviceManager,
+  sessionManager: SessionManager,
   ownerPublicKey: string
 ) => {
   unsubscribeEvents?.()
-  unsubscribeEvents = deviceManager.onEvent((event, fromPubkey) => {
+  unsubscribeEvents = sessionManager.onEvent((event: Rumor, fromPubkey: string) => {
     log("Delegate device received event from:", fromPubkey)
 
     const pTag = getTag("p", event.tags)
@@ -69,13 +73,14 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
   }) as NostrPublish
 }
 
-let manager: SecondaryDeviceManager | null = null
+let deviceManager: DeviceManager | null = null
+let sessionManager: SessionManager | null = null
 
 /**
- * Get or create the SecondaryDeviceManager for delegate device operation
+ * Get or create the DeviceManager for delegate device operation
  */
-export const getSecondaryDeviceManager = (): SecondaryDeviceManager | null => {
-  if (manager) return manager
+export const getDelegateDeviceManager = (): DeviceManager | null => {
+  if (deviceManager) return deviceManager
 
   const credentials = useDelegateDeviceStore.getState().credentials
   if (!credentials) {
@@ -83,32 +88,61 @@ export const getSecondaryDeviceManager = (): SecondaryDeviceManager | null => {
     return null
   }
 
-  manager = createSecondaryDeviceManager(credentials)
-  return manager
+  deviceManager = createDelegateDeviceManager(credentials)
+  return deviceManager
 }
 
 /**
- * Create a SecondaryDeviceManager from credentials
+ * Get or create the SessionManager for delegate device operation
  */
-export const createSecondaryDeviceManager = (
-  credentials: DelegateDeviceCredentials
-): SecondaryDeviceManager => {
+export const getDelegateSessionManager = (): SessionManager | null => {
+  if (sessionManager) return sessionManager
+
+  const dm = getDelegateDeviceManager()
+  if (!dm) return null
+
+  const credentials = useDelegateDeviceStore.getState().credentials
+  if (!credentials) return null
+
   const ndkInstance = ndk()
 
-  const deviceManager = new SecondaryDeviceManager({
+  sessionManager = new SessionManager(
+    credentials.devicePublicKey,
+    getDevicePrivateKeyBytes(credentials),
+    credentials.deviceId,
+    createSubscribe(ndkInstance),
+    createPublish(ndkInstance),
+    new LocalForageStorageAdapter(),
+    {
+      publicKey: credentials.ephemeralPublicKey,
+      privateKey: getEphemeralPrivateKeyBytes(credentials),
+    },
+    credentials.sharedSecret
+  )
+
+  return sessionManager
+}
+
+/**
+ * Create a DeviceManager from credentials
+ */
+export const createDelegateDeviceManager = (
+  credentials: DelegateDeviceCredentials
+): DeviceManager => {
+  const ndkInstance = ndk()
+
+  return DeviceManager.restoreDelegate({
+    deviceId: credentials.deviceId,
+    deviceLabel: credentials.deviceLabel,
     devicePublicKey: credentials.devicePublicKey,
     devicePrivateKey: getDevicePrivateKeyBytes(credentials),
     ephemeralPublicKey: credentials.ephemeralPublicKey,
     ephemeralPrivateKey: getEphemeralPrivateKeyBytes(credentials),
     sharedSecret: credentials.sharedSecret,
-    deviceId: credentials.deviceId,
-    deviceLabel: credentials.deviceLabel,
     nostrSubscribe: createSubscribe(ndkInstance),
     nostrPublish: createPublish(ndkInstance),
     storage: new LocalForageStorageAdapter(),
   })
-
-  return deviceManager
 }
 
 /**
@@ -116,21 +150,26 @@ export const createSecondaryDeviceManager = (
  * Returns the owner's public key once activated
  */
 export const initializeDelegateDevice = async (timeoutMs = 60000): Promise<string> => {
-  const deviceManager = getSecondaryDeviceManager()
-  if (!deviceManager) {
+  const dm = getDelegateDeviceManager()
+  if (!dm) {
     throw new Error("No delegate device credentials")
   }
 
-  await deviceManager.init()
+  await dm.init()
 
   // Check if already activated (owner key stored)
-  const ownerKey = deviceManager.getOwnerPublicKey()
+  const ownerKey = dm.getOwnerPublicKey()
   if (ownerKey) {
     log("Delegate device already activated, owner:", ownerKey)
     useDelegateDeviceStore.getState().setOwnerPublicKey(ownerKey)
     useDelegateDeviceStore.getState().setActivated(true)
-    attachDelegateEventListener(deviceManager, ownerKey)
-    deviceManager.startListening()
+
+    // Initialize and attach session manager
+    const sm = getDelegateSessionManager()
+    if (sm) {
+      await sm.init()
+      attachDelegateEventListener(sm, ownerKey)
+    }
     return ownerKey
   }
 
@@ -140,17 +179,18 @@ export const initializeDelegateDevice = async (timeoutMs = 60000): Promise<strin
 
   // Wait for activation with timeout
   log("Waiting for delegate device activation...")
-  const activatedOwnerKey = await deviceManager.waitForActivation(timeoutMs)
+  const activatedOwnerKey = await dm.waitForActivation(timeoutMs)
   log("Delegate device activated by:", activatedOwnerKey)
 
   useDelegateDeviceStore.getState().setOwnerPublicKey(activatedOwnerKey)
   useDelegateDeviceStore.getState().setActivated(true)
 
-  // Attach event listener for incoming messages
-  attachDelegateEventListener(deviceManager, activatedOwnerKey)
-
-  // Start listening for messages
-  deviceManager.startListening()
+  // Initialize and attach session manager for incoming messages
+  const sm = getDelegateSessionManager()
+  if (sm) {
+    await sm.init()
+    attachDelegateEventListener(sm, activatedOwnerKey)
+  }
 
   return activatedOwnerKey
 }
@@ -159,19 +199,23 @@ export const initializeDelegateDevice = async (timeoutMs = 60000): Promise<strin
  * Check if the delegate device has been revoked
  */
 export const checkDelegateDeviceRevoked = async (): Promise<boolean> => {
-  const deviceManager = getSecondaryDeviceManager()
-  if (!deviceManager) return false
+  const dm = getDelegateDeviceManager()
+  if (!dm) return false
 
-  return deviceManager.isRevoked()
+  return dm.isRevoked()
 }
 
 /**
  * Clean up the delegate device manager
  */
 export const closeDelegateDevice = () => {
-  if (manager) {
-    manager.close()
-    manager = null
+  if (deviceManager) {
+    deviceManager.close()
+    deviceManager = null
+  }
+  if (sessionManager) {
+    sessionManager.close()
+    sessionManager = null
   }
 }
 
@@ -181,4 +225,143 @@ export const closeDelegateDevice = () => {
 export const resetDelegateDevice = () => {
   closeDelegateDevice()
   useDelegateDeviceStore.getState().clear()
+}
+
+/**
+ * Send a message from the delegate device.
+ * If no session exists, will attempt to initiate one first.
+ */
+export const sendDelegateMessage = async (
+  recipientPublicKey: string,
+  content: string
+) => {
+  const sm = getDelegateSessionManager()
+  if (!sm) {
+    throw new Error("Delegate device not initialized")
+  }
+
+  // First try to send with existing session
+  let rumor = await sm.sendMessage(recipientPublicKey, content)
+
+  if (!rumor) {
+    // No session - try to initiate one
+    log("No session with recipient, attempting to initiate...")
+    const initiated = await initiateSessionFromDelegate(recipientPublicKey)
+
+    if (!initiated) {
+      throw new Error("Could not establish session with recipient")
+    }
+
+    // Wait a moment for session to be ready
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    // Try sending again
+    rumor = await sm.sendMessage(recipientPublicKey, content)
+
+    if (!rumor) {
+      throw new Error("Session initiated but message still failed to send")
+    }
+  }
+
+  log("Delegate device sent message to:", recipientPublicKey)
+  return rumor
+}
+
+/**
+ * Check if we're running as a delegate device
+ */
+export const isDelegateDevice = (): boolean => {
+  const credentials = useDelegateDeviceStore.getState().credentials
+  return credentials !== null
+}
+
+/**
+ * Initiate a session with a recipient from the delegate device.
+ * This fetches the recipient's InviteList and establishes sessions with their devices.
+ */
+export const initiateSessionFromDelegate = async (
+  recipientPublicKey: string
+): Promise<boolean> => {
+  const credentials = useDelegateDeviceStore.getState().credentials
+  if (!credentials) {
+    throw new Error("No delegate device credentials")
+  }
+
+  const ndkInstance = ndk()
+  const nostrSubscribe = createSubscribe(ndkInstance)
+  const nostrPublish = createPublish(ndkInstance)
+
+  log("Initiating session with:", recipientPublicKey)
+
+  // Fetch recipient's InviteList
+  const inviteList = await new Promise<InviteList | null>((resolve) => {
+    let resolved = false
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        unsubscribe()
+        resolve(null)
+      }
+    }, 10000)
+
+    const unsubscribe = nostrSubscribe(
+      {
+        kinds: [INVITE_LIST_EVENT_KIND],
+        authors: [recipientPublicKey],
+        "#d": ["double-ratchet/invite-list"],
+        limit: 1,
+      },
+      (event: VerifiedEvent) => {
+        if (resolved) return
+        try {
+          const list = InviteList.fromEvent(event)
+          resolved = true
+          clearTimeout(timeout)
+          unsubscribe()
+          resolve(list)
+        } catch {
+          // Invalid event, ignore
+        }
+      }
+    )
+  })
+
+  if (!inviteList) {
+    log("No InviteList found for recipient:", recipientPublicKey)
+    return false
+  }
+
+  const devices = inviteList.getAllDevices()
+  if (devices.length === 0) {
+    log("Recipient has no devices in InviteList")
+    return false
+  }
+
+  log("Found", devices.length, "devices for recipient")
+
+  // Accept invite from each device to establish sessions
+  let sessionsCreated = 0
+  for (const device of devices) {
+    try {
+      const {event} = await inviteList.accept(
+        device.deviceId,
+        nostrSubscribe,
+        credentials.devicePublicKey, // Our public key
+        getDevicePrivateKeyBytes(credentials), // Our private key for encryption
+        credentials.deviceId // Our device ID
+      )
+
+      // Publish the invite response
+      await nostrPublish(event)
+      log("Published invite response to device:", device.deviceId)
+
+      // The session is now active - SessionManager should pick it up via invite response listener
+      sessionsCreated++
+    } catch (err) {
+      log("Failed to accept invite from device:", device.deviceId, err)
+    }
+  }
+
+  log("Created", sessionsCreated, "sessions with recipient")
+  return sessionsCreated > 0
 }

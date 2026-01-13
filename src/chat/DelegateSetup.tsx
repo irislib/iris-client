@@ -1,72 +1,155 @@
-import {useState, FormEvent} from "react"
-import {useDelegateDeviceStore, parsePairingCode} from "@/stores/delegateDevice"
+import {useState} from "react"
+import {RiFileCopyLine, RiCheckLine, RiRefreshLine} from "@remixicon/react"
+import {useDelegateDeviceStore, DelegateDeviceCredentials} from "@/stores/delegateDevice"
+import {
+  DeviceManager,
+  DevicePayload,
+  NostrPublish,
+  NostrSubscribe,
+} from "nostr-double-ratchet/src"
+import {generateDeviceId} from "nostr-double-ratchet/src/inviteUtils"
+import {bytesToHex} from "@noble/hashes/utils"
+import {ndk} from "@/utils/ndk"
+import {VerifiedEvent} from "nostr-tools"
+import {NDKEvent, NDKFilter} from "@/lib/ndk"
 
 interface DelegateSetupProps {
   onActivated: () => void
 }
 
-type SetupStep = "input" | "waiting" | "error"
+type SetupStep = "generating" | "showCode" | "waiting" | "error"
+
+/**
+ * Create pairing code from stored credentials (public info only)
+ */
+function createPairingCodeFromCredentials(
+  credentials: DelegateDeviceCredentials
+): string {
+  const payload: DevicePayload = {
+    ephemeralPubkey: credentials.ephemeralPublicKey,
+    sharedSecret: credentials.sharedSecret,
+    deviceId: credentials.deviceId,
+    deviceLabel: credentials.deviceLabel,
+    identityPubkey: credentials.devicePublicKey,
+  }
+  return btoa(JSON.stringify(payload))
+}
 
 export default function DelegateSetup({onActivated}: DelegateSetupProps) {
-  const [step, setStep] = useState<SetupStep>("input")
-  const [pairingCode, setPairingCode] = useState("")
-  const [error, setError] = useState("")
+  const credentials = useDelegateDeviceStore((s) => s.credentials)
   const setCredentials = useDelegateDeviceStore((s) => s.setCredentials)
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-    setError("")
+  // If credentials exist, restore pairing code and show it
+  const [step, setStep] = useState<SetupStep>(() =>
+    credentials ? "showCode" : "generating"
+  )
+  const [pairingCode, setPairingCode] = useState(() =>
+    credentials ? createPairingCodeFromCredentials(credentials) : ""
+  )
+  const [deviceLabel, setDeviceLabel] = useState(() => credentials?.deviceLabel ?? "")
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState("")
 
+  const generatePairingCode = (label: string) => {
+    const ndkInstance = ndk()
+
+    const nostrSubscribe: NostrSubscribe = (filter, onEvent) => {
+      const subscription = ndkInstance.subscribe(filter as NDKFilter)
+      subscription.on("event", (event: NDKEvent) => {
+        onEvent(event as unknown as VerifiedEvent)
+      })
+      subscription.start()
+      return () => subscription.stop()
+    }
+
+    const nostrPublish: NostrPublish = (async (event) => {
+      const e = new NDKEvent(ndkInstance, event)
+      await e.publish()
+      return event
+    }) as NostrPublish
+
+    // Generate keys locally using DeviceManager.createDelegate()
+    const {manager, payload} = DeviceManager.createDelegate({
+      deviceId: generateDeviceId(),
+      deviceLabel: label,
+      nostrSubscribe,
+      nostrPublish,
+    })
+
+    // Store credentials locally (including private keys)
+    const credentials = {
+      devicePublicKey: manager.getIdentityPublicKey(),
+      devicePrivateKey: bytesToHex(manager.getIdentityPrivateKey()),
+      ephemeralPublicKey: manager.getEphemeralKeypair()!.publicKey,
+      ephemeralPrivateKey: bytesToHex(manager.getEphemeralKeypair()!.privateKey),
+      sharedSecret: manager.getSharedSecret()!,
+      deviceId: manager.getDeviceId(),
+      deviceLabel: manager.getDeviceLabel(),
+    }
+    setCredentials(credentials)
+
+    // Create pairing code with PUBLIC info only (DevicePayload)
+    const publicPayload: DevicePayload = payload
+    const code = btoa(JSON.stringify(publicPayload))
+    setPairingCode(code)
+    setStep("showCode")
+  }
+
+  const handleGenerate = () => {
+    if (!deviceLabel.trim()) {
+      setError("Please enter a device name")
+      return
+    }
+    setError("")
+    generatePairingCode(deviceLabel.trim())
+  }
+
+  const handleCopy = async () => {
     try {
-      const credentials = parsePairingCode(pairingCode)
-      setCredentials(credentials)
-      setStep("waiting")
-      onActivated()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid pairing code")
-      setStep("error")
+      await navigator.clipboard.writeText(pairingCode)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError("Failed to copy to clipboard")
     }
   }
 
-  if (step === "waiting") {
+  const handleContinue = () => {
+    setStep("waiting")
+    onActivated()
+  }
+
+  const handleStartOver = () => {
+    useDelegateDeviceStore.getState().clear()
+    setPairingCode("")
+    setDeviceLabel("")
+    setError("")
+    setStep("generating")
+  }
+
+  if (step === "generating") {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
         <div className="card w-full max-w-md bg-base-100 shadow-xl">
-          <div className="card-body text-center">
-            <span className="loading loading-spinner loading-lg mx-auto" />
-            <h2 className="card-title justify-center mt-4">Waiting for Activation</h2>
-            <p className="text-base-content/70">
-              Open Iris on your main device and add this delegate device.
+          <div className="card-body">
+            <h2 className="card-title">Setup Delegate Device</h2>
+            <p className="text-base-content/70 text-sm">
+              This device will generate a pairing code that you will enter on your main
+              Iris app to authorize this delegate device for encrypted messaging.
             </p>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
-      <div className="card w-full max-w-md bg-base-100 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title">Setup Delegate Device</h2>
-          <p className="text-base-content/70 text-sm">
-            Paste the pairing code from your main Iris app to set up this device as a
-            delegate for receiving encrypted messages.
-          </p>
-
-          <form onSubmit={handleSubmit} className="mt-4">
-            <div className="form-control">
+            <div className="form-control mt-4">
               <label className="label">
-                <span className="label-text">Pairing Code</span>
+                <span className="label-text">Device Name</span>
               </label>
-              <textarea
-                className={`textarea textarea-bordered h-24 font-mono text-xs ${error ? "textarea-error" : ""}`}
-                placeholder="Paste pairing code here..."
-                value={pairingCode}
+              <input
+                type="text"
+                className={`input input-bordered ${error ? "input-error" : ""}`}
+                placeholder="e.g., Work laptop, Phone"
+                value={deviceLabel}
                 onChange={(e) => {
-                  setPairingCode(e.target.value)
+                  setDeviceLabel(e.target.value)
                   setError("")
-                  setStep("input")
                 }}
               />
               {error && (
@@ -78,14 +161,106 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
 
             <div className="form-control mt-6">
               <button
-                type="submit"
+                type="button"
                 className="btn btn-primary"
-                disabled={!pairingCode.trim()}
+                disabled={!deviceLabel.trim()}
+                onClick={handleGenerate}
               >
-                Connect Device
+                Generate Pairing Code
               </button>
             </div>
-          </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === "showCode") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
+        <div className="card w-full max-w-md bg-base-100 shadow-xl">
+          <div className="card-body">
+            <h2 className="card-title">Pairing Code Ready</h2>
+            <p className="text-base-content/70 text-sm">
+              Copy this code and paste it in the Iris app on your main device to authorize
+              this delegate.
+            </p>
+
+            <div className="mt-4 relative">
+              <textarea
+                className="textarea textarea-bordered w-full h-24 font-mono text-xs"
+                value={pairingCode}
+                readOnly
+              />
+              <button
+                className="btn btn-sm btn-ghost absolute top-2 right-2 gap-1"
+                onClick={handleCopy}
+              >
+                {copied ? (
+                  <>
+                    <RiCheckLine size={14} />
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <RiFileCopyLine size={14} />
+                    Copy
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div className="alert alert-info mt-4">
+              <span className="text-sm">
+                This code only contains public information. Your private keys stay on this
+                device.
+              </span>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button className="btn btn-ghost flex-1" onClick={handleStartOver}>
+                <RiRefreshLine size={16} />
+                Start Over
+              </button>
+              <button className="btn btn-primary flex-1" onClick={handleContinue}>
+                Code Added
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === "waiting") {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
+        <div className="card w-full max-w-md bg-base-100 shadow-xl">
+          <div className="card-body text-center">
+            <span className="loading loading-spinner loading-lg mx-auto" />
+            <h2 className="card-title justify-center mt-4">Waiting for Activation</h2>
+            <p className="text-base-content/70">
+              Waiting for your main device to add this delegate to its invite list...
+            </p>
+            <button className="btn btn-ghost btn-sm mt-4" onClick={handleStartOver}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // error state
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4 bg-base-200">
+      <div className="card w-full max-w-md bg-base-100 shadow-xl">
+        <div className="card-body text-center">
+          <h2 className="card-title justify-center text-error">Error</h2>
+          <p className="text-base-content/70">{error}</p>
+          <button className="btn btn-primary mt-4" onClick={handleStartOver}>
+            Start Over
+          </button>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ import {
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManager, getDeviceManager} from "@/shared/services/PrivateChats"
 import {NDKTag, NDKEvent} from "@/lib/ndk"
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
@@ -172,9 +172,11 @@ export const subscribeToDMNotifications = debounce(async () => {
     await sessionManager.init()
     const userRecords = sessionManager.getUserRecords()
     sessionAuthors = extractSessionPubkeysFromUserRecords(userRecords, publicKey)
-    const inviteRecipient = sessionManager.getDeviceInviteEphemeralKey()
-    if (inviteRecipient) {
-      inviteRecipients = [inviteRecipient]
+    const deviceManager = getDeviceManager()
+    await deviceManager.init()
+    const ephemeralKeypair = deviceManager.getEphemeralKeypair()
+    if (ephemeralKeypair) {
+      inviteRecipients = [ephemeralKeypair.publicKey]
     }
   } catch (err) {
     error("Failed to load session data for DM push subscription:", err)

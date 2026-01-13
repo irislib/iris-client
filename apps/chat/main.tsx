@@ -41,24 +41,8 @@ function DelegateChatApp() {
       return
     }
 
-    // Have credentials but not activated - try to activate
-    setAppState("activating")
-    initializeDelegateDevice()
-      .then((ownerKey) => {
-        log("Delegate device activated for owner:", ownerKey)
-        // Set the owner public key in user store so chat components work
-        useUserStore.getState().setPublicKey(ownerKey)
-        setAppState("ready")
-      })
-      .catch((err) => {
-        error("Failed to activate delegate device:", err)
-        setErrorMessage(err.message || "Activation failed")
-        setAppState("error")
-      })
-
-    return () => {
-      closeDelegateDevice()
-    }
+    // Have credentials but not activated - show setup so user can see/copy pairing code
+    setAppState("setup")
   }, [credentials, isActivated, ownerPublicKey])
 
   const handleActivated = () => {

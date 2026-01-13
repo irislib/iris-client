@@ -202,7 +202,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ["@vite/client", "@vite/env"],
+    exclude: ["@vite/client", "@vite/env", "nostr-double-ratchet"],
     include: ["react", "react-dom"],
   },
   assetsInclude: ["**/*.wasm"],

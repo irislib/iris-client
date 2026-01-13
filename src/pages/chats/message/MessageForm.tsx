@@ -16,6 +16,7 @@ import Icon from "@/shared/components/Icons/Icon"
 import EmojiType from "@/types/emoji"
 import {MessageType} from "./Message"
 import {getSessionManager} from "@/shared/services/PrivateChats"
+import {isDelegateDevice, sendDelegateMessage} from "@/shared/services/DelegateDevice"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {sendGroupEvent} from "../utils/groupMessaging"
@@ -127,10 +128,17 @@ const MessageForm = ({
       }
 
       // DM messages
-      const sentMessage =
-        extraTags.length > 0
-          ? await sessionManager.sendMessage(id, text, {tags: extraTags})
-          : await sessionManager.sendMessage(id, text)
+      let sentMessage
+      if (isDelegateDevice()) {
+        // Delegate device - use SecondaryDeviceManager
+        sentMessage = await sendDelegateMessage(id, text)
+      } else {
+        // Main device - use SessionManager
+        sentMessage =
+          extraTags.length > 0
+            ? await sessionManager.sendMessage(id, text, {tags: extraTags})
+            : await sessionManager.sendMessage(id, text)
+      }
 
       await usePrivateMessagesStore.getState().upsert(id, myPubKey, sentMessage)
       setEncryptionMetadata(new Map())

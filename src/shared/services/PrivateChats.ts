@@ -1,6 +1,11 @@
 import {VerifiedEvent} from "nostr-tools"
 import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
-import {NostrPublish, NostrSubscribe, SessionManager} from "nostr-double-ratchet/src"
+import {
+  NostrPublish,
+  NostrSubscribe,
+  SessionManager,
+  DeviceManager,
+} from "nostr-double-ratchet/src"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"
@@ -46,10 +51,37 @@ const getOrCreateDeviceId = (): string => {
   return deviceId
 }
 
-let manager: SessionManager | null = null
+let deviceManagerInstance: DeviceManager | null = null
+let sessionManagerInstance: SessionManager | null = null
+
+export const getDeviceManager = (): DeviceManager => {
+  if (deviceManagerInstance) return deviceManagerInstance
+
+  const {publicKey, privateKey} = useUserStore.getState()
+
+  if (!privateKey) {
+    throw new Error(
+      "DeviceManager requires a private key - extension-only mode not supported"
+    )
+  }
+
+  const ndkInstance = ndk()
+
+  deviceManagerInstance = DeviceManager.createMain({
+    ownerPublicKey: publicKey,
+    ownerPrivateKey: hexToBytes(privateKey),
+    deviceId: getOrCreateDeviceId(),
+    deviceLabel: getOrCreateDeviceId(),
+    nostrSubscribe: createSubscribe(ndkInstance),
+    nostrPublish: createPublish(ndkInstance),
+    storage: new LocalForageStorageAdapter(),
+  })
+
+  return deviceManagerInstance
+}
 
 export const getSessionManager = (): SessionManager => {
-  if (manager) return manager
+  if (sessionManagerInstance) return sessionManagerInstance
 
   const {publicKey, privateKey} = useUserStore.getState()
 
@@ -64,25 +96,38 @@ export const getSessionManager = (): SessionManager => {
 
   const ndkInstance = ndk()
 
-  manager = new SessionManager(
+  // Get ephemeral keypair from DeviceManager if available
+  let ephemeralKeypair: {publicKey: string; privateKey: Uint8Array} | undefined
+  let sharedSecret: string | undefined
+
+  if (privateKey) {
+    const deviceManager = getDeviceManager()
+    ephemeralKeypair = deviceManager.getEphemeralKeypair() ?? undefined
+    sharedSecret = deviceManager.getSharedSecret() ?? undefined
+  }
+
+  sessionManagerInstance = new SessionManager(
     publicKey,
     encrypt,
     getOrCreateDeviceId(),
     createSubscribe(ndkInstance),
     createPublish(ndkInstance),
-    new LocalForageStorageAdapter()
+    new LocalForageStorageAdapter(),
+    ephemeralKeypair,
+    sharedSecret
   )
 
-  return manager
+  return sessionManagerInstance
 }
 
 export const revokeCurrentDevice = async (): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) return
+  const {publicKey, privateKey} = useUserStore.getState()
+  if (!publicKey || !privateKey) return
 
-  const sessionManager = getSessionManager()
-  const deviceId = sessionManager.getDeviceId()
-  await sessionManager.revokeDevice(deviceId)
+  const deviceManager = getDeviceManager()
+  await deviceManager.init()
+  const deviceId = deviceManager.getDeviceId()
+  await deviceManager.revokeDevice(deviceId)
 }
 
 /**
