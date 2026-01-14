@@ -1,5 +1,5 @@
 import {getEventHash} from "nostr-tools"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {Rumor} from "nostr-double-ratchet/src"
 
@@ -38,13 +38,14 @@ export async function sendGroupEvent({
   // Add to local store immediately for instant UI feedback
   await usePrivateMessagesStore.getState().upsert(groupId, senderPubKey, event)
 
-  // Send to all group members in background (no await - don't block caller)
-  const sessionManager = getSessionManager()
-  if (sessionManager) {
-    Promise.all(
-      groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
-    ).catch(console.error)
-  }
+  // Send to all group members in background
+  getSessionManagerAsync()
+    .then((sessionManager) => {
+      Promise.all(
+        groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
+      ).catch(console.error)
+    })
+    .catch(console.error)
 
   return event
 }

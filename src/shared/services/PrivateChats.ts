@@ -53,6 +53,7 @@ const getOrCreateDeviceId = (): string => {
 
 let deviceManagerInstance: DeviceManager | null = null
 let sessionManagerInstance: SessionManager | null = null
+let initPromise: Promise<void> | null = null
 
 export const getDeviceManager = (): DeviceManager => {
   if (deviceManagerInstance) return deviceManagerInstance
@@ -80,54 +81,61 @@ export const getDeviceManager = (): DeviceManager => {
   return deviceManagerInstance
 }
 
+/**
+ * Initialize DeviceManager and create SessionManager from it.
+ * This ensures ephemeral keys are available before SessionManager is created.
+ */
+const initializeManagers = async (): Promise<void> => {
+  if (sessionManagerInstance) return
+
+  const deviceManager = getDeviceManager()
+  await deviceManager.init()
+
+  // Use DeviceManager to create properly configured SessionManager
+  sessionManagerInstance = deviceManager.createSessionManager()
+  await sessionManagerInstance.init()
+}
+
+/**
+ * Get or create the SessionManager instance.
+ * If called before initialization completes, waits for init.
+ */
+export const getSessionManagerAsync = async (): Promise<SessionManager> => {
+  // Start initialization if not already started
+  if (!initPromise) {
+    initPromise = initializeManagers().catch((e) => {
+      console.error("Failed to initialize managers:", e)
+      initPromise = null // Allow retry on error
+      throw e
+    })
+  }
+
+  await initPromise
+
+  if (!sessionManagerInstance) {
+    throw new Error("SessionManager not initialized")
+  }
+
+  return sessionManagerInstance
+}
+
+/**
+ * Synchronous getter - returns the manager if initialized, otherwise throws.
+ * Prefer getSessionManagerAsync() for most use cases.
+ */
 export const getSessionManager = (): SessionManager => {
-  if (sessionManagerInstance) return sessionManagerInstance
+  // Start initialization in background if not started
+  if (!initPromise) {
+    initPromise = initializeManagers().catch((e) => {
+      console.error("Failed to initialize managers:", e)
+      initPromise = null
+    })
+  }
 
-  const {publicKey, privateKey} = useUserStore.getState()
-
-  const encrypt = privateKey
-    ? hexToBytes(privateKey)
-    : async (plaintext: string, pubkey: string) => {
-        if (window.nostr?.nip44) {
-          return window.nostr.nip44.encrypt(pubkey, plaintext)
-        }
-        throw new Error("No nostr extension or private key")
-      }
-
-  const ndkInstance = ndk()
-
-  sessionManagerInstance = new SessionManager(
-    publicKey,
-    encrypt,
-    getOrCreateDeviceId(),
-    createSubscribe(ndkInstance),
-    createPublish(ndkInstance),
-    new LocalForageStorageAdapter()
-  )
-
-  // Initialize DeviceManager in background to publish InviteList
-  if (privateKey) {
-    const deviceManager = getDeviceManager()
-    deviceManager
-      .init()
-      .then(async () => {
-        // Ensure main device identity exists and use it for invite handshakes
-        try {
-          const {privateKey: devicePrivKey} = await deviceManager.getMainDeviceIdentityKeypair()
-          sessionManagerInstance?.setIdentityKey(devicePrivKey)
-        } catch (e) {
-          // Fallback: keep using existing encrypt func if any error occurs
-          console.warn("Failed to set main device identity key on SessionManager:", e)
-        }
-
-        // After init, ephemeral keys are available - update SessionManager
-        const ephemeralKeypair = deviceManager.getEphemeralKeypair()
-        const sharedSecret = deviceManager.getSharedSecret()
-        if (ephemeralKeypair && sharedSecret) {
-          sessionManagerInstance?.setEphemeralKeys(ephemeralKeypair, sharedSecret)
-        }
-      })
-      .catch(console.error)
+  if (!sessionManagerInstance) {
+    throw new Error(
+      "SessionManager not yet initialized. Use getSessionManagerAsync() or ensure init has completed."
+    )
   }
 
   return sessionManagerInstance
@@ -177,13 +185,11 @@ export const deleteDeviceInvite = async (deviceId: string) => {
  * Deletes the current device's invite (convenience wrapper)
  */
 export const deleteCurrentDeviceInvite = async () => {
-  const manager = getSessionManager()
-  if (!manager) {
+  try {
+    const manager = await getSessionManagerAsync()
+    const deviceId = manager.getDeviceId()
+    await deleteDeviceInvite(deviceId)
+  } catch {
     log("No session manager, skipping invite tombstone")
-    return
   }
-
-  await manager.init()
-  const deviceId = manager.getDeviceId()
-  await deleteDeviceInvite(deviceId)
 }

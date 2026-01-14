@@ -16,7 +16,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {useAnimatedQR} from "@/hooks/useAnimatedQR"
 import CopyButton from "@/shared/components/button/CopyButton"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {savePaymentMetadata} from "@/stores/paymentMetadata"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -75,10 +75,7 @@ export default function SendEcashShare({
       setError("")
 
       try {
-        const sessionManager = getSessionManager()
-        if (!sessionManager) {
-          throw new Error("Session manager not available")
-        }
+        const sessionManager = await getSessionManagerAsync()
         log("✓ Session manager available")
 
         const myPubKey = useUserStore.getState().publicKey
@@ -238,10 +235,7 @@ export default function SendEcashShare({
     setSendingDm(true)
     setError("")
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        throw new Error("Session manager not available")
-      }
+      const sessionManager = await getSessionManagerAsync()
       log("✓ Session manager available")
 
       const myPubKey = useUserStore.getState().publicKey

@@ -6,7 +6,7 @@ import {
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {getSessionManager, getDeviceManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync, getDeviceManager} from "@/shared/services/PrivateChats"
 import {NDKTag, NDKEvent} from "@/lib/ndk"
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
@@ -168,8 +168,7 @@ export const subscribeToDMNotifications = debounce(async () => {
 
   let sessionAuthors: string[] = []
   try {
-    const sessionManager = getSessionManager()
-    await sessionManager.init()
+    const sessionManager = await getSessionManagerAsync()
     const userRecords = sessionManager.getUserRecords()
     sessionAuthors = extractSessionPubkeysFromUserRecords(userRecords, publicKey)
     const deviceManager = getDeviceManager()

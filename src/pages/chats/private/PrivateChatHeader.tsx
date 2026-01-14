@@ -6,7 +6,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {MessageType} from "../message/Message"
 import {useNavigate} from "@/navigation"
 import {useState} from "react"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {confirm} from "@/utils/utils"
 interface PrivateChatHeaderProps {
@@ -23,11 +23,7 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
     if (!(await confirm("Delete this chat?"))) return
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const sessionManager = await getSessionManagerAsync()
       await sessionManager.deleteUser(id)
       await usePrivateMessagesStore.getState().removeSession(id)
       navigate("/chats")
@@ -36,17 +32,16 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
     }
   }
 
-  const handleReinitializeSecureCommunication = () => {
+  const handleReinitializeSecureCommunication = async () => {
     if (!id) return
 
-    const sessionManager = getSessionManager()
-    if (!sessionManager) {
-      console.error("Session manager not available")
-      return
+    try {
+      const sessionManager = await getSessionManagerAsync()
+      sessionManager.deactivateCurrentSessions(id)
+      setDropdownOpen(false)
+    } catch (error) {
+      console.error("Failed to reinitialize secure communication", error)
     }
-
-    sessionManager.deactivateCurrentSessions(id)
-    setDropdownOpen(false)
   }
 
   const user = id.split(":").shift()!

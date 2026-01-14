@@ -8,7 +8,7 @@ import {MessageType} from "../message/Message"
 import {useEffect, useState, useCallback} from "react"
 import {useUserStore} from "@/stores/user"
 import {KIND_REACTION} from "@/utils/constants"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
@@ -91,11 +91,7 @@ const Chat = ({id}: {id: string}) => {
     if (!myPubKey || !emoji.trim()) return
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const sessionManager = await getSessionManagerAsync()
       const now = Date.now()
       const reactionEvent = {
         content: emoji,

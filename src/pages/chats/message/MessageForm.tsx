@@ -15,7 +15,7 @@ import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import Icon from "@/shared/components/Icons/Icon"
 import EmojiType from "@/types/emoji"
 import {MessageType} from "./Message"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {isDelegateDevice, sendDelegateMessage} from "@/shared/services/DelegateDevice"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
@@ -91,11 +91,7 @@ const MessageForm = ({
     }
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const sessionManager = await getSessionManagerAsync()
 
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
@@ -182,11 +178,7 @@ const MessageForm = ({
 
   const handleCashuSendMessage = async (token: string) => {
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const sessionManager = await getSessionManagerAsync()
 
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return

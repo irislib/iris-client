@@ -5,7 +5,7 @@ import Message, {MessageType} from "../message/Message"
 import {groupMessages} from "../utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {KIND_REACTION} from "@/utils/constants"
 import {getEventHash} from "nostr-tools"
@@ -93,8 +93,7 @@ const ChatContainer = ({
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
 
-      const sessionManager = getSessionManager()
-      if (!sessionManager) return
+      const sessionManager = await getSessionManagerAsync()
 
       const now = Date.now()
       const reactionEvent = {
