@@ -110,7 +110,16 @@ export const getSessionManager = (): SessionManager => {
     const deviceManager = getDeviceManager()
     deviceManager
       .init()
-      .then(() => {
+      .then(async () => {
+        // Ensure main device identity exists and use it for invite handshakes
+        try {
+          const {privateKey: devicePrivKey} = await deviceManager.getMainDeviceIdentityKeypair()
+          sessionManagerInstance?.setIdentityKey(devicePrivKey)
+        } catch (e) {
+          // Fallback: keep using existing encrypt func if any error occurs
+          console.warn("Failed to set main device identity key on SessionManager:", e)
+        }
+
         // After init, ephemeral keys are available - update SessionManager
         const ephemeralKeypair = deviceManager.getEphemeralKeypair()
         const sharedSecret = deviceManager.getSharedSecret()
