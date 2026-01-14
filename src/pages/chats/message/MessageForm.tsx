@@ -91,8 +91,6 @@ const MessageForm = ({
     }
 
     try {
-      const sessionManager = await getSessionManagerAsync()
-
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
 
@@ -126,10 +124,11 @@ const MessageForm = ({
       // DM messages
       let sentMessage
       if (isDelegateDevice()) {
-        // Delegate device - use SecondaryDeviceManager
+        // Delegate device - use DelegateDevice service
         sentMessage = await sendDelegateMessage(id, text)
       } else {
         // Main device - use SessionManager
+        const sessionManager = await getSessionManagerAsync()
         sentMessage =
           extraTags.length > 0
             ? await sessionManager.sendMessage(id, text, {tags: extraTags})

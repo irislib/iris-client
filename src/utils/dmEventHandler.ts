@@ -1,4 +1,5 @@
 import {getSessionManagerAsync} from "@/shared/services/PrivateChats"
+import {isDelegateDevice} from "@/shared/services/DelegateDevice"
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
@@ -18,6 +19,12 @@ export const cleanupSessionEventListener = () => {
 }
 
 export const attachSessionEventListener = () => {
+  // Skip for delegate devices - they have their own listener in DelegateDevice.ts
+  if (isDelegateDevice()) {
+    log("Skipping main session listener for delegate device")
+    return
+  }
+
   getSessionManagerAsync()
     .then((sessionManager) => {
       unsubscribeSessionEvents?.()
