@@ -16,6 +16,7 @@ import {KIND_CHANNEL_CREATE, KIND_REACTION} from "@/utils/constants"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {isOnlyEmoji} from "@/utils/textFormatting"
 import {useUserStore} from "@/stores/user"
+import {useDelegateDeviceStore} from "@/stores/delegateDevice"
 
 export type MessageType = Rumor & {
   reactions?: Record<string, string>
@@ -82,7 +83,11 @@ const Message = ({
   reactions: propReactions,
 }: MessageProps) => {
   const myPubKey = useUserStore.getState().publicKey
-  const isUser = message.pubkey === myPubKey
+  const delegateCredentials = useDelegateDeviceStore.getState().credentials
+  // Check if message is from us: either our main pubkey or our delegate device's pubkey
+  const isUser =
+    message.pubkey === myPubKey ||
+    !!(delegateCredentials && message.pubkey === delegateCredentials.devicePublicKey)
   const {events} = usePrivateMessagesStore()
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(
     propReactions || {}

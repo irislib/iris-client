@@ -74,10 +74,8 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
         setIsWaiting(false)
       })
 
-    return () => {
-      // Cleanup on unmount
-      closeDelegateDevice()
-    }
+    // NOTE: No cleanup on unmount - the SessionManager should persist after successful
+    // activation. closeDelegateDevice() is only called explicitly on "Start Over".
   }, [step, credentials, onActivated])
 
   const generatePairingCode = (label: string) => {

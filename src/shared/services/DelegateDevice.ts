@@ -28,32 +28,56 @@ let unsubscribeEvents: (() => void) | null = null
 
 /**
  * Attach event listener to handle incoming messages on delegate device.
- * Note: SessionManager now resolves delegate pubkeys to owner pubkeys internally,
- * so fromPubkey is always the owner's pubkey, even for messages from delegate devices.
+ * Uses event.pubkey (actual sender) to determine the conversation party,
+ * not the session pubkey which only tells us how the message was delivered.
  */
 const attachDelegateEventListener = (
   sessionManager: SessionManager,
   ownerPublicKey: string
 ) => {
   unsubscribeEvents?.()
-  unsubscribeEvents = sessionManager.onEvent((event: Rumor, fromPubkey: string) => {
-    log("Delegate device received event from:", fromPubkey)
+  const credentials = useDelegateDeviceStore.getState().credentials
+  const delegatePubkey = credentials?.devicePublicKey
+
+  log("[DelegateDevice] attachDelegateEventListener called", {
+    deviceId: sessionManager.getDeviceId(),
+    ownerPublicKey: ownerPublicKey?.slice(0, 8),
+    delegatePubkey: delegatePubkey?.slice(0, 8),
+  })
+
+  unsubscribeEvents = sessionManager.onEvent((event: Rumor, sessionPubkey: string) => {
+    log("[DelegateDevice] received event:", {
+      eventPubkey: event.pubkey?.slice(0, 8),
+      sessionPubkey: sessionPubkey?.slice(0, 8),
+      ownerPublicKey: ownerPublicKey?.slice(0, 8),
+      delegatePubkey: delegatePubkey?.slice(0, 8),
+      content: event.content?.slice(0, 20),
+    })
 
     const pTag = getTag("p", event.tags)
     if (!pTag) return
 
-    // Check if message is from us (either owner or this delegate device)
-    // fromPubkey is already resolved to owner by SessionManager
-    const isFromUs = fromPubkey === ownerPublicKey
+    // Check if message is from us: either owner's pubkey OR this delegate device's pubkey
+    const isFromUs =
+      event.pubkey === ownerPublicKey ||
+      (delegatePubkey && event.pubkey === delegatePubkey)
 
     // from = the other party in the conversation
     // to = us (always owner's pubkey, regardless of which device received it)
-    const from = isFromUs ? pTag : fromPubkey
+    const from = isFromUs ? pTag : event.pubkey
     const to = ownerPublicKey
 
     if (!from || !to) return
 
+    log("[DelegateDevice] DM identity resolution:", {
+      from: from?.slice(0, 8),
+      to: to?.slice(0, 8),
+      isFromUs,
+      pTag: pTag?.slice(0, 8),
+    })
+
     void usePrivateMessagesStore.getState().upsert(from, to, event)
+    log("[DelegateDevice] upsert called for chat:", from?.slice(0, 8))
   })
 }
 
@@ -104,7 +128,12 @@ export const getDelegateDeviceManager = (): DeviceManager | null => {
  * Get or create the SessionManager for delegate device operation
  */
 export const getDelegateSessionManager = (): SessionManager | null => {
-  if (sessionManager) return sessionManager
+  if (sessionManager) {
+    log("[DelegateDevice] getDelegateSessionManager returning existing", {
+      deviceId: sessionManager.getDeviceId(),
+    })
+    return sessionManager
+  }
 
   const dm = getDelegateDeviceManager()
   if (!dm) return null
@@ -113,6 +142,11 @@ export const getDelegateSessionManager = (): SessionManager | null => {
   if (!credentials) return null
 
   const ndkInstance = ndk()
+
+  log("[DelegateDevice] getDelegateSessionManager creating new SessionManager", {
+    deviceId: credentials.deviceId,
+    devicePublicKey: credentials.devicePublicKey?.slice(0, 8),
+  })
 
   // IMPORTANT: Must use delegate's own devicePublicKey (not owner's pubkey) for DH encryption
   // to work correctly. The pubkey passed to SessionManager is used for DH key derivation
@@ -242,6 +276,7 @@ export const resetDelegateDevice = () => {
 /**
  * Send a message from the delegate device.
  * If no session exists, will attempt to initiate one first.
+ * Also syncs the message to the owner's other devices.
  */
 export const sendDelegateMessage = async (
   recipientPublicKey: string,
@@ -250,6 +285,12 @@ export const sendDelegateMessage = async (
   const sm = getDelegateSessionManager()
   if (!sm) {
     throw new Error("Delegate device not initialized")
+  }
+
+  const credentials = useDelegateDeviceStore.getState().credentials
+  const ownerPublicKey = credentials?.ownerPublicKey
+  if (!ownerPublicKey) {
+    throw new Error("Delegate device not activated (no owner public key)")
   }
 
   // First try to send with existing session
@@ -276,6 +317,18 @@ export const sendDelegateMessage = async (
   }
 
   log("Delegate device sent message to:", recipientPublicKey)
+
+  // Sync to owner's other devices (if recipient isn't the owner)
+  // This ensures the owner's main device sees messages sent from the delegate
+  // Use normalized pubkey (owner's) so all devices recognize it as "ours"
+  if (recipientPublicKey !== ownerPublicKey) {
+    log("Syncing message to owner's devices...")
+    const normalizedRumor = {...rumor, pubkey: ownerPublicKey}
+    sm.sendEvent(ownerPublicKey, normalizedRumor).catch((err) => {
+      log("Failed to sync to owner devices:", err)
+    })
+  }
+
   return rumor
 }
 

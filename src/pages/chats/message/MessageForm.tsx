@@ -126,6 +126,10 @@ const MessageForm = ({
       if (isDelegateDevice()) {
         // Delegate device - use DelegateDevice service
         sentMessage = await sendDelegateMessage(id, text)
+        // Normalize pubkey to owner's pubkey for consistent display across devices
+        // The actual message on the wire uses delegate's pubkey for crypto, but for
+        // local storage and sync we use owner's pubkey so all devices recognize it as "ours"
+        sentMessage = {...sentMessage, pubkey: myPubKey}
       } else {
         // Main device - use SessionManager
         const sessionManager = await getSessionManagerAsync()

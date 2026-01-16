@@ -85,12 +85,22 @@ export const attachSessionEventListener = () => {
         const pTag = getTag("p", event.tags)
         if (!pTag) return
 
-        // from = the other party in the conversation
-        // to = us (always our publicKey)
-        const from = pubKey === publicKey ? pTag : pubKey
+        const from = pubKey
         const to = publicKey
 
         if (!from || !to) return
+
+        // Debug logging for identity handling
+        console.warn("DM identity resolution:", {
+          eventPubkey: event.pubkey?.slice(0, 8),
+          sessionPubKey: pubKey?.slice(0, 8),
+          ourPublicKey: publicKey?.slice(0, 8),
+          pTag: pTag?.slice(0, 8),
+          computedFrom: from?.slice(0, 8),
+          computedTo: to?.slice(0, 8),
+          isFromUs,
+          content: event.content?.slice(0, 20),
+        })
 
         void usePrivateMessagesStore.getState().upsert(from, to, event)
       })

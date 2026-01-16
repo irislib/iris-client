@@ -46,18 +46,28 @@ function DelegateChatApp() {
   }, [credentials, isActivated, ownerPublicKey])
 
   const handleActivated = () => {
-    setAppState("activating")
-    initializeDelegateDevice()
-      .then((ownerKey) => {
-        log("Delegate device activated for owner:", ownerKey)
-        useUserStore.getState().setPublicKey(ownerKey)
-        setAppState("ready")
-      })
-      .catch((err) => {
-        error("Failed to activate delegate device:", err)
-        setErrorMessage(err.message || "Activation failed")
-        setAppState("error")
-      })
+    // DelegateSetup already called initializeDelegateDevice() and it succeeded
+    // Just update the user store and transition to ready state
+    const ownerKey = useDelegateDeviceStore.getState().credentials?.ownerPublicKey
+    if (ownerKey) {
+      log("Delegate device activated for owner:", ownerKey)
+      useUserStore.getState().setPublicKey(ownerKey)
+      setAppState("ready")
+    } else {
+      // Fallback: if somehow ownerPublicKey isn't set, re-initialize
+      setAppState("activating")
+      initializeDelegateDevice()
+        .then((key) => {
+          log("Delegate device activated for owner:", key)
+          useUserStore.getState().setPublicKey(key)
+          setAppState("ready")
+        })
+        .catch((err) => {
+          error("Failed to activate delegate device:", err)
+          setErrorMessage(err.message || "Activation failed")
+          setAppState("error")
+        })
+    }
   }
 
   if (appState === "loading") {

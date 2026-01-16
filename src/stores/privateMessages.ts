@@ -1,11 +1,14 @@
 import {comparator} from "@/pages/chats/utils/messageGrouping"
 import type {MessageType} from "@/pages/chats/message/Message"
 import * as messageRepository from "@/utils/messageRepository"
-import {KIND_REACTION} from "@/utils/constants"
+import {KIND_REACTION, DEBUG_NAMESPACES} from "@/utils/constants"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {create} from "zustand"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {useUserStore} from "./user"
+import {createDebugLogger} from "@/utils/createDebugLogger"
+
+const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const addToMap = (
   chatEventMap: Map<string, SortedMap<string, MessageType>>,
@@ -60,6 +63,17 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
     upsert: async (from, to, event) => {
       const myPubKey = useUserStore.getState().publicKey
       const chatId = from === myPubKey ? to : from
+
+      // Debug logging for chat ID resolution
+      log("[privateMessages.upsert]", {
+        from: from?.slice(0, 8),
+        to: to?.slice(0, 8),
+        myPubKey: myPubKey?.slice(0, 8),
+        chatId: chatId?.slice(0, 8),
+        eventId: event.id?.slice(0, 8),
+        eventPubkey: event.pubkey?.slice(0, 8),
+        isFromMe: from === myPubKey,
+      })
 
       set((state) => {
         const isReaction = event.kind === KIND_REACTION
