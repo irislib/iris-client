@@ -1,6 +1,6 @@
 import "@/index.css"
 
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 import ReactDOM from "react-dom/client"
 
 import {ChatNavigationProvider} from "@/chat/ChatNavigationProvider"
@@ -17,6 +17,7 @@ import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {
   initializeDelegateDevice,
   closeDelegateDevice,
+  resumeDelegateDevice,
 } from "@/shared/services/DelegateDevice"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -26,6 +27,7 @@ type AppState = "loading" | "setup" | "activating" | "ready" | "error"
 function DelegateChatApp() {
   const [appState, setAppState] = useState<AppState>("loading")
   const [errorMessage, setErrorMessage] = useState("")
+  const initializingRef = useRef(false)
   const credentials = useDelegateDeviceStore((s) => s.credentials)
   const isActivated = useDelegateDeviceStore((s) => s.isActivated)
   const ownerPublicKey = useDelegateDeviceStore((s) => s.credentials?.ownerPublicKey)
@@ -37,13 +39,34 @@ function DelegateChatApp() {
     }
 
     if (isActivated && ownerPublicKey) {
-      setAppState("ready")
+      // Prevent double initialization
+      if (initializingRef.current || appState === "ready") {
+        return
+      }
+      initializingRef.current = true
+
+      // Resume delegate device - initializes SessionManager and attaches event listeners
+      log("Resuming delegate device...")
+      resumeDelegateDevice(ownerPublicKey)
+        .then(() => {
+          log("Delegate device resumed")
+          useUserStore.getState().setPublicKey(ownerPublicKey)
+          setAppState("ready")
+        })
+        .catch((err) => {
+          error("Failed to resume delegate device:", err)
+          setErrorMessage(err.message || "Resume failed")
+          setAppState("error")
+        })
+        .finally(() => {
+          initializingRef.current = false
+        })
       return
     }
 
     // Have credentials but not activated - show setup so user can see/copy pairing code
     setAppState("setup")
-  }, [credentials, isActivated, ownerPublicKey])
+  }, [credentials, isActivated, ownerPublicKey, appState])
 
   const handleActivated = () => {
     // DelegateSetup already called initializeDelegateDevice() and it succeeded

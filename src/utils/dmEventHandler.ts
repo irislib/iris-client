@@ -98,7 +98,6 @@ export const attachSessionEventListener = () => {
           pTag: pTag?.slice(0, 8),
           computedFrom: from?.slice(0, 8),
           computedTo: to?.slice(0, 8),
-          isFromUs,
           content: event.content?.slice(0, 20),
         })
 

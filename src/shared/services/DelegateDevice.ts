@@ -64,12 +64,12 @@ const attachDelegateEventListener = (
 
     // from = the other party in the conversation
     // to = us (always owner's pubkey, regardless of which device received it)
-    const from = isFromUs ? pTag : event.pubkey
+    const from = sessionPubkey
     const to = ownerPublicKey
 
     if (!from || !to) return
 
-    log("[DelegateDevice] DM identity resolution:", {
+    console.warn("[DelegateDevice] DM identity resolution:", {
       from: from?.slice(0, 8),
       to: to?.slice(0, 8),
       isFromUs,
@@ -239,6 +239,23 @@ export const initializeDelegateDevice = async (timeoutMs = 60000): Promise<strin
   }
 
   return activatedOwnerKey
+}
+
+/**
+ * Resume a previously activated delegate device.
+ * This is a lighter initialization than initializeDelegateDevice() -
+ * it only initializes the SessionManager and attaches event listeners,
+ * without re-initializing the DeviceManager or waiting for activation.
+ */
+export const resumeDelegateDevice = async (ownerPublicKey: string): Promise<void> => {
+  const sm = getDelegateSessionManager()
+  if (!sm) {
+    throw new Error("No delegate session manager")
+  }
+
+  await sm.init()
+  attachDelegateEventListener(sm, ownerPublicKey)
+  log("Delegate device resumed for owner:", ownerPublicKey)
 }
 
 /**
