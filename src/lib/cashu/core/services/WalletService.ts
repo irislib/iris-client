@@ -1,9 +1,4 @@
-import {
-  CashuMint,
-  CashuWallet,
-  type MintKeys,
-  type MintKeyset,
-} from "@cashu/cashu-ts"
+import {CashuMint, CashuWallet, type MintKeys, type MintKeyset} from "@cashu/cashu-ts"
 import type {MintService} from "./MintService"
 import type {Logger} from "../logging/Logger.ts"
 import type {SeedService} from "./SeedService.ts"
@@ -106,7 +101,7 @@ export class WalletService {
     // Try to get fresh mint data, fall back to cache if offline
     let mint, keysets
     try {
-      ({mint, keysets} = await this.mintService.ensureUpdatedMint(mintUrl))
+      ;({mint, keysets} = await this.mintService.ensureUpdatedMint(mintUrl))
     } catch (err) {
       // If network error, use cached data for offline operation
       const isNetworkError =

@@ -74,7 +74,8 @@ export class WalletApi {
     })
 
     try {
-      const {wallet, keysetId} = await this.walletService.getWalletWithActiveKeysetId(mint)
+      const {wallet, keysetId} =
+        await this.walletService.getWalletWithActiveKeysetId(mint)
 
       // Get counter for deterministic secret generation
       const counterObj = await this.counterService.getCounter(mint, keysetId)
@@ -83,11 +84,14 @@ export class WalletApi {
       // Get all proofs for offline receive via deterministic secrets
       const allProofs = await this.proofService.getReadyProofs(mint)
 
-      const newProofs = await wallet.receive({mint, proofs}, {
-        counter,
-        keysetId,
-        proofsWeHave: allProofs,
-      })
+      const newProofs = await wallet.receive(
+        {mint, proofs},
+        {
+          counter,
+          keysetId,
+          proofsWeHave: allProofs,
+        }
+      )
 
       // Increment counter by number of new proofs
       await this.counterService.incrementCounter(mint, keysetId, newProofs.length)

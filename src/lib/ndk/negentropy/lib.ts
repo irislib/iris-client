@@ -270,7 +270,8 @@ class Negentropy {
   wantUint8ArrayOutput?: boolean
 
   constructor(storage: NegentropyStorageVector, frameSizeLimit = 0) {
-    if (frameSizeLimit !== 0 && frameSizeLimit < 4096) throw Error("frameSizeLimit too small")
+    if (frameSizeLimit !== 0 && frameSizeLimit < 4096)
+      throw Error("frameSizeLimit too small")
 
     this.storage = storage
     this.frameSizeLimit = frameSizeLimit
@@ -316,7 +317,9 @@ class Negentropy {
       throw Error("invalid negentropy protocol version byte")
     if (protocolVersion !== PROTOCOL_VERSION) {
       if (this.isInitiator)
-        throw Error("unsupported negentropy protocol version requested: " + (protocolVersion - 0x60))
+        throw Error(
+          "unsupported negentropy protocol version requested: " + (protocolVersion - 0x60)
+        )
       else return [this._renderOutput<T>(fullOutput), haveIds, needIds]
     }
 
@@ -432,7 +435,9 @@ class Negentropy {
     }
 
     return [
-      fullOutput.length === 1 && this.isInitiator ? null : this._renderOutput<T>(fullOutput),
+      fullOutput.length === 1 && this.isInitiator
+        ? null
+        : this._renderOutput<T>(fullOutput),
       haveIds,
       needIds,
     ]
@@ -573,7 +578,24 @@ function hexToUint8Array(h: string) {
 
 const uint8ArrayToHexLookupTable = new Array(256)
 {
-  const hexAlphabet = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "a", "b", "c", "d", "e", "f"]
+  const hexAlphabet = [
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+  ]
   for (let i = 0; i < 256; i++) {
     uint8ArrayToHexLookupTable[i] = hexAlphabet[(i >>> 4) & 0xf] + hexAlphabet[i & 0xf]
   }

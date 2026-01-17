@@ -65,13 +65,10 @@ export class MintQuoteService {
           `No active keyset found for unit ${quote.unit} at mint ${mintUrl}`
         )
       }
-      const {keep} = await this.proofService.createOutputsAndIncrementCounters(
-        mintUrl,
-        {
-          keep: quote.amount,
-          send: 0,
-        }
-      )
+      const {keep} = await this.proofService.createOutputsAndIncrementCounters(mintUrl, {
+        keep: quote.amount,
+        send: 0,
+      })
       const proofs = await wallet.mintProofs(quote.amount, quote.quote, {
         outputData: keep,
       })

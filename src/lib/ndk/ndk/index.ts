@@ -382,7 +382,11 @@ export class NDK extends EventEmitter<{
   public transportPlugins: Array<{
     name: string
     onPublish?: (event: NDKEvent) => void | Promise<void>
-    onSubscribe?: (subscription: NDKSubscription, filters: NDKFilter[], opts?: NDKSubscriptionOptions) => void
+    onSubscribe?: (
+      subscription: NDKSubscription,
+      filters: NDKFilter[],
+      opts?: NDKSubscriptionOptions
+    ) => void
   }> = []
 
   /**

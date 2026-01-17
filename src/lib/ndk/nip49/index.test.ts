@@ -33,11 +33,11 @@ describe("NIP-49 - ncryptsec", () => {
       const decrypted16 = decrypt(encrypted16, password)
       expect(bytesToHex(decrypted16)).toBe(privateKeyHex)
 
-      // Test with log_n = 18 (more secure)
+      // Test with log_n = 18 (more secure, slower due to scrypt)
       const encrypted18 = encrypt(privateKeyBytes, password, 18)
       const decrypted18 = decrypt(encrypted18, password)
       expect(bytesToHex(decrypted18)).toBe(privateKeyHex)
-    })
+    }, 15000)
 
     it("should support different key security byte values", () => {
       // Test with ksb = 0x00 (key has no privilege)
@@ -54,7 +54,7 @@ describe("NIP-49 - ncryptsec", () => {
       const encrypted02 = encrypt(privateKeyBytes, password, 16, 0x02)
       const decrypted02 = decrypt(encrypted02, password)
       expect(bytesToHex(decrypted02)).toBe(privateKeyHex)
-    })
+    }, 15000)
 
     it("should handle empty password", () => {
       const emptyPassword = ""

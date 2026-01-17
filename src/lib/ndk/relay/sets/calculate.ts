@@ -30,7 +30,8 @@ export async function calculateRelaySetFromEvent(
 
   // In P2P-only mode: only publish signaling events to relays
   if (ndk.p2pOnlyMode) {
-    const isSignaling = event.kind === 30078 && event.tags.some((t) => t[0] === "l" && t[1] === "webrtc")
+    const isSignaling =
+      event.kind === 30078 && event.tags.some((t) => t[0] === "l" && t[1] === "webrtc")
     if (!isSignaling) {
       // Non-signaling event in P2P mode - return empty relay set (WebRTC only)
       return new NDKRelaySet(relays, ndk)

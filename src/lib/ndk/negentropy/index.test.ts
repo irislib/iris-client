@@ -1,5 +1,10 @@
 import {describe, expect, it, vi, beforeEach} from "vitest"
-import {buildStorageVector, Negentropy, NegentropyStorageVector, negentropySync} from "./index.js"
+import {
+  buildStorageVector,
+  Negentropy,
+  NegentropyStorageVector,
+  negentropySync,
+} from "./index.js"
 import {NDKEvent} from "../events/index.js"
 import type {NDKRelay} from "../relay/index.js"
 
@@ -227,8 +232,14 @@ describe("negentropySync", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10))
 
-    expect(mockRelay.registerProtocolHandler).toHaveBeenCalledWith("NEG-MSG", expect.any(Function))
-    expect(mockRelay.registerProtocolHandler).toHaveBeenCalledWith("NEG-ERR", expect.any(Function))
+    expect(mockRelay.registerProtocolHandler).toHaveBeenCalledWith(
+      "NEG-MSG",
+      expect.any(Function)
+    )
+    expect(mockRelay.registerProtocolHandler).toHaveBeenCalledWith(
+      "NEG-ERR",
+      expect.any(Function)
+    )
 
     controller.abort()
     await syncPromise

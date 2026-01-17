@@ -350,7 +350,11 @@ export class NDKRelayConnectivity {
 
     // Validate event
     if (!ndkEvent.isValid) {
-      this.debug("Event failed validation %s from relay %s", rawEvent.id, this.ndkRelay.url)
+      this.debug(
+        "Event failed validation %s from relay %s",
+        rawEvent.id,
+        this.ndkRelay.url
+      )
       return undefined
     }
 
@@ -794,7 +798,9 @@ export class NDKRelayConnectivity {
    */
   private async onNotice(notice: string) {
     if (notice.toLowerCase().includes("too many concurrent")) {
-      this.debug(`Too many concurrent REQs. Active subscriptions (${this.openSubs.size}):`)
+      this.debug(
+        `Too many concurrent REQs. Active subscriptions (${this.openSubs.size}):`
+      )
       for (const [subId, sub] of this.openSubs.entries()) {
         this.debug(`  - ${subId}: ${JSON.stringify(sub.executeFilters).slice(0, 200)}`)
       }

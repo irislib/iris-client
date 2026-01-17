@@ -80,9 +80,7 @@ async function run() {
 
   log(`Found user: ${user.npub}`)
   log(`User pubkey: ${user.pubkey}`)
-  log(
-    `User profile: ${user.profile?.name || user.profile?.displayName || "Unknown"}`
-  )
+  log(`User profile: ${user.profile?.name || user.profile?.displayName || "Unknown"}`)
 
   const filter: NDKFilter = {
     kinds: [NDKKind.Text],

@@ -857,7 +857,12 @@ export class NDKSubscription extends EventEmitter<{
       }
 
       // Save to cache if needed (only for events from relays, not cache/optimistic)
-      if (!fromCache && !optimisticPublish && this.ndk.cacheAdapter && !this.opts.dontSaveToCache) {
+      if (
+        !fromCache &&
+        !optimisticPublish &&
+        this.ndk.cacheAdapter &&
+        !this.opts.dontSaveToCache
+      ) {
         try {
           this.ndk.cacheAdapter.setEvent(ndkEvent, this.filters, relay)
         } catch (error) {
@@ -872,7 +877,7 @@ export class NDKSubscription extends EventEmitter<{
         ndkEvent,
         relay,
         fromCache,
-        optimisticPublish,
+        optimisticPublish
       )
       // mark the eventId as seen
       this.eventFirstSeen.set(eventId, Date.now())

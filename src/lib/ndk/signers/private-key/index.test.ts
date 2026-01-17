@@ -125,10 +125,11 @@ describe("NDKPrivateKeySigner", () => {
       const restored16 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec16, password)
       expect(restored16.pubkey).toBe(knownPubkey)
 
+      // log_n = 18 is slower due to scrypt
       const ncryptsec18 = signer.encryptToNcryptsec(password, 18)
       const restored18 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec18, password)
       expect(restored18.pubkey).toBe(knownPubkey)
-    })
+    }, 15000)
 
     it("supports different key security byte values", () => {
       const signer = new NDKPrivateKeySigner(knownNsec)

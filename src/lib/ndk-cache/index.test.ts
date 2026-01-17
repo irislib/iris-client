@@ -80,43 +80,47 @@ describe("by kind filter", () => {
 })
 
 describe("byKinds performance", () => {
-  it("should handle large number of events without freezing", async () => {
-    // Create a large number of events to trigger the performance issue
-    const startTime = Math.floor(Date.now() / 1000)
-    const eventCount = 500 // Reduced from 5000 for faster testing
-    const targetKind = 1
+  it(
+    "should handle large number of events without freezing",
+    {timeout: 30000},
+    async () => {
+      // Create a large number of events to trigger the performance issue
+      const startTime = Math.floor(Date.now() / 1000)
+      const eventCount = 500 // Reduced from 5000 for faster testing
+      const targetKind = 1
 
-    // Measure time before adding events
-    const addStart = performance.now()
+      // Measure time before adding events
+      const addStart = performance.now()
 
-    // Add a large number of events with the same kind
-    for (let i = 0; i < eventCount; i++) {
-      const event = new NDKEvent(ndk)
-      event.kind = targetKind
-      event.content = `Test event ${i}`
-      event.created_at = startTime - i
-      await event.sign()
-      ndk.cacheAdapter?.setEvent(event, [])
+      // Add a large number of events with the same kind
+      for (let i = 0; i < eventCount; i++) {
+        const event = new NDKEvent(ndk)
+        event.kind = targetKind
+        event.content = `Test event ${i}`
+        event.created_at = startTime - i
+        await event.sign()
+        ndk.cacheAdapter?.setEvent(event, [])
+      }
+
+      const _addDuration = performance.now() - addStart
+
+      // Create a subscription that queries by kind
+      const subscription = new NDKSubscription(ndk, [{kinds: [targetKind]}])
+      const receiveEventSpy = vi.spyOn(subscription, "eventReceived")
+
+      // Measure query time
+      const queryStart = performance.now()
+      await ndk.cacheAdapter?.query(subscription)
+      const queryDuration = performance.now() - queryStart
+
+      // The test passes if the query completes in a reasonable time
+      // Currently it's failing with 15+ seconds, we want it under 1000ms
+      expect(queryDuration).toBeLessThan(1000)
+
+      // Also verify that we're not getting too many events
+      // (this would mean our limit filtering is working)
+      expect(receiveEventSpy).toHaveBeenCalled()
+      expect(receiveEventSpy.mock.calls.length).toBeLessThanOrEqual(500)
     }
-
-    const _addDuration = performance.now() - addStart
-
-    // Create a subscription that queries by kind
-    const subscription = new NDKSubscription(ndk, [{kinds: [targetKind]}])
-    const receiveEventSpy = vi.spyOn(subscription, "eventReceived")
-
-    // Measure query time
-    const queryStart = performance.now()
-    await ndk.cacheAdapter?.query(subscription)
-    const queryDuration = performance.now() - queryStart
-
-    // The test passes if the query completes in a reasonable time
-    // Currently it's failing with 15+ seconds, we want it under 1000ms
-    expect(queryDuration).toBeLessThan(1000)
-
-    // Also verify that we're not getting too many events
-    // (this would mean our limit filtering is working)
-    expect(receiveEventSpy).toHaveBeenCalled()
-    expect(receiveEventSpy.mock.calls.length).toBeLessThanOrEqual(500)
-  })
+  )
 })

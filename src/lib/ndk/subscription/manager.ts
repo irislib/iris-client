@@ -83,7 +83,11 @@ export class NDKSubscriptionManager {
    * @param relay Relay that sent the event
    * @param optimisticPublish Whether the event is coming from an optimistic publish
    */
-  public dispatchEvent(event: NostrEvent | NDKEvent, relay?: NDKRelay, optimisticPublish = false) {
+  public dispatchEvent(
+    event: NostrEvent | NDKEvent,
+    relay?: NDKRelay,
+    optimisticPublish = false
+  ) {
     const eventId = event.id!
     let ndkEvent: NDKEvent
     const seenData = this.seenEvents.get(eventId)
@@ -112,7 +116,10 @@ export class NDKSubscriptionManager {
         this.seenEvent(eventId, relay, ndkEvent)
       } else if (!seenData) {
         // Mark as seen from cache/optimistic with sentinel value
-        this.seenEvents.set(eventId, {relays: [{url: "__cache__"} as NDKRelay], processedEvent: ndkEvent})
+        this.seenEvents.set(eventId, {
+          relays: [{url: "__cache__"} as NDKRelay],
+          processedEvent: ndkEvent,
+        })
       }
     }
 
@@ -156,7 +163,12 @@ export class NDKSubscriptionManager {
       }
 
       // Pass processed NDKEvent to subscription
-      sub.eventReceived(ndkEvent, relay, relay === undefined && !optimisticPublish, optimisticPublish)
+      sub.eventReceived(
+        ndkEvent,
+        relay,
+        relay === undefined && !optimisticPublish,
+        optimisticPublish
+      )
     }
   }
 }

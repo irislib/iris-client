@@ -834,7 +834,10 @@ export function foundEvent(
     if (filter && !matchFilter(filter, deserializedEvent as any)) return
 
     const ndkEvent = new NDKEvent(subscription.ndk, deserializedEvent)
-    const relay = relayUrl && subscription.pool ? subscription.pool.getRelay(relayUrl, false) : undefined
+    const relay =
+      relayUrl && subscription.pool
+        ? subscription.pool.getRelay(relayUrl, false)
+        : undefined
     ndkEvent.relay = relay
     if (subscription.eventReceived) {
       subscription.eventReceived(ndkEvent, relay, true)
