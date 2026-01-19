@@ -84,7 +84,7 @@ const createExtensionEncrypt = (): EncryptFunction => {
 export const getDeviceManager = (): DeviceManager => {
   if (deviceManagerInstance) return deviceManagerInstance
 
-  const {publicKey, privateKey} = useUserStore.getState()
+  const {publicKey, privateKey, nip07Login} = useUserStore.getState()
 
   const ndkInstance = ndk()
 
@@ -99,7 +99,7 @@ export const getDeviceManager = (): DeviceManager => {
       nostrPublish: createPublish(ndkInstance),
       storage: new LocalForageStorageAdapter(),
     })
-  } else if (window.nostr) {
+  } else if (nip07Login && window.nostr) {
     // Extension login (NIP-07) - use decrypt/encrypt functions
     deviceManagerInstance = DeviceManager.createOwnerDevice({
       ownerPublicKey: publicKey,
