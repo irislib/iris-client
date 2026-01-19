@@ -140,12 +140,14 @@ export const getDelegateSessionManager = (): SessionManager | null => {
 
   const credentials = useDelegateDeviceStore.getState().credentials
   if (!credentials) return null
+  if (!credentials.ownerPublicKey) return null // Must be activated first
 
   const ndkInstance = ndk()
 
   log("[DelegateDevice] getDelegateSessionManager creating new SessionManager", {
     deviceId: credentials.deviceId,
     devicePublicKey: credentials.devicePublicKey?.slice(0, 8),
+    ownerPublicKey: credentials.ownerPublicKey?.slice(0, 8),
   })
 
   // IMPORTANT: Must use delegate's own devicePublicKey (not owner's pubkey) for DH encryption
@@ -158,6 +160,7 @@ export const getDelegateSessionManager = (): SessionManager | null => {
     credentials.deviceId,
     createSubscribe(ndkInstance),
     createPublish(ndkInstance),
+    credentials.ownerPublicKey,
     new LocalForageStorageAdapter(),
     {
       publicKey: credentials.ephemeralPublicKey,
