@@ -105,9 +105,14 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
     })
 
     // Store credentials locally (including private keys)
+    // In delegate mode, getIdentityPrivateKey() always returns Uint8Array
+    const devicePrivateKey = manager.getIdentityPrivateKey()
+    if (typeof devicePrivateKey === "function") {
+      throw new Error("Unexpected: delegate device should have raw private key")
+    }
     const credentials = {
       devicePublicKey: manager.getIdentityPublicKey(),
-      devicePrivateKey: bytesToHex(manager.getIdentityPrivateKey()),
+      devicePrivateKey: bytesToHex(devicePrivateKey),
       ephemeralPublicKey: manager.getEphemeralKeypair()!.publicKey,
       ephemeralPrivateKey: bytesToHex(manager.getEphemeralKeypair()!.privateKey),
       sharedSecret: manager.getSharedSecret()!,

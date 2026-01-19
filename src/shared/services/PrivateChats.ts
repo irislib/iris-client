@@ -5,6 +5,8 @@ import {
   NostrSubscribe,
   SessionManager,
   DeviceManager,
+  DecryptFunction,
+  EncryptFunction,
 } from "nostr-double-ratchet/src"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
@@ -55,28 +57,63 @@ let deviceManagerInstance: DeviceManager | null = null
 let sessionManagerInstance: SessionManager | null = null
 let initPromise: Promise<void> | null = null
 
+/**
+ * Create NIP-44 decrypt function using browser extension (NIP-07)
+ */
+const createExtensionDecrypt = (): DecryptFunction => {
+  return async (ciphertext: string, pubkey: string): Promise<string> => {
+    if (!window.nostr?.nip44?.decrypt) {
+      throw new Error("NIP-44 decrypt not available in extension")
+    }
+    return await window.nostr.nip44.decrypt(pubkey, ciphertext)
+  }
+}
+
+/**
+ * Create NIP-44 encrypt function using browser extension (NIP-07)
+ */
+const createExtensionEncrypt = (): EncryptFunction => {
+  return async (plaintext: string, pubkey: string): Promise<string> => {
+    if (!window.nostr?.nip44?.encrypt) {
+      throw new Error("NIP-44 encrypt not available in extension")
+    }
+    return await window.nostr.nip44.encrypt(pubkey, plaintext)
+  }
+}
+
 export const getDeviceManager = (): DeviceManager => {
   if (deviceManagerInstance) return deviceManagerInstance
 
-  const {publicKey, privateKey} = useUserStore.getState()
-
-  if (!privateKey) {
-    throw new Error(
-      "DeviceManager requires a private key - extension-only mode not supported"
-    )
-  }
+  const {publicKey, privateKey, nip07Login} = useUserStore.getState()
 
   const ndkInstance = ndk()
 
-  deviceManagerInstance = DeviceManager.createMain({
-    ownerPublicKey: publicKey,
-    ownerPrivateKey: hexToBytes(privateKey),
-    deviceId: getOrCreateDeviceId(),
-    deviceLabel: getOrCreateDeviceId(),
-    nostrSubscribe: createSubscribe(ndkInstance),
-    nostrPublish: createPublish(ndkInstance),
-    storage: new LocalForageStorageAdapter(),
-  })
+  if (privateKey) {
+    // Standard login with private key
+    deviceManagerInstance = DeviceManager.createOwnerDevice({
+      ownerPublicKey: publicKey,
+      ownerPrivateKey: hexToBytes(privateKey),
+      deviceId: getOrCreateDeviceId(),
+      deviceLabel: getOrCreateDeviceId(),
+      nostrSubscribe: createSubscribe(ndkInstance),
+      nostrPublish: createPublish(ndkInstance),
+      storage: new LocalForageStorageAdapter(),
+    })
+  } else if (nip07Login && window.nostr) {
+    // Extension login (NIP-07) - use decrypt/encrypt functions
+    deviceManagerInstance = DeviceManager.createOwnerDevice({
+      ownerPublicKey: publicKey,
+      ownerPrivateKey: createExtensionDecrypt(),
+      ownerEncrypt: createExtensionEncrypt(),
+      deviceId: getOrCreateDeviceId(),
+      deviceLabel: getOrCreateDeviceId(),
+      nostrSubscribe: createSubscribe(ndkInstance),
+      nostrPublish: createPublish(ndkInstance),
+      storage: new LocalForageStorageAdapter(),
+    })
+  } else {
+    throw new Error("DeviceManager requires either a private key or NIP-07 extension")
+  }
 
   return deviceManagerInstance
 }
