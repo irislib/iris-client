@@ -434,7 +434,8 @@ export const initiateSessionFromDelegate = async (
         nostrSubscribe,
         credentials.devicePublicKey, // Our public key
         getDevicePrivateKeyBytes(credentials), // Our private key for encryption
-        credentials.deviceId // Our device ID
+        credentials.deviceId, // Our device ID
+        credentials.ownerPublicKey // Owner's public key for message routing
       )
 
       // Publish the invite response
