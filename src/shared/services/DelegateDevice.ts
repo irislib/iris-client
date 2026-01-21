@@ -3,7 +3,7 @@ import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {
   NostrPublish,
   NostrSubscribe,
-  DeviceManager,
+  DelegateDeviceManager,
   SessionManager,
   InviteList,
   INVITE_LIST_EVENT_KIND,
@@ -105,13 +105,13 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
   }) as NostrPublish
 }
 
-let deviceManager: DeviceManager | null = null
+let deviceManager: DelegateDeviceManager | null = null
 let sessionManager: SessionManager | null = null
 
 /**
  * Get or create the DeviceManager for delegate device operation
  */
-export const getDelegateDeviceManager = (): DeviceManager | null => {
+export const getDelegateDeviceManager = (): DelegateDeviceManager | null => {
   if (deviceManager) return deviceManager
 
   const credentials = useDelegateDeviceStore.getState().credentials
@@ -161,12 +161,14 @@ export const getDelegateSessionManager = (): SessionManager | null => {
     createSubscribe(ndkInstance),
     createPublish(ndkInstance),
     credentials.ownerPublicKey,
-    new LocalForageStorageAdapter(),
     {
-      publicKey: credentials.ephemeralPublicKey,
-      privateKey: getEphemeralPrivateKeyBytes(credentials),
+      ephemeralKeypair: {
+        publicKey: credentials.ephemeralPublicKey,
+        privateKey: getEphemeralPrivateKeyBytes(credentials),
+      },
+      sharedSecret: credentials.sharedSecret,
     },
-    credentials.sharedSecret
+    new LocalForageStorageAdapter()
   )
 
   return sessionManager
@@ -177,12 +179,11 @@ export const getDelegateSessionManager = (): SessionManager | null => {
  */
 export const createDelegateDeviceManager = (
   credentials: DelegateDeviceCredentials
-): DeviceManager => {
+): DelegateDeviceManager => {
   const ndkInstance = ndk()
 
-  return DeviceManager.restoreDelegate({
+  return DelegateDeviceManager.restore({
     deviceId: credentials.deviceId,
-    deviceLabel: credentials.deviceLabel,
     devicePublicKey: credentials.devicePublicKey,
     devicePrivateKey: getDevicePrivateKeyBytes(credentials),
     ephemeralPublicKey: credentials.ephemeralPublicKey,

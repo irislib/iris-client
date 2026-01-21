@@ -6,7 +6,7 @@ import {
 } from "@/shared/services/DelegateDevice"
 import {useDelegateDeviceStore, DelegateDeviceCredentials} from "@/stores/delegateDevice"
 import {
-  DeviceManager,
+  DelegateDeviceManager,
   DevicePayload,
   NostrPublish,
   NostrSubscribe,
@@ -96,8 +96,8 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
       return event
     }) as NostrPublish
 
-    // Generate keys locally using DeviceManager.createDelegate()
-    const {manager, payload} = DeviceManager.createDelegate({
+    // Generate keys locally using DelegateDeviceManager.create()
+    const {manager, payload} = DelegateDeviceManager.create({
       deviceId: generateDeviceId(),
       deviceLabel: label,
       nostrSubscribe,
@@ -105,11 +105,8 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
     })
 
     // Store credentials locally (including private keys)
-    // In delegate mode, getIdentityPrivateKey() always returns Uint8Array
-    const devicePrivateKey = manager.getIdentityPrivateKey()
-    if (typeof devicePrivateKey === "function") {
-      throw new Error("Unexpected: delegate device should have raw private key")
-    }
+    // DelegateDeviceManager.getIdentityKey() always returns Uint8Array
+    const devicePrivateKey = manager.getIdentityKey()
     const credentials = {
       devicePublicKey: manager.getIdentityPublicKey(),
       devicePrivateKey: bytesToHex(devicePrivateKey),
@@ -117,7 +114,7 @@ export default function DelegateSetup({onActivated}: DelegateSetupProps) {
       ephemeralPrivateKey: bytesToHex(manager.getEphemeralKeypair()!.privateKey),
       sharedSecret: manager.getSharedSecret()!,
       deviceId: manager.getDeviceId(),
-      deviceLabel: manager.getDeviceLabel(),
+      deviceLabel: payload.deviceLabel,
     }
     setCredentials(credentials)
 

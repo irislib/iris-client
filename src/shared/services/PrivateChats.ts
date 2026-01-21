@@ -4,7 +4,7 @@ import {
   NostrPublish,
   NostrSubscribe,
   SessionManager,
-  DeviceManager,
+  OwnerDeviceManager,
   DecryptFunction,
   EncryptFunction,
 } from "nostr-double-ratchet/src"
@@ -53,7 +53,7 @@ const getOrCreateDeviceId = (): string => {
   return deviceId
 }
 
-let deviceManagerInstance: DeviceManager | null = null
+let deviceManagerInstance: OwnerDeviceManager | null = null
 let sessionManagerInstance: SessionManager | null = null
 let initPromise: Promise<void> | null = null
 
@@ -81,7 +81,7 @@ const createExtensionEncrypt = (): EncryptFunction => {
   }
 }
 
-export const getDeviceManager = (): DeviceManager => {
+export const getDeviceManager = (): OwnerDeviceManager => {
   if (deviceManagerInstance) return deviceManagerInstance
 
   const {publicKey, privateKey, nip07Login} = useUserStore.getState()
@@ -90,21 +90,21 @@ export const getDeviceManager = (): DeviceManager => {
 
   if (privateKey) {
     // Standard login with private key
-    deviceManagerInstance = DeviceManager.createOwnerDevice({
+    deviceManagerInstance = new OwnerDeviceManager({
       ownerPublicKey: publicKey,
-      ownerPrivateKey: hexToBytes(privateKey),
+      identityKey: hexToBytes(privateKey),
       deviceId: getOrCreateDeviceId(),
       deviceLabel: getOrCreateDeviceId(),
       nostrSubscribe: createSubscribe(ndkInstance),
       nostrPublish: createPublish(ndkInstance),
       storage: new LocalForageStorageAdapter(),
     })
-  } else if (nip07Login && window.nostr) {
-    // Extension login (NIP-07) - use decrypt/encrypt functions
-    deviceManagerInstance = DeviceManager.createOwnerDevice({
+  } else if (nip07Login) {
+    // Extension login (NIP-07) - use encrypt/decrypt functions
+    // Note: window.nostr availability is checked when the functions are called, not here
+    deviceManagerInstance = new OwnerDeviceManager({
       ownerPublicKey: publicKey,
-      ownerPrivateKey: createExtensionDecrypt(),
-      ownerEncrypt: createExtensionEncrypt(),
+      identityKey: {encrypt: createExtensionEncrypt(), decrypt: createExtensionDecrypt()},
       deviceId: getOrCreateDeviceId(),
       deviceLabel: getOrCreateDeviceId(),
       nostrSubscribe: createSubscribe(ndkInstance),
@@ -112,7 +112,9 @@ export const getDeviceManager = (): DeviceManager => {
       storage: new LocalForageStorageAdapter(),
     })
   } else {
-    throw new Error("DeviceManager requires either a private key or NIP-07 extension")
+    throw new Error(
+      "OwnerDeviceManager requires either a private key or NIP-07 extension login"
+    )
   }
 
   return deviceManagerInstance
