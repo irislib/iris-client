@@ -8,6 +8,7 @@ import {
 } from "nostr-tools"
 import {InMemoryStorageAdapter, SessionManager} from "nostr-double-ratchet/src"
 import {MockRelay} from "./mockRelay"
+import {bytesToHex} from "@noble/hashes/utils"
 
 export const createMockSessionManager = async (
   deviceId: string,
@@ -17,6 +18,11 @@ export const createMockSessionManager = async (
 ) => {
   const secretKey = existingSecretKey || generateSecretKey()
   const publicKey = getPublicKey(secretKey)
+
+  // Generate ephemeral keys for invite
+  const ephemeralPrivateKey = generateSecretKey()
+  const ephemeralPublicKey = getPublicKey(ephemeralPrivateKey)
+  const sharedSecret = bytesToHex(generateSecretKey().slice(0, 32))
 
   const mockStorage = existingStorage || new InMemoryStorageAdapter()
   const storageSpy = {
@@ -44,6 +50,11 @@ export const createMockSessionManager = async (
     deviceId,
     subscribe,
     publish,
+    publicKey, // ownerPublicKey - use same as ourPublicKey for tests
+    {
+      ephemeralKeypair: {publicKey: ephemeralPublicKey, privateKey: ephemeralPrivateKey},
+      sharedSecret,
+    },
     mockStorage
   )
 

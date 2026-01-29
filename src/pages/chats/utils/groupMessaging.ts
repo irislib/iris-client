@@ -36,7 +36,9 @@ export async function sendGroupEvent({
   event.id = getEventHash(event)
 
   // Add to local store immediately for instant UI feedback
-  await usePrivateMessagesStore.getState().upsert(groupId, senderPubKey, event)
+  await usePrivateMessagesStore
+    .getState()
+    .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
 
   // Send to all group members in background (no await - don't block caller)
   const sessionManager = getSessionManager()

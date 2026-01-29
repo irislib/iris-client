@@ -164,17 +164,15 @@ export const subscribeToDMNotifications = debounce(async () => {
     return
   }
 
-  let inviteRecipients: string[] = []
+  const inviteRecipients: string[] = []
 
   let sessionAuthors: string[] = []
   try {
     const sessionManager = getSessionManager()
-    await sessionManager.init()
-    const userRecords = sessionManager.getUserRecords()
-    sessionAuthors = extractSessionPubkeysFromUserRecords(userRecords, publicKey)
-    const inviteRecipient = sessionManager.getDeviceInviteEphemeralKey()
-    if (inviteRecipient) {
-      inviteRecipients = [inviteRecipient]
+    if (sessionManager) {
+      await sessionManager.init()
+      const userRecords = sessionManager.getUserRecords()
+      sessionAuthors = extractSessionPubkeysFromUserRecords(userRecords, publicKey)
     }
   } catch (err) {
     error("Failed to load session data for DM push subscription:", err)
@@ -272,13 +270,10 @@ function extractSessionPubkeysFromUserRecords(
   return Array.from(userRecords.entries())
     .filter(([publicKey]) => !ourPublicKey || publicKey !== ourPublicKey)
     .flatMap(([, {devices}]) =>
-      Array.from(devices.values())
-        .filter(({staleAt}) => staleAt === undefined)
-        .flatMap(({activeSession, inactiveSessions = []}) => [
-          activeSession,
-          ...inactiveSessions,
-        ])
-        .filter(Boolean)
+      Array.from(devices.values()).flatMap((device) => {
+        const sessions = [device.activeSession, ...device.inactiveSessions]
+        return sessions.filter(Boolean)
+      })
     )
     .flatMap((session) => {
       const state = session?.state

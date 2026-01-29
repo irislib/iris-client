@@ -76,7 +76,9 @@ export const attachSessionEventListener = () => {
 
             // Group message or reaction - store under group ID
             log("Received group message for group:", lTag)
-            void usePrivateMessagesStore.getState().upsert(lTag, publicKey, event)
+            void usePrivateMessagesStore
+              .getState()
+              .upsert(lTag, publicKey, {...event, ownerPubkey: pubKey})
             return
           }
 
@@ -88,7 +90,9 @@ export const attachSessionEventListener = () => {
 
           if (!from || !to) return
 
-          void usePrivateMessagesStore.getState().upsert(from, to, event)
+          void usePrivateMessagesStore
+            .getState()
+            .upsert(from, to, {...event, ownerPubkey: pubKey})
         })
       })
       .catch((err) => {

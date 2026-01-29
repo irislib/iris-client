@@ -13,11 +13,13 @@ import MessageFormActionsMenu from "./MessageFormActionsMenu"
 import CashuSendDialog from "./CashuSendDialog"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import Icon from "@/shared/components/Icons/Icon"
+import {Link} from "@/navigation"
 import EmojiType from "@/types/emoji"
 import {MessageType} from "./Message"
 import {getSessionManager} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
+import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
 
@@ -45,6 +47,8 @@ const MessageForm = ({
   groupId,
   groupMembers,
 }: MessageFormProps) => {
+  const {canSendPrivateMessages, appKeysManagerReady, sessionManagerReady} =
+    useDevicesStore()
   const [newMessage, setNewMessage] = useState("")
   const [encryptionMetadata, setEncryptionMetadata] = useState<
     Map<string, EncryptionMetaWithImeta>
@@ -75,6 +79,8 @@ const MessageForm = ({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    const isPrivateOrGroupChat = !isPublicChat || groupId
+    if (isPrivateOrGroupChat && !canSendPrivateMessages) return
     const text = newMessage.trim()
     if (!text) return
 
@@ -132,7 +138,9 @@ const MessageForm = ({
           ? await sessionManager.sendMessage(id, text, {tags: extraTags})
           : await sessionManager.sendMessage(id, text)
 
-      await usePrivateMessagesStore.getState().upsert(id, myPubKey, sentMessage)
+      await usePrivateMessagesStore
+        .getState()
+        .upsert(id, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
       setEncryptionMetadata(new Map())
     } catch (error) {
       console.error("Failed to send message:", error)
@@ -212,63 +220,94 @@ const MessageForm = ({
 
       // DM messages
       const sentMessage = await sessionManager.sendMessage(id, token)
-      await usePrivateMessagesStore.getState().upsert(id, myPubKey, sentMessage)
+      await usePrivateMessagesStore
+        .getState()
+        .upsert(id, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
     } catch (error) {
       console.error("Failed to send cashu token:", error)
       throw error
     }
   }
 
+  // For private/group chats, check if device is registered
+  const isPrivateOrGroupChat = !isPublicChat || groupId
+  const isDisabled = !!(isPrivateOrGroupChat && !canSendPrivateMessages)
+  const isInitializing =
+    isPrivateOrGroupChat && (!appKeysManagerReady || !sessionManagerReady)
+  const needsSetup = isPrivateOrGroupChat && !isInitializing && !canSendPrivateMessages
+
   return (
-    <footer className="border-t border-custom fixed md:sticky bottom-0 w-full pb-[env(safe-area-inset-bottom)] bg-base-200">
-      {replyingTo && (
-        <MessageFormReplyPreview replyingTo={replyingTo} setReplyingTo={setReplyingTo} />
+    <footer className="fixed md:sticky bottom-0 w-full pb-[env(safe-area-inset-bottom)] bg-base-200 relative">
+      {(isInitializing || needsSetup) && (
+        <div className="absolute bottom-full left-0 right-0 px-4 py-2 text-xs bg-base-200">
+          {isInitializing && (
+            <div className="flex items-center gap-2 text-base-content/60">
+              <span className="loading loading-spinner loading-xs" />
+              <span>Initializing private messaging...</span>
+            </div>
+          )}
+          {needsSetup && (
+            <Link to="/chats/new/devices" className="text-primary hover:underline">
+              Set up private messaging
+            </Link>
+          )}
+        </div>
       )}
+      <div className="border-t border-custom">
+        {replyingTo && (
+          <MessageFormReplyPreview
+            replyingTo={replyingTo}
+            setReplyingTo={setReplyingTo}
+          />
+        )}
+        <div className="flex gap-2 p-4 relative">
+          <MessageFormActionsMenu
+            isOpen={showActionsMenu}
+            onClose={() => setShowActionsMenu(false)}
+            onToggle={() => setShowActionsMenu(!showActionsMenu)}
+            onUpload={handleUpload}
+            onCashuSend={() => setShowCashuSend(true)}
+            encrypt={!isPublicChat}
+          />
 
-      <div className="flex gap-2 p-4 relative">
-        <MessageFormActionsMenu
-          isOpen={showActionsMenu}
-          onClose={() => setShowActionsMenu(false)}
-          onToggle={() => setShowActionsMenu(!showActionsMenu)}
-          onUpload={handleUpload}
-          onCashuSend={() => setShowCashuSend(true)}
-          encrypt={!isPublicChat}
-        />
+          <CashuSendDialog
+            isOpen={showCashuSend}
+            onClose={() => setShowCashuSend(false)}
+            onSendMessage={handleCashuSendMessage}
+            recipientPubKey={groupId ? undefined : id}
+          />
 
-        <CashuSendDialog
-          isOpen={showCashuSend}
-          onClose={() => setShowCashuSend(false)}
-          onSendMessage={handleCashuSendMessage}
-          recipientPubKey={groupId ? undefined : id}
-        />
-
-        <form onSubmit={handleSubmit} className="flex-1 flex gap-2 items-center">
-          <div className="relative flex-1 flex gap-2 items-center">
-            {!isTouchDevice && <EmojiButton onEmojiSelect={handleEmojiClick} />}
-            <textarea
-              ref={textareaRef}
-              value={newMessage}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Message"
-              className={`flex-1 textarea leading-tight resize-none py-2.5 min-h-[2.5rem] ${
-                newMessage.includes("\n") ? "rounded-lg" : "rounded-full"
+          <form onSubmit={handleSubmit} className="flex-1 flex gap-2 items-center">
+            <div className="relative flex-1">
+              <div className="flex gap-2 items-center">
+                {!isTouchDevice && <EmojiButton onEmojiSelect={handleEmojiClick} />}
+                <textarea
+                  ref={textareaRef}
+                  value={newMessage}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Message"
+                  className={`flex-1 textarea leading-tight resize-none py-2.5 min-h-[2.5rem] ${
+                    newMessage.includes("\n") ? "rounded-lg" : "rounded-full"
+                  } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                  aria-label="Message input"
+                  rows={1}
+                  disabled={isDisabled}
+                />
+              </div>
+            </div>
+            <button
+              type="submit"
+              className={`btn btn-primary btn-circle btn-sm md:btn-md ${
+                isTouchDevice ? "" : "hidden"
               }`}
-              aria-label="Message input"
-              rows={1}
-            />
-          </div>
-          <button
-            type="submit"
-            className={`btn btn-primary btn-circle btn-sm md:btn-md ${
-              isTouchDevice ? "" : "hidden"
-            }`}
-            aria-label="Send message"
-            disabled={!newMessage.trim()}
-          >
-            <Icon name="arrow-right" className="-rotate-90" />
-          </button>
-        </form>
+              aria-label="Send message"
+              disabled={isDisabled || !newMessage.trim()}
+            >
+              <Icon name="arrow-right" className="-rotate-90" />
+            </button>
+          </form>
+        </div>
       </div>
     </footer>
   )

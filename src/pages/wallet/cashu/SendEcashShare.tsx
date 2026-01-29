@@ -97,7 +97,7 @@ export default function SendEcashShare({
         // Update local store
         await usePrivateMessagesStore
           .getState()
-          .upsert(selectedUserPubkey, myPubKey, sentMessage)
+          .upsert(selectedUserPubkey, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
         log("✓ Local store updated")
 
         // Save payment metadata
@@ -257,7 +257,9 @@ export default function SendEcashShare({
       log("✓ Message sent:", sentMessage.id)
 
       // Update local store
-      await usePrivateMessagesStore.getState().upsert(user.pubkey, myPubKey, sentMessage)
+      await usePrivateMessagesStore
+        .getState()
+        .upsert(user.pubkey, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
       log("✓ Local store updated")
 
       // Save payment metadata

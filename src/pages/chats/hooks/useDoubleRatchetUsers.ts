@@ -72,7 +72,7 @@ export const useDoubleRatchetUsers = () => {
       currentSub = ndk().subscribe({
         kinds: [KIND_APP_DATA],
         authors,
-        "#l": ["double-ratchet/invites"],
+        "#d": ["double-ratchet/app-keys"],
       })
 
       currentSub.on("event", handleEvent)

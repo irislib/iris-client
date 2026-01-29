@@ -26,6 +26,15 @@ import {
   cleanupSessionEventListener,
 } from "./utils/dmEventHandler"
 import {hasWriteAccess} from "./utils/auth"
+import {
+  initAppKeysManager,
+  initDelegateManager,
+  activateDevice,
+  hasLocalAppKeys,
+  getDelegateManager,
+  startAppKeysSubscription,
+} from "@/shared/services/PrivateChats"
+import {useDevicesStore} from "./stores/devices"
 
 // Register deep link handler for hot starts (when app already open)
 // Note: Cold start (app closed) doesn't work due to Tauri bug #13580
@@ -86,6 +95,27 @@ const initializeApp = async () => {
   import("@/utils/ndk").then(async ({initNDK}) => {
     await initNDK()
     log("✅ NDK initialized")
+
+    // Initialize AppKeysManager first (fast), then DelegateManager in parallel
+    useDevicesStore.getState().setSetupStatus("initializing")
+    try {
+      // Initialize AppKeysManager first so we can check local keys immediately
+      await initAppKeysManager()
+      log("✅ AppKeysManager initialized")
+      useDevicesStore.getState().setAppKeysManagerReady(true)
+      useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
+      useDevicesStore.getState().setSetupStatus("ready_to_register")
+
+      // Initialize DelegateManager in the background
+      initDelegateManager()
+        .then(() => log("✅ DelegateManager initialized"))
+        .catch((err) => error("Failed to initialize DelegateManager:", err))
+    } catch (err) {
+      error("Failed to initialize AppKeysManager:", err)
+      useDevicesStore
+        .getState()
+        .setSetupError(err instanceof Error ? err.message : "Unknown error")
+    }
   })
 
   // Load social graph in background (non-blocking)
@@ -151,7 +181,43 @@ const initializeApp = async () => {
 
     // Only initialize DM sessions if not in readonly mode
     if (hasWriteAccess()) {
-      attachSessionEventListener()
+      // Initialize AppKeysManager first (fast), then DelegateManager + SessionManager
+      useDevicesStore.getState().setSetupStatus("initializing")
+
+      // Start AppKeysManager first so we can check local keys immediately
+      initAppKeysManager()
+        .then(() => {
+          useDevicesStore.getState().setAppKeysManagerReady(true)
+          useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
+          useDevicesStore.getState().setSetupStatus("ready_to_register")
+          startAppKeysSubscription(state.publicKey)
+          log("✅ AppKeysManager initialized")
+        })
+        .catch((err) => {
+          error("Failed to initialize AppKeysManager:", err)
+          useDevicesStore
+            .getState()
+            .setSetupError(err instanceof Error ? err.message : "Unknown error")
+        })
+
+      // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
+      initDelegateManager()
+        .then(() => activateDevice(state.publicKey))
+        .then(() => {
+          useDevicesStore.getState().setSessionManagerReady(true)
+          const delegateManager = getDelegateManager()
+          useDevicesStore
+            .getState()
+            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
+          attachSessionEventListener()
+          log("✅ Device activated and session listener attached")
+        })
+        .catch((err) => {
+          error("Failed to activate device:", err)
+          useDevicesStore
+            .getState()
+            .setSetupError(err instanceof Error ? err.message : "Unknown error")
+        })
     }
   }
 
@@ -203,7 +269,43 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
 
     // Only initialize DM sessions if not in readonly mode
     if (hasWriteAccess()) {
-      attachSessionEventListener()
+      // Initialize AppKeysManager first (fast), then DelegateManager + SessionManager
+      useDevicesStore.getState().setSetupStatus("initializing")
+
+      // Start AppKeysManager first so we can check local keys immediately
+      initAppKeysManager()
+        .then(() => {
+          useDevicesStore.getState().setAppKeysManagerReady(true)
+          useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
+          useDevicesStore.getState().setSetupStatus("ready_to_register")
+          startAppKeysSubscription(state.publicKey)
+          log("✅ AppKeysManager initialized (login)")
+        })
+        .catch((err) => {
+          error("Failed to initialize AppKeysManager on login:", err)
+          useDevicesStore
+            .getState()
+            .setSetupError(err instanceof Error ? err.message : "Unknown error")
+        })
+
+      // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
+      initDelegateManager()
+        .then(() => activateDevice(state.publicKey))
+        .then(() => {
+          useDevicesStore.getState().setSessionManagerReady(true)
+          const delegateManager = getDelegateManager()
+          useDevicesStore
+            .getState()
+            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
+          attachSessionEventListener()
+          log("✅ Device activated and session listener attached (login)")
+        })
+        .catch((err) => {
+          error("Failed to activate device on login:", err)
+          useDevicesStore
+            .getState()
+            .setSetupError(err instanceof Error ? err.message : "Unknown error")
+        })
     }
   }
 })

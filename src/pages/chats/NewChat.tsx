@@ -1,10 +1,11 @@
 import NotificationPrompt from "@/shared/components/NotificationPrompt"
-import {RiUserLine, RiTeamLine, RiEarthLine} from "@remixicon/react"
+import {RiUserLine, RiTeamLine, RiEarthLine, RiComputerLine} from "@remixicon/react"
 import InstallPWAPrompt from "@/shared/components/InstallPWAPrompt"
 import PrivateChatCreation from "./private/PrivateChatCreation"
 import {Link, useLocation} from "@/navigation"
 import PublicChatCreation from "./public/PublicChatCreation"
 import GroupChatCreation from "./group/GroupChatCreation"
+import DevicesTab from "./devices"
 import Header from "@/shared/components/header/Header"
 import PublicChannelCreateStep from "./public/PublicChannelCreateStep"
 import Icon from "@/shared/components/Icons/Icon"
@@ -13,6 +14,7 @@ const TabSelector = () => {
   const location = useLocation()
   const isPublic = location.pathname.startsWith("/chats/new/public")
   const isGroup = location.pathname.startsWith("/chats/new/group")
+  const isDevices = location.pathname.startsWith("/chats/new/devices")
 
   const getClasses = (isActive: boolean) => {
     const baseClasses =
@@ -24,7 +26,7 @@ const TabSelector = () => {
 
   return (
     <div className="flex mb-px md:mb-1">
-      <Link to="/chats/new" className={getClasses(!isPublic && !isGroup)}>
+      <Link to="/chats/new" className={getClasses(!isPublic && !isGroup && !isDevices)}>
         <RiUserLine className="mr-2 w-4 h-4" />
         Direct
       </Link>
@@ -35,6 +37,10 @@ const TabSelector = () => {
       <Link to="/chats/new/public" className={getClasses(isPublic)}>
         <RiEarthLine className="mr-2 w-4 h-4" />
         Public
+      </Link>
+      <Link to="/chats/new/devices" className={getClasses(isDevices)}>
+        <RiComputerLine className="mr-2 w-4 h-4" />
+        Devices
       </Link>
     </div>
   )
@@ -51,6 +57,8 @@ const NewChat = () => {
     content = <PublicChatCreation />
   } else if (location.pathname === "/chats/new/group") {
     content = <GroupChatCreation />
+  } else if (location.pathname === "/chats/new/devices") {
+    content = <DevicesTab />
   } else {
     // Default to private chat creation for /chats/new
     content = <PrivateChatCreation />

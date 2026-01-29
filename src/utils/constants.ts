@@ -104,3 +104,6 @@ export const DEBUG_NAMESPACES = {
   UTILS_ERROR: "utils:error",
   UTILS_WARN: "utils:warn",
 } as const
+
+// Double Ratchet / Private Chat limits
+export const MAX_DR_DEVICES = 3

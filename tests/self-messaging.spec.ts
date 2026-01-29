@@ -7,8 +7,8 @@ async function waitForConnectedRelays(page) {
   await expect
     .poll(
       async () => {
-      const text = await relayIndicator.textContent()
-      return parseInt(text?.match(/\d+/)?.[0] || "0", 10)
+        const text = await relayIndicator.textContent()
+        return parseInt(text?.match(/\d+/)?.[0] || "0", 10)
       },
       {timeout: 10000}
     )

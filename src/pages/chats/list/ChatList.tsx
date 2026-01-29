@@ -11,6 +11,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {comparator} from "@/pages/chats/utils/messageGrouping"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {MessageType} from "@/pages/chats/message/Message"
+import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMessagingOnboardingPrompt"
 
 interface ChatListProps {
   className?: string
@@ -101,6 +102,7 @@ const ChatList = ({className}: ChatListProps) => {
       </div>
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+          <EncryptedMessagingOnboardingPrompt />
           <NavLink
             to="/chats/new"
             end
