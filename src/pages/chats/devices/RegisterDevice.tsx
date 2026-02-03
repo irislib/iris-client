@@ -121,9 +121,8 @@ const RegisterDevice = () => {
                         isNewDevice ? "text-primary" : "text-base-content/70"
                       }`}
                     />
-                    <span className="font-mono text-sm truncate">
-                      {device.identityPubkey.slice(0, 8)}...
-                      {device.identityPubkey.slice(-8)}
+                    <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
+                      {device.identityPubkey}
                     </span>
                     {isNewDevice && (
                       <span className="badge badge-primary badge-sm ml-auto shrink-0">

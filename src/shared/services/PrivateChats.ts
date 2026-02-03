@@ -570,6 +570,7 @@ export const getInviteDetails = (): {
   ephemeralPublicKey: string
   sharedSecret: string
   deviceId: string
+  createdAt: number
 } | null => {
   if (!delegateManager) return null
 
@@ -580,6 +581,7 @@ export const getInviteDetails = (): {
     ephemeralPublicKey: invite.inviterEphemeralPublicKey,
     sharedSecret: invite.sharedSecret,
     deviceId: invite.deviceId || delegateManager.getIdentityPublicKey(),
+    createdAt: invite.createdAt,
   }
 }
 

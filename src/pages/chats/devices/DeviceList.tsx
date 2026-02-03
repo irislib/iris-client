@@ -29,6 +29,7 @@ const DeviceList = () => {
     ephemeralPublicKey: string
     sharedSecret: string
     deviceId: string
+    createdAt: number
   } | null>(null)
   const [deviceToRevoke, setDeviceToRevoke] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
@@ -126,13 +127,12 @@ const DeviceList = () => {
               <div className="flex items-center gap-3 p-3">
                 <RiComputerLine className="w-5 h-5 text-base-content/70" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm truncate">
-                      {device.identityPubkey.slice(0, 8)}...
-                      {device.identityPubkey.slice(-8)}
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
+                      {device.identityPubkey}
                     </span>
                     {isCurrentDevice && (
-                      <span className="badge badge-primary badge-sm">This device</span>
+                      <span className="badge badge-primary badge-sm shrink-0">This device</span>
                     )}
                   </div>
                   <div className="text-xs text-base-content/60">Added {createdDate}</div>
@@ -181,17 +181,28 @@ const DeviceList = () => {
               {isCurrentDevice && inviteDetails && (
                 <div className="px-3 pb-3 pt-0 border-t border-base-300">
                   <div className="mt-2 space-y-2 text-xs">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base-content/60">Ephemeral Key:</span>
-                      <span className="font-mono">
-                        {inviteDetails.ephemeralPublicKey.slice(0, 8)}...
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-base-content/60 shrink-0">
+                        Ephemeral Key:
+                      </span>
+                      <span className="font-mono truncate min-w-0 w-0 flex-1 text-right block">
+                        {inviteDetails.ephemeralPublicKey}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-base-content/60 shrink-0">
+                        Shared Secret:
+                      </span>
+                      <span className="font-mono truncate min-w-0 w-0 flex-1 text-right block">
+                        {inviteDetails.sharedSecret}
                       </span>
                     </div>
 
                     <div className="flex items-center justify-between">
-                      <span className="text-base-content/60">Shared Secret:</span>
-                      <span className="font-mono">
-                        {inviteDetails.sharedSecret.slice(0, 8)}...
+                      <span className="text-base-content/60">Created:</span>
+                      <span>
+                        {new Date(inviteDetails.createdAt * 1000).toLocaleString()}
                       </span>
                     </div>
                   </div>
@@ -218,8 +229,8 @@ const DeviceList = () => {
               {deviceToRevoke && (
                 <div className="flex items-center gap-2 rounded-lg p-2 bg-error/10 border border-error/30">
                   <RiComputerLine className="w-4 h-4 shrink-0 text-error" />
-                  <span className="font-mono text-sm truncate line-through text-error/70">
-                    {deviceToRevoke.slice(0, 8)}...{deviceToRevoke.slice(-8)}
+                  <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block line-through text-error/70">
+                    {deviceToRevoke}
                   </span>
                   <span className="badge badge-error badge-sm ml-auto shrink-0">
                     Removed
@@ -233,9 +244,8 @@ const DeviceList = () => {
                   className="flex items-center gap-2 rounded-lg p-2 bg-base-200"
                 >
                   <RiComputerLine className="w-4 h-4 shrink-0 text-base-content/70" />
-                  <span className="font-mono text-sm truncate">
-                    {device.identityPubkey.slice(0, 8)}...
-                    {device.identityPubkey.slice(-8)}
+                  <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
+                    {device.identityPubkey}
                   </span>
                 </div>
               ))}
