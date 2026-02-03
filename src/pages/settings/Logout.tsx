@@ -12,7 +12,6 @@ import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {SettingsButton} from "@/shared/components/settings/SettingsButton"
 import {confirm} from "@/utils/utils"
-import {revokeCurrentDevice} from "@/shared/services/PrivateChats"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -138,12 +137,6 @@ function Logout() {
         error("Error cleaning up stores:", e)
       }
 
-      try {
-        await revokeCurrentDevice()
-      } catch (e) {
-        error("Error revoking current device:", e)
-      }
-
       log("[Logout] Cleaning up NDK")
       await withTimeout(cleanupNDK(), 3000)
       log("[Logout] Resetting user store")
@@ -197,10 +190,28 @@ function Logout() {
       <div className="p-4">
         <div className="space-y-6">
           {store.privateKey && (
-            <SettingsGroup title="Backup">
+            <SettingsGroup title="Before you go">
               <SettingsGroupItem onClick={() => navigate("/settings/keys")}>
                 <div className="flex items-center justify-between">
                   <span>Backup secret key</span>
+                  <svg
+                    className="w-5 h-5 text-base-content/40"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </div>
+              </SettingsGroupItem>
+              <SettingsGroupItem onClick={() => navigate("/chats/new/devices")} isLast>
+                <div className="flex items-center justify-between">
+                  <span>Remove this device from messaging</span>
                   <svg
                     className="w-5 h-5 text-base-content/40"
                     fill="none"

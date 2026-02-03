@@ -2,12 +2,13 @@ import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 import {Link, useNavigate} from "@/navigation"
 import {useUserStore} from "@/stores/user"
-import {Invite} from "nostr-double-ratchet/src"
+import {AppKeys} from "nostr-double-ratchet/src"
 import {ndk} from "@/utils/ndk"
-import {Filter, VerifiedEvent} from "nostr-tools"
+import {VerifiedEvent} from "nostr-tools"
 import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
 import {NIP05_REGEX} from "@/utils/validation"
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
+import type {NDKEvent, NDKFilter} from "@/lib/ndk"
 
 import PublicKeyQRCodeButton from "@/shared/components/user/PublicKeyQRCodeButton"
 import {FollowButton} from "@/shared/components/button/FollowButton.tsx"
@@ -50,31 +51,40 @@ const ProfileHeader = ({
 
   const navigate = useNavigate()
 
-  // Subscribe function for nostr events
-  const subscribe = (filter: Filter, onEvent: (event: VerifiedEvent) => void) => {
-    const sub = ndk().subscribe(filter)
-    sub.on("event", (e) => onEvent(e as unknown as VerifiedEvent))
-    return () => sub.stop()
-  }
-
-  // Check for invites from other users
+  // Check for AppKeys (registered devices) from other users
   useEffect(() => {
-    // Only check for invites if this is not our own profile and we have a pubkey
+    // Only check if this is not our own profile and we have a pubkey
     if (!myPubKey || myPubKey === pubKeyHex || !pubKeyHex) {
       return
     }
 
-    log("Checking for invites from user:", pubKeyHex)
+    log("Checking for AppKeys from user:", pubKeyHex)
 
-    const unsubscribe = Invite.fromUser(pubKeyHex, subscribe, (invite) => {
-      log("Found invite from user:", pubKeyHex, invite)
-      setHasInvites(true)
+    const ndkInstance = ndk()
+    const subscription = ndkInstance.subscribe({
+      kinds: [30078],
+      authors: [pubKeyHex],
+      "#d": ["double-ratchet/app-keys"],
+    } as NDKFilter)
+
+    subscription.on("event", (event: NDKEvent) => {
+      try {
+        const applicationKeys = AppKeys.fromEvent(event as unknown as VerifiedEvent)
+        const devices = applicationKeys.getAllDevices()
+        if (devices.length > 0) {
+          log("Found AppKeys with devices from user:", pubKeyHex, devices.length)
+          setHasInvites(true)
+        }
+      } catch {
+        // Invalid event
+      }
     })
 
-    // Cleanup subscription on unmount
+    subscription.start()
+
     return () => {
-      log("Cleaning up invite subscription for user:", pubKeyHex)
-      unsubscribe()
+      log("Cleaning up AppKeys subscription for user:", pubKeyHex)
+      subscription.stop()
     }
   }, [pubKeyHex, myPubKey])
 

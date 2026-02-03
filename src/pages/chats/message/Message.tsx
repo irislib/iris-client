@@ -21,6 +21,7 @@ export type MessageType = Rumor & {
   reactions?: Record<string, string>
   nostrEventId?: string
   sentToRelays?: boolean
+  ownerPubkey?: string
 }
 
 type MessageProps = {
@@ -82,7 +83,7 @@ const Message = ({
   reactions: propReactions,
 }: MessageProps) => {
   const myPubKey = useUserStore.getState().publicKey
-  const isUser = message.pubkey === myPubKey
+  const isUser = (message.ownerPubkey ?? message.pubkey) === myPubKey
   const {events} = usePrivateMessagesStore()
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(
     propReactions || {}
