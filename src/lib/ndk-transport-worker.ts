@@ -28,6 +28,7 @@ export class NDKWorkerTransport {
   public name = "worker-transport"
   private worker: Worker
   private workerUrl?: string
+  private workerFactory?: () => Worker
   private ndk?: NDK
   private relayUrls: string[] = []
   private subscriptions = new Map<string, Set<(event: NDKEvent) => void>>()
@@ -54,18 +55,33 @@ export class NDKWorkerTransport {
   private readonly HEARTBEAT_INTERVAL_MS = 5000 // Send ping every 5s
   private readonly HEARTBEAT_TIMEOUT_MS = 15000 // 3 missed beats = unresponsive
 
-  constructor(workerOrUrl: Worker | string = "/relay-worker.js") {
+  constructor(workerOrUrl: Worker | string | (() => Worker) = "/relay-worker.js") {
     if (typeof workerOrUrl === "string") {
       this.workerUrl = workerOrUrl
       this.worker = this.createWorker()
+    } else if (typeof workerOrUrl === "function") {
+      this.workerFactory = workerOrUrl
+      this.worker = workerOrUrl()
+      this.setupWorker(this.worker)
     } else {
       this.worker = workerOrUrl
       this.setupWorker(this.worker)
+      console.warn(
+        "[Worker Transport] Worker passed directly - restart on crash may fail"
+      )
     }
   }
 
   private createWorker(): Worker {
-    const worker = new Worker(this.workerUrl!, {type: "module"})
+    if (this.workerFactory) {
+      const worker = this.workerFactory()
+      this.setupWorker(worker)
+      return worker
+    }
+    if (!this.workerUrl) {
+      throw new Error("[Worker Transport] Cannot create worker: no URL or factory")
+    }
+    const worker = new Worker(this.workerUrl, {type: "module"})
     this.setupWorker(worker)
     return worker
   }
@@ -129,6 +145,14 @@ export class NDKWorkerTransport {
     this.stopHeartbeat()
     this.restartAttempts++
     this.ready = false
+
+    // Check if we can restart
+    if (!this.workerUrl && !this.workerFactory) {
+      console.error(
+        "[Worker Transport] Cannot restart worker - no URL or factory provided"
+      )
+      return
+    }
 
     // Exponential backoff capped at 30s
     const delay = Math.min(1000 * Math.pow(2, this.restartAttempts - 1), 30_000)

@@ -12,6 +12,17 @@ import {createDebugLogger} from "../utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "../utils/constants"
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.NDK_RELAY)
 
+// Global unhandled rejection handler to prevent worker crashes
+self.onunhandledrejection = (event: PromiseRejectionEvent) => {
+  error("[Relay Worker] Unhandled rejection:", event.reason)
+  self.postMessage({
+    type: "error",
+    error: event.reason instanceof Error ? event.reason.message : String(event.reason),
+  })
+  // Prevent crash - just log
+  event.preventDefault()
+}
+
 import NDK from "../lib/ndk"
 import {
   initSearchIndex,
@@ -186,9 +197,14 @@ async function initialize(relayUrls?: string[], initialSettings?: SettingsState)
 
     // Connect to relays (non-blocking - don't wait for all relays)
     log("[Relay Worker] Starting relay connections...")
-    ndk.connect().then(() => {
-      log(`[Relay Worker] All relays connected`)
-    })
+    ndk
+      .connect()
+      .then(() => {
+        log(`[Relay Worker] All relays connected`)
+      })
+      .catch((err) => {
+        error(`[Relay Worker] Relay connection error:`, err)
+      })
 
     // Attach status listeners immediately
     ndk.pool?.relays.forEach((relay) => {
@@ -593,102 +609,110 @@ self.addEventListener("offline", () => {
 
 // Message handler
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
-  const data = e.data
-  const {type, id, filters, event, relays, subscribeOpts, publishOpts} = data
+  try {
+    const data = e.data
+    const {type, id, filters, event, relays, subscribeOpts, publishOpts} = data
 
-  switch (type) {
-    case "init":
-      await initialize(relays, data.settings)
-      break
+    switch (type) {
+      case "init":
+        await initialize(relays, data.settings)
+        break
 
-    case "subscribe":
-      if (id && filters) {
-        handleSubscribe(id, filters as NDKFilter[], subscribeOpts)
-      }
-      break
+      case "subscribe":
+        if (id && filters) {
+          handleSubscribe(id, filters as NDKFilter[], subscribeOpts)
+        }
+        break
 
-    case "unsubscribe":
-      if (id) {
-        handleUnsubscribe(id)
-      }
-      break
+      case "unsubscribe":
+        if (id) {
+          handleUnsubscribe(id)
+        }
+        break
 
-    case "publish":
-      if (id && event) {
-        await handlePublish(id, event, relays, publishOpts)
-      }
-      break
+      case "publish":
+        if (id && event) {
+          await handlePublish(id, event, relays, publishOpts)
+        }
+        break
 
-    case "getRelayStatus":
-      if (id) {
-        handleGetRelayStatus(id)
-      }
-      break
+      case "getRelayStatus":
+        if (id) {
+          handleGetRelayStatus(id)
+        }
+        break
 
-    case "addRelay":
-      if (data.url) {
-        handleAddRelay(data.url)
-      }
-      break
+      case "addRelay":
+        if (data.url) {
+          handleAddRelay(data.url)
+        }
+        break
 
-    case "removeRelay":
-      if (data.url) {
-        handleRemoveRelay(data.url)
-      }
-      break
+      case "removeRelay":
+        if (data.url) {
+          handleRemoveRelay(data.url)
+        }
+        break
 
-    case "connectRelay":
-      if (data.url) {
-        handleConnectRelay(data.url)
-      }
-      break
+      case "connectRelay":
+        if (data.url) {
+          handleConnectRelay(data.url)
+        }
+        break
 
-    case "disconnectRelay":
-      if (data.url) {
-        handleDisconnectRelay(data.url)
-      }
-      break
+      case "disconnectRelay":
+        if (data.url) {
+          handleDisconnectRelay(data.url)
+        }
+        break
 
-    case "reconnectDisconnected":
-      handleReconnectDisconnected(data.reason || "Reconnect requested")
-      break
+      case "reconnectDisconnected":
+        handleReconnectDisconnected(data.reason || "Reconnect requested")
+        break
 
-    case "browserOffline":
-      handleBrowserOffline()
-      break
+      case "browserOffline":
+        handleBrowserOffline()
+        break
 
-    case "browserOnline":
-      handleBrowserOnline()
-      break
+      case "browserOnline":
+        handleBrowserOnline()
+        break
 
-    case "getStats":
-      if (id) {
-        handleGetStats(id)
-      }
-      break
+      case "getStats":
+        if (id) {
+          handleGetStats(id)
+        }
+        break
 
-    case "close":
-      handleClose()
-      break
+      case "close":
+        handleClose()
+        break
 
-    case "updateSettings":
-      if (data.settings) {
-        handleUpdateSettings(data.settings)
-      }
-      break
+      case "updateSettings":
+        if (data.settings) {
+          handleUpdateSettings(data.settings)
+        }
+        break
 
-    case "search":
-      if (data.searchQuery !== undefined && data.searchRequestId !== undefined) {
-        handleSearch(data.searchRequestId, data.searchQuery)
-      }
-      break
+      case "search":
+        if (data.searchQuery !== undefined && data.searchRequestId !== undefined) {
+          handleSearch(data.searchRequestId, data.searchQuery)
+        }
+        break
 
-    case "ping":
-      self.postMessage({type: "pong", id} as WorkerResponse)
-      break
+      case "ping":
+        self.postMessage({type: "pong", id} as WorkerResponse)
+        break
 
-    default:
-      warn("[Relay Worker] Unknown message type:", type)
+      default:
+        warn("[Relay Worker] Unknown message type:", type)
+    }
+  } catch (err) {
+    error("[Relay Worker] Message handler error:", err)
+    self.postMessage({
+      type: "error",
+      error: err instanceof Error ? err.message : String(err),
+    })
   }
 }
 
