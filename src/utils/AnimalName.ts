@@ -1,4 +1,3 @@
-import {sha256} from "@noble/hashes/sha256"
 import animals from "./data/animals.json"
 import adjectives from "./data/adjectives.json"
 
@@ -7,15 +6,31 @@ function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-/**
- * deterministically create adjective + animal names
- */
-export default function (seed: string) {
+// Deterministic hash function for pubkey
+function hashCode(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return Math.abs(hash)
+}
+
+export default function getAnimalName(seed: string): string {
   if (!seed) {
     throw new Error("No seed provided")
   }
-  const hash = sha256(seed) // Uint8Array
-  const adjective = adjectives[hash[0] % adjectives.length]
-  const animal = animals[hash[1] % animals.length]
-  return `${capitalize(adjective)} ${capitalize(animal)}`
+  const hash = hashCode(seed)
+  const adjIndex = hash % adjectives.length
+  const animalIndex = Math.floor(hash / adjectives.length) % animals.length
+
+  return `${capitalize(adjectives[adjIndex])} ${capitalize(animals[animalIndex])}`
+}
+
+export function getDisplayName(pubkey: string, customName: string | null): string {
+  if (customName && customName.trim()) {
+    return customName.trim()
+  }
+  return getAnimalName(pubkey)
 }
