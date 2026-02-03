@@ -22,6 +22,7 @@ import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
+import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 
 interface MessageFormProps {
   id: string
@@ -229,16 +230,23 @@ const MessageForm = ({
     }
   }
 
+  // Check if recipient has app keys (only for DMs, not group chats)
+  const isDM = !isPublicChat && !groupId
+  const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(isDM ? id : undefined)
+
   // For private/group chats, check if device is registered
   const isPrivateOrGroupChat = !isPublicChat || groupId
-  const isDisabled = !!(isPrivateOrGroupChat && !canSendPrivateMessages)
   const isInitializing =
     isPrivateOrGroupChat && (!appKeysManagerReady || !sessionManagerReady)
   const needsSetup = isPrivateOrGroupChat && !isInitializing && !canSendPrivateMessages
+  const recipientNotSetup =
+    isDM && canSendPrivateMessages && recipientHasAppKeys === false
+  const isDisabled =
+    !!(isPrivateOrGroupChat && !canSendPrivateMessages) || recipientNotSetup
 
   return (
     <footer className="fixed md:sticky bottom-0 w-full pb-[env(safe-area-inset-bottom)] bg-base-200 relative">
-      {(isInitializing || needsSetup) && (
+      {(isInitializing || needsSetup || recipientNotSetup) && (
         <div className="absolute bottom-full left-0 right-0 px-4 py-2 text-xs bg-base-200">
           {isInitializing && (
             <div className="flex items-center gap-2 text-base-content/60">
@@ -250,6 +258,11 @@ const MessageForm = ({
             <Link to="/chats/new/devices" className="text-primary hover:underline">
               Set up private messaging
             </Link>
+          )}
+          {recipientNotSetup && (
+            <span className="text-base-content/60">
+              This user has not enabled encrypted messaging yet
+            </span>
           )}
         </div>
       )}
