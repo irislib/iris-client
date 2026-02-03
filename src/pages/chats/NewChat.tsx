@@ -8,7 +8,6 @@ import GroupChatCreation from "./group/GroupChatCreation"
 import DevicesTab from "./devices"
 import Header from "@/shared/components/header/Header"
 import PublicChannelCreateStep from "./public/PublicChannelCreateStep"
-import Icon from "@/shared/components/Icons/Icon"
 
 const TabSelector = () => {
   const location = useLocation()
@@ -66,18 +65,7 @@ const NewChat = () => {
 
   return (
     <>
-      <Header>
-        <div className="flex items-center justify-between w-full min-w-0">
-          <span className="truncate">New Chat</span>
-          <Link
-            to="/settings/chat"
-            className="btn btn-circle btn-ghost btn-sm flex-shrink-0 ml-2"
-            title="Chat Settings"
-          >
-            <Icon name="gear" className="w-5 h-5" />
-          </Link>
-        </div>
-      </Header>
+      <Header title="New Chat" />
       <div className="pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pt-0 md:pb-0">
         <NotificationPrompt />
         <TabSelector />

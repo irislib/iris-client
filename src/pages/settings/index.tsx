@@ -14,7 +14,6 @@ import Logout from "@/pages/settings/Logout"
 import DeleteAccount from "@/pages/settings/DeleteAccount"
 import WalletSettings from "./WalletSettings"
 import SystemSettings from "./SystemSettings"
-import ChatSettings from "./ChatSettings"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {Helmet} from "react-helmet"
@@ -61,12 +60,6 @@ function Settings() {
           iconBg: "bg-purple-500",
           message: "iris.to username",
           path: "/settings/iris",
-        },
-        {
-          icon: <Icon name="mail-outline" className="w-5 h-5" />, // Consistent with sidebar
-          iconBg: "bg-blue-500",
-          message: "Chat",
-          path: "/settings/chat",
         },
       ],
     },
@@ -189,7 +182,6 @@ function Settings() {
       local: "Local",
       notifications: "Notifications",
       system: "System",
-      chat: "Chat",
     }
 
     return titleMap[settingsPath] || "Settings"
@@ -294,8 +286,6 @@ function Settings() {
                       return <NotificationSettings />
                     case "system":
                       return <SystemSettings />
-                    case "chat":
-                      return <ChatSettings />
                     default:
                       return <ProfileSettings />
                   }
