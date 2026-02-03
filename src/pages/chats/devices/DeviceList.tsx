@@ -157,7 +157,11 @@ const DeviceList = () => {
 
   return (
     <div className="space-y-4">
-      {registeredDevices.map((device) => {
+      {[...registeredDevices].sort((a, b) => {
+        const aIsCurrent = a.identityPubkey === identityPubkey ? -1 : 0
+        const bIsCurrent = b.identityPubkey === identityPubkey ? -1 : 0
+        return aIsCurrent - bIsCurrent
+      }).map((device) => {
         const isCurrentDevice = device.identityPubkey === identityPubkey
         const createdDate = new Date(device.createdAt * 1000).toLocaleDateString()
 
