@@ -69,7 +69,7 @@ export default function ThreadPage({
     (event: NDKEvent) => {
       // Skip events from muted users or mentioning muted users
       if (shouldHideEvent(event)) return
-      
+
       if (
         content.maxFollowDistanceForReplies !== undefined &&
         socialGraph.getFollowDistance(event.pubkey) > content.maxFollowDistanceForReplies
