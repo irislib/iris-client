@@ -9,6 +9,7 @@ import {Name} from "@/shared/components/user/Name"
 import Widget from "@/shared/components/ui/Widget"
 import {useSettingsStore} from "@/stores/settings"
 import {useSocialGraph} from "@/utils/socialGraph"
+import {shouldHideEvent} from "@/utils/visibility"
 import {NDKEvent} from "@/lib/ndk"
 import {useState, useEffect, useCallback} from "react"
 import {getTags} from "@/utils/nostr"
@@ -66,6 +67,9 @@ export default function ThreadPage({
 
   const addToThread = useCallback(
     (event: NDKEvent) => {
+      // Skip events from muted users or mentioning muted users
+      if (shouldHideEvent(event)) return
+      
       if (
         content.maxFollowDistanceForReplies !== undefined &&
         socialGraph.getFollowDistance(event.pubkey) > content.maxFollowDistanceForReplies
