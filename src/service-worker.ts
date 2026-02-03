@@ -295,7 +295,10 @@ const SESSION_STORAGE = localforage.createInstance({
 const SESSION_STORAGE_PREFIX = "private"
 const USER_RECORD_PREFIX = "v1/user/"
 
-type StoredSessionEntry = string
+interface StoredSessionEntry {
+  name: string
+  state: string
+}
 
 interface StoredDeviceRecord {
   deviceId: string
@@ -311,7 +314,7 @@ interface StoredUserRecord {
 
 interface StoredSessionState {
   sessionId: string
-  serializedState: StoredSessionEntry
+  serializedState: string
   userPublicKey: string
 }
 
@@ -336,9 +339,9 @@ const fetchStoredSessions = async (): Promise<StoredSessionState[]> => {
             ? [device.activeSession, ...device.inactiveSessions]
             : device.inactiveSessions
 
-          return sessions.map((serialized) => ({
+          return sessions.map((entry) => ({
             sessionId: record.publicKey,
-            serializedState: serialized,
+            serializedState: entry.state,
             userPublicKey: record.publicKey,
           }))
         })
