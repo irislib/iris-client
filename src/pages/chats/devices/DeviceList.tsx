@@ -132,7 +132,9 @@ const DeviceList = () => {
                       {device.identityPubkey}
                     </span>
                     {isCurrentDevice && (
-                      <span className="badge badge-primary badge-sm shrink-0">This device</span>
+                      <span className="badge badge-primary badge-sm shrink-0">
+                        This device
+                      </span>
                     )}
                   </div>
                   <div className="text-xs text-base-content/60">Added {createdDate}</div>

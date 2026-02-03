@@ -59,7 +59,6 @@ const RegisterDevice = () => {
         const prepared = await prepareRegistration()
         await publishPreparedRegistration(prepared)
       }
-      
     } catch (err) {
       error("Failed to register device:", err)
     } finally {

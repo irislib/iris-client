@@ -110,7 +110,6 @@ const initializeApp = async () => {
         .catch((err) => error("Failed to initialize DelegateManager:", err))
     } catch (err) {
       error("Failed to initialize AppKeysManager:", err)
-      
     }
   })
 
@@ -189,7 +188,6 @@ const initializeApp = async () => {
         })
         .catch((err) => {
           error("Failed to initialize AppKeysManager:", err)
-          
         })
 
       // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
@@ -198,13 +196,14 @@ const initializeApp = async () => {
         .then(() => {
           useDevicesStore.getState().setSessionManagerReady(true)
           const delegateManager = getDelegateManager()
-          useDevicesStore.getState().setIdentityPubkey(delegateManager.getIdentityPublicKey())
+          useDevicesStore
+            .getState()
+            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           log("✅ Device activated and session listener attached")
         })
         .catch((err) => {
           error("Failed to activate device:", err)
-          
         })
     }
   }
@@ -269,7 +268,6 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
         })
         .catch((err) => {
           error("Failed to initialize AppKeysManager on login:", err)
-          
         })
 
       // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
@@ -278,13 +276,14 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
         .then(() => {
           useDevicesStore.getState().setSessionManagerReady(true)
           const delegateManager = getDelegateManager()
-          useDevicesStore.getState().setIdentityPubkey(delegateManager.getIdentityPublicKey())
+          useDevicesStore
+            .getState()
+            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           log("✅ Device activated and session listener attached (login)")
         })
         .catch((err) => {
           error("Failed to activate device on login:", err)
-          
         })
     }
   }
