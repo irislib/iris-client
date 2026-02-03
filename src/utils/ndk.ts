@@ -83,10 +83,11 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
   if (isTauri()) {
     tauriTransport = new NDKTauriTransport()
   } else {
-    const worker = new Worker(new URL("../workers/relay-worker.ts", import.meta.url), {
-      type: "module",
-    })
-    workerTransport = new NDKWorkerTransport(worker)
+    const workerFactory = () =>
+      new Worker(new URL("../workers/relay-worker.ts", import.meta.url), {
+        type: "module",
+      })
+    workerTransport = new NDKWorkerTransport(workerFactory)
   }
 
   // Start configuration asynchronously (but don't block return)
