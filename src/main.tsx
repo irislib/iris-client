@@ -200,6 +200,7 @@ const initializeApp = async () => {
             .getState()
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
+          subscribeToDMNotifications()
           log("✅ Device activated and session listener attached")
         })
         .catch((err) => {
@@ -280,6 +281,7 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
             .getState()
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
+          subscribeToDMNotifications()
           log("✅ Device activated and session listener attached (login)")
         })
         .catch((err) => {
