@@ -3,7 +3,6 @@ import {useDevicesStore} from "@/stores/devices"
 import {
   RiComputerLine,
   RiRefreshLine,
-  RiCheckLine,
   RiLoader4Line,
   RiDeleteBinLine,
 } from "@remixicon/react"
@@ -14,11 +13,7 @@ import {
   publishPreparedRevocation,
   PreparedRevocation,
 } from "@/shared/services/PrivateChats"
-import {ndk} from "@/utils/ndk"
-import type {NDKEvent, NDKFilter} from "@/lib/ndk"
 import Icon from "@/shared/components/Icons/Icon"
-
-type InviteStatus = "finding" | "found"
 
 const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
   if (revoking) {
@@ -30,15 +25,10 @@ const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
 const DeviceList = () => {
   const {registeredDevices, identityPubkey} = useDevicesStore()
   const [republishing, setRepublishing] = useState(false)
-  const [inviteStatus, setInviteStatus] = useState<InviteStatus>("finding")
   const [inviteDetails, setInviteDetails] = useState<{
     ephemeralPublicKey: string
     sharedSecret: string
     deviceId: string
-  } | null>(null)
-  const [inviteEventInfo, setInviteEventInfo] = useState<{
-    eventId?: string
-    createdAt?: number
   } | null>(null)
   const [deviceToRevoke, setDeviceToRevoke] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
@@ -58,47 +48,8 @@ const DeviceList = () => {
 
   useEffect(() => {
     if (!identityPubkey) return
-
-    // Get local invite details
     const details = getInviteDetails()
     setInviteDetails(details)
-
-    // Subscribe to own invite event
-    const ndkInstance = ndk()
-    const filter = {
-      kinds: [30078],
-      authors: [identityPubkey],
-      "#d": [`double-ratchet/invites/${identityPubkey}`],
-    }
-    console.log("[DeviceList] Subscribing to invite with filter:", filter)
-
-    const subscription = ndkInstance.subscribe(filter as NDKFilter)
-
-    subscription.on("event", (event: NDKEvent) => {
-      console.log("[DeviceList] Got event:", {
-        id: event.id,
-        pubkey: event.pubkey,
-        tags: event.tags,
-      })
-      // Check if it's a valid invite (has ephemeralKey tag) or a tombstone
-      const hasEphemeralKey = event.tags.some(([k]) => k === "ephemeralKey")
-      console.log("[DeviceList] hasEphemeralKey:", hasEphemeralKey)
-      if (hasEphemeralKey) {
-        setInviteStatus("found")
-        setInviteEventInfo({eventId: event.id, createdAt: event.created_at})
-      }
-    })
-
-    subscription.on("eose", () => {
-      console.log("[DeviceList] EOSE received")
-    })
-
-    subscription.start()
-    console.log("[DeviceList] Subscription started")
-
-    return () => {
-      subscription.stop()
-    }
   }, [identityPubkey])
 
   const handleRepublishInvite = async () => {
@@ -157,50 +108,66 @@ const DeviceList = () => {
 
   return (
     <div className="space-y-4">
-      {[...registeredDevices].sort((a, b) => {
-        const aIsCurrent = a.identityPubkey === identityPubkey ? -1 : 0
-        const bIsCurrent = b.identityPubkey === identityPubkey ? -1 : 0
-        return aIsCurrent - bIsCurrent
-      }).map((device) => {
-        const isCurrentDevice = device.identityPubkey === identityPubkey
-        const createdDate = new Date(device.createdAt * 1000).toLocaleDateString()
+      {[...registeredDevices]
+        .sort((a, b) => {
+          const aIsCurrent = a.identityPubkey === identityPubkey ? -1 : 0
+          const bIsCurrent = b.identityPubkey === identityPubkey ? -1 : 0
+          return aIsCurrent - bIsCurrent
+        })
+        .map((device) => {
+          const isCurrentDevice = device.identityPubkey === identityPubkey
+          const createdDate = new Date(device.createdAt * 1000).toLocaleDateString()
 
-        return (
-          <div
-            key={device.identityPubkey}
-            className="bg-base-200 rounded-lg overflow-hidden"
-          >
-            <div className="flex items-center gap-3 p-3">
-              <RiComputerLine className="w-5 h-5 text-base-content/70" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm truncate">
-                    {device.identityPubkey.slice(0, 8)}...
-                    {device.identityPubkey.slice(-8)}
-                  </span>
-                  {isCurrentDevice && (
-                    <span className="badge badge-primary badge-sm">This device</span>
-                  )}
+          return (
+            <div
+              key={device.identityPubkey}
+              className="bg-base-200 rounded-lg overflow-hidden"
+            >
+              <div className="flex items-center gap-3 p-3">
+                <RiComputerLine className="w-5 h-5 text-base-content/70" />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm truncate">
+                      {device.identityPubkey.slice(0, 8)}...
+                      {device.identityPubkey.slice(-8)}
+                    </span>
+                    {isCurrentDevice && (
+                      <span className="badge badge-primary badge-sm">This device</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-base-content/60">Added {createdDate}</div>
                 </div>
-                <div className="text-xs text-base-content/60">Added {createdDate}</div>
-              </div>
-              {isCurrentDevice ? (
-                <div className="flex items-center gap-1">
+                {isCurrentDevice ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={handleRepublishInvite}
+                      disabled={republishing}
+                      className="btn btn-ghost btn-sm"
+                      title="Republish invite event"
+                    >
+                      <RiRefreshLine
+                        className={`w-4 h-4 ${republishing ? "animate-spin" : ""}`}
+                      />
+                    </button>
+                    <button
+                      onClick={() => handleRevokeClick(device.identityPubkey, true)}
+                      disabled={revoking}
+                      className="btn btn-ghost btn-sm text-error"
+                      title="Remove this device from messaging"
+                    >
+                      {revoking && deviceToRevoke === device.identityPubkey ? (
+                        <RiLoader4Line className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RiDeleteBinLine className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
                   <button
-                    onClick={handleRepublishInvite}
-                    disabled={republishing}
-                    className="btn btn-ghost btn-sm"
-                    title="Republish invite event"
-                  >
-                    <RiRefreshLine
-                      className={`w-4 h-4 ${republishing ? "animate-spin" : ""}`}
-                    />
-                  </button>
-                  <button
-                    onClick={() => handleRevokeClick(device.identityPubkey, true)}
+                    onClick={() => handleRevokeClick(device.identityPubkey)}
                     disabled={revoking}
                     className="btn btn-ghost btn-sm text-error"
-                    title="Remove this device from messaging"
+                    title="Revoke device"
                   >
                     {revoking && deviceToRevoke === device.identityPubkey ? (
                       <RiLoader4Line className="w-4 h-4 animate-spin" />
@@ -208,72 +175,31 @@ const DeviceList = () => {
                       <RiDeleteBinLine className="w-4 h-4" />
                     )}
                   </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => handleRevokeClick(device.identityPubkey)}
-                  disabled={revoking}
-                  className="btn btn-ghost btn-sm text-error"
-                  title="Revoke device"
-                >
-                  {revoking && deviceToRevoke === device.identityPubkey ? (
-                    <RiLoader4Line className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RiDeleteBinLine className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-            </div>
+                )}
+              </div>
 
-            {isCurrentDevice && inviteDetails && (
-              <div className="px-3 pb-3 pt-0 border-t border-base-300">
-                <div className="mt-2 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-base-content/60">Invite Status:</span>
-                    <span className="flex items-center gap-1">
-                      {inviteStatus === "finding" && (
-                        <>
-                          <RiLoader4Line className="w-3 h-3 animate-spin" />
-                          <span>Finding...</span>
-                        </>
-                      )}
-                      {inviteStatus === "found" && (
-                        <>
-                          <RiCheckLine className="w-3 h-3 text-success" />
-                          <span className="text-success">Published</span>
-                        </>
-                      )}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-base-content/60">Ephemeral Key:</span>
-                    <span className="font-mono">
-                      {inviteDetails.ephemeralPublicKey.slice(0, 8)}...
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-base-content/60">Shared Secret:</span>
-                    <span className="font-mono">
-                      {inviteDetails.sharedSecret.slice(0, 8)}...
-                    </span>
-                  </div>
-
-                  {inviteEventInfo?.createdAt && (
+              {isCurrentDevice && inviteDetails && (
+                <div className="px-3 pb-3 pt-0 border-t border-base-300">
+                  <div className="mt-2 space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-base-content/60">Last Published:</span>
-                      <span>
-                        {new Date(inviteEventInfo.createdAt * 1000).toLocaleString()}
+                      <span className="text-base-content/60">Ephemeral Key:</span>
+                      <span className="font-mono">
+                        {inviteDetails.ephemeralPublicKey.slice(0, 8)}...
                       </span>
                     </div>
-                  )}
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-base-content/60">Shared Secret:</span>
+                      <span className="font-mono">
+                        {inviteDetails.sharedSecret.slice(0, 8)}...
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )
-      })}
+              )}
+            </div>
+          )
+        })}
 
       <dialog ref={modalRef} className="modal" onClose={closeModal}>
         <div className="modal-box">
