@@ -13,7 +13,7 @@ import Icon from "@/shared/components/Icons/Icon"
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const RegisterDevice = () => {
-  const {isCurrentDeviceRegistered, registeredDevices, setSetupStatus} = useDevicesStore()
+  const {isCurrentDeviceRegistered, registeredDevices} = useDevicesStore()
   const [isRegistering, setIsRegistering] = useState(false)
   const isAtLimit = registeredDevices.length >= MAX_DR_DEVICES
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -59,7 +59,7 @@ const RegisterDevice = () => {
         const prepared = await prepareRegistration()
         await publishPreparedRegistration(prepared)
       }
-      setSetupStatus("registered")
+      
     } catch (err) {
       error("Failed to register device:", err)
     } finally {

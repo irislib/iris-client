@@ -1,21 +1,10 @@
 import {create} from "zustand"
 import type {DeviceEntry} from "nostr-double-ratchet/src"
 
-export type SetupStatus =
-  | "not_started"
-  | "initializing"
-  | "ready_to_register"
-  | "registered"
-
 interface DeviceState {
   identityPubkey: string | null
-  ownerPubkey: string | null
-  isActivated: boolean
   registeredDevices: DeviceEntry[]
   isCurrentDeviceRegistered: boolean
-  setupStatus: SetupStatus
-  setupError: string | null
-  onboardingDismissed: boolean
   appKeysManagerReady: boolean
   sessionManagerReady: boolean
   hasLocalAppKeys: boolean
@@ -24,27 +13,16 @@ interface DeviceState {
   canSendPrivateMessages: boolean
   // Actions
   setIdentityPubkey: (pubkey: string) => void
-  setOwnerPubkey: (pubkey: string) => void
-  setActivated: (activated: boolean) => void
   setRegisteredDevices: (devices: DeviceEntry[], timestamp?: number) => void
-  setSetupStatus: (status: SetupStatus) => void
-  setSetupError: (error: string | null) => void
-  setOnboardingDismissed: (dismissed: boolean) => void
   setAppKeysManagerReady: (ready: boolean) => void
   setSessionManagerReady: (ready: boolean) => void
   setHasLocalAppKeys: (has: boolean) => void
-  reset: () => void
 }
 
 const initialState = {
   identityPubkey: null,
-  ownerPubkey: null,
-  isActivated: false,
   registeredDevices: [],
   isCurrentDeviceRegistered: false,
-  setupStatus: "not_started" as SetupStatus,
-  setupError: null,
-  onboardingDismissed: false,
   appKeysManagerReady: false,
   sessionManagerReady: false,
   hasLocalAppKeys: false,
@@ -85,8 +63,6 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       ),
     })
   },
-  setOwnerPubkey: (pubkey: string) => set({ownerPubkey: pubkey}),
-  setActivated: (activated: boolean) => set({isActivated: activated}),
   setRegisteredDevices: (devices: DeviceEntry[], timestamp?: number) => {
     const {
       identityPubkey,
@@ -114,9 +90,6 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       ),
     })
   },
-  setSetupStatus: (status: SetupStatus) => set({setupStatus: status}),
-  setSetupError: (error: string | null) => set({setupError: error}),
-  setOnboardingDismissed: (dismissed: boolean) => set({onboardingDismissed: dismissed}),
   setAppKeysManagerReady: (ready: boolean) => {
     const {sessionManagerReady, hasLocalAppKeys, isCurrentDeviceRegistered} = get()
     set({
@@ -153,5 +126,4 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       ),
     })
   },
-  reset: () => set(initialState),
 }))
