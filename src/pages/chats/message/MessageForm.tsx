@@ -245,7 +245,7 @@ const MessageForm = ({
     !!(isPrivateOrGroupChat && !canSendPrivateMessages) || recipientNotSetup
 
   return (
-    <footer className="fixed md:sticky bottom-0 w-full pb-[env(safe-area-inset-bottom)] bg-base-200 relative">
+    <footer className="fixed md:sticky bottom-0 w-full bg-base-200 relative">
       {(isInitializing || needsSetup || recipientNotSetup) && (
         <div className="absolute bottom-full left-0 right-0 px-4 py-2 text-xs bg-base-200">
           {isInitializing && (
@@ -273,7 +273,7 @@ const MessageForm = ({
             setReplyingTo={setReplyingTo}
           />
         )}
-        <div className="flex gap-2 p-4 relative">
+        <div className="flex gap-2 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] relative">
           <MessageFormActionsMenu
             isOpen={showActionsMenu}
             onClose={() => setShowActionsMenu(false)}
