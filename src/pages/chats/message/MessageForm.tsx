@@ -280,8 +280,7 @@ const MessageForm = ({
             onToggle={() => setShowActionsMenu(!showActionsMenu)}
             onUpload={handleUpload}
             onCashuSend={() => setShowCashuSend(true)}
-            encrypt={!isPublicChat}
-            useHashtreeAttachments={isDM}
+            useHashtreeAttachments={!isPublicChat}
           />
 
           <CashuSendDialog

@@ -10,10 +10,8 @@ export type HashtreeUploadResult = {
 
 export async function processHashtreeFile(
   file: File,
-  onProgress?: (progress: number) => void,
-  _encrypt?: boolean
+  onProgress?: (progress: number) => void
 ): Promise<HashtreeUploadResult> {
-  void _encrypt
   const {nhash} = await uploadFile(file, (bytesUploaded, totalBytes) => {
     if (!onProgress) return
     const percent = Math.round((bytesUploaded / totalBytes) * 100)

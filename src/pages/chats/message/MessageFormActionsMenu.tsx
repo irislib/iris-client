@@ -1,4 +1,4 @@
-import {RiAddLine, RiAttachment2, RiLock2Line} from "@remixicon/react"
+import {RiAddLine, RiAttachment2} from "@remixicon/react"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import {processHashtreeFile} from "@/shared/upload/hashtree"
 import {useToastStore} from "@/stores/toast"
@@ -15,7 +15,6 @@ interface MessageFormActionsMenuProps {
     imetaTag?: string[]
   ) => void
   onCashuSend: () => void
-  encrypt: boolean
   useHashtreeAttachments?: boolean
 }
 
@@ -25,7 +24,6 @@ export default function MessageFormActionsMenu({
   onToggle,
   onUpload,
   onCashuSend,
-  encrypt,
   useHashtreeAttachments = false,
 }: MessageFormActionsMenuProps) {
   const {addToast} = useToastStore()
@@ -41,7 +39,6 @@ export default function MessageFormActionsMenu({
       addToast(`Upload failed: ${errorMsg}`, "error")
     },
     accept: useHashtreeAttachments ? "" : "image/*,video/*",
-    encrypt,
     processFile: useHashtreeAttachments ? processHashtreeFile : undefined,
   })
 
@@ -67,12 +64,7 @@ export default function MessageFormActionsMenu({
               className="w-full btn btn-ghost justify-start rounded-none hover:bg-base-300"
             >
               <div className="flex items-center gap-2">
-                <div className="relative">
-                  <RiAttachment2 size={18} />
-                  {encrypt && (
-                    <RiLock2Line size={10} className="absolute -bottom-1 -right-1" />
-                  )}
-                </div>
+                <RiAttachment2 size={18} />
                 <span>Attachment</span>
               </div>
             </button>

@@ -4,8 +4,7 @@ import type {EncryptionMeta} from "@/types/global"
 
 type FileProcessor = (
   file: File,
-  onProgress?: (progress: number) => void,
-  encrypt?: boolean
+  onProgress?: (progress: number) => void
 ) => Promise<{
   url: string
   metadata?: {width: number; height: number; blurhash: string}
@@ -22,7 +21,6 @@ interface UseFileUploadOptions {
   ) => void
   onError?: (error: Error) => void
   accept?: string
-  encrypt?: boolean
   processFile?: FileProcessor
 }
 
@@ -30,7 +28,6 @@ export function useFileUpload({
   onUpload,
   onError,
   accept = "image/*",
-  encrypt = false,
   processFile = defaultProcessFile,
 }: UseFileUploadOptions) {
   const [uploading, setUploading] = useState(false)
@@ -45,8 +42,7 @@ export function useFileUpload({
 
       const {url, metadata, encryptionMeta, imetaTag} = await processFile(
         file,
-        (progress: number) => setProgress(progress),
-        encrypt
+        (progress: number) => setProgress(progress)
       )
 
       onUpload(url, metadata, encryptionMeta, imetaTag)
