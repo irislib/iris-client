@@ -53,11 +53,12 @@ function Dropdown({children, onClose, position}: DropdownProps) {
     }
 
     window.addEventListener("keydown", onEscape)
-    window.addEventListener("click", onClickOutside, {capture: true})
+    // Use mousedown instead of click for better mobile support
+    window.addEventListener("mousedown", onClickOutside, {capture: true})
 
     return () => {
       window.removeEventListener("keydown", onEscape)
-      window.removeEventListener("click", onClickOutside, {capture: true})
+      window.removeEventListener("mousedown", onClickOutside, {capture: true})
     }
   }, [onClose])
 
