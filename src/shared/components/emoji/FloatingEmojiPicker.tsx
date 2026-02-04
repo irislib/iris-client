@@ -83,21 +83,37 @@ export const FloatingEmojiPicker = ({
   const getPositionClasses = () => {
     if (!isDesktop) return "bottom-20 fixed left-4 z-50"
 
-    // Determine horizontal alignment based on space check
-    const alignRight = shouldAlignLeft || position?.openRight
+    return "fixed z-50"
+  }
 
-    return classNames(
-      "md:absolute",
-      pickerDirection === "down" ? "md:top-full" : "md:top-0 md:-translate-y-full",
-      "z-50",
-      alignRight ? "md:right-0" : "md:left-0"
-    )
+  const getPositionStyles = (): React.CSSProperties => {
+    if (!isDesktop || !position?.clientY || !position?.clientX) return {}
+
+    const alignRight = shouldAlignLeft || position?.openRight
+    const style: React.CSSProperties = {}
+
+    // Vertical positioning
+    if (pickerDirection === "down") {
+      style.top = position.clientY
+    } else {
+      style.bottom = window.innerHeight - position.clientY
+    }
+
+    // Horizontal positioning
+    if (alignRight) {
+      style.right = window.innerWidth - position.clientX
+    } else {
+      style.left = position.clientX
+    }
+
+    return style
   }
 
   return (
     <div
       ref={pickerRef}
       className={classNames(getPositionClasses(), "pointer-events-auto", className)}
+      style={getPositionStyles()}
       onClick={(e) => e.stopPropagation()}
     >
       <Suspense fallback={<LoadingFallback />}>
