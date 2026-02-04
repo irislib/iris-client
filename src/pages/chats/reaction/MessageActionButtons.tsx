@@ -114,20 +114,16 @@ const MessageActionButtons = ({
         />
       </div>
 
-      {showReactionsPicker && (
-        <div className="absolute inset-0 pointer-events-none">
-          <FloatingEmojiPicker
-            isOpen={showReactionsPicker}
-            onClose={() => setShowReactionsPicker(false)}
-            onEmojiSelect={handleEmojiClick}
-            position={{
-              clientY: pickerPosition.clientY,
-              clientX: pickerPosition.clientX,
-              openRight: isUser,
-            }}
-          />
-        </div>
-      )}
+      <FloatingEmojiPicker
+        isOpen={showReactionsPicker}
+        onClose={() => setShowReactionsPicker(false)}
+        onEmojiSelect={handleEmojiClick}
+        position={{
+          clientY: pickerPosition.clientY,
+          clientX: pickerPosition.clientX,
+          openRight: isUser,
+        }}
+      />
 
       <MessageInfoModal
         isOpen={showInfoModal}
