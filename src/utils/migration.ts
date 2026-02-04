@@ -1,5 +1,6 @@
 import {KIND_CHANNEL_MESSAGE, DEBUG_NAMESPACES} from "@/utils/constants"
 import {usePublicChatsStore} from "@/stores/publicChats"
+import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "../stores/user"
 import {ndk} from "@/utils/ndk"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -41,6 +42,9 @@ const DEFAULT_PUBLIC_CHAT_ID =
   "1d2f13b495d7425b70298a8acd375897a632562043d461e89b63499363eaf8e7"
 
 export const migratePublicChats = async () => {
+  await useMessagesStore.getState().awaitHydration()
+  if (!useMessagesStore.getState().enablePublicChats) return
+
   const migrationKey = "publicChats:migrated"
 
   if (localStorage.getItem(migrationKey)) return
@@ -50,6 +54,7 @@ export const migratePublicChats = async () => {
 
   const store = usePublicChatsStore.getState()
   const myPubKey = useUserStore.getState().publicKey
+  if (!myPubKey) return
   const channelIds = new Set<string>([DEFAULT_PUBLIC_CHAT_ID])
 
   const events = await ndk()

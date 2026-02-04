@@ -8,6 +8,7 @@ type MessageDropdownProps = {
   sessionId: string
   isUser: boolean
   onInfoClick: () => void
+  messageContent?: string
 }
 
 export const MessageDropdown = ({
@@ -15,6 +16,7 @@ export const MessageDropdown = ({
   sessionId,
   isUser,
   onInfoClick,
+  messageContent,
 }: MessageDropdownProps) => {
   const [showDropdown, setShowDropdown] = useState(false)
   const [dropdownPosition, setDropdownPosition] = useState<{clientY?: number}>({})
@@ -35,6 +37,13 @@ export const MessageDropdown = ({
     const deleted = await deleteMessageLocally(messageId, sessionId)
     if (deleted) {
       // Close the dropdown if deletion was confirmed
+      setShowDropdown(false)
+    }
+  }
+
+  const handleCopy = () => {
+    if (messageContent) {
+      navigator.clipboard.writeText(messageContent)
       setShowDropdown(false)
     }
   }
@@ -64,6 +73,11 @@ export const MessageDropdown = ({
               <li>
                 <button onClick={handleInfoClick}>Info</button>
               </li>
+              {messageContent && (
+                <li>
+                  <button onClick={handleCopy}>Copy</button>
+                </li>
+              )}
               <li>
                 <button onClick={handleDeleteLocally} className="text-error">
                   Delete locally

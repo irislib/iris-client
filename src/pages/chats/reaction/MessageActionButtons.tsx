@@ -20,6 +20,7 @@ type MessageActionButtonsProps = {
   message?: {
     created_at?: number
     tags?: string[][]
+    content?: string
   }
 }
 
@@ -102,6 +103,7 @@ const MessageActionButtons = ({
           sessionId={sessionId}
           isUser={isUser}
           onInfoClick={handleInfoClick}
+          messageContent={message?.content}
         />
       </div>
 

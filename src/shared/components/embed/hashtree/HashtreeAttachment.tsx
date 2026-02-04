@@ -10,6 +10,7 @@ import {
   parseFileLink,
 } from "@/lib/hashtree"
 import Embed from "../index.ts"
+import MediaModal from "../../media/MediaModal"
 
 const HASHTREE_EMBED_REGEX = /(?:htree:\/\/)?(nhash1[a-z0-9]+\/[^\s]+)/gi
 
@@ -32,6 +33,7 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showModal, setShowModal] = useState(false)
 
   const loadMedia = useCallback(async () => {
     if (!parsed || !isMedia) return
@@ -117,7 +119,12 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
       {error && !loading && <div className="text-xs text-error">{error}</div>}
 
       {!loading && !error && isImage && mediaUrl && (
-        <img src={mediaUrl} alt={filename} className="max-w-full max-h-64 rounded-lg" />
+        <img
+          src={mediaUrl}
+          alt={filename}
+          className="max-w-full max-h-64 rounded-lg cursor-pointer"
+          onClick={() => setShowModal(true)}
+        />
       )}
 
       {!loading && !error && isVideo && mediaUrl && (
@@ -147,6 +154,15 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
           <RiDownload2Line size={16} />
           <span className="truncate max-w-xs">{filename}</span>
         </button>
+      )}
+
+      {showModal && isImage && mediaUrl && (
+        <MediaModal
+          onClose={() => setShowModal(false)}
+          mediaUrl={mediaUrl}
+          mediaType="image"
+          showFeedItem={false}
+        />
       )}
     </div>
   )

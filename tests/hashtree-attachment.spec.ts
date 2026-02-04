@@ -56,4 +56,47 @@ test.describe("Hashtree Attachment", () => {
     await expect(attachmentImage).toBeVisible({timeout: 30000})
     await expect(attachmentImage).toHaveAttribute("src", /blob:/)
   })
+
+  test("can open hashtree image in full size modal", async ({page}) => {
+    test.setTimeout(60000)
+    await signUp(page)
+    await setupChatWithSelf(page)
+
+    await page.getByTestId("chat-actions-toggle").last().click()
+
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByTestId("chat-attachment-button").last().click(),
+    ])
+
+    const fixturePath = fileURLToPath(new URL("fixtures/test-blob.jpeg", import.meta.url))
+    await fileChooser.setFiles(fixturePath)
+
+    const messageInput = page.getByPlaceholder("Message").last()
+    await expect(messageInput).toHaveValue(/nhash1/i, {timeout: 30000})
+
+    await messageInput.press("Enter")
+
+    const attachment = page.locator('[data-testid="hashtree-attachment"]').last()
+    await expect(attachment).toBeVisible({timeout: 30000})
+
+    const attachmentImage = attachment.locator("img")
+    await expect(attachmentImage).toBeVisible({timeout: 30000})
+
+    // Click the image to open modal
+    await attachmentImage.click()
+
+    // Verify modal is visible by checking for the dialog element
+    const modal = page.locator("dialog.modal")
+    await expect(modal).toBeVisible({timeout: 5000})
+
+    // Verify image is displayed in modal with full size
+    const modalImage = modal.locator("img").first()
+    await expect(modalImage).toBeVisible({timeout: 5000})
+    await expect(modalImage).toHaveClass(/max-w-full max-h-full/)
+
+    // Close modal by pressing Escape or clicking close button
+    await page.keyboard.press("Escape")
+    await expect(modal).not.toBeVisible({timeout: 5000})
+  })
 })

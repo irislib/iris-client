@@ -12,6 +12,7 @@ import {comparator} from "@/pages/chats/utils/messageGrouping"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {MessageType} from "@/pages/chats/message/Message"
 import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMessagingOnboardingPrompt"
+import {useMessagesStore} from "@/stores/messages"
 
 interface ChatListProps {
   className?: string
@@ -20,6 +21,7 @@ interface ChatListProps {
 const ChatList = ({className}: ChatListProps) => {
   const {publicChats, timestamps, addOrRefreshChatById} = usePublicChatsStore()
   const {groups} = useGroupsStore()
+  const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
 
   // Subscribe only to events Map keys (chat IDs) to minimize rerenders
   const events = usePrivateMessagesStore((state) => state.events)
@@ -50,6 +52,7 @@ const ChatList = ({className}: ChatListProps) => {
   )
 
   useEffect(() => {
+    if (!enablePublicChats) return
     Object.keys(publicChats).forEach((chatId) => {
       // Validate chatId is a 64-char hex string before fetching
       if (!/^[0-9a-f]{64}$/i.test(chatId)) {
@@ -62,7 +65,7 @@ const ChatList = ({className}: ChatListProps) => {
         addOrRefreshChatById(chatId)
       }
     })
-  }, [publicChats, addOrRefreshChatById])
+  }, [publicChats, addOrRefreshChatById, enablePublicChats])
 
   const latestForGroup = (id: string) => {
     const events = usePrivateMessagesStore.getState().events
@@ -90,9 +93,18 @@ const ChatList = ({className}: ChatListProps) => {
       [
         ...Object.values(groups).map((group) => ({id: group.id, type: "group"})),
         ...privateChatsList.map((chat) => ({id: chat.userPubKey, type: "private"})),
-        ...Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"})),
+        ...(enablePublicChats
+          ? Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"}))
+          : []),
       ].sort((a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type)),
-    [groups, privateChatsList, publicChats, timestamps, privateChatLatestTimestamps]
+    [
+      groups,
+      privateChatsList,
+      publicChats,
+      timestamps,
+      privateChatLatestTimestamps,
+      enablePublicChats,
+    ]
   )
 
   return (

@@ -8,10 +8,12 @@ import GroupChatCreation from "./group/GroupChatCreation"
 import DevicesTab from "./devices"
 import Header from "@/shared/components/header/Header"
 import PublicChannelCreateStep from "./public/PublicChannelCreateStep"
+import {useMessagesStore} from "@/stores/messages"
 
 const TabSelector = () => {
   const location = useLocation()
-  const isPublic = location.pathname.startsWith("/chats/new/public")
+  const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
+  const isPublic = enablePublicChats && location.pathname.startsWith("/chats/new/public")
   const isGroup = location.pathname.startsWith("/chats/new/group")
   const isDevices = location.pathname.startsWith("/chats/new/devices")
 
@@ -33,10 +35,12 @@ const TabSelector = () => {
         <RiTeamLine className="mr-2 w-4 h-4" />
         Group
       </Link>
-      <Link to="/chats/new/public" className={getClasses(isPublic)}>
-        <RiEarthLine className="mr-2 w-4 h-4" />
-        Public
-      </Link>
+      {enablePublicChats && (
+        <Link to="/chats/new/public" className={getClasses(isPublic)}>
+          <RiEarthLine className="mr-2 w-4 h-4" />
+          Public
+        </Link>
+      )}
       <Link to="/chats/new/devices" className={getClasses(isDevices)}>
         <RiComputerLine className="mr-2 w-4 h-4" />
         Devices
@@ -47,12 +51,13 @@ const TabSelector = () => {
 
 const NewChat = () => {
   const location = useLocation()
+  const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
 
   // Determine which component to show based on the path
   let content = null
-  if (location.pathname === "/chats/new/public/create") {
+  if (location.pathname === "/chats/new/public/create" && enablePublicChats) {
     content = <PublicChannelCreateStep />
-  } else if (location.pathname === "/chats/new/public") {
+  } else if (location.pathname === "/chats/new/public" && enablePublicChats) {
     content = <PublicChatCreation />
   } else if (location.pathname === "/chats/new/group") {
     content = <GroupChatCreation />

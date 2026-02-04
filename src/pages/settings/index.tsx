@@ -22,6 +22,7 @@ import {ReactElement} from "react"
 import Content from "./Content"
 import {isTauri} from "@/utils/utils"
 import LocalData from "./local/LocalData"
+import MessagesSettings from "./Messages"
 
 interface SettingsItem {
   icon: string | ReactElement
@@ -77,6 +78,12 @@ function Settings() {
           iconBg: "bg-yellow-500",
           message: "Content",
           path: "/settings/content",
+        },
+        {
+          icon: "message-chat-circle",
+          iconBg: "bg-orange-500",
+          message: "Messages",
+          path: "/settings/messages",
         },
         {
           icon: "bell-outline",
@@ -180,6 +187,7 @@ function Settings() {
       mediaservers: "Media Servers",
       "social-graph": "Social Graph",
       local: "Local",
+      messages: "Messages",
       notifications: "Notifications",
       system: "System",
     }
@@ -272,6 +280,8 @@ function Settings() {
                       return <IrisSettings />
                     case "content":
                       return <Content />
+                    case "messages":
+                      return <MessagesSettings />
                     case "wallet":
                       return <WalletSettings />
                     case "appearance":
