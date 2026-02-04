@@ -18,7 +18,7 @@ type Props = {
   isVideo?: boolean
 }
 
-const safeOrigins = ["data:image"]
+const safeOrigins = ["data:image", "blob:"]
 
 const shouldSkipProxy = (url: string) => {
   return safeOrigins.some((origin) => url.startsWith(origin))
@@ -51,7 +51,6 @@ const ProxyImg = (props: Props) => {
     const shouldUseProxy =
       imgproxy.enabled &&
       props.src &&
-      !props.src.startsWith("data:image") &&
       !hasProxyFailed &&
       (!shouldSkipProxy(props.src) || props.width)
 
@@ -155,10 +154,13 @@ const ProxyImg = (props: Props) => {
     return null
   }
 
+  // Use eager loading for blob and data URLs since they're already in memory
+  const loadingStrategy = shouldSkipProxy(src) ? "eager" : "lazy"
+
   return (
     <img
       ref={imgRef}
-      loading="lazy"
+      loading={loadingStrategy}
       src={src}
       onError={handleError}
       onClick={props.onClick}

@@ -7,12 +7,10 @@ import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import NewChat from "./NewChat"
 import GroupGroupRoutes from "./group"
-import {useMessagesStore} from "@/stores/messages"
 
 function Messages() {
   const location = useLocation()
   const isMessagesRoot = location.pathname === "/chats"
-  const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
 
   return (
     <div className="flex flex-1 h-full relative overflow-hidden">
@@ -55,14 +53,10 @@ function Messages() {
             return <GroupGroupRoutes />
           } else if (pathSegments[2] === "details") {
             // :id/details
-            return enablePublicChats ? <PublicChatDetails /> : <NewChat />
+            return <PublicChatDetails />
           } else if (subPath) {
             // :id - public chat
-            return enablePublicChats ? (
-              <PublicChat key={location.pathname} />
-            ) : (
-              <NewChat />
-            )
+            return <PublicChat key={location.pathname} />
           }
 
           return <NewChat />
