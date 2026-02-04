@@ -69,26 +69,26 @@ export const FloatingEmojiPicker = ({
   if (!isOpen || !emojiData) return null
 
   const getPositionClasses = () => {
-    if (!isDesktop) return "bottom-20 fixed left-4 z-10"
+    if (!isDesktop) return "bottom-20 fixed left-4 z-50"
 
     if (position?.openRight !== undefined) {
       return classNames(
         "md:absolute",
         pickerDirection === "down" ? "md:top-full" : "md:top-0 md:-translate-y-full",
-        "z-10",
+        "z-50",
         position.openRight ? "md:right-0" : "md:left-0"
       )
     }
 
     return pickerDirection === "down"
-      ? "md:absolute md:left-0 md:top-full z-10"
-      : "md:absolute md:left-0 md:top-0 md:-translate-y-full z-10"
+      ? "md:absolute md:left-0 md:top-full z-50"
+      : "md:absolute md:left-0 md:top-0 md:-translate-y-full z-50"
   }
 
   return (
     <div
       ref={pickerRef}
-      className={classNames(getPositionClasses(), className)}
+      className={classNames(getPositionClasses(), "pointer-events-auto", className)}
       onClick={(e) => e.stopPropagation()}
     >
       <Suspense fallback={<LoadingFallback />}>
