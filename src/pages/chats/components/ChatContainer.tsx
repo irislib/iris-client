@@ -10,6 +10,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {KIND_REACTION} from "@/utils/constants"
 import {getEventHash} from "nostr-tools"
 import ReverseVirtualScroll from "@/shared/components/ui/ReverseVirtualScroll"
+import {formatDayLabel} from "@/utils/utils"
 
 interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
@@ -248,21 +249,21 @@ const ChatContainer = ({
                 </div>
               )}
               {messageGroups.map((group, index) => {
-                const groupDate = new Date(
-                  getMillisecondTimestamp(group[0])
-                ).toDateString()
-                const prevGroupDate =
-                  index > 0
-                    ? new Date(
-                        getMillisecondTimestamp(messageGroups[index - 1][0])
-                      ).toDateString()
-                    : null
+                const groupTimestamp = getMillisecondTimestamp(group[0])
+                const groupDate = formatDayLabel(groupTimestamp)
+                const prevGroupTimestamp =
+                  index > 0 ? getMillisecondTimestamp(messageGroups[index - 1][0]) : null
+                const prevGroupDate = prevGroupTimestamp
+                  ? formatDayLabel(prevGroupTimestamp)
+                  : null
 
                 return (
                   <div key={index} className="mb-6">
                     {(!prevGroupDate || groupDate !== prevGroupDate) && (
-                      <div className="text-xs text-base-content/50 text-center mb-4">
-                        {groupDate}
+                      <div className="sticky top-0 z-10 flex justify-center py-2 mb-2 pointer-events-none">
+                        <span className="px-3 py-1 rounded-full text-xs text-base-content/70 bg-base-200/80 backdrop-blur-md shadow-sm pointer-events-auto">
+                          {groupDate}
+                        </span>
                       </div>
                     )}
                     <div className="flex flex-col gap-[2px]">

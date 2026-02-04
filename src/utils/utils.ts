@@ -105,3 +105,23 @@ export const truncateMiddle = (str: string, startChars = 12, endChars = 12) => {
   if (str.length <= startChars + endChars) return str
   return `${str.slice(0, startChars)}...${str.slice(-endChars)}`
 }
+
+export function formatDayLabel(timestamp: number, now = new Date()): string {
+  const date = new Date(timestamp)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round(
+    (today.getTime() - messageDay.getTime()) / (1000 * 60 * 60 * 24)
+  )
+
+  if (diffDays === 0) return "Today"
+  if (diffDays === 1) return "Yesterday"
+  if (diffDays < 7) return date.toLocaleDateString(undefined, {weekday: "long"})
+
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  })
+}
