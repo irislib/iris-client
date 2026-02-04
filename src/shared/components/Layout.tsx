@@ -247,7 +247,7 @@ const Layout = ({children}: {children: ReactNode}) => {
 
   return (
     <div
-      className={`relative flex flex-col w-full h-screen overflow-hidden ${appearance.limitedMaxWidth ? "max-w-screen-2xl mx-auto" : ""}`}
+      className={`relative flex flex-col w-full h-full overflow-hidden ${appearance.limitedMaxWidth ? "max-w-screen-2xl mx-auto" : ""}`}
     >
       <div
         className="flex relative flex-1 overflow-hidden min-w-0 w-full"
