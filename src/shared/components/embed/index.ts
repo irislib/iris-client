@@ -32,6 +32,7 @@ import Nip19 from "./nostr/Nip19.tsx"
 import Hashtag from "./Hashtag.tsx"
 import Audio from "./Audio.tsx"
 import Url from "./Url.tsx"
+import HashtreeAttachment from "./hashtree/HashtreeAttachment.tsx"
 
 export type EmbedEvent = NDKEvent | Rumor
 
@@ -54,6 +55,7 @@ type Embed = {
 
 export const allEmbeds = [
   Audio,
+  HashtreeAttachment,
   EncryptedUrl,
   MediaEmbed,
   YouTube,
@@ -115,6 +117,7 @@ export const hasMedia = (e: {content: string}) => {
 }
 
 export const smallEmbeds = [
+  HashtreeAttachment,
   EncryptedUrl,
   CashuPaymentRequest,
   CashuToken,

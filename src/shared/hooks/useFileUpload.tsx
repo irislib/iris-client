@@ -1,6 +1,17 @@
 import {useState} from "react"
-import {processFile} from "@/shared/upload"
+import {processFile as defaultProcessFile} from "@/shared/upload"
 import type {EncryptionMeta} from "@/types/global"
+
+type FileProcessor = (
+  file: File,
+  onProgress?: (progress: number) => void,
+  encrypt?: boolean
+) => Promise<{
+  url: string
+  metadata?: {width: number; height: number; blurhash: string}
+  encryptionMeta?: EncryptionMeta
+  imetaTag?: string[]
+}>
 
 interface UseFileUploadOptions {
   onUpload: (
@@ -12,6 +23,7 @@ interface UseFileUploadOptions {
   onError?: (error: Error) => void
   accept?: string
   encrypt?: boolean
+  processFile?: FileProcessor
 }
 
 export function useFileUpload({
@@ -19,6 +31,7 @@ export function useFileUpload({
   onError,
   accept = "image/*",
   encrypt = false,
+  processFile = defaultProcessFile,
 }: UseFileUploadOptions) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)

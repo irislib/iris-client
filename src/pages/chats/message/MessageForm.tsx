@@ -281,6 +281,7 @@ const MessageForm = ({
             onUpload={handleUpload}
             onCashuSend={() => setShowCashuSend(true)}
             encrypt={!isPublicChat}
+            useHashtreeAttachments={isDM}
           />
 
           <CashuSendDialog

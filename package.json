@@ -73,6 +73,7 @@
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@gandlaf21/bc-ur": "^1.1.12",
+    "@hashtree/core": "^0.1.1",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@remixicon/react": "^4.6.0",
