@@ -19,12 +19,18 @@ export const MessageDropdown = ({
   messageContent,
 }: MessageDropdownProps) => {
   const [showDropdown, setShowDropdown] = useState(false)
-  const [dropdownPosition, setDropdownPosition] = useState<{clientY?: number}>({})
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    clientY?: number
+    clientX?: number
+  }>({})
   const {deleteMessageLocally} = useMessageDeletion()
 
   const handleMoreClick = (e: MouseEvent) => {
     const buttonRect = e.currentTarget.getBoundingClientRect()
-    setDropdownPosition({clientY: buttonRect.top})
+    setDropdownPosition({
+      clientY: buttonRect.top,
+      clientX: buttonRect.right,
+    })
     setShowDropdown(!showDropdown)
   }
 
@@ -66,6 +72,7 @@ export const MessageDropdown = ({
             onClose={() => setShowDropdown(false)}
             position={{
               clientY: dropdownPosition.clientY,
+              clientX: dropdownPosition.clientX,
               alignRight: isUser,
             }}
           >

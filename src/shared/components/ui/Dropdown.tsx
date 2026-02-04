@@ -6,20 +6,36 @@ type DropdownProps = {
   onClose: () => void
   position?: {
     clientY?: number
+    clientX?: number
     alignRight?: boolean
   }
 }
 
 function Dropdown({children, onClose, position}: DropdownProps) {
-  // Calculate direction immediately based on position prop
+  // Calculate direction based on available space (iris-chat approach)
   const getDirection = () => {
     if (position?.clientY && typeof window !== "undefined") {
-      return position.clientY < window.innerHeight / 2 ? "down" : "up"
+      const spaceAbove = position.clientY
+      const spaceBelow = window.innerHeight - position.clientY
+      // Prefer opening toward the roomier side, require minimum buffer above
+      const shouldOpenUp = spaceAbove > 180 && spaceAbove >= spaceBelow
+      return shouldOpenUp ? "up" : "down"
     }
     return "down"
   }
 
+  // Check if dropdown should align left to prevent overflow
+  const shouldAlignLeft = () => {
+    if (position?.clientX && typeof window !== "undefined") {
+      const spaceRight = window.innerWidth - position.clientX
+      // Need ~140px for dropdown menu
+      return spaceRight < 140
+    }
+    return false
+  }
+
   const direction = getDirection()
+  const alignLeft = shouldAlignLeft()
 
   useEffect(() => {
     const onEscape = (e: KeyboardEvent) => {
@@ -47,7 +63,9 @@ function Dropdown({children, onClose, position}: DropdownProps) {
 
   const getPositionClasses = () => {
     const baseClasses = "dropdown dropdown-open dropdown-container z-50"
-    const alignClass = position?.alignRight ? "dropdown-end" : "dropdown-left"
+    // Use alignLeft if space is tight on the right, otherwise respect alignRight prop
+    const alignClass =
+      alignLeft || (position?.alignRight && !alignLeft) ? "dropdown-end" : "dropdown-left"
     const directionClass = direction === "up" ? "dropdown-top" : "dropdown-bottom"
 
     return classNames(baseClasses, alignClass, directionClass)
