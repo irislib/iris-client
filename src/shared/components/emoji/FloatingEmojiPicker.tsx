@@ -12,6 +12,7 @@ interface FloatingEmojiPickerProps {
   onEmojiSelect: (emoji: EmojiType) => void
   position?: {
     clientY?: number
+    clientX?: number
     openRight?: boolean
   }
   className?: string
@@ -26,6 +27,7 @@ export const FloatingEmojiPicker = ({
 }: FloatingEmojiPickerProps) => {
   const [emojiData, setEmojiData] = useState<Record<string, unknown> | null>(null)
   const [pickerDirection, setPickerDirection] = useState("up")
+  const [shouldAlignLeft, setShouldAlignLeft] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768
 
@@ -38,14 +40,24 @@ export const FloatingEmojiPicker = ({
   }, [isOpen, emojiData])
 
   useEffect(() => {
-    if (isOpen && position?.clientY && isDesktop) {
-      const spaceAbove = position.clientY
-      const spaceBelow = window.innerHeight - position.clientY
-      // Prefer opening toward the roomier side, require minimum buffer above
-      const shouldOpenUp = spaceAbove > 180 && spaceAbove >= spaceBelow
-      setPickerDirection(shouldOpenUp ? "up" : "down")
+    if (isOpen && isDesktop) {
+      // Check vertical direction
+      if (position?.clientY) {
+        const spaceAbove = position.clientY
+        const spaceBelow = window.innerHeight - position.clientY
+        // Prefer opening toward the roomier side, require minimum buffer above
+        const shouldOpenUp = spaceAbove > 180 && spaceAbove >= spaceBelow
+        setPickerDirection(shouldOpenUp ? "up" : "down")
+      }
+
+      // Check horizontal direction
+      if (position?.clientX) {
+        const spaceRight = window.innerWidth - position.clientX
+        // Emoji picker needs ~350px width
+        setShouldAlignLeft(spaceRight < 350)
+      }
     }
-  }, [isOpen, isDesktop, position?.clientY])
+  }, [isOpen, isDesktop, position?.clientY, position?.clientX])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -71,18 +83,15 @@ export const FloatingEmojiPicker = ({
   const getPositionClasses = () => {
     if (!isDesktop) return "bottom-20 fixed left-4 z-50"
 
-    if (position?.openRight !== undefined) {
-      return classNames(
-        "md:absolute",
-        pickerDirection === "down" ? "md:top-full" : "md:top-0 md:-translate-y-full",
-        "z-50",
-        position.openRight ? "md:right-0" : "md:left-0"
-      )
-    }
+    // Determine horizontal alignment based on space check
+    const alignRight = shouldAlignLeft || position?.openRight
 
-    return pickerDirection === "down"
-      ? "md:absolute md:left-0 md:top-full z-50"
-      : "md:absolute md:left-0 md:top-0 md:-translate-y-full z-50"
+    return classNames(
+      "md:absolute",
+      pickerDirection === "down" ? "md:top-full" : "md:top-0 md:-translate-y-full",
+      "z-50",
+      alignRight ? "md:right-0" : "md:left-0"
+    )
   }
 
   return (

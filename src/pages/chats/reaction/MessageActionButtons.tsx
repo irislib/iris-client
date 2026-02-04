@@ -43,12 +43,18 @@ const MessageActionButtons = ({
     log("TEMP: sendMessage called but not implemented", sessionId, event)
   }
   const [showReactionsPicker, setShowReactionsPicker] = useState(false)
-  const [pickerPosition, setPickerPosition] = useState<{clientY?: number}>({})
+  const [pickerPosition, setPickerPosition] = useState<{
+    clientY?: number
+    clientX?: number
+  }>({})
   const [showInfoModal, setShowInfoModal] = useState(false)
 
   const handleReactionClick = (e: MouseEvent) => {
     const buttonRect = e.currentTarget.getBoundingClientRect()
-    setPickerPosition({clientY: buttonRect.top})
+    setPickerPosition({
+      clientY: buttonRect.top,
+      clientX: buttonRect.right,
+    })
     setShowReactionsPicker(!showReactionsPicker)
   }
 
@@ -114,7 +120,11 @@ const MessageActionButtons = ({
             isOpen={showReactionsPicker}
             onClose={() => setShowReactionsPicker(false)}
             onEmojiSelect={handleEmojiClick}
-            position={{clientY: pickerPosition.clientY, openRight: isUser}}
+            position={{
+              clientY: pickerPosition.clientY,
+              clientX: pickerPosition.clientX,
+              openRight: isUser,
+            }}
           />
         </div>
       )}
