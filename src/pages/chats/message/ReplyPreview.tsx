@@ -81,6 +81,9 @@ const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
 
   if (!repliedToMessage) return null
 
+  // Use ownerPubkey if available (for DMs), otherwise use pubkey
+  const authorPubkey = repliedToMessage.ownerPubkey ?? repliedToMessage.pubkey
+
   return (
     <div
       className={classNames(
@@ -90,11 +93,7 @@ const ReplyPreview = ({isUser, sessionId, replyToId}: ReplyPreviewProps) => {
       onClick={handleScrollToReply}
     >
       <div className="font-semibold">
-        {repliedToMessage.pubkey === myPublicKey ? (
-          "You"
-        ) : (
-          <Name pubKey={repliedToMessage.pubkey} />
-        )}{" "}
+        {authorPubkey === myPublicKey ? "You" : <Name pubKey={authorPubkey} />}{" "}
       </div>
       <div className="truncate max-w-[225px]">{repliedToMessage.content}</div>
     </div>
