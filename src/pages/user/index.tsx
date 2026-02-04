@@ -233,7 +233,7 @@ function UserPage({pubKey}: {pubKey: string}) {
 
   return (
     <div className="flex justify-center flex-1 relative h-full">
-      <div className="flex-1 flex flex-col h-full relative">
+      <div className="flex-1 flex flex-col h-full relative min-w-0 overflow-hidden">
         <Header
           rightContent={
             <div className="flex items-center gap-2">
