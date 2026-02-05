@@ -3,7 +3,7 @@ import Header from "@/shared/components/header/Header"
 import ChatListItem from "./ChatListItem"
 import {NavLink} from "@/navigation"
 import classNames from "classnames"
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {RiChatNewLine} from "@remixicon/react"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -13,6 +13,8 @@ import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {MessageType} from "@/pages/chats/message/Message"
 import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMessagingOnboardingPrompt"
 import {useMessagesStore} from "@/stores/messages"
+import {useUserStore} from "@/stores/user"
+import {useFollowsFromGraph} from "@/utils/socialGraph"
 
 interface ChatListProps {
   className?: string
@@ -22,9 +24,14 @@ const ChatList = ({className}: ChatListProps) => {
   const {publicChats, timestamps, addOrRefreshChatById} = usePublicChatsStore()
   const {groups} = useGroupsStore()
   const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
+  const myPubKey = useUserStore((state) => state.publicKey)
+  const myFollows = useFollowsFromGraph(myPubKey, false)
+  const [activeTab, setActiveTab] = useState<"all" | "requests">("all")
 
   // Subscribe only to events Map keys (chat IDs) to minimize rerenders
   const events = usePrivateMessagesStore((state) => state.events)
+
+  const followsSet = useMemo(() => new Set(myFollows), [myFollows])
 
   const privateChatLatestTimestamps = useMemo(() => {
     const latestMap = new Map<string, number>()
@@ -50,6 +57,37 @@ const ChatList = ({className}: ChatListProps) => {
       ),
     [privateChatLatestTimestamps]
   )
+
+  const privateChatSections = useMemo(() => {
+    const all: Array<{id: string; type: "private"}> = []
+    const requests: Array<{id: string; type: "private"}> = []
+
+    // "Accepted" = we follow them OR we've already sent at least one message.
+    for (const {userPubKey} of privateChatsList) {
+      const isFollowed = followsSet.has(userPubKey)
+      let hasSent = false
+      if (!isFollowed && myPubKey) {
+        const messageMap = events.get(userPubKey)
+        if (messageMap) {
+          for (const msg of messageMap.values()) {
+            const owner = msg.ownerPubkey ?? msg.pubkey
+            if (owner === myPubKey) {
+              hasSent = true
+              break
+            }
+          }
+        }
+      }
+
+      if (isFollowed || hasSent) {
+        all.push({id: userPubKey, type: "private"})
+      } else {
+        requests.push({id: userPubKey, type: "private"})
+      }
+    }
+
+    return {all, requests}
+  }, [privateChatsList, followsSet, events, myPubKey])
 
   useEffect(() => {
     if (!enablePublicChats) return
@@ -87,25 +125,31 @@ const ChatList = ({className}: ChatListProps) => {
     return privateChatLatestTimestamps.get(id) || 0
   }
 
-  // Get private chats from chats store
-  const allChatItems = useMemo(
-    () =>
-      [
-        ...Object.values(groups).map((group) => ({id: group.id, type: "group"})),
-        ...privateChatsList.map((chat) => ({id: chat.userPubKey, type: "private"})),
-        ...(enablePublicChats
-          ? Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"}))
-          : []),
-      ].sort((a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type)),
-    [
-      groups,
-      privateChatsList,
-      publicChats,
-      timestamps,
-      privateChatLatestTimestamps,
-      enablePublicChats,
-    ]
-  )
+  const requestCount = privateChatSections.requests.length
+
+  const chatItems = useMemo(() => {
+    if (activeTab === "requests") {
+      return [...privateChatSections.requests].sort(
+        (a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type)
+      )
+    }
+
+    return [
+      ...Object.values(groups).map((group) => ({id: group.id, type: "group"})),
+      ...privateChatSections.all,
+      ...(enablePublicChats
+        ? Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"}))
+        : []),
+    ].sort((a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type))
+  }, [activeTab, groups, privateChatSections, enablePublicChats, publicChats, timestamps, privateChatLatestTimestamps])
+
+  const tabButtonClasses = (isActive: boolean) =>
+    classNames(
+      "flex-1 cursor-pointer flex items-center justify-center gap-2 p-3 text-sm font-semibold border-b border-custom",
+      isActive
+        ? "border-b-2 border-highlight text-base-content"
+        : "text-base-content/70 hover:text-base-content border-b-2 border-transparent"
+    )
 
   return (
     <nav className={classNames("flex flex-col h-full", className)}>
@@ -130,7 +174,26 @@ const ChatList = ({className}: ChatListProps) => {
               <span className="text-base font-semibold">New Chat</span>
             </div>
           </NavLink>
-          {allChatItems.map(({id, type}) => (
+          <div className="flex">
+            <button
+              type="button"
+              className={tabButtonClasses(activeTab === "all")}
+              onClick={() => setActiveTab("all")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={tabButtonClasses(activeTab === "requests")}
+              onClick={() => setActiveTab("requests")}
+            >
+              Requests
+              {requestCount > 0 && (
+                <span className="badge badge-primary badge-sm">{requestCount}</span>
+              )}
+            </button>
+          </div>
+          {chatItems.map(({id, type}) => (
             <ChatListItem key={id} id={id} isPublic={type === "public"} type={type} />
           ))}
         </div>

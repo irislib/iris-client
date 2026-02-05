@@ -149,6 +149,19 @@ export const attachSessionEventListener = () => {
           }
 
           const isMine = effectiveOwner === publicKey
+          const isChatAccepted =
+            // Followed users go straight to "All".
+            getSocialGraph().isFollowing(publicKey, chatId) ||
+            // Treat chats we've already sent to as accepted (request has been "accepted").
+            (() => {
+              const messageMap = usePrivateMessagesStore.getState().events.get(chatId)
+              if (!messageMap) return false
+              for (const msg of messageMap.values()) {
+                const owner = msg.ownerPubkey ?? msg.pubkey
+                if (owner === publicKey) return true
+              }
+              return false
+            })()
           const existingMessage = usePrivateMessagesStore
             .getState()
             .events.get(chatId)
@@ -156,9 +169,11 @@ export const attachSessionEventListener = () => {
           const existingStatus = existingMessage?.status
           const nextStatus =
             !isMine && !isReaction
-              ? existingStatus === "seen"
-                ? "seen"
-                : "delivered"
+              ? isChatAccepted
+                ? existingStatus === "seen"
+                  ? "seen"
+                  : "delivered"
+                : existingStatus
               : existingStatus
 
           void usePrivateMessagesStore
@@ -170,7 +185,7 @@ export const attachSessionEventListener = () => {
             })
 
           const {sendDeliveryReceipts} = useMessagesStore.getState()
-          if (!isMine && !isReaction && sendDeliveryReceipts) {
+          if (!isMine && !isReaction && sendDeliveryReceipts && isChatAccepted) {
             sessionManager.sendReceipt(from, "delivered", [event.id]).catch(() => {})
           }
         })

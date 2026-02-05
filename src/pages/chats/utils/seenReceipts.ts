@@ -22,6 +22,7 @@ export function markMessagesSeenAndMaybeSendReceipt({
   updateMessage,
   sessionManager,
   sendReadReceipts,
+  isChatAccepted,
 }: {
   chatId: string
   messages: Iterable<MessageType>
@@ -29,7 +30,10 @@ export function markMessagesSeenAndMaybeSendReceipt({
   updateMessage: UpdateMessageFn
   sessionManager: ReceiptSender
   sendReadReceipts: boolean
+  isChatAccepted: boolean
 }): string[] {
+  if (!isChatAccepted) return []
+
   const toAck: string[] = []
   for (const message of messages) {
     const owner = message.ownerPubkey ?? message.pubkey

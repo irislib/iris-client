@@ -7,6 +7,37 @@ const MY_PUBKEY = "a".repeat(64)
 const THEIR_PUBKEY = "b".repeat(64)
 
 describe("markMessagesSeenAndMaybeSendReceipt", () => {
+  it("does not mark messages seen or send receipts when the chat is not accepted", () => {
+    const updateMessage = vi.fn().mockResolvedValue(undefined)
+    const sessionManager = {sendReceipt: vi.fn().mockResolvedValue(undefined)}
+
+    const messages: MessageType[] = [
+      {
+        id: "m1",
+        pubkey: THEIR_PUBKEY,
+        ownerPubkey: THEIR_PUBKEY,
+        content: "hi",
+        kind: 14,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      } as any,
+    ]
+
+    const acked = markMessagesSeenAndMaybeSendReceipt({
+      chatId: THEIR_PUBKEY,
+      messages,
+      myPubKey: MY_PUBKEY,
+      updateMessage,
+      sessionManager,
+      sendReadReceipts: true,
+      isChatAccepted: false,
+    })
+
+    expect(acked).toEqual([])
+    expect(updateMessage).not.toHaveBeenCalled()
+    expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
+  })
+
   it("marks incoming messages as seen but does not send when read receipts are disabled", () => {
     const updateMessage = vi.fn().mockResolvedValue(undefined)
     const sessionManager = {sendReceipt: vi.fn().mockResolvedValue(undefined)}
@@ -49,6 +80,7 @@ describe("markMessagesSeenAndMaybeSendReceipt", () => {
       updateMessage,
       sessionManager,
       sendReadReceipts: false,
+      isChatAccepted: true,
     })
 
     expect(acked).toEqual(["m1"])
@@ -79,10 +111,10 @@ describe("markMessagesSeenAndMaybeSendReceipt", () => {
       updateMessage,
       sessionManager,
       sendReadReceipts: true,
+      isChatAccepted: true,
     })
 
     expect(acked).toEqual(["m1"])
     expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "seen", ["m1"])
   })
 })
-

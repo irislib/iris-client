@@ -14,6 +14,7 @@ import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
+import {useIsFollowing} from "@/utils/socialGraph"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -22,6 +23,9 @@ const Chat = ({id}: {id: string}) => {
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
   const isTopOfStack = useIsTopOfStack()
   const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
+  const myPubKey = useUserStore((state) => state.publicKey)
+  const isFollowing = useIsFollowing(myPubKey, id)
+  const isChatAccepted = isFollowing || haveSent
 
   // Allow messaging regardless of session state - sessions will be created automatically
 
@@ -39,7 +43,6 @@ const Chat = ({id}: {id: string}) => {
     if (!id || !isTopOfStack) return
     const sessionManager = getSessionManager()
     if (!sessionManager) return
-    const myPubKey = useUserStore.getState().publicKey
     if (!myPubKey) return
 
     const messageMap = usePrivateMessagesStore.getState().events.get(id)
@@ -53,8 +56,9 @@ const Chat = ({id}: {id: string}) => {
       updateMessage: store.updateMessage,
       sessionManager,
       sendReadReceipts,
+      isChatAccepted,
     })
-  }, [id, isTopOfStack, sendReadReceipts])
+  }, [id, isTopOfStack, myPubKey, sendReadReceipts, isChatAccepted])
 
   const markChatOpened = useCallback(() => {
     if (!id || !isTopOfStack) return
