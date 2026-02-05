@@ -106,7 +106,7 @@ importers:
         version: 4.2.1
       nostr-double-ratchet:
         specifier: 0.0.54
-        version: link:../nostr-double-ratchet/ts
+        version: 0.0.54(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -2893,6 +2893,7 @@ packages:
   glob@11.1.0:
     resolution: {integrity: sha512-vuNwKSaKiqm7g0THUBu2x7ckSs3XJLXE+2ssL7/MfTGPLLcrJQ/4Uq1CjPTtO5cCIiRxqvN6Twy1qOwhL0Xjcw==}
     engines: {node: 20 || >=22}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   glob@7.2.3:
@@ -3496,6 +3497,9 @@ packages:
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
+
+  nostr-double-ratchet@0.0.54:
+    resolution: {integrity: sha512-1N8/L4QqJnIUupqiGTPwxDdJCUcIDl6PE3fv8GwYL+SSPta0SGB+0doNPBGEHs9WIJvqy6Aunxbhm26kLxeatw==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -8459,6 +8463,12 @@ snapshots:
       vm-browserify: 1.1.2
 
   normalize-path@3.0.0: {}
+
+  nostr-double-ratchet@0.0.54(typescript@5.9.3):
+    dependencies:
+      nostr-tools: 2.19.4(typescript@5.9.3)
+    transitivePeerDependencies:
+      - typescript
 
   nostr-social-graph@1.0.33:
     dependencies:
