@@ -7,6 +7,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
 import {getSessionManager} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useTypingStore} from "@/stores/typingIndicators"
 import {KIND_REACTION} from "@/utils/constants"
 import {getEventHash} from "nostr-tools"
 import ReverseVirtualScroll from "@/shared/components/ui/ReverseVirtualScroll"
@@ -50,6 +51,9 @@ const ChatContainer = ({
   const resizeObserverRef = useRef<ResizeObserver | null>(null)
   const lastHeightRef = useRef(0)
   const hasInitiallyScrolledRef = useRef(false)
+  const typingActive = useTypingStore((state) =>
+    !isPublicChat && !groupId ? state.isTyping.get(sessionId) ?? false : false
+  )
 
   // Create windowed messages - show last N messages
   const visibleMessages = useMemo(() => {
@@ -287,6 +291,24 @@ const ChatContainer = ({
               })}
             </ReverseVirtualScroll>
           </>
+        )}
+        {typingActive && (
+          <div className="flex items-end gap-2 mt-1">
+            <div className="bg-base-200 rounded-2xl rounded-bl-sm px-3 py-2 flex items-center gap-1">
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-base-content/50 animate-bounce"
+                style={{animationDelay: "0ms"}}
+              />
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-base-content/50 animate-bounce"
+                style={{animationDelay: "150ms"}}
+              />
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-base-content/50 animate-bounce"
+                style={{animationDelay: "300ms"}}
+              />
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>

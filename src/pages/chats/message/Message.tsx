@@ -1,4 +1,4 @@
-import {getMillisecondTimestamp, Rumor} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp, Rumor, type ReceiptType} from "nostr-double-ratchet/src"
 import MessageActionButtons from "../reaction/MessageActionButtons"
 import MessageReactions from "../reaction/MessageReactions"
 import {Avatar} from "@/shared/components/user/Avatar"
@@ -16,12 +16,14 @@ import {KIND_CHANNEL_CREATE, KIND_REACTION} from "@/utils/constants"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {isOnlyEmoji} from "@/utils/textFormatting"
 import {useUserStore} from "@/stores/user"
+import MessageStatus from "./MessageStatus"
 
 export type MessageType = Rumor & {
   reactions?: Record<string, string>
   nostrEventId?: string
   sentToRelays?: boolean
   ownerPubkey?: string
+  status?: ReceiptType
 }
 
 type MessageProps = {
@@ -230,6 +232,7 @@ const Message = ({
               {isLast && (
                 <div className="flex items-center gap-1 ml-2">
                   <p className="text-xs opacity-50 whitespace-nowrap">{formattedTime}</p>
+                  {isUser && <MessageStatus status={message.status} />}
                 </div>
               )}
             </div>

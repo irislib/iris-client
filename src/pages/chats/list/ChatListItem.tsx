@@ -15,6 +15,8 @@ import {useEffect, useState, useMemo, useRef} from "react"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
 import {useGroupsStore} from "@/stores/groups"
+import {useTypingStore} from "@/stores/typingIndicators"
+import MessageStatus from "../message/MessageStatus"
 
 interface ChatListItemProps {
   id: string
@@ -50,6 +52,9 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   const myPubKey = useUserStore((state) => state.publicKey)
   const {groups} = useGroupsStore()
   const group = groups[id]
+  const typingActive = useTypingStore(
+    (state) => (type === "private" ? state.isTyping.get(id) ?? false : false)
+  )
 
   // Memoize latest message to prevent flash when other chats update
   const actualLatest = useMemo(() => {
@@ -153,6 +158,11 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
 
     return ""
   }, [isPublic, latestMessage, actualLatest, myPubKey])
+
+  const lastPrivateMessage = type === "private" ? (actualLatest as MessageType | undefined) : undefined
+  const lastPrivateIsMine =
+    !!lastPrivateMessage &&
+    (lastPrivateMessage.ownerPubkey ?? lastPrivateMessage.pubkey) === myPubKey
 
   // Avatar rendering
   let avatar
@@ -286,7 +296,7 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
             </span>
             <div className="flex flex-col gap-2">
               {(isPublic ? latestMessage?.created_at : actualLatest?.created_at) && (
-                <span className="text-sm text-base-content/70 ml-2">
+                <span className="text-sm text-base-content/70 ml-2 flex items-center gap-1">
                   <RelativeTime
                     from={(() => {
                       if (isPublic && latestMessage?.created_at) {
@@ -296,13 +306,20 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
                       }
                     })()}
                   />
+                  {lastPrivateIsMine && (
+                    <MessageStatus status={lastPrivateMessage?.status} className="w-3.5 h-3.5" />
+                  )}
                 </span>
               )}
             </div>
           </div>
           <div className="flex flex-row items-center justify-between gap-2">
             <span className="text-sm text-base-content/70 min-h-[1.25rem]">
-              {previewContent}
+              {typingActive ? (
+                <span className="text-primary">typing...</span>
+              ) : (
+                previewContent
+              )}
             </span>
             {unreadBadge}
           </div>

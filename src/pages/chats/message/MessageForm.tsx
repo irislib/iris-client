@@ -2,6 +2,7 @@ import {
   FormEvent,
   useState,
   useEffect,
+  useMemo,
   ChangeEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from "react"
@@ -23,6 +24,7 @@ import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
+import {createTypingThrottle} from "@/stores/typingIndicators"
 
 interface MessageFormProps {
   id: string
@@ -57,6 +59,17 @@ const MessageForm = ({
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showCashuSend, setShowCashuSend] = useState(false)
   const textareaRef = useAutosizeTextarea(newMessage)
+  const isDM = !isPublicChat && !groupId
+  const typingThrottle = useMemo(
+    () =>
+      createTypingThrottle(() => {
+        if (!isDM) return
+        const sessionManager = getSessionManager()
+        if (!sessionManager) return
+        sessionManager.sendTyping(id).catch(() => {})
+      }, 3000),
+    [id, isDM]
+  )
 
   useEffect(() => {
     if (!isTouchDevice && textareaRef.current) {
@@ -86,6 +99,7 @@ const MessageForm = ({
     if (!text) return
 
     setNewMessage("")
+    typingThrottle.reset()
     if (replyingTo) {
       setReplyingTo(undefined)
     }
@@ -149,7 +163,11 @@ const MessageForm = ({
   }
 
   const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    setNewMessage(e.target.value)
+    const value = e.target.value
+    setNewMessage(value)
+    if (isDM && value.trim().length > 0) {
+      typingThrottle.fire()
+    }
   }
 
   const handleKeyDown = (e: ReactKeyboardEvent<HTMLTextAreaElement>) => {
@@ -231,7 +249,6 @@ const MessageForm = ({
   }
 
   // Check if recipient has app keys (only for DMs, not group chats)
-  const isDM = !isPublicChat && !groupId
   const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(isDM ? id : undefined)
 
   // For private/group chats, check if device is registered

@@ -32,10 +32,39 @@ const Chat = ({id}: {id: string}) => {
     ? getMillisecondTimestamp(lastMessage)
     : undefined
 
+  const sendSeenReceipts = useCallback(() => {
+    if (!id || !isTopOfStack) return
+    const sessionManager = getSessionManager()
+    if (!sessionManager) return
+    const myPubKey = useUserStore.getState().publicKey
+    if (!myPubKey) return
+
+    const messageMap = usePrivateMessagesStore.getState().events.get(id)
+    if (!messageMap) return
+
+    const toAck: string[] = []
+    for (const [, message] of messageMap.entries()) {
+      const owner = message.ownerPubkey ?? message.pubkey
+      if (owner === myPubKey) continue
+      if (message.status === "seen") continue
+      toAck.push(message.id)
+    }
+
+    if (toAck.length === 0) return
+
+    const store = usePrivateMessagesStore.getState()
+    for (const messageId of toAck) {
+      void store.updateMessage(id, messageId, {status: "seen"})
+    }
+
+    sessionManager.sendReceipt(id, "seen", toAck).catch(() => {})
+  }, [id, isTopOfStack])
+
   const markChatOpened = useCallback(() => {
     if (!id || !isTopOfStack) return
     markOpened(id)
-  }, [id, markOpened, isTopOfStack])
+    sendSeenReceipts()
+  }, [id, markOpened, isTopOfStack, sendSeenReceipts])
 
   useEffect(() => {
     if (!id) {
@@ -85,6 +114,11 @@ const Chat = ({id}: {id: string}) => {
     if (!id || lastMessageTimestamp === undefined || !isTopOfStack) return
     markOpened(id)
   }, [id, lastMessageTimestamp, markOpened, isTopOfStack])
+
+  useEffect(() => {
+    if (!id || !isTopOfStack) return
+    sendSeenReceipts()
+  }, [id, isTopOfStack, messages.size, sendSeenReceipts])
 
   const handleSendReaction = async (messageId: string, emoji: string) => {
     const myPubKey = useUserStore.getState().publicKey

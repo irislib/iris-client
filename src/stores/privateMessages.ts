@@ -98,9 +98,19 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
           return state
         }
 
+        const existingMessage = state.events.get(chatId)?.get(event.id)
+        const mergedMessage = existingMessage
+          ? {
+              ...existingMessage,
+              ...event,
+              reactions: event.reactions ?? existingMessage.reactions,
+              status: event.status ?? existingMessage.status,
+            }
+          : event
+
         // Regular message - add to chat
         return {
-          events: addToMap(new Map(state.events), chatId, event),
+          events: addToMap(new Map(state.events), chatId, mergedMessage),
         }
       })
 

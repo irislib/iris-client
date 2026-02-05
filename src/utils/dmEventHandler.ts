@@ -3,13 +3,20 @@ import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
+import {useTypingStore} from "@/stores/typingIndicators"
 import {getTag} from "./tagUtils"
-import {KIND_CHANNEL_CREATE} from "./constants"
+import {KIND_CHANNEL_CREATE, KIND_CHAT_MESSAGE, KIND_REACTION} from "./constants"
 import {isTauri} from "./utils"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {isOwnDeviceEvent} from "@/utils/sessionRouting"
+import {
+  getMillisecondTimestamp,
+  isTyping,
+  parseReceipt,
+  shouldAdvanceReceiptStatus,
+} from "nostr-double-ratchet/src"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -47,13 +54,6 @@ export const attachSessionEventListener = () => {
           // Block events from muted users
           const mutedUsers = getSocialGraph().getMutedByUser(publicKey)
           if (!isOwnDevice && mutedUsers.has(effectiveOwner)) return
-
-          // Trigger desktop notification for DMs if on desktop
-          if (isTauri() && !isOwnDevice && event.pubkey !== publicKey) {
-            import("./desktopNotifications").then(({handleDMEvent}) => {
-              handleDMEvent(event, effectiveOwner).catch(console.error)
-            })
-          }
 
           // Check if it's a group creation event
           const lTag = getTag("l", event.tags)
@@ -102,9 +102,75 @@ export const attachSessionEventListener = () => {
 
           if (!from || !to) return
 
+          const chatId = from === publicKey ? to : from
+          const receipt = parseReceipt(event)
+          if (receipt) {
+            const {events, updateMessage} = usePrivateMessagesStore.getState()
+            const messageMap = events.get(chatId)
+            if (!messageMap) return
+            for (const messageId of receipt.messageIds) {
+              const existing = messageMap.get(messageId)
+              if (!existing) continue
+              const owner = existing.ownerPubkey ?? existing.pubkey
+              if (owner !== publicKey) continue
+              if (!shouldAdvanceReceiptStatus(existing.status, receipt.type)) continue
+              void updateMessage(chatId, messageId, {status: receipt.type})
+            }
+            return
+          }
+
+          if (isTyping(event)) {
+            if (!isOwnDevice) {
+              useTypingStore
+                .getState()
+                .setRemoteTyping(chatId, getMillisecondTimestamp(event))
+            }
+            return
+          }
+
+          // Trigger desktop notification for DMs if on desktop
+          if (
+            isTauri() &&
+            !isOwnDevice &&
+            event.pubkey !== publicKey &&
+            event.kind === KIND_CHAT_MESSAGE
+          ) {
+            import("./desktopNotifications").then(({handleDMEvent}) => {
+              handleDMEvent(event, effectiveOwner).catch(console.error)
+            })
+          }
+
+          const isReaction = event.kind === KIND_REACTION
+          if (!isReaction) {
+            useTypingStore
+              .getState()
+              .clearRemoteTyping(chatId, getMillisecondTimestamp(event))
+          }
+
+          const isMine = effectiveOwner === publicKey
+          const existingMessage = usePrivateMessagesStore
+            .getState()
+            .events.get(chatId)
+            ?.get(event.id)
+          const existingStatus = existingMessage?.status
+          const nextStatus =
+            !isMine && !isReaction
+              ? existingStatus === "seen"
+                ? "seen"
+                : "delivered"
+              : existingStatus
+
           void usePrivateMessagesStore
             .getState()
-            .upsert(from, to, {...event, ownerPubkey: effectiveOwner})
+            .upsert(from, to, {
+              ...event,
+              ownerPubkey: effectiveOwner,
+              ...(nextStatus ? {status: nextStatus} : {}),
+            })
+
+          if (!isMine && !isReaction) {
+            sessionManager.sendReceipt(from, "delivered", [event.id]).catch(() => {})
+          }
         })
       })
       .catch((err) => {
