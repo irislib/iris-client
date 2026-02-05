@@ -1,4 +1,4 @@
-import {useState} from "react"
+import {useEffect, useRef, useState} from "react"
 import Modal from "@/shared/components/ui/Modal"
 import QRScanner from "@/shared/components/QRScanner"
 import {useUserStore} from "@/stores/user"
@@ -31,9 +31,11 @@ const parseLinkInvite = (input: string, ownerPubkey: string): Invite | null => {
   for (const url of candidates) {
     try {
       const invite = Invite.fromUrl(url)
-      const isLink = invite.purpose === "link" || !!invite.ownerPubkey
+      const purpose = (invite as {purpose?: string}).purpose
+      const owner = (invite as {ownerPubkey?: string}).ownerPubkey
+      const isLink = purpose ? purpose === "link" : true
       if (!isLink) continue
-      if (invite.ownerPubkey && invite.ownerPubkey !== ownerPubkey) {
+      if (owner && owner !== ownerPubkey) {
         continue
       }
       return invite
@@ -55,12 +57,14 @@ const LinkDeviceInvite = () => {
     "idle"
   )
   const [errorMessage, setErrorMessage] = useState("")
+  const lastAutoAttemptRef = useRef<string>("")
 
   const resetState = () => {
     setLinkInput("")
     setShowScanner(false)
     setStatus("idle")
     setErrorMessage("")
+    lastAutoAttemptRef.current = ""
   }
 
   const closeModal = () => {
@@ -113,6 +117,19 @@ const LinkDeviceInvite = () => {
     void handleAccept(result)
   }
 
+  useEffect(() => {
+    if (!publicKey) return
+    if (!linkInput) return
+    if (status !== "idle") return
+    if (linkInput === lastAutoAttemptRef.current) return
+
+    const invite = parseLinkInvite(linkInput, publicKey)
+    if (!invite) return
+
+    lastAutoAttemptRef.current = linkInput
+    void handleAccept(linkInput)
+  }, [linkInput, publicKey, status])
+
   if (!publicKey || isLinkedDevice) {
     return null
   }
@@ -146,7 +163,13 @@ const LinkDeviceInvite = () => {
                   className="input input-bordered w-full text-center"
                   placeholder="Paste link invite"
                   value={linkInput}
-                  onChange={(e) => setLinkInput(e.target.value)}
+                  onChange={(e) => {
+                    setLinkInput(e.target.value)
+                    if (status === "error") {
+                      setStatus("idle")
+                      setErrorMessage("")
+                    }
+                  }}
                   disabled={status === "accepting"}
                 />
                 <button
