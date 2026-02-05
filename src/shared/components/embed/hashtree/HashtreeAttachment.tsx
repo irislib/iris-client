@@ -1,5 +1,5 @@
 import {RiDownload2Line} from "@remixicon/react"
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import {
   downloadFile,
   getMediaUrl,
@@ -9,6 +9,7 @@ import {
   isVideoFile,
   parseFileLink,
 } from "@/lib/hashtree"
+import {useSettingsStore} from "@/stores/settings"
 import Embed from "../index.ts"
 import MediaModal from "../../media/MediaModal"
 
@@ -19,6 +20,7 @@ type HashtreeAttachmentEmbedProps = {
 }
 
 const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
+  const {content} = useSettingsStore()
   const parsed = useMemo(() => parseFileLink(match), [match])
   const filename = parsed?.filename ?? ""
   const nhash = parsed?.nhash ?? ""
@@ -29,6 +31,9 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
   const isMedia = isImage || isVideo || isAudio
   const mimeType = useMemo(() => getMimeType(filename), [filename])
   const shouldAutoLoad = isImage
+
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [isMuted, setIsMuted] = useState(content.autoplayVideos)
 
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -89,6 +94,34 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
     }
   }, [mediaUrl])
 
+  // Pause videos when they leave the viewport (and autoplay/pause when autoplay is enabled),
+  // matching normal video embed behavior.
+  useEffect(() => {
+    if (!isVideo || !mediaUrl || !videoRef.current) return
+
+    const video = videoRef.current
+
+    const handleIntersection = (entries: IntersectionObserverEntry[]) => {
+      const entry = entries[0]
+
+      if (entry?.isIntersecting) {
+        if (content.autoplayVideos) {
+          video.play().catch(() => {})
+        }
+      } else {
+        video.pause()
+      }
+    }
+
+    const observer = new IntersectionObserver(handleIntersection, {threshold: 0.33})
+    observer.observe(video)
+
+    return () => {
+      observer.unobserve(video)
+      observer.disconnect()
+    }
+  }, [content.autoplayVideos, isVideo, mediaUrl])
+
   const handleDownload = useCallback(async () => {
     if (!parsed) return
     try {
@@ -129,9 +162,17 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
 
       {!loading && !error && isVideo && mediaUrl && (
         <video
+          ref={videoRef}
           src={mediaUrl}
           controls={true}
           className="max-w-full max-h-64 rounded-lg"
+          muted={isMuted}
+          autoPlay={content.autoplayVideos}
+          playsInline
+          onVolumeChange={(e) => {
+            const video = e.target as HTMLVideoElement
+            setIsMuted(video.muted)
+          }}
         />
       )}
 

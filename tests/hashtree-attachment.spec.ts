@@ -98,4 +98,75 @@ test.describe("Hashtree Attachment", () => {
     await page.keyboard.press("Escape")
     await expect(modal).not.toBeVisible({timeout: 5000})
   })
+
+  test("pauses hashtree videos when scrolled out of view", async ({page}) => {
+    test.setTimeout(90000)
+    await page.setViewportSize({width: 1280, height: 500})
+
+    await signUp(page)
+    await setupChatWithSelf(page)
+
+    await page.getByTestId("chat-actions-toggle").last().click()
+
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent("filechooser"),
+      page.getByTestId("chat-attachment-button").last().click(),
+    ])
+
+    const fixturePath = fileURLToPath(new URL("fixtures/test-blob.mp4", import.meta.url))
+    await fileChooser.setFiles(fixturePath)
+
+    const messageInput = page.getByPlaceholder("Message").last()
+    await expect(messageInput).toHaveValue(/nhash1/i, {timeout: 30000})
+    await messageInput.press("Enter")
+
+    const attachment = page.locator('[data-testid="hashtree-attachment"]').last()
+    await expect(attachment).toBeVisible({timeout: 30000})
+
+    // Video is not auto-loaded, so load it explicitly.
+    await attachment.getByRole("button", {name: /Load .*\.mp4/}).click()
+
+    const attachmentVideo = attachment.locator("video")
+    await expect(attachmentVideo).toBeVisible({timeout: 30000})
+    await expect(attachmentVideo).toHaveAttribute("src", /blob:/)
+
+    // Start playback (muted to satisfy autoplay policies in headless Chrome).
+    await attachmentVideo.evaluate(async (video) => {
+      video.muted = true
+      await video.play().catch(() => {})
+    })
+
+    await expect
+      .poll(() => attachmentVideo.evaluate((v) => v.paused), {timeout: 5000})
+      .toBe(false)
+    await expect
+      .poll(() => attachmentVideo.evaluate((v) => v.currentTime), {timeout: 5000})
+      .toBeGreaterThan(0)
+
+    // Create enough content to make the chat scroll, then scroll away from the video.
+    const filler = Array.from({length: 200}, (_, i) => `filler ${i}`).join("\n")
+    await messageInput.fill(filler)
+    await messageInput.press("Enter")
+
+    const chatScrollContainer = page.locator("[data-header-scroll-target]").last()
+    await chatScrollContainer.evaluate((el: HTMLElement) => {
+      el.scrollTop = 0
+    })
+
+    await expect
+      .poll(
+        () =>
+          attachmentVideo.evaluate((v) => {
+            const r = v.getBoundingClientRect()
+            return r.top > window.innerHeight || r.bottom < 0
+          }),
+        {timeout: 15000}
+      )
+      .toBe(true)
+
+    // Once it's out of view, it should pause.
+    await expect
+      .poll(() => attachmentVideo.evaluate((v) => v.paused), {timeout: 15000})
+      .toBe(true)
+  })
 })
