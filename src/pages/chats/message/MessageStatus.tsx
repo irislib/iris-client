@@ -9,10 +9,12 @@ type MessageStatusProps = {
 
 const MessageStatus = ({status, className}: MessageStatusProps) => {
   if (status === "seen") {
-    return <RiCheckDoubleLine className={classNames("w-4 h-4 text-primary/80", className)} />
+    // Inherit parent text color so this stays visible on our message bubble (`bg-primary`).
+    return <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-80", className)} />
   }
   if (status === "delivered") {
-    return <RiCheckLine className={classNames("w-4 h-4 text-base-content/50", className)} />
+    // Inherit parent text color so this works in both chat list and message bubble contexts.
+    return <RiCheckLine className={classNames("w-4 h-4 opacity-50", className)} />
   }
   return null
 }
