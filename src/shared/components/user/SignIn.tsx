@@ -7,13 +7,15 @@ import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
 import {NSEC_NPUB_REGEX, HEX_REGEX} from "@/utils/validation"
+import Icon from "@/shared/components/Icons/Icon"
 
 interface SignInProps {
   onClose: () => void
+  onLink?: () => void
 }
 
-export default function SignIn({onClose}: SignInProps) {
-  const {setNip07Login, setPublicKey, setPrivateKey} = useUserStore()
+export default function SignIn({onClose, onLink}: SignInProps) {
+  const {setNip07Login, setPublicKey, setPrivateKey, setLinkedDevice} = useUserStore()
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
@@ -29,6 +31,7 @@ export default function SignIn({onClose}: SignInProps) {
           const publicKey = decoded.data as string
           setPublicKey(publicKey)
           setPrivateKey("") // No private key for view-only mode
+          setLinkedDevice(false)
           setShowLoginDialog(false)
           onClose()
         }
@@ -41,6 +44,7 @@ export default function SignIn({onClose}: SignInProps) {
           const publicKey = getPublicKey(bytes)
           setPrivateKey(hex)
           setPublicKey(publicKey)
+          setLinkedDevice(false)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -55,6 +59,7 @@ export default function SignIn({onClose}: SignInProps) {
           const publicKey = getPublicKey(bytes)
           setPrivateKey(hex)
           setPublicKey(publicKey)
+          setLinkedDevice(false)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -70,6 +75,7 @@ export default function SignIn({onClose}: SignInProps) {
         const publicKey = await window.nostr.getPublicKey()
         setPublicKey(publicKey)
         setNip07Login(true)
+        setLinkedDevice(false)
         setShowLoginDialog(false)
         onClose()
       } catch (error) {
@@ -123,6 +129,15 @@ export default function SignIn({onClose}: SignInProps) {
         <span className="hover:underline">Don&apos;t have an account?</span>
         <button className="btn btn-sm btn-neutral">Sign up</button>
       </div>
+      {onLink && (
+        <button
+          className="btn btn-sm btn-ghost w-full flex items-center justify-center gap-2"
+          onClick={onLink}
+        >
+          <Icon name="qr" size={16} />
+          Link this device
+        </button>
+      )}
     </div>
   )
 }

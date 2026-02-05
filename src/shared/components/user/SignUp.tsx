@@ -6,12 +6,14 @@ import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {ndk} from "@/utils/ndk"
 import {NSEC_NPUB_REGEX} from "@/utils/validation"
+import Icon from "@/shared/components/Icons/Icon"
 
 interface SignUpProps {
   onClose: () => void
+  onLink?: () => void
 }
 
-export default function SignUp({onClose}: SignUpProps) {
+export default function SignUp({onClose, onLink}: SignUpProps) {
   const [newUserName, setNewUserName] = useState("")
   const {setShowLoginDialog} = useUIStore()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -37,6 +39,7 @@ export default function SignUp({onClose}: SignUpProps) {
           setState({
             publicKey,
             privateKey: "", // No private key for view-only mode
+            linkedDevice: false,
           })
           setShowLoginDialog(false)
           onClose()
@@ -55,6 +58,7 @@ export default function SignUp({onClose}: SignUpProps) {
           setState({
             privateKey: privateKeyHex,
             publicKey,
+            linkedDevice: false,
           })
 
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
@@ -92,6 +96,7 @@ export default function SignUp({onClose}: SignUpProps) {
       privateKey: privateKeyHex,
       publicKey: pk,
       walletConnect: true,
+      linkedDevice: false,
     })
 
     // Keep these for backward compatibility
@@ -146,6 +151,15 @@ export default function SignUp({onClose}: SignUpProps) {
         <span className="hover:underline">Already have an account?</span>
         <button className="btn btn-sm btn-neutral">Sign in</button>
       </div>
+      {onLink && (
+        <button
+          className="btn btn-sm btn-ghost w-full flex items-center justify-center gap-2"
+          onClick={onLink}
+        >
+          <Icon name="qr" size={16} />
+          Link this device
+        </button>
+      )}
     </div>
   )
 }
