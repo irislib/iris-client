@@ -25,6 +25,7 @@ interface UserState {
   privateKey: string
 
   nip07Login: boolean
+  linkedDevice: boolean
 
   DHTPublicKey: string
   DHTPrivateKey: string
@@ -52,6 +53,7 @@ interface UserState {
   setPublicKey: (publicKey: string) => void
   setPrivateKey: (privateKey: string) => void
   setNip07Login: (nip07Login: boolean) => void
+  setLinkedDevice: (linkedDevice: boolean) => void
   setDHTPublicKey: (DHTPublicKey: string) => void
   setDHTPrivateKey: (DHTPrivateKey: string) => void
   setRelays: (relays: string[]) => void
@@ -91,6 +93,7 @@ export const useUserStore = create<UserState>()(
         publicKey: "",
         privateKey: "",
         nip07Login: false,
+        linkedDevice: false,
         DHTPublicKey: "",
         DHTPrivateKey: "",
         relays: DEFAULT_RELAYS,
@@ -117,6 +120,7 @@ export const useUserStore = create<UserState>()(
         setPublicKey: (publicKey: string) => set({publicKey}),
         setPrivateKey: (privateKey: string) => set({privateKey}),
         setNip07Login: (nip07Login: boolean) => set({nip07Login}),
+        setLinkedDevice: (linkedDevice: boolean) => set({linkedDevice}),
         setDHTPublicKey: (DHTPublicKey: string) => set({DHTPublicKey}),
         setDHTPrivateKey: (DHTPrivateKey: string) => set({DHTPrivateKey}),
         setRelays: (relays: string[]) => {

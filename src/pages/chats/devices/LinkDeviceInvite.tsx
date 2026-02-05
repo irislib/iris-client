@@ -12,6 +12,25 @@ import {Invite} from "nostr-double-ratchet/src"
 
 const LINK_INVITE_ROOT = "https://iris.to"
 
+const parseInvitePayload = (
+  url: string
+): {purpose?: string; owner?: string} | null => {
+  try {
+    const parsed = new URL(url)
+    const rawHash = parsed.hash.slice(1)
+    if (!rawHash) return null
+    const decoded = decodeURIComponent(rawHash)
+    const data = JSON.parse(decoded) as Record<string, unknown>
+    if (!data || typeof data !== "object") return null
+    return {
+      purpose: typeof data.purpose === "string" ? data.purpose : undefined,
+      owner: typeof data.owner === "string" ? data.owner : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 const parseLinkInvite = (input: string, ownerPubkey: string): Invite | null => {
   const trimmed = input.trim()
   if (!trimmed) return null
@@ -30,14 +49,10 @@ const parseLinkInvite = (input: string, ownerPubkey: string): Invite | null => {
 
   for (const url of candidates) {
     try {
+      const payload = parseInvitePayload(url)
+      if (payload?.purpose && payload.purpose !== "link") continue
+      if (payload?.owner && payload.owner !== ownerPubkey) continue
       const invite = Invite.fromUrl(url)
-      const purpose = (invite as {purpose?: string}).purpose
-      const owner = (invite as {ownerPubkey?: string}).ownerPubkey
-      const isLink = purpose ? purpose === "link" : true
-      if (!isLink) continue
-      if (owner && owner !== ownerPubkey) {
-        continue
-      }
       return invite
     } catch {
       // try next

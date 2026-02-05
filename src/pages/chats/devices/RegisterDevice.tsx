@@ -1,5 +1,6 @@
 import {useState, useRef, useEffect} from "react"
 import {useDevicesStore} from "@/stores/devices"
+import {useUserStore} from "@/stores/user"
 import {
   prepareRegistration,
   publishPreparedRegistration,
@@ -14,6 +15,7 @@ const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const RegisterDevice = () => {
   const {isCurrentDeviceRegistered, registeredDevices} = useDevicesStore()
+  const isLinkedDevice = useUserStore((s) => s.linkedDevice)
   const [isRegistering, setIsRegistering] = useState(false)
   const isAtLimit = registeredDevices.length >= MAX_DR_DEVICES
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -67,7 +69,7 @@ const RegisterDevice = () => {
     }
   }
 
-  if (isCurrentDeviceRegistered) {
+  if (isCurrentDeviceRegistered || isLinkedDevice) {
     return null
   }
 

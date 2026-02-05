@@ -3,6 +3,7 @@ import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {
   createLinkInvite,
+  buildLinkInviteUrl,
   listenForLinkInviteAcceptance,
 } from "@/shared/services/PrivateChats"
 import {ndk} from "@/utils/ndk"
@@ -54,7 +55,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
         const invite = await createLinkInvite()
         if (!active) return
 
-        const url = invite.getUrl(getInviteBaseUrl())
+        const url = buildLinkInviteUrl(invite, getInviteBaseUrl())
         setInviteUrl(url)
 
         unsubscribeRef.current = listenForLinkInviteAcceptance(
@@ -173,12 +174,12 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
             Copied
           </span>
           <span
-            className={`flex items-center justify-center gap-2 transition-opacity ${
+            className={`flex items-center justify-center gap-2 min-w-0 transition-opacity ${
               copied ? "opacity-0" : "opacity-100"
             }`}
           >
             <Icon name="copy" size={16} />
-            <span className="truncate">{truncateMiddle(inviteUrl, 48)}</span>
+            <span className="truncate min-w-0">{truncateMiddle(inviteUrl, 48)}</span>
           </span>
         </button>
       )}

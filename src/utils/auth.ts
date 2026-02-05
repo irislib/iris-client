@@ -6,8 +6,8 @@ import {ndk} from "@/utils/ndk"
  * Returns true if user has private key or NIP-07 extension
  */
 export function hasWriteAccess(): boolean {
-  const {privateKey, nip07Login} = useUserStore.getState()
-  return !!(privateKey || nip07Login)
+  const {privateKey, nip07Login, linkedDevice} = useUserStore.getState()
+  return !!(privateKey || nip07Login || linkedDevice)
 }
 
 /**

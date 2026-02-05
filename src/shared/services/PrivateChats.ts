@@ -687,9 +687,28 @@ export const createLinkInvite = async (): Promise<Invite> => {
     throw new Error("DelegateManager not initialized")
   }
   const devicePubkey = delegateManager.getIdentityPublicKey()
-  return Invite.createNew(devicePubkey, undefined, undefined, {
+  const invite = Invite.createNew(devicePubkey)
+  ;(invite as Invite & { purpose?: string }).purpose = "link"
+  return invite
+}
+
+export const buildLinkInviteUrl = (
+  invite: Invite,
+  root: string,
+  ownerPubkey?: string
+): string => {
+  const data: Record<string, string> = {
+    inviter: invite.inviter,
+    ephemeralKey: invite.inviterEphemeralPublicKey,
+    sharedSecret: invite.sharedSecret,
     purpose: "link",
-  })
+  }
+  if (ownerPubkey) {
+    data.owner = ownerPubkey
+  }
+  const url = new URL(root)
+  url.hash = encodeURIComponent(JSON.stringify(data))
+  return url.toString()
 }
 
 /**
