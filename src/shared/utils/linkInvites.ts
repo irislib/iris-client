@@ -1,4 +1,4 @@
-import {Invite} from "nostr-double-ratchet/dist/nostr-double-ratchet.es.js"
+import {Invite} from "nostr-double-ratchet/src"
 
 const DEFAULT_LINK_INVITE_ROOTS = ["https://iris.to", "https://chat.iris.to"]
 

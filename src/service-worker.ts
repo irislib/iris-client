@@ -3,9 +3,6 @@ import {
   INVITE_EVENT_KIND,
   INVITE_RESPONSE_KIND,
   MESSAGE_EVENT_KIND,
-  deserializeSessionState,
-  Session,
-  Rumor,
 } from "nostr-double-ratchet/src"
 import {PROFILE_AVATAR_WIDTH, EVENT_AVATAR_WIDTH} from "./shared/components/user/const"
 import {CacheFirst, StaleWhileRevalidate, NetworkOnly} from "workbox-strategies"
@@ -21,6 +18,7 @@ import {KIND_CHANNEL_CREATE} from "./utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import NDKCacheAdapterDexie from "@/lib/ndk-cache"
+import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -275,162 +273,7 @@ const NOTIFICATION_CONFIGS: Record<
   },
 } as const
 
-type DecryptResult =
-  | {
-      success: false
-    }
-  | {
-      success: true
-      kind: number
-      content: string
-      sessionId: string
-      userPublicKey: string
-    }
-
-const SESSION_STORAGE = localforage.createInstance({
-  name: "iris-session-manager",
-  storeName: "session-private",
-})
-
-const SESSION_STORAGE_PREFIX = "private"
-const USER_RECORD_PREFIX = "v1/user/"
-
-interface StoredSessionEntry {
-  name: string
-  state: string
-}
-
-interface StoredDeviceRecord {
-  deviceId: string
-  activeSession: StoredSessionEntry | null
-  inactiveSessions: StoredSessionEntry[]
-  staleAt?: number
-}
-
-interface StoredUserRecord {
-  publicKey: string
-  devices: StoredDeviceRecord[]
-}
-
-interface StoredSessionState {
-  sessionId: string
-  serializedState: string
-  userPublicKey: string
-}
-
-const fetchStoredSessions = async (): Promise<StoredSessionState[]> => {
-  try {
-    const keys = await SESSION_STORAGE.keys()
-    const userRecordKeys = keys.filter((key) =>
-      key.startsWith(`${SESSION_STORAGE_PREFIX}${USER_RECORD_PREFIX}`)
-    )
-
-    const userRecords = await Promise.all(
-      userRecordKeys.map((key) => SESSION_STORAGE.getItem<StoredUserRecord>(key))
-    ).then((userRecords) =>
-      userRecords.filter((ur): ur is StoredUserRecord => ur !== null)
-    )
-
-    const sessions: StoredSessionState[] = userRecords.flatMap((record) =>
-      record.devices
-        .filter((device) => device.staleAt === undefined)
-        .flatMap((device) => {
-          const sessions = device.activeSession
-            ? [device.activeSession, ...device.inactiveSessions]
-            : device.inactiveSessions
-
-          return sessions.map((entry) => ({
-            sessionId: record.publicKey,
-            serializedState: entry.state,
-            userPublicKey: record.publicKey,
-          }))
-        })
-    )
-
-    return sessions
-  } catch (error) {
-    return []
-  }
-}
-
-const tryDecryptPrivateDM = async (data: PushData): Promise<DecryptResult> => {
-  try {
-    const sessionEntries = await fetchStoredSessions()
-
-    const matchingSession = sessionEntries.find(({serializedState}) => {
-      try {
-        const state = deserializeSessionState(serializedState)
-        return (
-          state.theirCurrentNostrPublicKey === data.event.pubkey ||
-          state.theirNextNostrPublicKey === data.event.pubkey
-        )
-      } catch (error) {
-        return false
-      }
-    })
-
-    if (!matchingSession) {
-      return {
-        success: false,
-      }
-    }
-
-    const state = deserializeSessionState(matchingSession.serializedState)
-    const {sessionId, userPublicKey} = matchingSession
-
-    const eventForSession: VerifiedEvent = {
-      ...(data.event as unknown as VerifiedEvent),
-      tags: data.event.tags.filter(([key]) => key === "header"),
-    }
-
-    let deliverToSession: ((event: VerifiedEvent) => void) | undefined
-    const session = new Session((_, onEvent) => {
-      deliverToSession = onEvent
-      return () => {
-        deliverToSession = undefined
-      }
-    }, state)
-
-    let unsubscribe: (() => void) | undefined
-    const innerEvent = await new Promise<Rumor | null>((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve(null)
-      }, 1500)
-      unsubscribe = session.onEvent((event) => {
-        clearTimeout(timeout)
-        resolve(event)
-      })
-      if (deliverToSession) {
-        // Deliver encrypted event after subscription wiring to avoid race
-        deliverToSession(eventForSession)
-      } else {
-        error("DM decrypt: session transport not ready to receive event", {
-          sessionId,
-          eventId: data.event.id,
-        })
-      }
-    })
-
-    unsubscribe?.()
-
-    return innerEvent === null
-      ? {
-          success: false,
-        }
-      : {
-          success: true,
-          kind: innerEvent.kind,
-          content: innerEvent.content,
-          sessionId,
-          userPublicKey,
-        }
-  } catch (err) {
-    error("DM decrypt: failed", err)
-  }
-  return {
-    success: false,
-  }
-}
+const SESSION_STORAGE = createSessionStorage()
 
 async function getDisplayName(pubkey: string): Promise<string> {
   try {
@@ -462,8 +305,12 @@ self.addEventListener("push", (event) => {
       if (!data?.event) return
 
       if (data.event.kind === MESSAGE_EVENT_KIND) {
-        const result = await tryDecryptPrivateDM(data)
+        const result = await tryDecryptDmPushEvent(data.event as unknown as VerifiedEvent, {
+          storage: SESSION_STORAGE,
+          timeoutMs: 500,
+        })
         if (result.success) {
+          if (result.silent) return
           if (result.kind === KIND_CHANNEL_CREATE) {
             const config = NOTIFICATION_CONFIGS[MESSAGE_EVENT_KIND]
             await self.registration.showNotification("New group invite", {
