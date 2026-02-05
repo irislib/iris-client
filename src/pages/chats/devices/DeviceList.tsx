@@ -8,7 +8,6 @@ import {
 } from "@remixicon/react"
 import {
   republishInvite,
-  getInviteDetails,
   prepareRevocation,
   publishPreparedRevocation,
   PreparedRevocation,
@@ -25,12 +24,6 @@ const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
 const DeviceList = () => {
   const {registeredDevices, identityPubkey} = useDevicesStore()
   const [republishing, setRepublishing] = useState(false)
-  const [inviteDetails, setInviteDetails] = useState<{
-    ephemeralPublicKey: string
-    sharedSecret: string
-    deviceId: string
-    createdAt: number
-  } | null>(null)
   const [deviceToRevoke, setDeviceToRevoke] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
   const [preparedRevocation, setPreparedRevocation] = useState<PreparedRevocation | null>(
@@ -46,12 +39,6 @@ const DeviceList = () => {
       modalRef.current?.close()
     }
   }, [deviceToRevoke, preparedRevocation])
-
-  useEffect(() => {
-    if (!identityPubkey) return
-    const details = getInviteDetails()
-    setInviteDetails(details)
-  }, [identityPubkey])
 
   const handleRepublishInvite = async () => {
     setRepublishing(true)
@@ -180,36 +167,6 @@ const DeviceList = () => {
                 )}
               </div>
 
-              {isCurrentDevice && inviteDetails && (
-                <div className="px-3 pb-3 pt-0 border-t border-base-300">
-                  <div className="mt-2 space-y-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-base-content/60 shrink-0">
-                        Ephemeral Key:
-                      </span>
-                      <span className="font-mono truncate min-w-0 w-0 flex-1 text-right block">
-                        {inviteDetails.ephemeralPublicKey}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-base-content/60 shrink-0">
-                        Shared Secret:
-                      </span>
-                      <span className="font-mono truncate min-w-0 w-0 flex-1 text-right block">
-                        {inviteDetails.sharedSecret}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <span className="text-base-content/60">Created:</span>
-                      <span>
-                        {new Date(inviteDetails.createdAt * 1000).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           )
         })}
