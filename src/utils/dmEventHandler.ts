@@ -2,12 +2,14 @@ import {getSessionManager} from "@/shared/services/PrivateChats"
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
+import {useDevicesStore} from "@/stores/devices"
 import {getTag} from "./tagUtils"
 import {KIND_CHANNEL_CREATE} from "./constants"
 import {isTauri} from "./utils"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {isOwnDeviceEvent} from "@/utils/sessionRouting"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -32,14 +34,24 @@ export const attachSessionEventListener = () => {
           const {publicKey} = useUserStore.getState()
           if (!publicKey) return
 
+          const {registeredDevices, identityPubkey} = useDevicesStore.getState()
+          const isOwnDevice = isOwnDeviceEvent(
+            event.pubkey,
+            pubKey,
+            publicKey,
+            identityPubkey,
+            registeredDevices
+          )
+          const effectiveOwner = isOwnDevice ? publicKey : pubKey
+
           // Block events from muted users
           const mutedUsers = getSocialGraph().getMutedByUser(publicKey)
-          if (mutedUsers.has(pubKey)) return
+          if (!isOwnDevice && mutedUsers.has(effectiveOwner)) return
 
           // Trigger desktop notification for DMs if on desktop
-          if (isTauri() && event.pubkey !== publicKey) {
+          if (isTauri() && !isOwnDevice && event.pubkey !== publicKey) {
             import("./desktopNotifications").then(({handleDMEvent}) => {
-              handleDMEvent(event, pubKey).catch(console.error)
+              handleDMEvent(event, effectiveOwner).catch(console.error)
             })
           }
 
@@ -78,21 +90,21 @@ export const attachSessionEventListener = () => {
             log("Received group message for group:", lTag)
             void usePrivateMessagesStore
               .getState()
-              .upsert(lTag, publicKey, {...event, ownerPubkey: pubKey})
+              .upsert(lTag, publicKey, {...event, ownerPubkey: effectiveOwner})
             return
           }
 
           const pTag = getTag("p", event.tags)
           if (!pTag) return
 
-          const from = pubKey === publicKey ? pTag : pubKey
-          const to = pubKey === publicKey ? publicKey : pTag
+          const from = isOwnDevice ? pTag : effectiveOwner
+          const to = isOwnDevice ? publicKey : pTag
 
           if (!from || !to) return
 
           void usePrivateMessagesStore
             .getState()
-            .upsert(from, to, {...event, ownerPubkey: pubKey})
+            .upsert(from, to, {...event, ownerPubkey: effectiveOwner})
         })
       })
       .catch((err) => {

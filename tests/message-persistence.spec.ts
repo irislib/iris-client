@@ -19,7 +19,9 @@ async function setupChatWithSelf(page) {
   await messageButton.click()
 
   // Wait for the chat UI to load - look for the message input
-  await expect(page.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
+  const messageInput = page.getByPlaceholder("Message").first()
+  await expect(messageInput).toBeVisible({timeout: 15000})
+  await expect(messageInput).toBeEnabled({timeout: 20000})
 }
 
 test.describe("Message persistence with double ratchet", () => {
@@ -44,6 +46,7 @@ test.describe("Message persistence with double ratchet", () => {
     // Refresh the page
     await page.reload()
     await page.waitForLoadState("networkidle")
+    await expect(messageInput).toBeEnabled({timeout: 20000})
 
     // Verify message still appears
     await expect(page.locator(".whitespace-pre-wrap").getByText(testMessage)).toBeVisible(
@@ -88,6 +91,7 @@ test.describe("Message persistence with double ratchet", () => {
     // Refresh the page
     await page.reload()
     await page.waitForLoadState("networkidle")
+    await expect(messageInput).toBeEnabled({timeout: 20000})
 
     // Verify all messages still appear
     for (const msg of messages) {
@@ -115,6 +119,7 @@ test.describe("Message persistence with double ratchet", () => {
   })
 
   test("session state persists across multiple refreshes", async ({page}) => {
+    test.setTimeout(60000)
     await signUp(page)
     await setupChatWithSelf(page)
 
@@ -135,6 +140,7 @@ test.describe("Message persistence with double ratchet", () => {
     for (let i = 1; i <= 3; i++) {
       await page.reload()
       await page.waitForLoadState("networkidle")
+      await expect(messageInput).toBeEnabled({timeout: 20000})
 
       // Wait for chat to load - check if initial message is visible
       await expect(

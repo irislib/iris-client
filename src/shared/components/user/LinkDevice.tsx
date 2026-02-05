@@ -160,7 +160,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
       {inviteUrl && (
         <button
           type="button"
-          className="btn btn-neutral w-full flex items-center justify-center gap-2 text-sm py-2 font-mono relative overflow-hidden min-w-0"
+          className="btn btn-neutral w-full max-w-full flex items-center justify-center gap-2 text-sm py-2 font-mono relative overflow-hidden min-w-0"
           onClick={handleCopy}
           title={inviteUrl}
           data-testid="link-invite-copy"
@@ -179,7 +179,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
             }`}
           >
             <Icon name="copy" size={16} />
-            <span className="truncate min-w-0">{truncateMiddle(inviteUrl, 48)}</span>
+            <span className="truncate min-w-0">{truncateMiddle(inviteUrl, 32)}</span>
           </span>
         </button>
       )}

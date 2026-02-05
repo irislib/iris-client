@@ -34,7 +34,5 @@ test("link device invite auto-accepts on paste", async ({page}) => {
   const input = page.getByPlaceholder("Paste link invite")
   await input.fill(inviteUrl)
 
-  await expect(page.getByRole("button", {name: "Linking..."})).toBeVisible({
-    timeout: 5000,
-  })
+  await expect(page.getByText("Linking...")).toBeVisible({timeout: 5000})
 })

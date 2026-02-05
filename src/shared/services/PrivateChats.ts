@@ -21,6 +21,55 @@ import {DEBUG_NAMESPACES} from "@/utils/constants"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
+const APP_KEYS_FETCH_TIMEOUT_MS = 10000
+const APP_KEYS_FAST_TIMEOUT_MS = 2000
+
+const cloneAppKeys = (appKeys: AppKeys): AppKeys =>
+  new AppKeys(appKeys.getAllDevices())
+
+const resolveBaseAppKeys = async (
+  ownerPubkey: string,
+  timeoutMs: number = APP_KEYS_FETCH_TIMEOUT_MS
+): Promise<AppKeys> => {
+  const nostrSubscribe = getNostrSubscribe()
+  try {
+    const existingKeys = await AppKeys.waitFor(
+      ownerPubkey,
+      nostrSubscribe,
+      APP_KEYS_FAST_TIMEOUT_MS
+    )
+    if (existingKeys) {
+      return existingKeys
+    }
+  } catch {
+    // ignore fetch errors, fall back to local sources
+  }
+
+  const localKeys = appKeysManager?.getAppKeys()
+  if (localKeys && localKeys.getAllDevices().length > 0) {
+    return cloneAppKeys(localKeys)
+  }
+
+  const {registeredDevices} = useDevicesStore.getState()
+  if (registeredDevices.length > 0) {
+    return new AppKeys(registeredDevices)
+  }
+
+  if (timeoutMs > APP_KEYS_FAST_TIMEOUT_MS) {
+    try {
+      const remaining = Math.max(timeoutMs - APP_KEYS_FAST_TIMEOUT_MS, 0)
+      const existingKeys = await AppKeys.waitFor(ownerPubkey, nostrSubscribe, remaining)
+      if (existingKeys) {
+        return existingKeys
+      }
+    } catch {
+      // ignore fetch errors
+    }
+  }
+
+  return new AppKeys()
+}
+
 // Global AppKeys subscription cleanup function
 let appKeysSubscriptionCleanup: (() => void) | null = null
 
@@ -230,20 +279,21 @@ export const registerDevice = async (): Promise<void> => {
     throw new Error("Managers not initialized")
   }
 
-  // Fetch existing AppKeys from relay first
-  const nostrSubscribe = getNostrSubscribe()
-  const existingKeys = await AppKeys.waitFor(publicKey, nostrSubscribe, 2000)
-
-  if (existingKeys) {
-    // Merge with existing devices
-    await appKeysManager.setAppKeys(existingKeys)
-    log("Loaded existing AppKeys with", existingKeys.getAllDevices().length, "devices")
-  }
+  const baseKeys = await resolveBaseAppKeys(publicKey)
+  await appKeysManager.setAppKeys(baseKeys)
+  log("Loaded base AppKeys with", baseKeys.getAllDevices().length, "devices")
 
   // Add this device
   const payload = delegateManager.getRegistrationPayload()
   appKeysManager.addDevice(payload)
   await appKeysManager.publish()
+
+  const updatedDevices = appKeysManager.getOwnDevices()
+  useDevicesStore.getState().setHasLocalAppKeys(updatedDevices.length > 0)
+  useDevicesStore.getState().setRegisteredDevices(
+    updatedDevices,
+    Math.floor(Date.now() / 1000)
+  )
 
   log("Device registered:", payload.identityPubkey)
 }
@@ -298,11 +348,8 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
     throw new Error("DelegateManager not initialized")
   }
 
-  // Use devices from the store (populated by AppKeys subscription)
-  const {registeredDevices} = useDevicesStore.getState()
-
-  // Create AppKeys from store devices
-  const appKeys = new AppKeys(registeredDevices)
+  const baseKeys = await resolveBaseAppKeys(publicKey)
+  const appKeys = cloneAppKeys(baseKeys)
 
   // Add current device
   const payload = delegateManager.getRegistrationPayload()
@@ -331,19 +378,11 @@ export const prepareRegistrationForIdentity = async (
     throw new Error("No public key - user must be logged in")
   }
 
-  // Try to fetch latest AppKeys from relay to avoid overwriting
-  const nostrSubscribe = getNostrSubscribe()
-  const existingKeys = await AppKeys.waitFor(publicKey, nostrSubscribe, 2000)
-
-  if (existingKeys && appKeysManager) {
-    await appKeysManager.setAppKeys(existingKeys)
+  const baseKeys = await resolveBaseAppKeys(publicKey)
+  if (appKeysManager) {
+    await appKeysManager.setAppKeys(baseKeys)
   }
-
-  const baseDevices = existingKeys
-    ? existingKeys.getAllDevices()
-    : useDevicesStore.getState().registeredDevices
-
-  const appKeys = new AppKeys(baseDevices)
+  const appKeys = cloneAppKeys(baseKeys)
 
   const device: DeviceEntry = {
     identityPubkey,
@@ -608,25 +647,6 @@ export const rotateInvite = async (): Promise<void> => {
 /**
  * Get the current device's invite details.
  */
-export const getInviteDetails = (): {
-  ephemeralPublicKey: string
-  sharedSecret: string
-  deviceId: string
-  createdAt: number
-} | null => {
-  if (!delegateManager) return null
-
-  const invite = delegateManager.getInvite()
-  if (!invite) return null
-
-  return {
-    ephemeralPublicKey: invite.inviterEphemeralPublicKey,
-    sharedSecret: invite.sharedSecret,
-    deviceId: invite.deviceId || delegateManager.getIdentityPublicKey(),
-    createdAt: invite.createdAt,
-  }
-}
-
 /**
  * Check if the current device's invite exists on relays.
  * Returns the event if found, null otherwise.

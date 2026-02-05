@@ -1,6 +1,8 @@
 import {useEffect, useState} from "react"
 import {AppKeys} from "nostr-double-ratchet/src"
 import {getNostrSubscribe} from "@/shared/services/PrivateChats"
+import {useUserStore} from "@/stores/user"
+import {useDevicesStore} from "@/stores/devices"
 
 /**
  * Hook to check if a recipient has set up encrypted messaging (has AppKeys).
@@ -10,10 +12,20 @@ export const useRecipientHasAppKeys = (
   recipientPubkey: string | undefined
 ): {hasAppKeys: boolean | null} => {
   const [hasAppKeys, setHasAppKeys] = useState<boolean | null>(null)
+  const myPubkey = useUserStore((state) => state.publicKey)
+  const {hasLocalAppKeys, isCurrentDeviceRegistered} = useDevicesStore()
 
   useEffect(() => {
     if (!recipientPubkey) {
       setHasAppKeys(null)
+      return
+    }
+
+    if (
+      recipientPubkey === myPubkey &&
+      (hasLocalAppKeys || isCurrentDeviceRegistered)
+    ) {
+      setHasAppKeys(true)
       return
     }
 
@@ -37,7 +49,7 @@ export const useRecipientHasAppKeys = (
       unsubscribe()
       clearTimeout(timeout)
     }
-  }, [recipientPubkey])
+  }, [recipientPubkey, myPubkey, hasLocalAppKeys, isCurrentDeviceRegistered])
 
   return {hasAppKeys}
 }

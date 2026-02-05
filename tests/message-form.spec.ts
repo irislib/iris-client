@@ -20,7 +20,9 @@ async function setupChatWithSelf(page) {
   await messageButton.click()
 
   // Wait for the chat UI to load - look for the message input
-  await expect(page.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
+  const messageInput = page.getByPlaceholder("Message").first()
+  await expect(messageInput).toBeVisible({timeout: 15000})
+  await expect(messageInput).toBeEnabled({timeout: 20000})
 }
 
 test.describe("Message Form - Desktop", () => {

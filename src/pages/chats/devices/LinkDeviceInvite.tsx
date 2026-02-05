@@ -1,66 +1,15 @@
 import {useEffect, useRef, useState} from "react"
 import Modal from "@/shared/components/ui/Modal"
 import QRScanner from "@/shared/components/QRScanner"
+import Icon from "@/shared/components/Icons/Icon"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
+import {parseLinkInviteInput} from "@/shared/utils/linkInvites"
 import {
   acceptLinkInvite,
   prepareRegistrationForIdentity,
   publishPreparedRegistration,
 } from "@/shared/services/PrivateChats"
-import {Invite} from "nostr-double-ratchet/src"
-
-const LINK_INVITE_ROOT = "https://iris.to"
-
-const parseInvitePayload = (
-  url: string
-): {purpose?: string; owner?: string} | null => {
-  try {
-    const parsed = new URL(url)
-    const rawHash = parsed.hash.slice(1)
-    if (!rawHash) return null
-    const decoded = decodeURIComponent(rawHash)
-    const data = JSON.parse(decoded) as Record<string, unknown>
-    if (!data || typeof data !== "object") return null
-    return {
-      purpose: typeof data.purpose === "string" ? data.purpose : undefined,
-      owner: typeof data.owner === "string" ? data.owner : undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-const parseLinkInvite = (input: string, ownerPubkey: string): Invite | null => {
-  const trimmed = input.trim()
-  if (!trimmed) return null
-
-  const candidates: string[] = []
-  if (trimmed.includes("://")) {
-    candidates.push(trimmed)
-  }
-  if (trimmed.startsWith("#")) {
-    candidates.push(`${LINK_INVITE_ROOT}${trimmed}`)
-  }
-  if (!trimmed.includes("://")) {
-    const hash = trimmed.startsWith("{") ? encodeURIComponent(trimmed) : trimmed
-    candidates.push(`${LINK_INVITE_ROOT}#${hash.replace(/^#/, "")}`)
-  }
-
-  for (const url of candidates) {
-    try {
-      const payload = parseInvitePayload(url)
-      if (payload?.purpose && payload.purpose !== "link") continue
-      if (payload?.owner && payload.owner !== ownerPubkey) continue
-      const invite = Invite.fromUrl(url)
-      return invite
-    } catch {
-      // try next
-    }
-  }
-
-  return null
-}
 
 const LinkDeviceInvite = () => {
   const publicKey = useUserStore((s) => s.publicKey)
@@ -95,9 +44,10 @@ const LinkDeviceInvite = () => {
 
   const handleAccept = async (raw: string) => {
     if (!publicKey) return
-    const invite = parseLinkInvite(raw, publicKey)
+    const invite = parseLinkInviteInput(raw, publicKey)
     if (!invite) {
       setErrorMessage("Invalid link invite")
+      setStatus("error")
       return
     }
 
@@ -138,7 +88,7 @@ const LinkDeviceInvite = () => {
     if (status !== "idle") return
     if (linkInput === lastAutoAttemptRef.current) return
 
-    const invite = parseLinkInvite(linkInput, publicKey)
+    const invite = parseLinkInviteInput(linkInput, publicKey)
     if (!invite) return
 
     lastAutoAttemptRef.current = linkInput
@@ -151,7 +101,11 @@ const LinkDeviceInvite = () => {
 
   return (
     <>
-      <button className="btn btn-secondary w-full" onClick={openModal}>
+      <button
+        className="btn btn-secondary w-full flex items-center justify-center gap-2"
+        onClick={openModal}
+      >
+        <Icon name="qr" size={16} />
         Link another device
       </button>
       {isModalOpen && (
@@ -187,13 +141,11 @@ const LinkDeviceInvite = () => {
                   }}
                   disabled={status === "accepting"}
                 />
-                <button
-                  className="btn btn-primary"
-                  onClick={() => handleAccept(linkInput)}
-                  disabled={status === "accepting"}
-                >
-                  {status === "accepting" ? "Linking..." : "Link Device"}
-                </button>
+                {status === "accepting" && (
+                  <div className="text-sm text-base-content/70 text-center">
+                    Linking...
+                  </div>
+                )}
                 <button className="btn btn-ghost" onClick={() => setShowScanner(true)}>
                   Scan QR code
                 </button>

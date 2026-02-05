@@ -7,8 +7,7 @@ async function setupChatWithSelf(page) {
   await page.getByRole("link", {name: "Devices"}).click()
 
   const registerButton = page.getByRole("button", {name: "Register this device"})
-  if (await registerButton.isVisible()) {
-    await registerButton.click()
+  if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
     await expect(registerButton).not.toBeVisible({timeout: 15000})
   }
 

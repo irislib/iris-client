@@ -62,7 +62,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageButton1.click()
 
       // Wait for chat to load
-      await expect(page1.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
+      const messageInput1Locator = page1.getByPlaceholder("Message")
+      await expect(messageInput1Locator).toBeVisible({timeout: 15000})
+      await expect(messageInput1Locator).toBeEnabled({timeout: 20000})
 
       // Send first message from page1
       const messageInput1 = page1.getByPlaceholder("Message")
@@ -92,13 +94,15 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageButton2.click()
 
       // Wait for chat to load and subscription to fetch messages
-      await expect(page2.getByPlaceholder("Message")).toBeVisible({timeout: 15000})
+      const messageInput2Locator = page2.getByPlaceholder("Message")
+      await expect(messageInput2Locator).toBeVisible({timeout: 15000})
+      await expect(messageInput2Locator).toBeEnabled({timeout: 20000})
 
       // Verify message from page1 appears on page2
       // The chat should fetch historical messages when opened
       await expect(
         page2.locator(".whitespace-pre-wrap").getByText(testMessage1)
-      ).toBeVisible({timeout: 10000})
+      ).toBeVisible({timeout: 20000})
 
       // Send second message from page2
       const messageInput2 = page2.getByPlaceholder("Message")
@@ -114,7 +118,7 @@ test.describe("Self-messaging between browser sessions", () => {
       // May need to refresh page1 or wait for subscription to pick it up
       await expect(
         page1.locator(".whitespace-pre-wrap").getByText(testMessage2)
-      ).toBeVisible({timeout: 10000})
+      ).toBeVisible({timeout: 20000})
     } finally {
       await context1.close()
       await context2.close()

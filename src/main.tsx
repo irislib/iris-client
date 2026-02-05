@@ -33,6 +33,7 @@ import {
   hasLocalAppKeys,
   getDelegateManager,
   startAppKeysSubscription,
+  registerDevice,
 } from "@/shared/services/PrivateChats"
 import {useDevicesStore} from "./stores/devices"
 
@@ -80,6 +81,29 @@ const checkDeletedAccount = async (publicKey: string) => {
     }
   } catch (e) {
     error("Error checking deleted account:", e)
+  }
+}
+
+const autoRegisterDevice = async () => {
+  const {publicKey, linkedDevice} = useUserStore.getState()
+  if (!publicKey || linkedDevice) return
+
+  try {
+    await initAppKeysManager()
+  } catch {
+    return
+  }
+
+  const deviceState = useDevicesStore.getState()
+  if (deviceState.hasLocalAppKeys || deviceState.isCurrentDeviceRegistered) {
+    return
+  }
+
+  try {
+    await registerDevice()
+    log("✅ Auto-registered device for private messaging")
+  } catch (err) {
+    error("Failed to auto-register device:", err)
   }
 }
 
@@ -201,6 +225,7 @@ const initializeApp = async () => {
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           subscribeToDMNotifications()
+          void autoRegisterDevice()
           log("✅ Device activated and session listener attached")
         })
         .catch((err) => {
@@ -282,6 +307,7 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           subscribeToDMNotifications()
+          void autoRegisterDevice()
           log("✅ Device activated and session listener attached (login)")
         })
         .catch((err) => {
