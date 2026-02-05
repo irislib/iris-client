@@ -7,7 +7,10 @@ import {
   DelegateManager,
   AppKeysManager,
   AppKeys,
+  Invite,
   DeviceEntry,
+  INVITE_RESPONSE_KIND,
+  decryptInviteResponse,
 } from "nostr-double-ratchet/src"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
@@ -313,6 +316,45 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
     appKeys,
     devices: appKeys.getAllDevices(),
     newDeviceIdentity: payload.identityPubkey,
+  }
+}
+
+/**
+ * Prepare device registration for a specific identity.
+ * Pulls latest AppKeys from relays when possible to avoid overwrites.
+ */
+export const prepareRegistrationForIdentity = async (
+  identityPubkey: string
+): Promise<PreparedRegistration> => {
+  const {publicKey} = useUserStore.getState()
+  if (!publicKey) {
+    throw new Error("No public key - user must be logged in")
+  }
+
+  // Try to fetch latest AppKeys from relay to avoid overwriting
+  const nostrSubscribe = getNostrSubscribe()
+  const existingKeys = await AppKeys.waitFor(publicKey, nostrSubscribe, 2000)
+
+  if (existingKeys && appKeysManager) {
+    await appKeysManager.setAppKeys(existingKeys)
+  }
+
+  const baseDevices = existingKeys
+    ? existingKeys.getAllDevices()
+    : useDevicesStore.getState().registeredDevices
+
+  const appKeys = new AppKeys(baseDevices)
+
+  const device: DeviceEntry = {
+    identityPubkey,
+    createdAt: Math.floor(Date.now() / 1000),
+  }
+  appKeys.addDevice(device)
+
+  return {
+    appKeys,
+    devices: appKeys.getAllDevices(),
+    newDeviceIdentity: identityPubkey,
   }
 }
 
@@ -633,4 +675,99 @@ export const checkInviteOnRelay = async (): Promise<{
 
     subscription.start()
   })
+}
+
+/**
+ * Create a link invite for this device.
+ * The invite is private (share via QR) and not published to relays.
+ */
+export const createLinkInvite = async (): Promise<Invite> => {
+  await initDelegateManager()
+  if (!delegateManager) {
+    throw new Error("DelegateManager not initialized")
+  }
+  const devicePubkey = delegateManager.getIdentityPublicKey()
+  return Invite.createNew(devicePubkey, undefined, undefined, {
+    purpose: "link",
+  })
+}
+
+/**
+ * Listen for acceptance of a link invite and return the unsubscribe handle.
+ */
+export const listenForLinkInviteAcceptance = (
+  invite: Invite,
+  onAccepted: (ownerPubkey: string) => void
+): (() => void) => {
+  if (!delegateManager) {
+    throw new Error("DelegateManager not initialized")
+  }
+  if (!invite.inviterEphemeralPrivateKey) {
+    throw new Error("Invite missing ephemeral private key")
+  }
+
+  const inviterPrivateKey = delegateManager.getIdentityKey()
+  const nostrSubscribe = getNostrSubscribe()
+
+  const filter: NDKFilter = {
+    kinds: [INVITE_RESPONSE_KIND],
+    "#p": [invite.inviterEphemeralPublicKey],
+  }
+
+  return nostrSubscribe(filter, async (event: VerifiedEvent) => {
+    try {
+      if (invite.maxUses && invite.usedBy.length >= invite.maxUses) {
+        return
+      }
+
+      const decrypted = await decryptInviteResponse({
+        envelopeContent: event.content,
+        envelopeSenderPubkey: event.pubkey,
+        inviterEphemeralPrivateKey: invite.inviterEphemeralPrivateKey!,
+        inviterPrivateKey,
+        sharedSecret: invite.sharedSecret,
+      })
+
+      invite.usedBy.push(decrypted.inviteeIdentity)
+
+      const ownerPubkey = decrypted.ownerPublicKey || decrypted.inviteeIdentity
+      onAccepted(ownerPubkey)
+    } catch {
+      // ignore invalid responses
+    }
+  })
+}
+
+/**
+ * Accept a link invite as the owner and publish the response event.
+ */
+export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
+  const {publicKey, linkedDevice} = useUserStore.getState()
+  if (!publicKey) {
+    throw new Error("No public key - user must be logged in")
+  }
+  if (linkedDevice) {
+    throw new Error("Linked devices cannot accept link invites")
+  }
+
+  const ndkInstance = ndk()
+  if (ndkInstance.pool.connectedRelays().length === 0) {
+    await ndkInstance.pool.connect(5000)
+  }
+
+  const signer = ndkInstance.signer
+  if (!signer) {
+    throw new Error("No signer available to accept link invite")
+  }
+
+  const nostrSubscribe = getNostrSubscribe()
+  const encrypt = async (plaintext: string, pubkey: string) => {
+    const user = ndkInstance.getUser({pubkey})
+    return signer.encrypt(user, plaintext, "nip44")
+  }
+
+  const {event} = await invite.accept(nostrSubscribe, publicKey, encrypt, publicKey)
+
+  const ndkEvent = new NDKEvent(ndkInstance, event)
+  await ndkEvent.publish()
 }
