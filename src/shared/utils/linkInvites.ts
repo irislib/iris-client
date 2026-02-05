@@ -22,7 +22,12 @@ function parseInvitePayload(url: string): {purpose?: string; owner?: string} | n
     if (!data || typeof data !== "object") return null
     return {
       purpose: typeof data.purpose === "string" ? data.purpose : undefined,
-      owner: typeof data.owner === "string" ? data.owner : undefined,
+      owner:
+        typeof data.owner === "string"
+          ? data.owner
+          : typeof data.ownerPubkey === "string"
+            ? data.ownerPubkey
+            : undefined,
     }
   } catch {
     return null
@@ -77,6 +82,18 @@ function normalizeInvitePayload(raw: string): string | null {
   return JSON.stringify(payload)
 }
 
+function normalizeInvitePayloadFromUrl(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl)
+    const rawHash = parsed.hash.slice(1)
+    if (!rawHash) return null
+    const decoded = decodeURIComponent(rawHash)
+    return normalizeInvitePayload(decoded)
+  } catch {
+    return null
+  }
+}
+
 export function parseLinkInviteInput(
   input: string,
   ownerPubkey: string,
@@ -118,13 +135,30 @@ export function parseLinkInviteInput(
   }
 
   for (const url of candidates) {
-    try {
-      const payload = parseInvitePayload(url)
-      if (payload?.purpose && payload.purpose !== "link") continue
-      if (payload?.owner && payload.owner !== ownerPubkey) continue
-      return Invite.fromUrl(url)
-    } catch {
-      // try next
+    const tryParse = (candidate: string): Invite | null => {
+      try {
+        const payload = parseInvitePayload(candidate)
+        if (payload?.purpose && payload.purpose !== "link") return null
+        if (payload?.owner && payload.owner !== ownerPubkey) return null
+        return Invite.fromUrl(candidate)
+      } catch {
+        return null
+      }
+    }
+
+    const invite = tryParse(url)
+    if (invite) return invite
+
+    const normalizedPayload = normalizeInvitePayloadFromUrl(url)
+    if (normalizedPayload) {
+      try {
+        const normalizedUrl = new URL(url)
+        normalizedUrl.hash = encodeURIComponent(normalizedPayload)
+        const normalizedInvite = tryParse(normalizedUrl.toString())
+        if (normalizedInvite) return normalizedInvite
+      } catch {
+        // ignore normalization failure
+      }
     }
   }
 

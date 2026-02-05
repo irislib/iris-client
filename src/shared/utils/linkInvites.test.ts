@@ -36,6 +36,33 @@ describe("parseLinkInviteInput", () => {
     expect(invite?.inviterEphemeralPublicKey).toBe(EPHEMERAL)
   })
 
+  it("parses link URL with inviterEphemeralPublicKey", () => {
+    const payload = {
+      inviter: INVITER,
+      inviterEphemeralPublicKey: EPHEMERAL,
+      sharedSecret: SECRET,
+      purpose: "link",
+    }
+    const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
+    const invite = parseLinkInviteInput(url, OWNER)
+
+    expect(invite).toBeTruthy()
+    expect(invite?.inviterEphemeralPublicKey).toBe(EPHEMERAL)
+  })
+
+  it("parses link URL without purpose field", () => {
+    const payload = {
+      inviter: INVITER,
+      ephemeralKey: EPHEMERAL,
+      sharedSecret: SECRET,
+    }
+    const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
+    const invite = parseLinkInviteInput(url, OWNER)
+
+    expect(invite).toBeTruthy()
+    expect(invite?.inviterEphemeralPublicKey).toBe(EPHEMERAL)
+  })
+
   it("rejects non-link invites", () => {
     const payload = {
       inviter: INVITER,

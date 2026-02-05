@@ -166,20 +166,22 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
           data-testid="link-invite-copy"
         >
           <span
-            className={`absolute inset-0 flex items-center justify-center gap-2 transition-opacity ${
+            className={`absolute inset-0 flex items-center justify-center gap-2 max-w-full min-w-0 transition-opacity ${
               copied ? "opacity-100" : "opacity-0 pointer-events-none"
             }`}
           >
             <Icon name="check" size={16} />
-            Copied
+            <span className="truncate min-w-0">Copied</span>
           </span>
           <span
-            className={`flex items-center justify-center gap-2 min-w-0 transition-opacity ${
+            className={`flex items-center justify-center gap-2 w-full max-w-full min-w-0 transition-opacity ${
               copied ? "opacity-0" : "opacity-100"
             }`}
           >
             <Icon name="copy" size={16} />
-            <span className="truncate min-w-0">{truncateMiddle(inviteUrl, 32)}</span>
+            <span className="truncate min-w-0 flex-1">
+              {truncateMiddle(inviteUrl, 32)}
+            </span>
           </span>
         </button>
       )}

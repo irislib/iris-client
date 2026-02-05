@@ -37,9 +37,12 @@ const LinkDeviceInvite = () => {
   }
 
   const openModal = () => {
-    if (!publicKey) return
     resetState()
     setIsModalOpen(true)
+    if (!publicKey) {
+      setStatus("error")
+      setErrorMessage("Please log in to link a device")
+    }
   }
 
   const handleAccept = async (raw: string) => {
@@ -102,6 +105,7 @@ const LinkDeviceInvite = () => {
   return (
     <>
       <button
+        type="button"
         className="btn btn-secondary w-full flex items-center justify-center gap-2"
         onClick={openModal}
       >
@@ -137,6 +141,7 @@ const LinkDeviceInvite = () => {
                     if (status === "error") {
                       setStatus("idle")
                       setErrorMessage("")
+                      lastAutoAttemptRef.current = ""
                     }
                   }}
                   disabled={status === "accepting"}
