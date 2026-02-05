@@ -131,8 +131,13 @@ export default function SignIn({onClose, onLink}: SignInProps) {
       </div>
       {onLink && (
         <button
+          type="button"
           className="btn btn-sm btn-ghost w-full flex items-center justify-center gap-2"
-          onClick={onLink}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onLink()
+          }}
         >
           <Icon name="qr" size={16} />
           Link this device
