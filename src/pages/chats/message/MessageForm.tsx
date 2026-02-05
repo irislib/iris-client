@@ -317,7 +317,7 @@ const MessageForm = ({
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Message"
-                  className={`flex-1 textarea leading-tight resize-none py-2.5 min-h-[2.5rem] ${
+                  className={`flex-1 textarea !text-left leading-tight resize-none py-2.5 min-h-[2.5rem] ${
                     newMessage.includes("\n") ? "rounded-lg" : "rounded-full"
                   } ${isDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
                   aria-label="Message input"

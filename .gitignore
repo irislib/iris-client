@@ -21,6 +21,7 @@ test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+playwright.config.local.ts
 
 # Performance test results (baselines are tracked, results are not)
 performance-results/

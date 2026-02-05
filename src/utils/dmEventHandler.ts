@@ -4,6 +4,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
 import {useTypingStore} from "@/stores/typingIndicators"
+import {useMessagesStore} from "@/stores/messages"
 import {getTag} from "./tagUtils"
 import {KIND_CHANNEL_CREATE, KIND_CHAT_MESSAGE, KIND_REACTION} from "./constants"
 import {isTauri} from "./utils"
@@ -168,7 +169,8 @@ export const attachSessionEventListener = () => {
               ...(nextStatus ? {status: nextStatus} : {}),
             })
 
-          if (!isMine && !isReaction) {
+          const {sendDeliveryReceipts} = useMessagesStore.getState()
+          if (!isMine && !isReaction && sendDeliveryReceipts) {
             sessionManager.sendReceipt(from, "delivered", [event.id]).catch(() => {})
           }
         })

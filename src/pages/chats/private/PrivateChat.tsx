@@ -3,6 +3,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {comparator} from "../utils/messageGrouping"
 import PrivateChatHeader from "./PrivateChatHeader"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useMessagesStore} from "@/stores/messages"
 import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
 import {useEffect, useState, useCallback} from "react"
@@ -12,6 +13,7 @@ import {getSessionManager} from "@/shared/services/PrivateChats"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
+import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -19,6 +21,7 @@ const Chat = ({id}: {id: string}) => {
   const [haveSent, setHaveSent] = useState(false)
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
   const isTopOfStack = useIsTopOfStack()
+  const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
 
   // Allow messaging regardless of session state - sessions will be created automatically
 
@@ -41,24 +44,17 @@ const Chat = ({id}: {id: string}) => {
 
     const messageMap = usePrivateMessagesStore.getState().events.get(id)
     if (!messageMap) return
-
-    const toAck: string[] = []
-    for (const [, message] of messageMap.entries()) {
-      const owner = message.ownerPubkey ?? message.pubkey
-      if (owner === myPubKey) continue
-      if (message.status === "seen") continue
-      toAck.push(message.id)
-    }
-
-    if (toAck.length === 0) return
-
     const store = usePrivateMessagesStore.getState()
-    for (const messageId of toAck) {
-      void store.updateMessage(id, messageId, {status: "seen"})
-    }
 
-    sessionManager.sendReceipt(id, "seen", toAck).catch(() => {})
-  }, [id, isTopOfStack])
+    markMessagesSeenAndMaybeSendReceipt({
+      chatId: id,
+      messages: messageMap.values(),
+      myPubKey,
+      updateMessage: store.updateMessage,
+      sessionManager,
+      sendReadReceipts,
+    })
+  }, [id, isTopOfStack, sendReadReceipts])
 
   const markChatOpened = useCallback(() => {
     if (!id || !isTopOfStack) return

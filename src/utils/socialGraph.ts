@@ -29,12 +29,19 @@ const notifyGraphChange = () => {
 }
 
 async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
-  const binaryUrl = (await import("nostr-social-graph/data/socialGraph.bin?url")).default
-  const response = await fetch(binaryUrl)
-  const binaryData = new Uint8Array(await response.arrayBuffer())
-  const graph = await SocialGraph.fromBinary(publicKey, binaryData)
-  log("loaded default binary social graph of size", graph.size())
-  return graph
+  try {
+    const binaryUrl = (await import("nostr-social-graph/data/socialGraph.bin?url"))
+      .default
+    const response = await fetch(binaryUrl)
+    const binaryData = new Uint8Array(await response.arrayBuffer())
+    const graph = await SocialGraph.fromBinary(publicKey, binaryData)
+    log("loaded default binary social graph of size", graph.size())
+    return graph
+  } catch (err) {
+    // In tests and some environments this asset URL isn't fetchable; fall back to an empty graph.
+    error("Failed to load default social graph, using empty graph instead:", err)
+    return new SocialGraph(publicKey)
+  }
 }
 
 async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
@@ -241,7 +248,9 @@ export const setupSocialGraphSubscriptions = async () => {
 }
 
 // Auto-initialize on module load
-initializeSocialGraph()
+initializeSocialGraph().catch((err) => {
+  error("Failed to initialize social graph:", err)
+})
 
 export const useSocialGraphLoaded = () => {
   const [isSocialGraphLoaded, setIsSocialGraphLoaded] = useState(isLoaded)

@@ -3,7 +3,11 @@ import {useMessagesStore} from "./messages"
 
 describe("messages store", () => {
   beforeEach(() => {
-    useMessagesStore.setState({enablePublicChats: false})
+    useMessagesStore.setState({
+      enablePublicChats: false,
+      sendDeliveryReceipts: true,
+      sendReadReceipts: true,
+    })
   })
 
   it("defaults public chats to disabled", () => {
@@ -13,5 +17,23 @@ describe("messages store", () => {
   it("can enable public chats", () => {
     useMessagesStore.getState().setEnablePublicChats(true)
     expect(useMessagesStore.getState().enablePublicChats).toBe(true)
+  })
+
+  it("defaults delivery receipts to enabled", () => {
+    expect(useMessagesStore.getState().sendDeliveryReceipts).toBe(true)
+  })
+
+  it("can disable delivery receipts", () => {
+    useMessagesStore.getState().setSendDeliveryReceipts(false)
+    expect(useMessagesStore.getState().sendDeliveryReceipts).toBe(false)
+  })
+
+  it("defaults read receipts to enabled", () => {
+    expect(useMessagesStore.getState().sendReadReceipts).toBe(true)
+  })
+
+  it("can disable read receipts", () => {
+    useMessagesStore.getState().setSendReadReceipts(false)
+    expect(useMessagesStore.getState().sendReadReceipts).toBe(false)
   })
 })

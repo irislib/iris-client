@@ -26,6 +26,17 @@ async function setupChatWithSelf(page) {
 }
 
 test.describe("Message Form - Desktop", () => {
+  test("message input text is left-aligned (not centered)", async ({page}) => {
+    await signUp(page)
+    await setupChatWithSelf(page)
+
+    const messageInput = page.getByPlaceholder("Message").first()
+    const textAlign = await messageInput.evaluate((el) => getComputedStyle(el).textAlign)
+
+    expect(textAlign).not.toBe("center")
+    expect(["left", "start"]).toContain(textAlign)
+  })
+
   test("can send a basic text message using Enter key", async ({page}) => {
     await signUp(page)
     await setupChatWithSelf(page)
