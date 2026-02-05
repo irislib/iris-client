@@ -21,4 +21,8 @@ test("link device entry opens from login dialog", async ({page}) => {
   await expect(page.getByRole("heading", {name: "Link this device"})).toBeVisible({
     timeout: 10000,
   })
+
+  const copyButton = page.getByTestId("link-invite-copy")
+  await expect(copyButton).toBeVisible({timeout: 10000})
+  await expect(copyButton).toContainText("https://")
 })

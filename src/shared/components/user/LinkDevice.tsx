@@ -6,7 +6,7 @@ import {
   listenForLinkInviteAcceptance,
 } from "@/shared/services/PrivateChats"
 import {ndk} from "@/utils/ndk"
-import CopyButton from "@/shared/components/button/CopyButton"
+import Icon from "@/shared/components/Icons/Icon"
 
 interface LinkDeviceProps {
   onBack: () => void
@@ -24,16 +24,24 @@ const getInviteBaseUrl = (): string => {
   return origin
 }
 
+const truncateMiddle = (value: string, maxLength: number) => {
+  if (value.length <= maxLength) return value
+  const half = Math.floor((maxLength - 3) / 2)
+  return `${value.slice(0, half)}...${value.slice(-half)}`
+}
+
 export default function LinkDevice({onBack}: LinkDeviceProps) {
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const {setPublicKey, setPrivateKey, setNip07Login, setLinkedDevice} = useUserStore()
   const [error, setError] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
   const [qrCodeUrl, setQrCodeUrl] = useState("")
+  const [copied, setCopied] = useState(false)
   const [status, setStatus] = useState<"idle" | "waiting" | "linked" | "error">(
     "idle"
   )
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     let active = true
@@ -113,6 +121,24 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
     generateQR()
   }, [inviteUrl])
 
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleCopy = async () => {
+    if (!inviteUrl) return
+    await navigator.clipboard.writeText(inviteUrl)
+    setCopied(true)
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current)
+    }
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col items-center gap-2">
@@ -131,12 +157,30 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
       </div>
 
       {inviteUrl && (
-        <div className="flex flex-col gap-2">
-          <CopyButton className="btn btn-neutral w-full" copyStr={inviteUrl} text="Copy link" />
-          <p className="text-xs text-base-content/60 break-all text-center">
-            {inviteUrl}
-          </p>
-        </div>
+        <button
+          type="button"
+          className="btn btn-neutral w-full flex items-center justify-center gap-2 text-sm py-2 font-mono relative overflow-hidden min-w-0"
+          onClick={handleCopy}
+          title={inviteUrl}
+          data-testid="link-invite-copy"
+        >
+          <span
+            className={`absolute inset-0 flex items-center justify-center gap-2 transition-opacity ${
+              copied ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+          >
+            <Icon name="check" size={16} />
+            Copied
+          </span>
+          <span
+            className={`flex items-center justify-center gap-2 transition-opacity ${
+              copied ? "opacity-0" : "opacity-100"
+            }`}
+          >
+            <Icon name="copy" size={16} />
+            <span className="truncate">{truncateMiddle(inviteUrl, 48)}</span>
+          </span>
+        </button>
       )}
 
       {status === "waiting" && (
