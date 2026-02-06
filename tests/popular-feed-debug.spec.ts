@@ -9,7 +9,7 @@ test.skip("popular feed debug", async ({page}) => {
     logs.push(msg.text())
   })
 
-  await page.goto("http://localhost:5173")
+  await page.goto("/")
 
   // Wait for page to load
   await page.waitForLoadState("networkidle")

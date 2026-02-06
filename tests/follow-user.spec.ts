@@ -5,17 +5,16 @@ test("can follow user by npub", async ({page}) => {
   // Sign up
   await signUp(page)
 
-  await expect(page.url()).toMatch(/localhost:5173\/?$/)
+  await expect(page).toHaveURL(/\/$/)
 
   // Find and fill the search input - use first one
+  const targetNpub = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
   const searchInput = page.getByPlaceholder("Search").first()
-  await searchInput.fill(
-    "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
-  )
+  await searchInput.fill(targetNpub)
   await searchInput.press("Enter")
 
   // Wait for navigation away from root
-  await expect(page.url()).not.toMatch(/localhost:5173\/?$/)
+  await expect(page).toHaveURL(new RegExp(`${targetNpub}/?$`))
 
   // Find and click the Follow button in profile header actions
   const headerActions = page.getByTestId("profile-header-actions")

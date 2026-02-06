@@ -1,29 +1,31 @@
 # Dev Relay
 
-## Info
+Local Nostr relay used by Playwright E2E tests.
 
-Dockerized [strfry](https://github.com/hoytech/strfry) server running on ws://localhost:7777
+- WebSocket: `ws://127.0.0.1:7777`
+- Health: `http://127.0.0.1:7777/health`
 
-Mounts strfry db and config as a volume
+The app's E2E suite starts this Node.js in-memory relay automatically (no Docker).
 
 ## Run
 
 ```bash
-docker-compose up -d
+pnpm relay:start
 ```
 
 ## Seed with test data
 
-Downloads events from wellorder.xyz dataset: https://wiki.wellorder.net/wiki/nostr-datasets/
+Seeding is optional and uses the Wellorder dataset:
+
+- https://wiki.wellorder.net/wiki/nostr-datasets/
+- https://wellorder.xyz/nostr/nostr-wellorder-early-500k-v1.jsonl.bz2
+
+Requires `bzip2` to be installed.
 
 ```bash
-# Seed with custom number of events
-./quick-seed.sh 1000
-
-# Default: seeds 500k events
-./quick-seed.sh
+pnpm relay:start -- --seed 80000 --port 7777
 ```
 
 ## Important
 
-Clear browser cache/storage to only see events from this relay (ws://localhost:7777)
+Clear browser cache/storage to only see events from this relay (`ws://127.0.0.1:7777`).

@@ -15,7 +15,7 @@ test.describe("Stack Navigation", () => {
 
     // Navigate back to home
     await page.getByRole("link", {name: "Home", exact: true}).click()
-    await expect(page).toHaveURL(/localhost:5173\/?$/)
+    await expect(page).toHaveURL(/\/$/)
 
     console.log("Navigation complete, testing back button...")
 

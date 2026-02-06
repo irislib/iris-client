@@ -11,5 +11,5 @@ test("can navigate between main sections", async ({page}) => {
   await expect(page.url()).toContain("/about")
 
   await page.getByRole("link", {name: "Home", exact: true}).click()
-  await expect(page.url()).toMatch(/localhost:5173\/?$/)
+  await expect(page).toHaveURL(/\/$/)
 })

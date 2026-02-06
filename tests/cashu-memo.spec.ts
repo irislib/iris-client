@@ -11,7 +11,7 @@ test.describe("Cashu Token Memo", () => {
     })
 
     // Load wallet - assume it has balance from previous use
-    await page.goto("http://localhost:5173/wallet")
+    await page.goto("/wallet")
     await page.waitForSelector('button:has-text("SEND")', {timeout: 10000})
 
     const balanceText = await page.locator(".text-5xl").first().textContent()

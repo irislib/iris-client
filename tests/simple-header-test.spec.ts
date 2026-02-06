@@ -14,7 +14,7 @@ test.describe("Simple header test", () => {
 
     // Test home page
     console.log("\n=== HOME PAGE ===")
-    await page.goto("http://localhost:5173/")
+    await page.goto("/")
     await page.waitForTimeout(1000)
 
     // Add content to home scrollable
@@ -44,7 +44,7 @@ test.describe("Simple header test", () => {
 
     // Navigate to search
     console.log("\n=== SEARCH PAGE ===")
-    await page.goto("http://localhost:5173/search")
+    await page.goto("/search")
     await page.waitForTimeout(1000)
 
     // Check which headers are visible

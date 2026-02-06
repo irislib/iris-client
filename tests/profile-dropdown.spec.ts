@@ -15,7 +15,7 @@ test.describe("Profile dropdown functionality", () => {
     await page.goto(`/${testNpub}`)
 
     // Wait for profile page to load
-    await expect(page.url()).not.toMatch(/localhost:5173\/?$/)
+    await expect(page).toHaveURL(new RegExp(`${testNpub}/?$`))
 
     // Check that the header is visible
     const header = page.locator("header").first()

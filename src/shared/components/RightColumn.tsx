@@ -14,8 +14,7 @@ function RightColumn({children}: RightColumnProps) {
   const {appearance, updateAppearance} = useSettingsStore()
   const isExpanded = appearance.showRightColumn
 
-  const isTestEnvironment =
-    typeof window !== "undefined" && window.location.href.includes("localhost:5173")
+  const isTestEnvironment = import.meta.env.VITE_E2E === "true"
 
   // Don't show right column when two-column layout is enabled (singleColumnLayout is false)
   if (!appearance.singleColumnLayout) {

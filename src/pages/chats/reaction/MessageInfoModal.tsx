@@ -117,22 +117,24 @@ export const MessageInfoModal = ({
     // If we have absolutely no receipt metadata, skip the section.
     if (!status && !deliveredAt && !seenAt) return null
 
+    const deliveredText = (() => {
+      if (deliveredAt) return formatDateTimeSeconds(deliveredAt)
+      if (status === "delivered" || status === "seen") return "Yes"
+      return "No"
+    })()
+
+    const seenText = (() => {
+      if (seenAt) return formatDateTimeSeconds(seenAt)
+      if (status === "seen") return "Yes"
+      return "No"
+    })()
+
     return (
       <div>
         <p className="text-sm text-base-content/60 mb-2">Receipts:</p>
         <div className="text-sm font-mono space-y-1">
-          <div>
-            Delivered:{" "}
-            {deliveredAt
-              ? formatDateTimeSeconds(deliveredAt)
-              : status === "delivered" || status === "seen"
-                ? "Yes"
-                : "No"}
-          </div>
-          <div>
-            Seen:{" "}
-            {seenAt ? formatDateTimeSeconds(seenAt) : status === "seen" ? "Yes" : "No"}
-          </div>
+          <div>Delivered: {deliveredText}</div>
+          <div>Seen: {seenText}</div>
         </div>
       </div>
     )

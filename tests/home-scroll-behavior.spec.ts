@@ -78,7 +78,7 @@ test.describe("Home Feed Scroll Behavior", () => {
     await page.setViewportSize({width: 1400, height: 900})
 
     // Navigate to home
-    await page.goto("http://localhost:5173/")
+    await page.goto("/")
 
     // Wait for content to load
     await page.waitForTimeout(2000)
@@ -152,7 +152,7 @@ test.describe("Home Feed Scroll Behavior", () => {
     await page.setViewportSize({width: 375, height: 667})
 
     // Navigate to home
-    await page.goto("http://localhost:5173/")
+    await page.goto("/")
 
     // Wait for content to load
     await page.waitForTimeout(2000)

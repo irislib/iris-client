@@ -1,4 +1,4 @@
-const LOCAL_RELAY = ["ws://localhost:7777"]
+const LOCAL_RELAY = ["ws://127.0.0.1:7777"]
 
 const PRODUCTION_RELAYS = [
   "wss://temp.iris.to/",

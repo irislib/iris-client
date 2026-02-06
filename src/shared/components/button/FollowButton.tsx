@@ -15,8 +15,7 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   const [isHovering, setIsHovering] = useState(false)
   const [, setUpdated] = useState(0)
 
-  const isTestEnvironment =
-    typeof window !== "undefined" && window.location.href.includes("localhost:5173")
+  const isTestEnvironment = import.meta.env.VITE_E2E === "true"
 
   const pubKeyHex = useMemo(() => {
     if (!pubKey) return null

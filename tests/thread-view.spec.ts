@@ -5,7 +5,7 @@ test("can sign up and see home feed", async ({page}) => {
   const username = "Thread Test User"
   await signUp(page, username)
 
-  await expect(page.url()).toMatch(/localhost:5173\/?$/)
+  await expect(page).toHaveURL(/\/$/)
 
   await expect(page.locator("#main-content").getByTestId("new-post-button")).toBeVisible()
 

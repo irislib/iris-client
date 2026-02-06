@@ -20,14 +20,17 @@ function parseInvitePayload(url: string): {purpose?: string; owner?: string} | n
     const decoded = decodeURIComponent(rawHash)
     const data = JSON.parse(decoded) as Record<string, unknown>
     if (!data || typeof data !== "object") return null
+
+    let owner: string | undefined
+    if (typeof data.owner === "string") {
+      owner = data.owner
+    } else if (typeof data.ownerPubkey === "string") {
+      owner = data.ownerPubkey
+    }
+
     return {
       purpose: typeof data.purpose === "string" ? data.purpose : undefined,
-      owner:
-        typeof data.owner === "string"
-          ? data.owner
-          : typeof data.ownerPubkey === "string"
-            ? data.ownerPubkey
-            : undefined,
+      owner,
     }
   } catch {
     return null
@@ -53,12 +56,13 @@ function normalizeInvitePayload(raw: string): string | null {
   const inviter = typeof data.inviter === "string" ? data.inviter : undefined
   const sharedSecret =
     typeof data.sharedSecret === "string" ? data.sharedSecret : undefined
-  const ephemeralKey =
-    typeof data.ephemeralKey === "string"
-      ? data.ephemeralKey
-      : typeof data.inviterEphemeralPublicKey === "string"
-        ? data.inviterEphemeralPublicKey
-        : undefined
+
+  let ephemeralKey: string | undefined
+  if (typeof data.ephemeralKey === "string") {
+    ephemeralKey = data.ephemeralKey
+  } else if (typeof data.inviterEphemeralPublicKey === "string") {
+    ephemeralKey = data.inviterEphemeralPublicKey
+  }
 
   if (!inviter || !sharedSecret || !ephemeralKey) return null
 
@@ -69,12 +73,13 @@ function normalizeInvitePayload(raw: string): string | null {
   }
 
   const purpose = typeof data.purpose === "string" ? data.purpose : undefined
-  const owner =
-    typeof data.owner === "string"
-      ? data.owner
-      : typeof data.ownerPubkey === "string"
-        ? data.ownerPubkey
-        : undefined
+
+  let owner: string | undefined
+  if (typeof data.owner === "string") {
+    owner = data.owner
+  } else if (typeof data.ownerPubkey === "string") {
+    owner = data.ownerPubkey
+  }
 
   if (purpose) payload.purpose = purpose
   if (owner) payload.owner = owner

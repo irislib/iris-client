@@ -5,10 +5,12 @@ import {VitePWA} from "vite-plugin-pwa"
 import {defineConfig} from "vite"
 import config from "config"
 
+const isVitest = !!process.env.VITEST
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    nodePolyfills(),
+    ...(isVitest ? [] : [nodePolyfills()]),
     react({
       fastRefresh: true,
     }),
@@ -176,7 +178,7 @@ export default defineConfig({
     "import.meta.env.VITE_BUILD_TIME": JSON.stringify(new Date().toISOString()),
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "dev-relay/**/*.test.ts"],
     exclude: [
       "tests/**/*",
       "node_modules/**/*",

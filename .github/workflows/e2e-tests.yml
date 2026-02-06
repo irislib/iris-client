@@ -25,40 +25,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Cache wellorder dataset
-        uses: actions/cache@v4
-        with:
-          path: dev-relay/nostr-wellorder-early-500k-v1.jsonl.bz2
-          key: wellorder-dataset-v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-strfry-${{ hashFiles('dev-relay/Dockerfile') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-strfry-
-
-      - name: Build strfry image
-        run: |
-          cd dev-relay
-          docker buildx build \
-            --cache-from type=local,src=/tmp/.buildx-cache \
-            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
-            --load -t strfry-relay .
-          # Move cache to avoid growing indefinitely
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
-      - name: Start local relay with Docker
-        run: (cd dev-relay && docker compose up -d --wait --wait-timeout 120)
-
-      - name: Seed relay with test data
-        run: (cd dev-relay && bash quick-seed.sh 80000)
-
       - name: Install Playwright browsers
         run: npx playwright install chromium
 

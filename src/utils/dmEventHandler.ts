@@ -207,14 +207,10 @@ export const attachSessionEventListener = () => {
             .events.get(chatId)
             ?.get(event.id)
           const existingStatus = existingMessage?.status
-          const nextStatus =
-            !isMine && !isReaction
-              ? isChatAccepted
-                ? existingStatus === "seen"
-                  ? "seen"
-                  : "delivered"
-                : existingStatus
-              : existingStatus
+          let nextStatus = existingStatus
+          if (!isMine && !isReaction && isChatAccepted) {
+            nextStatus = existingStatus === "seen" ? "seen" : "delivered"
+          }
 
           void usePrivateMessagesStore.getState().upsert(from, to, {
             ...event,
