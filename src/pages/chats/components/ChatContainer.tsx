@@ -1,4 +1,4 @@
-import {useLayoutEffect, useRef, useState, useEffect, useMemo} from "react"
+import {useLayoutEffect, useRef, useState, useEffect, useMemo, type ReactNode} from "react"
 import ErrorBoundary from "@/shared/components/ui/ErrorBoundary"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import Message, {MessageType} from "../message/Message"
@@ -17,6 +17,7 @@ interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
   sessionId: string
   onReply: (message: MessageType) => void
+  bottomContent?: ReactNode
   showAuthor?: boolean
   isPublicChat?: boolean
   initialLoadDone?: boolean
@@ -33,6 +34,7 @@ const ChatContainer = ({
   messages,
   sessionId,
   onReply,
+  bottomContent,
   showAuthor = false,
   isPublicChat = false,
   initialLoadDone = false,
@@ -310,6 +312,7 @@ const ChatContainer = ({
             </div>
           </div>
         )}
+        {bottomContent}
         <div ref={messagesEndRef} />
       </div>
       {showScrollDown && (

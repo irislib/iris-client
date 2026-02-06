@@ -3,7 +3,7 @@ import Header from "@/shared/components/header/Header"
 import ChatListItem from "./ChatListItem"
 import {NavLink} from "@/navigation"
 import classNames from "classnames"
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo} from "react"
 import {RiChatNewLine} from "@remixicon/react"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -16,6 +16,7 @@ import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "@/stores/user"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
+import {useUIStore} from "@/stores/ui"
 
 interface ChatListProps {
   className?: string
@@ -27,7 +28,8 @@ const ChatList = ({className}: ChatListProps) => {
   const enablePublicChats = useMessagesStore((state) => state.enablePublicChats)
   const myPubKey = useUserStore((state) => state.publicKey)
   const myFollows = useFollowsFromGraph(myPubKey, false)
-  const [activeTab, setActiveTab] = useState<"all" | "requests">("all")
+  const activeTab = useUIStore((state) => state.chatsListActiveTab)
+  const setActiveTab = useUIStore((state) => state.setChatsListActiveTab)
   const acceptedChats = useMessageRequestsStore((state) => state.acceptedChats)
   const rejectedChats = useMessageRequestsStore((state) => state.rejectedChats)
 
@@ -213,7 +215,6 @@ const ChatList = ({className}: ChatListProps) => {
               id={id}
               isPublic={type === "public"}
               type={type}
-              showRequestActions={activeTab === "requests"}
             />
           ))}
         </div>

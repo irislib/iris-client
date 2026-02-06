@@ -13,7 +13,8 @@ async function setupChatWithSelf(page) {
 
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
-  await page.waitForLoadState("networkidle")
+  // Avoid networkidle (app uses persistent connections); wait for UI instead.
+  await page.waitForLoadState("domcontentloaded")
 
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
 
@@ -143,14 +144,57 @@ test.describe("Hashtree Attachment", () => {
       .poll(() => attachmentVideo.evaluate((v) => v.currentTime), {timeout: 5000})
       .toBeGreaterThan(0)
 
-    // Create enough content to make the chat scroll, then scroll away from the video.
-    const filler = Array.from({length: 200}, (_, i) => `filler ${i}`).join("\n")
-    await messageInput.fill(filler)
-    await messageInput.press("Enter")
+    // Seed enough content to make the chat scroll, then scroll away from the video.
+    // (Avoids relying on long messages, which may be truncated in UI rendering.)
+    await page.evaluate(async () => {
+      const raw = localStorage.getItem("user-storage")
+      if (!raw) throw new Error("Missing user-storage")
+      const parsed = JSON.parse(raw)
+      const myPubKey = parsed?.state?.publicKey as string | undefined
+      if (!myPubKey) throw new Error("Missing publicKey in user-storage")
 
-    const chatScrollContainer = page.locator("[data-header-scroll-target]").last()
+      const store = (
+        window as unknown as {
+          usePrivateMessagesStore?: {
+            getState: () => {
+              awaitHydration: () => Promise<void>
+              upsert: (from: string, to: string, event: any) => Promise<void>
+            }
+          }
+        }
+      ).usePrivateMessagesStore?.getState?.()
+
+      if (!store) {
+        throw new Error("usePrivateMessagesStore not available on window")
+      }
+
+      await store.awaitHydration()
+
+      const base = Date.now()
+      // Keep total messages <= ChatContainer's initial render window (25) so the video stays mounted.
+      for (let i = 0; i < 20; i++) {
+        const nowMs = base + i * 10
+        const hexId = (base + i).toString(16).padStart(64, "0")
+        const content = Array.from({length: 12}, (_, j) => `filler ${i}-${j}`).join(
+          "\n"
+        )
+        await store.upsert(myPubKey, myPubKey, {
+          id: hexId,
+          pubkey: myPubKey,
+          ownerPubkey: myPubKey,
+          created_at: Math.floor(nowMs / 1000),
+          kind: 14, // nostr-double-ratchet CHAT_MESSAGE_KIND
+          tags: [["ms", String(nowMs)]],
+          content,
+        })
+      }
+    })
+
+    const chatScrollContainer = attachmentVideo.locator(
+      "xpath=ancestor::*[@data-header-scroll-target][1]"
+    )
     await chatScrollContainer.evaluate((el: HTMLElement) => {
-      el.scrollTop = 0
+      el.scrollTop = el.scrollHeight
     })
 
     await expect

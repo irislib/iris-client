@@ -19,9 +19,20 @@ test.describe("Note draft persistence", () => {
     // Close the note creator
     await page.keyboard.press("Escape")
 
+    // Allow async draft persistence (localforage) to complete before reload.
+    await page.waitForTimeout(1000)
+
     // Reload the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    // Avoid networkidle (app uses persistent connections); wait for UI instead.
+    await page.waitForLoadState("domcontentloaded")
+    await expect(
+      page.locator("#main-content").getByTestId("new-post-button")
+    ).toBeVisible({
+      timeout: 15000,
+    })
+    // Wait for draft store hydration after reload
+    await page.waitForTimeout(2000)
 
     // Open note creator again
     await page.locator("#main-content").getByTestId("new-post-button").click()
@@ -54,20 +65,20 @@ test.describe("Note draft persistence", () => {
       page.getByRole("dialog").getByPlaceholder("What's on your mind?")
     ).not.toBeVisible()
 
+    // Allow async draft persistence (localforage) to clear before navigating/reloading.
+    await page.waitForTimeout(1000)
+
     // Go back to home to test draft from there
     await page.goto("/")
-    await page.waitForLoadState("networkidle")
+    // Avoid networkidle (app uses persistent connections); wait for UI instead.
+    await page.waitForLoadState("domcontentloaded")
 
-    // Open note creator again - use visible selector to avoid background stack views
-    const newPostButton = page.locator(
-      '#main-content:visible [data-testid="new-post-button"]'
-    )
-    await expect(newPostButton).toBeVisible({timeout: 10000})
-    await newPostButton.click()
-
-    // Verify the content is cleared
-    await expect(
-      page.getByRole("dialog").getByPlaceholder("What's on your mind?")
-    ).toHaveValue("")
+    // Verify the content is cleared in the inline creator on the home feed.
+    const inlineDraft = page
+      .locator("#main-content:visible")
+      .getByPlaceholder("What's on your mind?")
+      .first()
+    await expect(inlineDraft).toBeVisible({timeout: 15000})
+    await expect(inlineDraft).toHaveValue("")
   })
 })
