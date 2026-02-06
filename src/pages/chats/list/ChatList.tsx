@@ -15,6 +15,7 @@ import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMes
 import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "@/stores/user"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
 
 interface ChatListProps {
   className?: string
@@ -27,6 +28,8 @@ const ChatList = ({className}: ChatListProps) => {
   const myPubKey = useUserStore((state) => state.publicKey)
   const myFollows = useFollowsFromGraph(myPubKey, false)
   const [activeTab, setActiveTab] = useState<"all" | "requests">("all")
+  const acceptedChats = useMessageRequestsStore((state) => state.acceptedChats)
+  const rejectedChats = useMessageRequestsStore((state) => state.rejectedChats)
 
   // Subscribe only to events Map keys (chat IDs) to minimize rerenders
   const events = usePrivateMessagesStore((state) => state.events)
@@ -62,11 +65,14 @@ const ChatList = ({className}: ChatListProps) => {
     const all: Array<{id: string; type: "private"}> = []
     const requests: Array<{id: string; type: "private"}> = []
 
-    // "Accepted" = we follow them OR we've already sent at least one message.
+    // "Accepted" = we follow them OR we explicitly accepted OR we've already sent at least one message.
     for (const {userPubKey} of privateChatsList) {
+      if (rejectedChats[userPubKey]) continue
+
       const isFollowed = followsSet.has(userPubKey)
+      const isLocallyAccepted = !!acceptedChats[userPubKey]
       let hasSent = false
-      if (!isFollowed && myPubKey) {
+      if (!isFollowed && !isLocallyAccepted && myPubKey) {
         const messageMap = events.get(userPubKey)
         if (messageMap) {
           for (const msg of messageMap.values()) {
@@ -79,7 +85,7 @@ const ChatList = ({className}: ChatListProps) => {
         }
       }
 
-      if (isFollowed || hasSent) {
+      if (isFollowed || isLocallyAccepted || hasSent) {
         all.push({id: userPubKey, type: "private"})
       } else {
         requests.push({id: userPubKey, type: "private"})
@@ -87,7 +93,7 @@ const ChatList = ({className}: ChatListProps) => {
     }
 
     return {all, requests}
-  }, [privateChatsList, followsSet, events, myPubKey])
+  }, [privateChatsList, followsSet, events, myPubKey, acceptedChats, rejectedChats])
 
   useEffect(() => {
     if (!enablePublicChats) return
@@ -194,7 +200,13 @@ const ChatList = ({className}: ChatListProps) => {
             </button>
           </div>
           {chatItems.map(({id, type}) => (
-            <ChatListItem key={id} id={id} isPublic={type === "public"} type={type} />
+            <ChatListItem
+              key={id}
+              id={id}
+              isPublic={type === "public"}
+              type={type}
+              showRequestActions={activeTab === "requests"}
+            />
           ))}
         </div>
       </div>

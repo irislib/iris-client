@@ -7,6 +7,7 @@ describe("messages store", () => {
       enablePublicChats: false,
       sendDeliveryReceipts: true,
       sendReadReceipts: true,
+      receiveMessageRequests: true,
     })
   })
 
@@ -35,5 +36,14 @@ describe("messages store", () => {
   it("can disable read receipts", () => {
     useMessagesStore.getState().setSendReadReceipts(false)
     expect(useMessagesStore.getState().sendReadReceipts).toBe(false)
+  })
+
+  it("defaults message requests to enabled", () => {
+    expect(useMessagesStore.getState().receiveMessageRequests).toBe(true)
+  })
+
+  it("can disable message requests", () => {
+    useMessagesStore.getState().setReceiveMessageRequests(false)
+    expect(useMessagesStore.getState().receiveMessageRequests).toBe(false)
   })
 })

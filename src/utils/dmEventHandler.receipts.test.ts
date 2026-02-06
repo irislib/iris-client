@@ -4,6 +4,7 @@ import {KIND_CHAT_MESSAGE} from "@/utils/constants"
 import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
 
 const MY_PUBKEY = "a".repeat(64)
 const THEIR_PUBKEY = "b".repeat(64)
@@ -52,7 +53,9 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({
       sendDeliveryReceipts: true,
       sendReadReceipts: true,
+      receiveMessageRequests: true,
     })
+    useMessageRequestsStore.setState({acceptedChats: {}, rejectedChats: {}})
 
     await usePrivateMessagesStore.getState().clear()
   })
@@ -203,5 +206,54 @@ describe("dmEventHandler receipts", () => {
     expect(stored?.status).toBe("seen")
     expect(stored?.deliveredAt).toBe(deliveredAt)
     expect(stored?.seenAt).toBe(seenAt)
+  })
+
+  it("ignores incoming message requests when disabled", async () => {
+    useMessagesStore.setState({receiveMessageRequests: false})
+    isFollowing.mockReturnValue(false)
+
+    attachSessionEventListener()
+    await flushPromises()
+
+    capturedCallback?.(
+      {
+        id: "msg-4",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: THEIR_PUBKEY,
+        content: "hello",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      },
+      THEIR_PUBKEY
+    )
+
+    expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
+    expect(usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)).toBeUndefined()
+  })
+
+  it("still receives incoming messages for accepted chats when requests are disabled", async () => {
+    useMessagesStore.setState({receiveMessageRequests: false, sendDeliveryReceipts: true})
+    isFollowing.mockReturnValue(false)
+    useMessageRequestsStore.getState().acceptChat(THEIR_PUBKEY)
+
+    attachSessionEventListener()
+    await flushPromises()
+
+    capturedCallback?.(
+      {
+        id: "msg-5",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: THEIR_PUBKEY,
+        content: "hello",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      },
+      THEIR_PUBKEY
+    )
+
+    expect(usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("msg-5")).toBeTruthy()
+    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
+      "msg-5",
+    ])
   })
 })

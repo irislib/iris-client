@@ -5,6 +5,7 @@ import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useMessagesStore} from "@/stores/messages"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
 import {KIND_CHANNEL_CREATE, KIND_CHAT_MESSAGE, KIND_REACTION} from "./constants"
@@ -140,6 +141,38 @@ export const attachSessionEventListener = () => {
             return
           }
 
+          const isMine = effectiveOwner === publicKey
+          const {acceptedChats, rejectedChats} = useMessageRequestsStore.getState()
+          const isLocallyAccepted = !!acceptedChats[chatId]
+          const isLocallyRejected = !!rejectedChats[chatId]
+          const isChatAccepted =
+            // Followed users go straight to "All".
+            getSocialGraph().isFollowing(publicKey, chatId) ||
+            // Explicitly accepted requests (without following).
+            isLocallyAccepted ||
+            // Treat chats we've already sent to as accepted (request has been "accepted").
+            (() => {
+              const messageMap = usePrivateMessagesStore.getState().events.get(chatId)
+              if (!messageMap) return false
+              for (const msg of messageMap.values()) {
+                const owner = msg.ownerPubkey ?? msg.pubkey
+                if (owner === publicKey) return true
+              }
+              return false
+            })()
+
+          const {receiveMessageRequests} = useMessagesStore.getState()
+          const shouldIgnoreRequest =
+            !isMine &&
+            !isChatAccepted &&
+            (isLocallyRejected || receiveMessageRequests === false)
+
+          // If the user disabled message requests (or previously rejected this user),
+          // drop incoming events before they hit the message store.
+          if (shouldIgnoreRequest) {
+            return
+          }
+
           if (isTyping(event)) {
             if (!isOwnDevice) {
               useTypingStore
@@ -168,20 +201,6 @@ export const attachSessionEventListener = () => {
               .clearRemoteTyping(chatId, getMillisecondTimestamp(event))
           }
 
-          const isMine = effectiveOwner === publicKey
-          const isChatAccepted =
-            // Followed users go straight to "All".
-            getSocialGraph().isFollowing(publicKey, chatId) ||
-            // Treat chats we've already sent to as accepted (request has been "accepted").
-            (() => {
-              const messageMap = usePrivateMessagesStore.getState().events.get(chatId)
-              if (!messageMap) return false
-              for (const msg of messageMap.values()) {
-                const owner = msg.ownerPubkey ?? msg.pubkey
-                if (owner === publicKey) return true
-              }
-              return false
-            })()
           const existingMessage = usePrivateMessagesStore
             .getState()
             .events.get(chatId)

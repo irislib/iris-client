@@ -16,6 +16,7 @@ import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
 import {useIsFollowing} from "@/utils/socialGraph"
 import {getMessageAuthorPubkey} from "@/pages/chats/utils/messageAuthor"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -26,7 +27,10 @@ const Chat = ({id}: {id: string}) => {
   const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
   const myPubKey = useUserStore((state) => state.publicKey)
   const isFollowing = useIsFollowing(myPubKey, id)
-  const isChatAccepted = isFollowing || haveSent
+  const isLocallyAccepted = useMessageRequestsStore(
+    (state) => !!state.acceptedChats[id]
+  )
+  const isChatAccepted = isFollowing || haveSent || isLocallyAccepted
 
   // Allow messaging regardless of session state - sessions will be created automatically
 

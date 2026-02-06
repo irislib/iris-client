@@ -11,21 +11,31 @@ import {MessageType} from "../message/Message"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {RiEarthLine} from "@remixicon/react"
 import {useUserStore} from "@/stores/user"
-import {useEffect, useState, useMemo, useRef} from "react"
+import {useEffect, useState, useMemo, useRef, type MouseEvent} from "react"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
 import {useGroupsStore} from "@/stores/groups"
 import {useTypingStore} from "@/stores/typingIndicators"
 import MessageStatus from "../message/MessageStatus"
 import {countUnseenMessages} from "@/pages/chats/utils/unseenCount"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
+import {useMessagesStore} from "@/stores/messages"
+import {getSessionManager} from "@/shared/services/PrivateChats"
+import {markMessagesDeliveredAndMaybeSendReceipt} from "@/pages/chats/utils/deliveredReceipts"
 
 interface ChatListItemProps {
   id: string
   isPublic?: boolean
   type?: string
+  showRequestActions?: boolean
 }
 
-const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
+const ChatListItem = ({
+  id,
+  isPublic = false,
+  type,
+  showRequestActions = false,
+}: ChatListItemProps) => {
   const location = useLocation()
   const pubKey = isPublic ? "" : id
   const isActive = location.state?.id === id
@@ -56,6 +66,9 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   const typingActive = useTypingStore(
     (state) => (type === "private" ? state.isTyping.get(id) ?? false : false)
   )
+  const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
+  const rejectChat = useMessageRequestsStore((state) => state.rejectChat)
+  const sendDeliveryReceipts = useMessagesStore((state) => state.sendDeliveryReceipts)
 
   // Memoize latest message to prevent flash when other chats update
   const actualLatest = useMemo(() => {
@@ -265,6 +278,53 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
       <span className="badge badge-primary badge-sm shrink-0">{unseenLabel}</span>
     ) : null
 
+  const shouldShowRequestActions =
+    showRequestActions && type === "private" && !isPublic && !group
+
+  const handleAccept = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!id) return
+
+    acceptChat(id)
+
+    if (!myPubKey) return
+
+    const sessionManager = getSessionManager()
+    if (!sessionManager) return
+
+    const messageMap = usePrivateMessagesStore.getState().events.get(id)
+    if (!messageMap) return
+    const store = usePrivateMessagesStore.getState()
+
+    markMessagesDeliveredAndMaybeSendReceipt({
+      chatId: id,
+      messages: messageMap.values(),
+      myPubKey,
+      updateMessage: store.updateMessage,
+      sessionManager,
+      sendDeliveryReceipts,
+      isChatAccepted: true,
+    })
+  }
+
+  const handleReject = (e: MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (!id) return
+
+    rejectChat(id)
+
+    const sessionManager = getSessionManager()
+    const store = usePrivateMessagesStore.getState()
+    void Promise.all([
+      sessionManager?.deleteUser(id).catch(() => {}),
+      store.removeSession(id).catch(() => {}),
+    ])
+  }
+
   // Determine route for NavLink
   let chatRoute
   if (group) {
@@ -325,14 +385,31 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
               )}
             </span>
             <div className="flex items-center gap-1 shrink-0">
-              {lastPrivateIsMine && (
-                <MessageStatus
-                  status={lastPrivateMessage?.status}
-                  sentToRelays={lastPrivateMessage?.sentToRelays}
-                  className="w-3.5 h-3.5"
-                />
+              {shouldShowRequestActions ? (
+                <>
+                  {unreadBadge}
+                  <button className="btn btn-xs btn-primary" onClick={handleAccept}>
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-xs text-error hover:bg-error hover:text-error-content"
+                    onClick={handleReject}
+                  >
+                    Reject
+                  </button>
+                </>
+              ) : (
+                <>
+                  {lastPrivateIsMine && (
+                    <MessageStatus
+                      status={lastPrivateMessage?.status}
+                      sentToRelays={lastPrivateMessage?.sentToRelays}
+                      className="w-3.5 h-3.5"
+                    />
+                  )}
+                  {unreadBadge}
+                </>
               )}
-              {unreadBadge}
             </div>
           </div>
         </div>

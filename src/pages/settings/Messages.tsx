@@ -10,6 +10,8 @@ function Messages() {
     setSendDeliveryReceipts,
     sendReadReceipts,
     setSendReadReceipts,
+    receiveMessageRequests,
+    setReceiveMessageRequests,
   } = useMessagesStore()
 
   return (
@@ -26,6 +28,14 @@ function Messages() {
               checked={sendReadReceipts}
               onChange={() => setSendReadReceipts(!sendReadReceipts)}
               label="Send read receipts"
+              isLast
+            />
+          </SettingsGroup>
+          <SettingsGroup title="Requests">
+            <SettingToggle
+              checked={receiveMessageRequests}
+              onChange={() => setReceiveMessageRequests(!receiveMessageRequests)}
+              label="Receive message requests from non-followed users"
               isLast
             />
           </SettingsGroup>
