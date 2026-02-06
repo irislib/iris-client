@@ -11,7 +11,7 @@ type MessageStatusProps = {
 const MessageStatus = ({status, sentToRelays, className}: MessageStatusProps) => {
   if (status === "seen") {
     return (
-      <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-80 text-info", className)} />
+      <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-80 text-success", className)} />
     )
   }
   if (status === "delivered") {
