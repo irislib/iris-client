@@ -10,25 +10,27 @@ test("can create and use a group chat with self", async ({page}) => {
 
   // Go to Devices tab and register this device
   await page.getByRole("link", {name: "Devices"}).click()
-  await expect(
-    page.getByText(
-      "Manage devices that can send and receive encrypted messages on your behalf."
-    ).first()
-  ).toBeVisible({timeout: 10000})
+  await expect(page).toHaveURL(/\/chats\/new\/devices/)
+  await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({
+    timeout: 10000,
+  })
 
   const registerButton = page.getByRole("button", {name: "Register this device"})
   const thisDeviceBadge = page.getByText("This device").first()
-  const noDevicesText = page.getByText("No devices registered yet")
-
-  // Wait for the devices store to settle into one of the stable UI states.
-  await Promise.race([
-    registerButton.waitFor({state: "visible", timeout: 10000}),
-    thisDeviceBadge.waitFor({state: "visible", timeout: 10000}),
-    noDevicesText.waitFor({state: "visible", timeout: 10000}),
-  ]).catch(() => {})
 
   if (!(await thisDeviceBadge.isVisible().catch(() => false))) {
-    if (await registerButton.isVisible().catch(() => false)) {
+    if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
+      // The devices store starts out empty, so the register button can appear briefly even when
+      // the current device is already registered. Give it a moment to settle before clicking.
+      await Promise.race([
+        thisDeviceBadge.waitFor({state: "visible", timeout: 3000}),
+        registerButton.waitFor({state: "hidden", timeout: 3000}),
+      ]).catch(() => {})
+
+      if (
+        !(await thisDeviceBadge.isVisible().catch(() => false)) &&
+        (await registerButton.isVisible().catch(() => false))
+      ) {
       await registerButton.click({timeout: 10000})
 
       // If there are existing devices, registration requires confirmation.
@@ -41,6 +43,7 @@ test("can create and use a group chat with self", async ({page}) => {
 
       await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
       await expect(registerButton).not.toBeVisible({timeout: 20000})
+      }
     }
   }
 
