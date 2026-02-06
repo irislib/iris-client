@@ -313,7 +313,11 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
                     })()}
                   />
                   {lastPrivateIsMine && (
-                    <MessageStatus status={lastPrivateMessage?.status} className="w-3.5 h-3.5" />
+                    <MessageStatus
+                      status={lastPrivateMessage?.status}
+                      sentToRelays={lastPrivateMessage?.sentToRelays}
+                      className="w-3.5 h-3.5"
+                    />
                   )}
                 </span>
               )}

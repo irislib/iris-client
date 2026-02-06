@@ -167,5 +167,10 @@
     "@scure/bip39": "^1.6.0",
     "nostr-tools": "^2.16.2",
     "dexie": "^4.2.0"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "nostr-double-ratchet": "patches/nostr-double-ratchet.patch"
+    }
   }
 }

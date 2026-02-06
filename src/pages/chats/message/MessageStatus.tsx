@@ -4,10 +4,11 @@ import classNames from "classnames"
 
 type MessageStatusProps = {
   status?: ReceiptType
+  sentToRelays?: boolean
   className?: string
 }
 
-const MessageStatus = ({status, className}: MessageStatusProps) => {
+const MessageStatus = ({status, sentToRelays, className}: MessageStatusProps) => {
   if (status === "seen") {
     return (
       <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-80 text-info", className)} />
@@ -15,6 +16,9 @@ const MessageStatus = ({status, className}: MessageStatusProps) => {
   }
   if (status === "delivered") {
     // Inherit parent text color so this works in both chat list and message bubble contexts.
+    return <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-50", className)} />
+  }
+  if (sentToRelays) {
     return <RiCheckLine className={classNames("w-4 h-4 opacity-50", className)} />
   }
   return null

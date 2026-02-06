@@ -13,6 +13,11 @@ overrides:
   nostr-tools: ^2.16.2
   dexie: ^4.2.0
 
+patchedDependencies:
+  nostr-double-ratchet:
+    hash: ovvj5ide2fb43arghfikm4b7cm
+    path: patches/nostr-double-ratchet.patch
+
 importers:
 
   .:
@@ -106,7 +111,7 @@ importers:
         version: 4.2.1
       nostr-double-ratchet:
         specifier: 0.0.54
-        version: 0.0.54(typescript@5.9.3)
+        version: 0.0.54(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -8464,7 +8469,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.54(typescript@5.9.3):
+  nostr-double-ratchet@0.0.54(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.19.4(typescript@5.9.3)
     transitivePeerDependencies:

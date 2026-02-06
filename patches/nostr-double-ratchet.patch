@@ -1,0 +1,15 @@
+diff --git a/src/Session.ts b/src/Session.ts
+index fb2a07c27aa3a4eb7cfd5ce9dcfefb1e02608eec..cfb05d3fe7d24358fed747916a0d08644d900205 100644
+--- a/src/Session.ts
++++ b/src/Session.ts
+@@ -212,7 +212,9 @@ export class Session {
+     const nostrEvent = finalizeEvent({
+       content: encryptedData,
+       kind: MESSAGE_EVENT_KIND,
+-      tags: [["header", encryptedHeader]],
++      // IMPORTANT: decryptHeader() expects the encrypted header at tags[0][1], so "header" must
++      // remain the first tag.
++      tags: [["header", encryptedHeader], ["inner", rumor.id]],
+       created_at: Math.floor(now / 1000)
+     }, this.state.ourCurrentNostrKey.privateKey);
+ 

@@ -16,6 +16,7 @@ import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"
 import {useDevicesStore} from "../../stores/devices"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -101,6 +102,26 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
   return (async (event) => {
     const e = new NDKEvent(ndkInstance, event)
     await e.publish()
+
+    // Private messages are sent as encrypted wrapper events; we store the decrypted inner "rumor" by
+    // its ID. If the wrapper event includes an `inner` tag, we can mark the message as published.
+    const innerId = (event.tags ?? []).find(([k]) => k === "inner")?.[1]
+    if (innerId) {
+      const {events, updateMessage} = usePrivateMessagesStore.getState()
+      for (const [chatId, messageMap] of events.entries()) {
+        const existing = messageMap.get(innerId)
+        if (!existing) continue
+
+        const updates: Partial<typeof existing> = {sentToRelays: true}
+        if (!existing.nostrEventId) {
+          updates.nostrEventId = e.id
+        }
+
+        void updateMessage(chatId, innerId, updates)
+        break
+      }
+    }
+
     return event
   }) as NostrPublish
 }

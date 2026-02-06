@@ -234,7 +234,12 @@ const Message = ({
               {isLast && (
                 <div className="flex items-center gap-1 ml-2">
                   <p className="text-xs opacity-50 whitespace-nowrap">{formattedTime}</p>
-                  {isUser && <MessageStatus status={message.status} />}
+                  {isUser && (
+                    <MessageStatus
+                      status={message.status}
+                      sentToRelays={message.sentToRelays}
+                    />
+                  )}
                 </div>
               )}
             </div>

@@ -118,6 +118,10 @@ export const attachSessionEventListener = () => {
               if (owner !== publicKey) continue
               const updates: Partial<MessageType> = {}
 
+              // A receipt implies our message made it to their device, so it must have
+              // been published successfully to at least one relay.
+              if (!existing.sentToRelays) updates.sentToRelays = true
+
               if (receipt.type === "delivered") {
                 if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
               } else if (receipt.type === "seen") {
