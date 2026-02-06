@@ -1,5 +1,5 @@
 import {LoadingFallback} from "@/shared/components/LoadingFallback"
-import {useEffect, useRef, useState, lazy, Suspense} from "react"
+import {useEffect, useRef, useState, lazy, Suspense, type CSSProperties} from "react"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import EmojiType from "@/types/emoji"
 import classNames from "classnames"
@@ -86,11 +86,11 @@ export const FloatingEmojiPicker = ({
     return "fixed z-50"
   }
 
-  const getPositionStyles = (): React.CSSProperties => {
+  const getPositionStyles = (): CSSProperties => {
     if (!isDesktop || !position?.clientY || !position?.clientX) return {}
 
     const alignRight = shouldAlignLeft || position?.openRight
-    const style: React.CSSProperties = {}
+    const style: CSSProperties = {}
 
     // Vertical positioning
     if (pickerDirection === "down") {

@@ -31,18 +31,20 @@ test("can create and use a group chat with self", async ({page}) => {
         !(await thisDeviceBadge.isVisible().catch(() => false)) &&
         (await registerButton.isVisible().catch(() => false))
       ) {
-      await registerButton.click({timeout: 10000})
+        await registerButton.click({timeout: 10000})
 
-      // If there are existing devices, registration requires confirmation.
-      const confirmHeading = page.getByRole("heading", {
-        name: "Confirm Device Registration",
-      })
-      if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-        await page.getByRole("button", {name: "Register Device"}).click({timeout: 10000})
-      }
+        // If there are existing devices, registration requires confirmation.
+        const confirmHeading = page.getByRole("heading", {
+          name: "Confirm Device Registration",
+        })
+        if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
+          await page
+            .getByRole("button", {name: "Register Device"})
+            .click({timeout: 10000})
+        }
 
-      await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
-      await expect(registerButton).not.toBeVisible({timeout: 20000})
+        await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
+        await expect(registerButton).not.toBeVisible({timeout: 20000})
       }
     }
   }

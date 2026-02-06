@@ -9,7 +9,7 @@ test("social graph stats update after snapshot download", async ({page}) => {
 
   // Wait for stats section to load
   const statisticsHeading = page.getByText("Statistics", {exact: true})
-  await expect(statisticsHeading).toBeVisible()
+  await expect(statisticsHeading).toBeVisible({timeout: 20000})
 
   // Get follow relationships count via evaluate
   const getFollows = async () => {

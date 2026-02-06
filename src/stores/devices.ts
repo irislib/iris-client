@@ -129,5 +129,6 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       ),
     })
   },
-  setPendingAutoRegistration: (pending: boolean) => set({pendingAutoRegistration: pending}),
+  setPendingAutoRegistration: (pending: boolean) =>
+    set({pendingAutoRegistration: pending}),
 }))

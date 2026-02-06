@@ -24,11 +24,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "VITE_USE_TEST_RELAY=true npm run dev",
+    // Inherit relay selection from the Playwright process env (e.g. VITE_USE_LOCAL_RELAY / VITE_USE_TEST_RELAY).
+    command: "npm run dev",
     url: "http://localhost:5173",
     reuseExistingServer: !process.env.CI,
-    env: {
-      VITE_USE_TEST_RELAY: "true",
-    },
   },
 })

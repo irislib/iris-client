@@ -30,7 +30,9 @@ const RELOAD_AT_KEY = "sw-reload-at"
 
 function maybeSkipWaiting(
   serviceWorker: NonNullable<ServiceWorkerAutoReloadOptions["serviceWorker"]>,
-  registration: Awaited<NonNullable<ServiceWorkerAutoReloadOptions["serviceWorker"]>["ready"]>
+  registration: Awaited<
+    NonNullable<ServiceWorkerAutoReloadOptions["serviceWorker"]>["ready"]
+  >
 ) {
   // Only auto-activate on updates (not first install).
   if (!serviceWorker.controller) return
@@ -48,14 +50,17 @@ function maybeSkipWaiting(
  */
 export function initServiceWorkerAutoReload(opts: ServiceWorkerAutoReloadOptions = {}) {
   const serviceWorker =
-    opts.serviceWorker ?? (typeof navigator !== "undefined" ? navigator.serviceWorker : undefined)
+    opts.serviceWorker ??
+    (typeof navigator !== "undefined" ? navigator.serviceWorker : undefined)
   if (!serviceWorker) return () => {}
 
   const sessionStorageRef =
-    opts.sessionStorage ?? (typeof sessionStorage !== "undefined" ? sessionStorage : undefined)
+    opts.sessionStorage ??
+    (typeof sessionStorage !== "undefined" ? sessionStorage : undefined)
   if (!sessionStorageRef) return () => {}
 
-  const locationRef = opts.location ?? (typeof location !== "undefined" ? location : undefined)
+  const locationRef =
+    opts.location ?? (typeof location !== "undefined" ? location : undefined)
   if (!locationRef) return () => {}
 
   const now = opts.now ?? (() => Date.now())

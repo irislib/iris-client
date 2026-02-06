@@ -102,9 +102,17 @@ export const MessageInfoModal = ({
   const timestampInfo = getTimestampInfo()
 
   const receiptInfo = (() => {
-    const status = (messageForInfo as any)?.status as string | undefined
-    const deliveredAt = (messageForInfo as any)?.deliveredAt as number | undefined
-    const seenAt = (messageForInfo as any)?.seenAt as number | undefined
+    const receiptFields = messageForInfo as
+      | {
+          status?: string
+          deliveredAt?: number
+          seenAt?: number
+        }
+      | undefined
+
+    const status = receiptFields?.status
+    const deliveredAt = receiptFields?.deliveredAt
+    const seenAt = receiptFields?.seenAt
 
     // If we have absolutely no receipt metadata, skip the section.
     if (!status && !deliveredAt && !seenAt) return null

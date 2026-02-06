@@ -210,12 +210,7 @@ const ChatList = ({className}: ChatListProps) => {
             </button>
           </div>
           {chatItems.map(({id, type}) => (
-            <ChatListItem
-              key={id}
-              id={id}
-              isPublic={type === "public"}
-              type={type}
-            />
+            <ChatListItem key={id} id={id} isPublic={type === "public"} type={type} />
           ))}
         </div>
       </div>
