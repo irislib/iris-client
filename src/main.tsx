@@ -14,6 +14,7 @@ import Layout from "@/shared/components/Layout"
 import {isTauri, isMobileTauri} from "./utils/utils"
 import {initializeDebugLogging, createDebugLogger} from "./utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {initServiceWorkerAutoReload} from "@/swInit"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 import {onOpenUrl} from "@tauri-apps/plugin-deep-link"
@@ -36,6 +37,9 @@ import {
   registerDevice,
 } from "@/shared/services/PrivateChats"
 import {useDevicesStore} from "./stores/devices"
+
+// Auto-update and auto-reload the PWA when a new service worker version is available.
+initServiceWorkerAutoReload()
 
 // Register deep link handler for hot starts (when app already open)
 // Note: Cold start (app closed) doesn't work due to Tauri bug #13580

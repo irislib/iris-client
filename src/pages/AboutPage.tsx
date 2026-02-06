@@ -44,11 +44,11 @@ export const AboutPage = () => {
   useEffect(() => {
     // Check for service worker updates
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.addEventListener("controllerchange", () => {
-          setUpdateAvailable(true)
-        })
-      })
+      const handleControllerChange = () => setUpdateAvailable(true)
+      navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
+      return () => {
+        navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange)
+      }
     }
   }, [])
 

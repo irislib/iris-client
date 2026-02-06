@@ -16,6 +16,19 @@ export default defineConfig({
       injectManifest: {
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         globPatterns: ["**/*"],
+        rollupOptions: {
+          onwarn(warning, warn) {
+            if (warning.code === "EVAL" && warning.id?.includes("tseep")) return
+            if (
+              warning.code === "CHUNK_SIZE_LIMIT" ||
+              (typeof warning.message === "string" &&
+                warning.message.includes("Some chunks are larger than"))
+            ) {
+              return
+            }
+            warn(warning)
+          },
+        },
       },
       strategies: "injectManifest",
       injectRegister: "script",
@@ -57,6 +70,15 @@ export default defineConfig({
       external: [],
       onLog(level, log, handler) {
         if (log.code === "CIRCULAR_DEPENDENCY") return
+        if (log.code === "EVAL" && log.id?.includes("tseep")) return
+        if (
+          typeof log.message === "string" &&
+          log.message.includes("is dynamically imported by") &&
+          log.message.includes("but also statically imported") &&
+          log.message.includes("dynamic import will not move module into another chunk")
+        ) {
+          return
+        }
         handler(level, log)
       },
       output: {
