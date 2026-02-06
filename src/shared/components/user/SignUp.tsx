@@ -3,6 +3,7 @@ import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {NDKEvent, NDKPrivateKeySigner} from "@/lib/ndk"
 import {bytesToHex} from "@noble/hashes/utils"
 import {useUserStore} from "@/stores/user"
+import {useDevicesStore} from "@/stores/devices"
 import {useUIStore} from "@/stores/ui"
 import {ndk} from "@/utils/ndk"
 import {NSEC_NPUB_REGEX} from "@/utils/validation"
@@ -92,6 +93,7 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
     const privateKeyHex = bytesToHex(sk)
 
     // Update user store directly
+    useDevicesStore.getState().setPendingAutoRegistration(true)
     setState({
       privateKey: privateKeyHex,
       publicKey: pk,

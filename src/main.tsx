@@ -85,6 +85,10 @@ const checkDeletedAccount = async (publicKey: string) => {
 }
 
 const autoRegisterDevice = async () => {
+  const deviceState = useDevicesStore.getState()
+  if (!deviceState.pendingAutoRegistration) return
+  deviceState.setPendingAutoRegistration(false)
+
   const {publicKey, linkedDevice} = useUserStore.getState()
   if (!publicKey || linkedDevice) return
 
@@ -94,13 +98,13 @@ const autoRegisterDevice = async () => {
     return
   }
 
-  const deviceState = useDevicesStore.getState()
   if (deviceState.hasLocalAppKeys || deviceState.isCurrentDeviceRegistered) {
     return
   }
 
   try {
-    await registerDevice()
+    // Short timeout — new users won't have existing AppKeys on relays
+    await registerDevice(2000)
     log("✅ Auto-registered device for private messaging")
   } catch (err) {
     error("Failed to auto-register device:", err)

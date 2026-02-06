@@ -9,6 +9,7 @@ interface DeviceState {
   sessionManagerReady: boolean
   hasLocalAppKeys: boolean
   lastEventTimestamp: number // Track last processed AppKeys event timestamp
+  pendingAutoRegistration: boolean
   // Computed
   canSendPrivateMessages: boolean
   // Actions
@@ -17,6 +18,7 @@ interface DeviceState {
   setAppKeysManagerReady: (ready: boolean) => void
   setSessionManagerReady: (ready: boolean) => void
   setHasLocalAppKeys: (has: boolean) => void
+  setPendingAutoRegistration: (pending: boolean) => void
 }
 
 const initialState = {
@@ -27,6 +29,7 @@ const initialState = {
   sessionManagerReady: false,
   hasLocalAppKeys: false,
   lastEventTimestamp: 0,
+  pendingAutoRegistration: false,
   canSendPrivateMessages: false,
 }
 
@@ -126,4 +129,5 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       ),
     })
   },
+  setPendingAutoRegistration: (pending: boolean) => set({pendingAutoRegistration: pending}),
 }))

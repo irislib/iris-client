@@ -25,8 +25,7 @@ const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 const APP_KEYS_FETCH_TIMEOUT_MS = 10000
 const APP_KEYS_FAST_TIMEOUT_MS = 2000
 
-const cloneAppKeys = (appKeys: AppKeys): AppKeys =>
-  new AppKeys(appKeys.getAllDevices())
+const cloneAppKeys = (appKeys: AppKeys): AppKeys => new AppKeys(appKeys.getAllDevices())
 
 const resolveBaseAppKeys = async (
   ownerPubkey: string,
@@ -290,7 +289,7 @@ export const hasLocalAppKeys = (): boolean => {
  * Register the current device by adding it to AppKeys.
  * Fetches existing devices from relay first to avoid overwriting them.
  */
-export const registerDevice = async (): Promise<void> => {
+export const registerDevice = async (timeoutMs?: number): Promise<void> => {
   const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
@@ -300,7 +299,7 @@ export const registerDevice = async (): Promise<void> => {
     throw new Error("Managers not initialized")
   }
 
-  const baseKeys = await resolveBaseAppKeys(publicKey)
+  const baseKeys = await resolveBaseAppKeys(publicKey, timeoutMs)
   await appKeysManager.setAppKeys(baseKeys)
   log("Loaded base AppKeys with", baseKeys.getAllDevices().length, "devices")
 
@@ -311,10 +310,9 @@ export const registerDevice = async (): Promise<void> => {
 
   const updatedDevices = appKeysManager.getOwnDevices()
   useDevicesStore.getState().setHasLocalAppKeys(updatedDevices.length > 0)
-  useDevicesStore.getState().setRegisteredDevices(
-    updatedDevices,
-    Math.floor(Date.now() / 1000)
-  )
+  useDevicesStore
+    .getState()
+    .setRegisteredDevices(updatedDevices, Math.floor(Date.now() / 1000))
 
   log("Device registered:", payload.identityPubkey)
 }
@@ -729,7 +727,7 @@ export const createLinkInvite = async (): Promise<Invite> => {
   }
   const devicePubkey = delegateManager.getIdentityPublicKey()
   const invite = Invite.createNew(devicePubkey)
-  ;(invite as Invite & { purpose?: string }).purpose = "link"
+  ;(invite as Invite & {purpose?: string}).purpose = "link"
   return invite
 }
 
