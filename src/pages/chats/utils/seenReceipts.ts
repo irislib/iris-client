@@ -44,8 +44,9 @@ export function markMessagesSeenAndMaybeSendReceipt({
 
   if (toAck.length === 0) return []
 
+  const seenAt = Date.now()
   for (const messageId of toAck) {
-    void updateMessage(chatId, messageId, {status: "seen"})
+    void updateMessage(chatId, messageId, {status: "seen", seenAt})
   }
 
   if (sendReadReceipts) {

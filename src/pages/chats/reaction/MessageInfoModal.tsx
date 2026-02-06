@@ -31,7 +31,13 @@ export const MessageInfoModal = ({
   const [relayStatus, setRelayStatus] = useState<Record<string, boolean>>({})
   const [showRawMessage, setShowRawMessage] = useState(false)
   const {rebroadcast, isRebroadcasting, rebroadcastSuccess} = useRebroadcast()
-  const {updateMessage} = usePrivateMessagesStore()
+  const updateMessage = usePrivateMessagesStore((state) => state.updateMessage)
+  const storedMessage = usePrivateMessagesStore((state) => {
+    if (!sessionId || !messageId) return undefined
+    return state.events.get(sessionId)?.get(messageId)
+  })
+
+  const messageForInfo = storedMessage ?? message
 
   const handleCopyEventId = async () => {
     if (nostrEventId) {
@@ -61,14 +67,14 @@ export const MessageInfoModal = ({
   }
 
   const getTimestampInfo = () => {
-    if (!message) return null
+    if (!messageForInfo) return null
 
     // Look for ms tag first (millisecond timestamp)
-    const msTag = message.tags?.find((tag) => tag[0] === "ms")
+    const msTag = messageForInfo.tags?.find((tag) => tag[0] === "ms")
     const msTime = msTag ? parseInt(msTag[1], 10) : null
 
     // Use created_at as fallback (seconds timestamp)
-    const createdAt = message.created_at
+    const createdAt = messageForInfo.created_at
 
     if (msTime) {
       return {
@@ -90,6 +96,55 @@ export const MessageInfoModal = ({
   }
 
   const timestampInfo = getTimestampInfo()
+
+  const formatDateTime = (timestampMs: number) =>
+    new Date(timestampMs).toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      fractionalSecondDigits: 3,
+      hour12: false,
+    })
+
+  const receiptInfo = (() => {
+    const status = (messageForInfo as any)?.status as string | undefined
+    const deliveredAt = (messageForInfo as any)?.deliveredAt as number | undefined
+    const seenAt = (messageForInfo as any)?.seenAt as number | undefined
+
+    // If we have absolutely no receipt metadata, skip the section.
+    if (!status && !deliveredAt && !seenAt) return null
+
+    return (
+      <div>
+        <p className="text-sm text-base-content/60 mb-2">Receipts:</p>
+        <div className="text-sm font-mono space-y-1">
+          <div>
+            Delivered:{" "}
+            {deliveredAt ? (
+              formatDateTime(deliveredAt)
+            ) : status === "delivered" || status === "seen" ? (
+              "Yes"
+            ) : (
+              "No"
+            )}
+          </div>
+          <div>
+            Seen:{" "}
+            {seenAt ? (
+              formatDateTime(seenAt)
+            ) : status === "seen" ? (
+              "Yes"
+            ) : (
+              "No"
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  })()
 
   const checkRelayStatus = async () => {
     if (!nostrEventId) return
@@ -179,19 +234,11 @@ export const MessageInfoModal = ({
               <div>
                 <p className="text-sm text-base-content/60 mb-2">Message Time:</p>
                 <p className="text-sm font-mono">
-                  {timestampInfo.date.toLocaleString("en-US", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    fractionalSecondDigits: 3,
-                    hour12: false,
-                  })}
+                  {formatDateTime(timestampInfo.timestamp)}
                 </p>
               </div>
             )}
+            {receiptInfo}
             <div>
               <button
                 onClick={handleRebroadcast}
@@ -265,7 +312,7 @@ export const MessageInfoModal = ({
                 {showRawMessage && (
                   <div className="mt-2">
                     <pre className="text-xs bg-base-200 p-3 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">
-                      {JSON.stringify(message, null, 2)}
+                      {JSON.stringify(messageForInfo, null, 2)}
                     </pre>
                   </div>
                 )}
@@ -278,6 +325,7 @@ export const MessageInfoModal = ({
               This message was received through an encrypted channel and doesn&apos;t have
               a public event ID.
             </p>
+            {receiptInfo}
             {message && (
               <div>
                 <button
@@ -289,7 +337,7 @@ export const MessageInfoModal = ({
                 {showRawMessage && (
                   <div className="mt-2">
                     <pre className="text-xs bg-base-200 p-3 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">
-                      {JSON.stringify(message, null, 2)}
+                      {JSON.stringify(messageForInfo, null, 2)}
                     </pre>
                   </div>
                 )}

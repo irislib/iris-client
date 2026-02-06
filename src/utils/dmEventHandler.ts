@@ -5,6 +5,7 @@ import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useMessagesStore} from "@/stores/messages"
+import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
 import {KIND_CHANNEL_CREATE, KIND_CHAT_MESSAGE, KIND_REACTION} from "./constants"
 import {isTauri} from "./utils"
@@ -109,13 +110,28 @@ export const attachSessionEventListener = () => {
             const {events, updateMessage} = usePrivateMessagesStore.getState()
             const messageMap = events.get(chatId)
             if (!messageMap) return
+            const receiptTimestamp = getMillisecondTimestamp(event as any) || Date.now()
             for (const messageId of receipt.messageIds) {
               const existing = messageMap.get(messageId)
               if (!existing) continue
               const owner = existing.ownerPubkey ?? existing.pubkey
               if (owner !== publicKey) continue
-              if (!shouldAdvanceReceiptStatus(existing.status, receipt.type)) continue
-              void updateMessage(chatId, messageId, {status: receipt.type})
+              const updates: Partial<MessageType> = {}
+
+              if (receipt.type === "delivered") {
+                if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
+              } else if (receipt.type === "seen") {
+                if (!existing.seenAt) updates.seenAt = receiptTimestamp
+                // Seen implies delivered, and older DB rows may have status without timestamp.
+                if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
+              }
+
+              if (shouldAdvanceReceiptStatus(existing.status, receipt.type)) {
+                updates.status = receipt.type
+              }
+
+              if (Object.keys(updates).length === 0) continue
+              void updateMessage(chatId, messageId, updates)
             }
             return
           }

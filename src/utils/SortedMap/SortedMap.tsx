@@ -101,13 +101,13 @@ export class SortedMap<K, V extends Record<string, any>> {
     return [key, this.map.get(key) as V]
   }
 
-  *[Symbol.iterator](): Iterator<[K, V]> {
+  *[Symbol.iterator](): IterableIterator<[K, V]> {
     for (const key of this.sortedKeys) {
       yield [key, this.map.get(key) as V]
     }
   }
 
-  *reverse(): Iterator<[K, V]> {
+  *reverse(): IterableIterator<[K, V]> {
     for (let i = this.sortedKeys.length - 1; i >= 0; i--) {
       const key = this.sortedKeys[i]
       yield [key, this.map.get(key) as V]

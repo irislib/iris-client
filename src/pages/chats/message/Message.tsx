@@ -24,6 +24,8 @@ export type MessageType = Rumor & {
   sentToRelays?: boolean
   ownerPubkey?: string
   status?: ReceiptType
+  deliveredAt?: number
+  seenAt?: number
 }
 
 type MessageProps = {

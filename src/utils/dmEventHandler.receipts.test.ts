@@ -137,4 +137,71 @@ describe("dmEventHandler receipts", () => {
       "msg-3",
     ])
   })
+
+  it("stores delivered/seen timestamps from receipt events for our messages", async () => {
+    attachSessionEventListener()
+    await flushPromises()
+
+    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(capturedCallback).toBeTruthy()
+
+    const messageId = "out-1"
+    await usePrivateMessagesStore.getState().upsert(THEIR_PUBKEY, MY_PUBKEY, {
+      id: messageId,
+      kind: KIND_CHAT_MESSAGE,
+      pubkey: MY_PUBKEY,
+      ownerPubkey: MY_PUBKEY,
+      content: "hi",
+      created_at: 1,
+      tags: [["p", THEIR_PUBKEY]],
+    } as any)
+
+    const deliveredAt = 1700000000123
+    capturedCallback?.(
+      {
+        id: "rcpt-1",
+        kind: 15,
+        pubkey: THEIR_PUBKEY,
+        content: "delivered",
+        created_at: Math.floor(deliveredAt / 1000),
+        tags: [
+          ["p", MY_PUBKEY],
+          ["e", messageId],
+          ["ms", String(deliveredAt)],
+        ],
+      },
+      THEIR_PUBKEY
+    )
+
+    await flushPromises()
+
+    let stored = usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get(messageId)
+    expect(stored?.status).toBe("delivered")
+    expect(stored?.deliveredAt).toBe(deliveredAt)
+    expect(stored?.seenAt).toBeUndefined()
+
+    const seenAt = deliveredAt + 1000
+    capturedCallback?.(
+      {
+        id: "rcpt-2",
+        kind: 15,
+        pubkey: THEIR_PUBKEY,
+        content: "seen",
+        created_at: Math.floor(seenAt / 1000),
+        tags: [
+          ["p", MY_PUBKEY],
+          ["e", messageId],
+          ["ms", String(seenAt)],
+        ],
+      },
+      THEIR_PUBKEY
+    )
+
+    await flushPromises()
+
+    stored = usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get(messageId)
+    expect(stored?.status).toBe("seen")
+    expect(stored?.deliveredAt).toBe(deliveredAt)
+    expect(stored?.seenAt).toBe(seenAt)
+  })
 })

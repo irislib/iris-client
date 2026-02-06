@@ -4,6 +4,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {MessageType} from "@/pages/chats/message/Message"
 import {useMemo} from "react"
 import {useUserStore} from "@/stores/user"
+import {countUnseenMessages} from "@/pages/chats/utils/unseenCount"
 
 interface UnseenMessagesBadgeProps {
   messages?: SortedMap<string, MessageType>
@@ -12,14 +13,16 @@ interface UnseenMessagesBadgeProps {
 
 const UnseenMessagesBadge = ({messages, lastSeen}: UnseenMessagesBadgeProps) => {
   const {events, lastSeen: lastSeenFromStore} = usePrivateMessagesStore()
+  const myPubKey = useUserStore((state) => state.publicKey)
 
   // Global usage - check all sessions (for navsidebar/footer)
   const hasUnread = useMemo(() => {
-    const myPubKey = useUserStore.getState().publicKey
+    if (!myPubKey) return false
     for (const [chatId, sessionEvents] of events.entries()) {
       const [, latest] = sessionEvents.last() ?? []
       if (!latest) continue
-      if (latest.pubkey === myPubKey) continue
+      const owner = (latest as MessageType).ownerPubkey ?? (latest as MessageType).pubkey
+      if (owner === myPubKey) continue
       const lastSeenForChat = lastSeenFromStore.get(chatId) || 0
       const latestTime = getMillisecondTimestamp(latest as MessageType)
       if (latestTime > lastSeenForChat) {
@@ -27,24 +30,17 @@ const UnseenMessagesBadge = ({messages, lastSeen}: UnseenMessagesBadgeProps) => 
       }
     }
     return false
-  }, [events, lastSeenFromStore])
+  }, [events, lastSeenFromStore, myPubKey])
 
   // If props are provided, use them (for specific session usage)
   if (messages && lastSeen !== undefined) {
-    const unseenMessages = Array.from(messages.entries()).filter(([, message]) => {
-      if (!message.created_at) return false
-      const myPubKey = useUserStore.getState().publicKey
-      if (message.pubkey === myPubKey) return false
-      return getMillisecondTimestamp(message) > lastSeen
-    })
-
-    if (unseenMessages.length === 0) {
-      return null
-    }
+    const count = countUnseenMessages({messages, lastSeenAtMs: lastSeen, myPubKey})
+    if (count === 0) return null
+    const label = count > 99 ? "99+" : String(count)
 
     return (
       <div className="flex items-center gap-1">
-        <span className="badge badge-primary badge-sm">{unseenMessages.length}</span>
+        <span className="badge badge-primary badge-sm">{label}</span>
       </div>
     )
   }

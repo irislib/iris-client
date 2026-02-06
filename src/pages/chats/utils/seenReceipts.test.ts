@@ -84,7 +84,11 @@ describe("markMessagesSeenAndMaybeSendReceipt", () => {
     })
 
     expect(acked).toEqual(["m1"])
-    expect(updateMessage).toHaveBeenCalledWith(THEIR_PUBKEY, "m1", {status: "seen"})
+    expect(updateMessage).toHaveBeenCalledWith(
+      THEIR_PUBKEY,
+      "m1",
+      expect.objectContaining({status: "seen", seenAt: expect.any(Number)})
+    )
     expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
   })
 
@@ -115,6 +119,11 @@ describe("markMessagesSeenAndMaybeSendReceipt", () => {
     })
 
     expect(acked).toEqual(["m1"])
+    expect(updateMessage).toHaveBeenCalledWith(
+      THEIR_PUBKEY,
+      "m1",
+      expect.objectContaining({status: "seen", seenAt: expect.any(Number)})
+    )
     expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "seen", ["m1"])
   })
 })

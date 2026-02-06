@@ -17,6 +17,7 @@ import {ndk} from "@/utils/ndk"
 import {useGroupsStore} from "@/stores/groups"
 import {useTypingStore} from "@/stores/typingIndicators"
 import MessageStatus from "../message/MessageStatus"
+import {countUnseenMessages} from "@/pages/chats/utils/unseenCount"
 
 interface ChatListItemProps {
   id: string
@@ -232,32 +233,37 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
     title = <Name pubKey={pubKey} />
   }
 
-  // Unread badge logic
-  let unreadBadge = null
-  if (isPublic) {
-    if (latestMessage?.created_at && latestMessage.pubkey !== myPubKey) {
-      const hasUnread = latestMessage.created_at * 1000 > lastSeenPublicTime
-      if (!lastSeenPublicTime || hasUnread) {
-        unreadBadge = <div className="indicator-item badge badge-primary badge-xs" />
-      }
+  const unseenCount = useMemo(() => {
+    if (isPublic) {
+      if (!latestMessage?.created_at) return 0
+      if (latestMessage.pubkey === myPubKey) return 0
+      const hasUnread =
+        !lastSeenPublicTime || latestMessage.created_at * 1000 > lastSeenPublicTime
+      return hasUnread ? 1 : 0
     }
-  } else if (group) {
-    if (actualLatest?.created_at && actualLatest.pubkey !== myPubKey) {
-      const latestTimestamp = getMillisecondTimestamp(actualLatest as MessageType)
-      const hasUnread = latestTimestamp > lastSeenPrivateTime
-      if (!lastSeenPrivateTime || hasUnread) {
-        unreadBadge = <div className="indicator-item badge badge-primary badge-xs" />
-      }
-    }
-  } else {
-    if (actualLatest?.created_at && actualLatest.pubkey !== myPubKey) {
-      const latestTimestamp = getMillisecondTimestamp(actualLatest as MessageType)
-      const hasUnread = latestTimestamp > lastSeenPrivateTime
-      if (!lastSeenPrivateTime || hasUnread) {
-        unreadBadge = <div className="indicator-item badge badge-primary badge-xs" />
-      }
-    }
-  }
+
+    return countUnseenMessages({
+      messages: group ? groupMessages : privateMessages,
+      lastSeenAtMs: lastSeenPrivateTime,
+      myPubKey,
+    })
+  }, [
+    isPublic,
+    latestMessage?.created_at,
+    latestMessage?.pubkey,
+    myPubKey,
+    lastSeenPublicTime,
+    group,
+    groupMessages,
+    privateMessages,
+    lastSeenPrivateTime,
+  ])
+
+  const unseenLabel = unseenCount > 99 ? "99+" : String(unseenCount)
+  const unreadBadge =
+    unseenCount > 0 ? (
+      <span className="badge badge-primary badge-sm shrink-0">{unseenLabel}</span>
+    ) : null
 
   // Determine route for NavLink
   let chatRoute
