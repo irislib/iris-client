@@ -1,4 +1,11 @@
-import {useLayoutEffect, useRef, useState, useEffect, useMemo, type ReactNode} from "react"
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react"
 import ErrorBoundary from "@/shared/components/ui/ErrorBoundary"
 import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import Message, {MessageType} from "../message/Message"

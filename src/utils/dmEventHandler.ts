@@ -19,6 +19,7 @@ import {
   isTyping,
   parseReceipt,
   shouldAdvanceReceiptStatus,
+  type Rumor,
 } from "nostr-double-ratchet/src"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -111,7 +112,7 @@ export const attachSessionEventListener = () => {
             const {events, updateMessage} = usePrivateMessagesStore.getState()
             const messageMap = events.get(chatId)
             if (!messageMap) return
-            const receiptTimestamp = getMillisecondTimestamp(event as any) || Date.now()
+            const receiptTimestamp = getMillisecondTimestamp(event as Rumor) || Date.now()
             for (const messageId of receipt.messageIds) {
               const existing = messageMap.get(messageId)
               if (!existing) continue

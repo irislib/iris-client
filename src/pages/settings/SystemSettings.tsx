@@ -74,7 +74,10 @@ export default function SystemSettings() {
       const handleControllerChange = () => setUpdateAvailable(true)
       navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange)
       return () => {
-        navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange)
+        navigator.serviceWorker.removeEventListener(
+          "controllerchange",
+          handleControllerChange
+        )
       }
     }
   }, [])

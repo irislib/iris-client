@@ -223,9 +223,7 @@ const Chat = ({id}: {id: string}) => {
             <div className="flex justify-center" data-testid="message-request-actions">
               <div className="w-full max-w-lg bg-base-200 border border-custom rounded-xl p-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-base-content/70">
-                    Message request
-                  </div>
+                  <div className="text-sm text-base-content/70">Message request</div>
                   <div className="flex gap-2">
                     <button
                       type="button"

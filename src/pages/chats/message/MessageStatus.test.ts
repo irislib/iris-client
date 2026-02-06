@@ -5,13 +5,13 @@ import {describe, expect, it} from "vitest"
 import MessageStatus from "./MessageStatus"
 
 const getClassList = (html: string): string[] => {
-  const match = html.match(/class=\"([^\"]*)\"/)
+  const match = html.match(/class="([^"]*)"/)
   if (!match) return []
   return match[1].split(/\s+/).filter(Boolean)
 }
 
 const getPathD = (html: string): string | undefined => {
-  const match = html.match(/<path d=\"([^\"]+)\"/)
+  const match = html.match(/<path d="([^"]+)"/)
   return match?.[1]
 }
 

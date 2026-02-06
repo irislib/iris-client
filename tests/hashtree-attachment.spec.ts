@@ -175,9 +175,7 @@ test.describe("Hashtree Attachment", () => {
       for (let i = 0; i < 20; i++) {
         const nowMs = base + i * 10
         const hexId = (base + i).toString(16).padStart(64, "0")
-        const content = Array.from({length: 12}, (_, j) => `filler ${i}-${j}`).join(
-          "\n"
-        )
+        const content = Array.from({length: 12}, (_, j) => `filler ${i}-${j}`).join("\n")
         await store.upsert(myPubKey, myPubKey, {
           id: hexId,
           pubkey: myPubKey,

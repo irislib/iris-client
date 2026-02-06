@@ -2,6 +2,7 @@
   "env": {
     "commonjs": true,
     "es6": true,
+    "es2020": true,
     "node": true,
     "browser": true
   },
@@ -18,7 +19,8 @@
     {
       "files": ["scripts/**/*.ts", "tests/**/*.spec.ts", "**/*.test.ts", "**/*.test.tsx"],
       "rules": {
-        "no-console": "off"
+        "no-console": "off",
+        "@typescript-eslint/no-explicit-any": "off"
       }
     }
   ],
@@ -57,6 +59,7 @@
     "no-nested-ternary": "warn",
     "no-var": "warn",
     "@typescript-eslint/no-var-requires": "error",
+    "@typescript-eslint/no-unused-vars": ["error", {"argsIgnorePattern": "^_", "varsIgnorePattern": "^_"}],
     "react-refresh/only-export-components": ["warn", {"allowConstantExport": true}],
     "react/react-in-jsx-scope": "off",
     "no-console": ["error", {"allow": ["warn", "error"]}]
