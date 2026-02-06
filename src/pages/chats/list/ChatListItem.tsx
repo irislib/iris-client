@@ -312,13 +312,6 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
                       }
                     })()}
                   />
-                  {lastPrivateIsMine && (
-                    <MessageStatus
-                      status={lastPrivateMessage?.status}
-                      sentToRelays={lastPrivateMessage?.sentToRelays}
-                      className="w-3.5 h-3.5"
-                    />
-                  )}
                 </span>
               )}
             </div>
@@ -331,7 +324,16 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
                 previewContent
               )}
             </span>
-            {unreadBadge}
+            <div className="flex items-center gap-1 shrink-0">
+              {lastPrivateIsMine && (
+                <MessageStatus
+                  status={lastPrivateMessage?.status}
+                  sentToRelays={lastPrivateMessage?.sentToRelays}
+                  className="w-3.5 h-3.5"
+                />
+              )}
+              {unreadBadge}
+            </div>
           </div>
         </div>
       </div>
