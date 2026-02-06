@@ -6,6 +6,10 @@ import {ndk} from "@/utils/ndk"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {nip19} from "nostr-tools"
 import {useRebroadcast} from "@/shared/hooks/useRebroadcast"
+import {
+  formatDateTimeMilliseconds,
+  formatDateTimeSeconds,
+} from "@/pages/chats/utils/formatDateTime"
 
 type MessageInfoModalProps = {
   isOpen: boolean
@@ -97,18 +101,6 @@ export const MessageInfoModal = ({
 
   const timestampInfo = getTimestampInfo()
 
-  const formatDateTime = (timestampMs: number) =>
-    new Date(timestampMs).toLocaleString("en-US", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      fractionalSecondDigits: 3,
-      hour12: false,
-    })
-
   const receiptInfo = (() => {
     const status = (messageForInfo as any)?.status as string | undefined
     const deliveredAt = (messageForInfo as any)?.deliveredAt as number | undefined
@@ -124,7 +116,7 @@ export const MessageInfoModal = ({
           <div>
             Delivered:{" "}
             {deliveredAt ? (
-              formatDateTime(deliveredAt)
+              formatDateTimeSeconds(deliveredAt)
             ) : status === "delivered" || status === "seen" ? (
               "Yes"
             ) : (
@@ -134,7 +126,7 @@ export const MessageInfoModal = ({
           <div>
             Seen:{" "}
             {seenAt ? (
-              formatDateTime(seenAt)
+              formatDateTimeSeconds(seenAt)
             ) : status === "seen" ? (
               "Yes"
             ) : (
@@ -234,7 +226,9 @@ export const MessageInfoModal = ({
               <div>
                 <p className="text-sm text-base-content/60 mb-2">Message Time:</p>
                 <p className="text-sm font-mono">
-                  {formatDateTime(timestampInfo.timestamp)}
+                  {timestampInfo.precision === "milliseconds"
+                    ? formatDateTimeMilliseconds(timestampInfo.timestamp)
+                    : formatDateTimeSeconds(timestampInfo.timestamp)}
                 </p>
               </div>
             )}

@@ -15,6 +15,7 @@ import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
 import {useIsFollowing} from "@/utils/socialGraph"
+import {getMessageAuthorPubkey} from "@/pages/chats/utils/messageAuthor"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -75,10 +76,11 @@ const Chat = ({id}: {id: string}) => {
 
     const myPubKey = useUserStore.getState().publicKey
     Array.from(messages.entries()).forEach(([, message]) => {
-      if (!haveReply && message.pubkey !== myPubKey) {
+      const owner = getMessageAuthorPubkey(message)
+      if (!haveReply && owner !== myPubKey) {
         setHaveReply(true)
       }
-      if (!haveSent && message.pubkey === myPubKey) {
+      if (!haveSent && owner === myPubKey) {
         setHaveSent(true)
       }
     })

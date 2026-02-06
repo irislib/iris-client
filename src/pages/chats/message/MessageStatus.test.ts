@@ -16,6 +16,14 @@ const getPathD = (html: string): string | undefined => {
 }
 
 describe("MessageStatus", () => {
+  it("renders a fixed-size placeholder when status is undefined (avoid layout shift)", () => {
+    const html = renderToStaticMarkup(React.createElement(MessageStatus, {}))
+    const classes = getClassList(html)
+
+    expect(classes).toContain("w-4")
+    expect(classes).toContain("h-4")
+  })
+
   it("does not hardcode primary text color for seen (must remain visible on bg-primary bubbles)", () => {
     const html = renderToStaticMarkup(React.createElement(MessageStatus, {status: "seen"}))
     const classes = getClassList(html)
