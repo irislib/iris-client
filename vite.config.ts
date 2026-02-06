@@ -36,6 +36,14 @@ export default defineConfig({
       srcDir: "src",
       filename: "service-worker.ts",
       registerType: "autoUpdate",
+      integration: {
+        // The service worker build uses its own Vite config. Match the main build's chunk warning limit
+        // to avoid noisy "chunks are larger than 500 kB" warnings.
+        configureCustomSWViteBuild(inlineConfig) {
+          inlineConfig.build ??= {}
+          inlineConfig.build.chunkSizeWarningLimit = 1000
+        },
+      },
       devOptions: {
         enabled: true,
         type: "module",
