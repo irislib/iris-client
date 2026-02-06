@@ -17,9 +17,7 @@ const LinkDeviceInvite = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [linkInput, setLinkInput] = useState("")
   const [showScanner, setShowScanner] = useState(false)
-  const [status, setStatus] = useState<"idle" | "accepting" | "linked" | "error">(
-    "idle"
-  )
+  const [status, setStatus] = useState<"idle" | "accepting" | "linked" | "error">("idle")
   const [errorMessage, setErrorMessage] = useState("")
   const lastAutoAttemptRef = useRef<string>("")
 
@@ -73,9 +71,7 @@ const LinkDeviceInvite = () => {
       setStatus("linked")
     } catch (err) {
       setStatus("error")
-      setErrorMessage(
-        err instanceof Error ? err.message : "Failed to link device"
-      )
+      setErrorMessage(err instanceof Error ? err.message : "Failed to link device")
     }
   }
 
@@ -157,8 +153,12 @@ const LinkDeviceInvite = () => {
               </div>
             )}
 
-            {status === "linked" && <div className="text-sm text-success">Device linked</div>}
-            {status === "error" && <div className="text-sm text-error">{errorMessage}</div>}
+            {status === "linked" && (
+              <div className="text-sm text-success">Device linked</div>
+            )}
+            {status === "error" && (
+              <div className="text-sm text-error">{errorMessage}</div>
+            )}
             <button className="btn btn-ghost w-full" onClick={closeModal}>
               Close
             </button>

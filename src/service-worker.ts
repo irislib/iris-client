@@ -305,10 +305,13 @@ self.addEventListener("push", (event) => {
       if (!data?.event) return
 
       if (data.event.kind === MESSAGE_EVENT_KIND) {
-        const result = await tryDecryptDmPushEvent(data.event as unknown as VerifiedEvent, {
-          storage: SESSION_STORAGE,
-          timeoutMs: 500,
-        })
+        const result = await tryDecryptDmPushEvent(
+          data.event as unknown as VerifiedEvent,
+          {
+            storage: SESSION_STORAGE,
+            timeoutMs: 500,
+          }
+        )
         if (result.success) {
           if (result.silent) return
           if (result.kind === KIND_CHANNEL_CREATE) {

@@ -3,7 +3,9 @@ type DateTimeFormatOverrides = {
   timeZone?: string
 }
 
-const buildBaseOptions = (overrides?: DateTimeFormatOverrides): Intl.DateTimeFormatOptions => {
+const buildBaseOptions = (
+  overrides?: DateTimeFormatOverrides
+): Intl.DateTimeFormatOptions => {
   const options: Intl.DateTimeFormatOptions = {
     year: "numeric",
     month: "2-digit",
@@ -41,4 +43,3 @@ export const formatDateTimeMilliseconds = (
   }
   return new Date(timestampMs).toLocaleString(overrides?.locale ?? "en-US", options)
 }
-

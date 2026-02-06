@@ -115,23 +115,15 @@ export const MessageInfoModal = ({
         <div className="text-sm font-mono space-y-1">
           <div>
             Delivered:{" "}
-            {deliveredAt ? (
-              formatDateTimeSeconds(deliveredAt)
-            ) : status === "delivered" || status === "seen" ? (
-              "Yes"
-            ) : (
-              "No"
-            )}
+            {deliveredAt
+              ? formatDateTimeSeconds(deliveredAt)
+              : status === "delivered" || status === "seen"
+                ? "Yes"
+                : "No"}
           </div>
           <div>
             Seen:{" "}
-            {seenAt ? (
-              formatDateTimeSeconds(seenAt)
-            ) : status === "seen" ? (
-              "Yes"
-            ) : (
-              "No"
-            )}
+            {seenAt ? formatDateTimeSeconds(seenAt) : status === "seen" ? "Yes" : "No"}
           </div>
         </div>
       </div>

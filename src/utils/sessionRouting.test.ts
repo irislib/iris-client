@@ -6,9 +6,7 @@ const CURRENT_DEVICE = "b".repeat(64)
 const OTHER_DEVICE = "c".repeat(64)
 const OTHER_USER = "d".repeat(64)
 
-const devices = [
-  {identityPubkey: OTHER_DEVICE, createdAt: Math.floor(Date.now() / 1000)},
-]
+const devices = [{identityPubkey: OTHER_DEVICE, createdAt: Math.floor(Date.now() / 1000)}]
 
 describe("isOwnDeviceEvent", () => {
   it("treats registered devices as own", () => {
@@ -23,13 +21,7 @@ describe("isOwnDeviceEvent", () => {
   })
 
   it("treats owner pubkey as own", () => {
-    const result = isOwnDeviceEvent(
-      OWNER,
-      OWNER,
-      OWNER,
-      CURRENT_DEVICE,
-      devices
-    )
+    const result = isOwnDeviceEvent(OWNER, OWNER, OWNER, CURRENT_DEVICE, devices)
     expect(result).toBe(true)
   })
 

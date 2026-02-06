@@ -11,7 +11,9 @@ type MessageStatusProps = {
 const MessageStatus = ({status, sentToRelays, className}: MessageStatusProps) => {
   if (status === "seen") {
     return (
-      <RiCheckDoubleLine className={classNames("w-4 h-4 opacity-80 text-success", className)} />
+      <RiCheckDoubleLine
+        className={classNames("w-4 h-4 opacity-80 text-success", className)}
+      />
     )
   }
   if (status === "delivered") {
@@ -22,7 +24,9 @@ const MessageStatus = ({status, sentToRelays, className}: MessageStatusProps) =>
     return <RiCheckLine className={classNames("w-4 h-4 opacity-50", className)} />
   }
   // Reserve space so timestamps don't shift when delivery/read receipts arrive.
-  return <span className={classNames("inline-block w-4 h-4", className)} aria-hidden="true" />
+  return (
+    <span className={classNames("inline-block w-4 h-4", className)} aria-hidden="true" />
+  )
 }
 
 export default MessageStatus

@@ -25,4 +25,3 @@ describe("messageRequests store", () => {
     expect(useMessageRequestsStore.getState().acceptedChats["b"]).toBeUndefined()
   })
 })
-

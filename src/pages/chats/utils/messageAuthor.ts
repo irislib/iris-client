@@ -8,4 +8,3 @@ export const getMessageAuthorPubkey = (message: MessageAuthorLike): string =>
 
 export const isMessageFromMe = (message: MessageAuthorLike, myPubKey: string): boolean =>
   getMessageAuthorPubkey(message) === myPubKey
-

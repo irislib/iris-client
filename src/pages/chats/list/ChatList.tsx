@@ -147,7 +147,15 @@ const ChatList = ({className}: ChatListProps) => {
         ? Object.keys(publicChats).map((chatId) => ({id: chatId, type: "public"}))
         : []),
     ].sort((a, b) => getLatest(b.id, b.type) - getLatest(a.id, a.type))
-  }, [activeTab, groups, privateChatSections, enablePublicChats, publicChats, timestamps, privateChatLatestTimestamps])
+  }, [
+    activeTab,
+    groups,
+    privateChatSections,
+    enablePublicChats,
+    publicChats,
+    timestamps,
+    privateChatLatestTimestamps,
+  ])
 
   const tabButtonClasses = (isActive: boolean) =>
     classNames(

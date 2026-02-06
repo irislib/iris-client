@@ -99,7 +99,9 @@ describe("markMessagesDeliveredAndMaybeSendReceipt", () => {
       "m1",
       expect.objectContaining({status: "delivered", deliveredAt: expect.any(Number)})
     )
-    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", ["m1"])
+    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
+      "m1",
+    ])
   })
 
   it("marks messages as delivered but does not send when delivery receipts are disabled", () => {
@@ -137,4 +139,3 @@ describe("markMessagesDeliveredAndMaybeSendReceipt", () => {
     expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
   })
 })
-

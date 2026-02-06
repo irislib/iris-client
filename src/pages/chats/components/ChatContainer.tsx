@@ -52,7 +52,7 @@ const ChatContainer = ({
   const lastHeightRef = useRef(0)
   const hasInitiallyScrolledRef = useRef(false)
   const typingActive = useTypingStore((state) =>
-    !isPublicChat && !groupId ? state.isTyping.get(sessionId) ?? false : false
+    !isPublicChat && !groupId ? (state.isTyping.get(sessionId) ?? false) : false
   )
 
   // Create windowed messages - show last N messages

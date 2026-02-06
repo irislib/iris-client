@@ -38,9 +38,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
   const [inviteUrl, setInviteUrl] = useState("")
   const [qrCodeUrl, setQrCodeUrl] = useState("")
   const [copied, setCopied] = useState(false)
-  const [status, setStatus] = useState<"idle" | "waiting" | "linked" | "error">(
-    "idle"
-  )
+  const [status, setStatus] = useState<"idle" | "waiting" | "linked" | "error">("idle")
   const unsubscribeRef = useRef<(() => void) | null>(null)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -79,9 +77,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
               setShowLoginDialog(false)
             } catch (err) {
               setStatus("error")
-              setError(
-                err instanceof Error ? err.message : "Failed to link device"
-              )
+              setError(err instanceof Error ? err.message : "Failed to link device")
             } finally {
               unsubscribeRef.current?.()
               unsubscribeRef.current = null

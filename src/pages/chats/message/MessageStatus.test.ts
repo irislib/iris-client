@@ -25,7 +25,9 @@ describe("MessageStatus", () => {
   })
 
   it("does not hardcode primary text color for seen (must remain visible on bg-primary bubbles)", () => {
-    const html = renderToStaticMarkup(React.createElement(MessageStatus, {status: "seen"}))
+    const html = renderToStaticMarkup(
+      React.createElement(MessageStatus, {status: "seen"})
+    )
     const classes = getClassList(html)
 
     // `text-primary` equals the bubble background for our messages (`bg-primary`), making it invisible.

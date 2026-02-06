@@ -110,4 +110,3 @@ describe("dmPushDecrypt", () => {
     expect(result.silent).toBe(true)
   })
 })
-

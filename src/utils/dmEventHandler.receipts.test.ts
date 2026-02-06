@@ -109,7 +109,10 @@ describe("dmEventHandler receipts", () => {
     // Request threads should not send delivery receipts before we've followed or replied.
     expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
 
-    const stored = usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("msg-2")
+    const stored = usePrivateMessagesStore
+      .getState()
+      .events.get(THEIR_PUBKEY)
+      ?.get("msg-2")
     expect(stored).toBeTruthy()
     expect(stored?.status).not.toBe("delivered")
   })
@@ -178,7 +181,10 @@ describe("dmEventHandler receipts", () => {
 
     await flushPromises()
 
-    let stored = usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get(messageId)
+    let stored = usePrivateMessagesStore
+      .getState()
+      .events.get(THEIR_PUBKEY)
+      ?.get(messageId)
     expect(stored?.status).toBe("delivered")
     expect(stored?.deliveredAt).toBe(deliveredAt)
     expect(stored?.seenAt).toBeUndefined()
@@ -251,7 +257,9 @@ describe("dmEventHandler receipts", () => {
       THEIR_PUBKEY
     )
 
-    expect(usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("msg-5")).toBeTruthy()
+    expect(
+      usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("msg-5")
+    ).toBeTruthy()
     expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
       "msg-5",
     ])

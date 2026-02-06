@@ -9,11 +9,12 @@ describe("messageAuthor", () => {
 
   it("detects that a message is from me based on ownerPubkey even if pubkey differs", () => {
     const myPubKey = "me"
-    expect(isMessageFromMe({pubkey: "device", ownerPubkey: myPubKey}, myPubKey)).toBe(true)
-    expect(isMessageFromMe({pubkey: myPubKey}, myPubKey)).toBe(true)
-    expect(isMessageFromMe({pubkey: "someone-else", ownerPubkey: "someone-else"}, myPubKey)).toBe(
-      false
+    expect(isMessageFromMe({pubkey: "device", ownerPubkey: myPubKey}, myPubKey)).toBe(
+      true
     )
+    expect(isMessageFromMe({pubkey: myPubKey}, myPubKey)).toBe(true)
+    expect(
+      isMessageFromMe({pubkey: "someone-else", ownerPubkey: "someone-else"}, myPubKey)
+    ).toBe(false)
   })
 })
-

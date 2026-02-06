@@ -63,8 +63,8 @@ const ChatListItem = ({
   const myPubKey = useUserStore((state) => state.publicKey)
   const {groups} = useGroupsStore()
   const group = groups[id]
-  const typingActive = useTypingStore(
-    (state) => (type === "private" ? state.isTyping.get(id) ?? false : false)
+  const typingActive = useTypingStore((state) =>
+    type === "private" ? (state.isTyping.get(id) ?? false) : false
   )
   const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
   const rejectChat = useMessageRequestsStore((state) => state.rejectChat)
@@ -173,7 +173,8 @@ const ChatListItem = ({
     return ""
   }, [isPublic, latestMessage, actualLatest, myPubKey])
 
-  const lastPrivateMessage = type === "private" ? (actualLatest as MessageType | undefined) : undefined
+  const lastPrivateMessage =
+    type === "private" ? (actualLatest as MessageType | undefined) : undefined
   const lastPrivateIsMine =
     !!lastPrivateMessage &&
     (lastPrivateMessage.ownerPubkey ?? lastPrivateMessage.pubkey) === myPubKey

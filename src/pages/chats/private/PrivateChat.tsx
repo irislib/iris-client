@@ -27,9 +27,7 @@ const Chat = ({id}: {id: string}) => {
   const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
   const myPubKey = useUserStore((state) => state.publicKey)
   const isFollowing = useIsFollowing(myPubKey, id)
-  const isLocallyAccepted = useMessageRequestsStore(
-    (state) => !!state.acceptedChats[id]
-  )
+  const isLocallyAccepted = useMessageRequestsStore((state) => !!state.acceptedChats[id])
   const isChatAccepted = isFollowing || haveSent || isLocallyAccepted
 
   // Allow messaging regardless of session state - sessions will be created automatically

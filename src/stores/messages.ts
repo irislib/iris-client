@@ -26,7 +26,8 @@ export const useMessagesStore = create<MessagesState>()(
       receiveMessageRequests: true,
       hasHydrated: false,
       setEnablePublicChats: (enablePublicChats: boolean) => set({enablePublicChats}),
-      setSendDeliveryReceipts: (sendDeliveryReceipts: boolean) => set({sendDeliveryReceipts}),
+      setSendDeliveryReceipts: (sendDeliveryReceipts: boolean) =>
+        set({sendDeliveryReceipts}),
       setSendReadReceipts: (sendReadReceipts: boolean) => set({sendReadReceipts}),
       setReceiveMessageRequests: (receiveMessageRequests: boolean) =>
         set({receiveMessageRequests}),

@@ -215,13 +215,11 @@ export const attachSessionEventListener = () => {
                 : existingStatus
               : existingStatus
 
-          void usePrivateMessagesStore
-            .getState()
-            .upsert(from, to, {
-              ...event,
-              ownerPubkey: effectiveOwner,
-              ...(nextStatus ? {status: nextStatus} : {}),
-            })
+          void usePrivateMessagesStore.getState().upsert(from, to, {
+            ...event,
+            ownerPubkey: effectiveOwner,
+            ...(nextStatus ? {status: nextStatus} : {}),
+          })
 
           const {sendDeliveryReceipts} = useMessagesStore.getState()
           if (!isMine && !isReaction && sendDeliveryReceipts && isChatAccepted) {

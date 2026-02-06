@@ -168,7 +168,9 @@ export async function tryDecryptDmPushEvent(
         const {sessionId, userPublicKey} = entry
         const silent = innerEvent.kind === RECEIPT_KIND || innerEvent.kind === TYPING_KIND
         const content =
-          innerEvent.kind === REACTION_KIND ? `Reacted ${innerEvent.content}` : innerEvent.content
+          innerEvent.kind === REACTION_KIND
+            ? `Reacted ${innerEvent.content}`
+            : innerEvent.content
 
         return {
           success: true,

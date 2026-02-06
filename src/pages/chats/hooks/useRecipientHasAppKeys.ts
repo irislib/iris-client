@@ -21,10 +21,7 @@ export const useRecipientHasAppKeys = (
       return
     }
 
-    if (
-      recipientPubkey === myPubkey &&
-      (hasLocalAppKeys || isCurrentDeviceRegistered)
-    ) {
+    if (recipientPubkey === myPubkey && (hasLocalAppKeys || isCurrentDeviceRegistered)) {
       setHasAppKeys(true)
       return
     }

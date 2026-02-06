@@ -166,7 +166,6 @@ const DeviceList = () => {
                   </button>
                 )}
               </div>
-
             </div>
           )
         })}
