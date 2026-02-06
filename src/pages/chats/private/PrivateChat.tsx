@@ -14,9 +14,11 @@ import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
+import {markMessagesDeliveredAndMaybeSendReceipt} from "../utils/deliveredReceipts"
 import {useIsFollowing} from "@/utils/socialGraph"
 import {getMessageAuthorPubkey} from "@/pages/chats/utils/messageAuthor"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
+import {useNavigate} from "@/navigation"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -24,10 +26,14 @@ const Chat = ({id}: {id: string}) => {
   const [haveSent, setHaveSent] = useState(false)
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
   const isTopOfStack = useIsTopOfStack()
+  const navigate = useNavigate()
   const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
+  const sendDeliveryReceipts = useMessagesStore((state) => state.sendDeliveryReceipts)
   const myPubKey = useUserStore((state) => state.publicKey)
   const isFollowing = useIsFollowing(myPubKey, id)
   const isLocallyAccepted = useMessageRequestsStore((state) => !!state.acceptedChats[id])
+  const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
+  const rejectChat = useMessageRequestsStore((state) => state.rejectChat)
   const isChatAccepted = isFollowing || haveSent || isLocallyAccepted
 
   // Allow messaging regardless of session state - sessions will be created automatically
@@ -41,6 +47,46 @@ const Chat = ({id}: {id: string}) => {
   const lastMessageTimestamp = lastMessage
     ? getMillisecondTimestamp(lastMessage)
     : undefined
+
+  const handleAcceptRequest = useCallback(() => {
+    if (!id) return
+
+    acceptChat(id)
+
+    if (!myPubKey) return
+
+    const sessionManager = getSessionManager()
+    if (!sessionManager) return
+
+    const messageMap = usePrivateMessagesStore.getState().events.get(id)
+    if (!messageMap) return
+    const store = usePrivateMessagesStore.getState()
+
+    markMessagesDeliveredAndMaybeSendReceipt({
+      chatId: id,
+      messages: messageMap.values(),
+      myPubKey,
+      updateMessage: store.updateMessage,
+      sessionManager,
+      sendDeliveryReceipts,
+      isChatAccepted: true,
+    })
+  }, [id, acceptChat, myPubKey, sendDeliveryReceipts])
+
+  const handleRejectRequest = useCallback(() => {
+    if (!id) return
+
+    rejectChat(id)
+
+    const sessionManager = getSessionManager()
+    const store = usePrivateMessagesStore.getState()
+    void Promise.all([
+      sessionManager?.deleteUser(id).catch(() => {}),
+      store.removeSession(id).catch(() => {}),
+    ]).finally(() => {
+      navigate("/chats")
+    })
+  }, [id, rejectChat, navigate])
 
   const sendSeenReceipts = useCallback(() => {
     if (!id || !isTopOfStack) return
@@ -172,6 +218,35 @@ const Chat = ({id}: {id: string}) => {
         sessionId={id}
         onReply={setReplyingTo}
         onSendReaction={handleSendReaction}
+        bottomContent={
+          !isChatAccepted ? (
+            <div className="flex justify-center" data-testid="message-request-actions">
+              <div className="w-full max-w-lg bg-base-200 border border-custom rounded-xl p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-base-content/70">
+                    Message request
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={handleAcceptRequest}
+                    >
+                      Accept
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm text-error hover:bg-error hover:text-error-content"
+                      onClick={handleRejectRequest}
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null
+        }
       />
       <MessageForm id={id} replyingTo={replyingTo} setReplyingTo={setReplyingTo} />
     </>

@@ -9,6 +9,7 @@ interface UIState {
   isMediaModalSidebarVisible: boolean
   showRelayIndicator: boolean
   navItemClicked: {signal: number; path: string}
+  chatsListActiveTab: "all" | "requests"
   marketDisplayAs: "list" | "grid"
   mapDisplayAs: "list" | "grid"
 
@@ -19,6 +20,7 @@ interface UIState {
   setMediaModalSidebarVisible: (isVisible: boolean) => void
   setShowRelayIndicator: (show: boolean) => void
   triggerNavItemClick: (path: string) => void
+  setChatsListActiveTab: (tab: "all" | "requests") => void
   setMarketDisplayAs: (displayAs: "list" | "grid") => void
   setMapDisplayAs: (displayAs: "list" | "grid") => void
 }
@@ -34,6 +36,7 @@ export const useUIStore = create<UIState>()(
         isMediaModalSidebarVisible: true,
         showRelayIndicator: true,
         navItemClicked: {signal: 0, path: ""},
+        chatsListActiveTab: "all" as "all" | "requests",
         marketDisplayAs: "list" as "list" | "grid",
         mapDisplayAs: "list" as "list" | "grid",
       }
@@ -49,6 +52,8 @@ export const useUIStore = create<UIState>()(
         setShowRelayIndicator: (showRelayIndicator: boolean) => set({showRelayIndicator}),
         triggerNavItemClick: (path: string) =>
           set({navItemClicked: {signal: Date.now(), path}}),
+        setChatsListActiveTab: (chatsListActiveTab: "all" | "requests") =>
+          set({chatsListActiveTab}),
         setMarketDisplayAs: (marketDisplayAs: "list" | "grid") => set({marketDisplayAs}),
         setMapDisplayAs: (mapDisplayAs: "list" | "grid") => set({mapDisplayAs}),
       }

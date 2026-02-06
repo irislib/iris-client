@@ -5,7 +5,8 @@ async function setupChatWithSelf(page) {
   // Go to own profile via the sidebar user row
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
-  await page.waitForLoadState("networkidle")
+  // Avoid networkidle (app uses persistent connections); wait for UI instead.
+  await page.waitForLoadState("domcontentloaded")
 
   // Wait for profile to load
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
@@ -23,6 +24,7 @@ async function setupChatWithSelf(page) {
 }
 
 test("user can react to a chat message", async ({page}) => {
+  test.setTimeout(60000)
   await signUp(page)
   await setupChatWithSelf(page)
 
@@ -30,23 +32,16 @@ test("user can react to a chat message", async ({page}) => {
   const text = "Reaction test"
   await messageInput.fill(text)
   await messageInput.press("Enter")
-  await expect(page.locator(".whitespace-pre-wrap").getByText(text)).toBeVisible({
-    timeout: 10000,
-  })
+  const messageBody = page.locator(".whitespace-pre-wrap").getByText(text).first()
+  await expect(messageBody).toBeVisible({timeout: 10000})
 
-  // Give the message time to be fully processed
-  await page.waitForTimeout(1000)
-
-  await page.getByTestId("reaction-button").first().click()
+  // React on the message we just sent (avoids flakiness if the chat has older messages).
+  const messageRow = messageBody.locator("xpath=ancestor::div[@id][1]")
+  await messageRow.getByTestId("reaction-button").click()
   await page.getByRole("button", {name: "👍"}).first().click()
 
-  // Wait for reaction to be sent and displayed
-  await page.waitForTimeout(2000)
-
-  // Check if the reaction appears on the message
-  // Look for reaction elements that contain the thumbs up
-  const messageReactions = page.locator("div").filter({hasText: /^👍$/})
-  const count = await messageReactions.count()
-  console.log(`Found ${count} reaction elements with 👍`)
-  expect(count).toBeGreaterThanOrEqual(1)
+  // Reaction should show up on that message.
+  await expect(messageRow.locator("span").filter({hasText: "👍"}).first()).toBeVisible({
+    timeout: 15000,
+  })
 })

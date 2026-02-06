@@ -31,6 +31,7 @@ interface PrivateMessagesStoreState {
 }
 
 interface PrivateMessagesStoreActions {
+  awaitHydration: () => Promise<void>
   upsert: (from: string, to: string, message: MessageType) => Promise<void>
   updateMessage: (
     chatId: string,
@@ -56,6 +57,9 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
   return {
     events: new Map(),
     lastSeen: new Map(),
+    awaitHydration: async () => {
+      await rehydration
+    },
 
     upsert: async (from, to, event) => {
       const myPubKey = useUserStore.getState().publicKey
@@ -208,3 +212,13 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
     },
   }
 })
+
+// Expose for Playwright/e2e seeding in dev mode.
+// (Avoids having tests import a separate module instance with a different Vite HMR query.)
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  ;(
+    window as unknown as {
+      usePrivateMessagesStore?: typeof usePrivateMessagesStore
+    }
+  ).usePrivateMessagesStore = usePrivateMessagesStore
+}
