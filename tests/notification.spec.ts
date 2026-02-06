@@ -5,7 +5,7 @@ test.describe("Notifications", () => {
   test("user should see highlighted notification when post is liked by followed user", async ({
     browser,
   }) => {
-    test.setTimeout(60000) // Increase timeout to 60s for complex multi-user interactions
+    test.setTimeout(120000) // Multi-user + relay propagation can be slow under parallel e2e load
     const contextA = await browser.newContext()
     const contextB = await browser.newContext()
 
@@ -33,8 +33,6 @@ test.describe("Notifications", () => {
         .getByRole("button", {name: "Follow"})
         .click()
 
-      await pageA.waitForTimeout(2000)
-
       const followingButton = pageA
         .getByTestId("profile-header-actions")
         .getByRole("button", {name: "Following"})
@@ -61,7 +59,6 @@ test.describe("Notifications", () => {
         .getByTestId("profile-header-actions")
         .getByRole("button", {name: "Follow"})
         .click()
-      await pageB.waitForTimeout(2000)
 
       await pageA.locator("#main-content").getByTestId("new-post-button").click()
       const postContent = "Test post for notification test"
@@ -87,24 +84,23 @@ test.describe("Notifications", () => {
 
       await expect(pageA.locator("header").getByText("Notifications")).toBeVisible()
 
-      await pageA.waitForTimeout(8000)
-
-      const noNotificationsMessage = pageA.getByText("No notifications yet")
-      const hasNoNotifications = await noNotificationsMessage.isVisible()
-
-      if (hasNoNotifications) {
-        console.log(
-          "No notifications found - the like action may not have created a notification"
-        )
-        await pageA.waitForTimeout(3000)
-        await pageA.reload()
-        await pageA.waitForTimeout(3000)
-      }
-
-      await pageA.waitForTimeout(5000)
-
       const anyNotification = pageA.locator("div").filter({hasText: "reacted"}).first()
-      await expect(anyNotification).toBeVisible({timeout: 25000})
+      // Wait (with occasional reloads) for the notification to show up.
+      const deadline = Date.now() + 60000
+      while (Date.now() < deadline) {
+        if (await anyNotification.isVisible().catch(() => false)) {
+          break
+        }
+        const noNotifications = await pageA
+          .getByText("No notifications yet")
+          .isVisible()
+          .catch(() => false)
+        if (noNotifications) {
+          await pageA.reload({waitUntil: "domcontentloaded"})
+        }
+        await pageA.waitForTimeout(1000)
+      }
+      await expect(anyNotification).toBeVisible({timeout: 1000})
 
       const highlightedNotification = pageA.locator('div[class*="bg-info/20"]')
 
