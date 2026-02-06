@@ -34,9 +34,9 @@ import {
   hasLocalAppKeys,
   getDelegateManager,
   startAppKeysSubscription,
-  registerDevice,
 } from "@/shared/services/PrivateChats"
 import {useDevicesStore} from "./stores/devices"
+import {autoRegisterDevice} from "./utils/autoRegisterDevice"
 
 // Auto-update and auto-reload the PWA when a new service worker version is available.
 initServiceWorkerAutoReload()
@@ -85,33 +85,6 @@ const checkDeletedAccount = async (publicKey: string) => {
     }
   } catch (e) {
     error("Error checking deleted account:", e)
-  }
-}
-
-const autoRegisterDevice = async () => {
-  const deviceState = useDevicesStore.getState()
-  if (!deviceState.pendingAutoRegistration) return
-  deviceState.setPendingAutoRegistration(false)
-
-  const {publicKey, linkedDevice} = useUserStore.getState()
-  if (!publicKey || linkedDevice) return
-
-  try {
-    await initAppKeysManager()
-  } catch {
-    return
-  }
-
-  if (deviceState.hasLocalAppKeys || deviceState.isCurrentDeviceRegistered) {
-    return
-  }
-
-  try {
-    // Short timeout — new users won't have existing AppKeys on relays
-    await registerDevice(2000)
-    log("✅ Auto-registered device for private messaging")
-  } catch (err) {
-    error("Failed to auto-register device:", err)
   }
 }
 
