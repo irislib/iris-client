@@ -8,7 +8,8 @@ test.describe("Home Feed Scroll Behavior", () => {
     await page.goto("/")
 
     // Wait for page to load
-    await page.waitForLoadState("networkidle")
+    // Avoid networkidle (app uses persistent connections); wait for DOM instead.
+    await page.waitForLoadState("domcontentloaded")
 
     // Check if scrollable element exists
     const scrollable = await page.locator("[data-scrollable]").first()
@@ -39,7 +40,8 @@ test.describe("Home Feed Scroll Behavior", () => {
     await page.goto("/")
 
     // Wait for page to load
-    await page.waitForLoadState("networkidle")
+    // Avoid networkidle (app uses persistent connections); wait for DOM instead.
+    await page.waitForLoadState("domcontentloaded")
 
     const header = await page.locator("header").first()
     const scrollable = await page.locator("[data-scrollable]").first()

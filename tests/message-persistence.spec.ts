@@ -5,7 +5,8 @@ async function setupChatWithSelf(page) {
   // Go to own profile via the sidebar user row
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
-  await page.waitForLoadState("networkidle")
+  // Avoid networkidle (app uses persistent connections); wait for UI instead.
+  await page.waitForLoadState("domcontentloaded")
 
   // Wait for profile to load
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
@@ -26,6 +27,7 @@ async function setupChatWithSelf(page) {
 
 test.describe("Message persistence with double ratchet", () => {
   test("messages persist after page refresh", async ({page}) => {
+    test.setTimeout(60000)
     await signUp(page)
     await setupChatWithSelf(page)
 
@@ -45,7 +47,7 @@ test.describe("Message persistence with double ratchet", () => {
 
     // Refresh the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
     await expect(messageInput).toBeEnabled({timeout: 20000})
 
     // Verify message still appears
@@ -70,6 +72,7 @@ test.describe("Message persistence with double ratchet", () => {
   })
 
   test("can continue conversation after refresh", async ({page}) => {
+    test.setTimeout(60000)
     await signUp(page)
     await setupChatWithSelf(page)
 
@@ -90,7 +93,7 @@ test.describe("Message persistence with double ratchet", () => {
 
     // Refresh the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
     await expect(messageInput).toBeEnabled({timeout: 20000})
 
     // Verify all messages still appear

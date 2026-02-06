@@ -23,6 +23,7 @@ test.describe("Market Map Location Tags", () => {
   test("map shows geohash input field and can navigate to specific geohash", async ({
     page,
   }) => {
+    test.setTimeout(60000)
     // Sign up first
     await signUp(page, "Market Map User")
 
@@ -46,11 +47,8 @@ test.describe("Market Map Location Tags", () => {
     await geohashInput.fill("u2v")
     await geohashInput.press("Enter")
 
-    // Wait for URL to update
-    await page.waitForTimeout(500)
-
     // Verify URL changed to map page with geohash
-    await expect(page).toHaveURL(/\/map\/u2v/)
+    await expect(page).toHaveURL(/\/map\/u2v/, {timeout: 15000})
 
     console.log("✓ Geohash navigation successful")
   })

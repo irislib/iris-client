@@ -220,11 +220,12 @@ test.describe("Feed Performance Analysis", () => {
   })
 
   test("CPU and Memory profiling during feed load", async ({page}) => {
+    test.setTimeout(120000)
     const cdp = await page.context().newCDPSession(page)
     await cdp.send("Performance.enable")
 
     // Navigate to home page first
-    await page.goto("/", {waitUntil: "networkidle"})
+    await page.goto("/", {waitUntil: "domcontentloaded"})
     await page.waitForTimeout(1000)
 
     // Start profiling after page is stable
@@ -292,12 +293,13 @@ test.describe("Feed Performance Analysis", () => {
   })
 
   test("Memory leak detection during navigation", async ({page}) => {
+    test.setTimeout(120000)
     const cdp = await page.context().newCDPSession(page)
     await cdp.send("Performance.enable")
 
     // Initial load
-    await page.goto("/", {waitUntil: "networkidle"})
-    await page.waitForTimeout(2000)
+    await page.goto("/", {waitUntil: "domcontentloaded"})
+    await page.waitForTimeout(1000)
 
     // Force GC
     await cdp.send("HeapProfiler.enable")

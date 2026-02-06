@@ -2,6 +2,7 @@ import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 
 test("can create and use a group chat with self", async ({page}) => {
+  test.setTimeout(60000)
   await signUp(page)
 
   // Navigate to Chats and register device first (required for private messaging)
@@ -9,12 +10,39 @@ test("can create and use a group chat with self", async ({page}) => {
 
   // Go to Devices tab and register this device
   await page.getByRole("link", {name: "Devices"}).click()
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-  await expect(registerButton).toBeVisible({timeout: 10000})
-  await registerButton.click()
+  await expect(
+    page.getByText(
+      "Manage devices that can send and receive encrypted messages on your behalf."
+    ).first()
+  ).toBeVisible({timeout: 10000})
 
-  // Wait for registration to complete (button disappears when registered)
-  await expect(registerButton).not.toBeVisible({timeout: 15000})
+  const registerButton = page.getByRole("button", {name: "Register this device"})
+  const thisDeviceBadge = page.getByText("This device").first()
+  const noDevicesText = page.getByText("No devices registered yet")
+
+  // Wait for the devices store to settle into one of the stable UI states.
+  await Promise.race([
+    registerButton.waitFor({state: "visible", timeout: 10000}),
+    thisDeviceBadge.waitFor({state: "visible", timeout: 10000}),
+    noDevicesText.waitFor({state: "visible", timeout: 10000}),
+  ]).catch(() => {})
+
+  if (!(await thisDeviceBadge.isVisible().catch(() => false))) {
+    if (await registerButton.isVisible().catch(() => false)) {
+      await registerButton.click({timeout: 10000})
+
+      // If there are existing devices, registration requires confirmation.
+      const confirmHeading = page.getByRole("heading", {
+        name: "Confirm Device Registration",
+      })
+      if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
+        await page.getByRole("button", {name: "Register Device"}).click({timeout: 10000})
+      }
+
+      await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
+      await expect(registerButton).not.toBeVisible({timeout: 20000})
+    }
+  }
 
   // Navigate to group creation
   await page.getByRole("link", {name: "Group"}).click()

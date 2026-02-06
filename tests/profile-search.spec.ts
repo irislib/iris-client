@@ -14,7 +14,9 @@ test.describe("Profile Search Worker", () => {
 
     // Wait for search results dropdown to appear
     // Results come from the worker asynchronously
-    const dropdown = page.locator(".dropdown-content")
+    const dropdown = searchInput
+      .locator('xpath=ancestor::div[contains(@class,"dropdown")][1]')
+      .locator("ul.dropdown-content")
     await expect(dropdown).toBeVisible({timeout: 5000})
 
     // Should show at least the "search notes" option
@@ -43,7 +45,9 @@ test.describe("Profile Search Worker", () => {
     await searchInput.fill("SearchTest")
 
     // Check if dropdown is visible with results
-    const dropdown = page.locator(".dropdown-content")
+    const dropdown = searchInput
+      .locator('xpath=ancestor::div[contains(@class,"dropdown")][1]')
+      .locator("ul.dropdown-content")
 
     // Dropdown should appear with search results
     await expect(dropdown).toBeVisible({timeout: 5000})
@@ -75,7 +79,9 @@ test.describe("Profile Search Worker", () => {
     await searchInput.fill("test")
 
     // Wait for dropdown to appear
-    const dropdown = page.locator(".dropdown-content")
+    const dropdown = searchInput
+      .locator('xpath=ancestor::div[contains(@class,"dropdown")][1]')
+      .locator("ul.dropdown-content")
     await expect(dropdown).toBeVisible({timeout: 5000})
 
     // Focus on search to show recent searches

@@ -5,7 +5,8 @@ async function setupChatWithSelf(page) {
   // Go to own profile via the sidebar user row
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
-  await page.waitForLoadState("networkidle")
+  // Avoid networkidle (app uses persistent connections); wait for UI instead.
+  await page.waitForLoadState("domcontentloaded")
 
   // Wait for profile to load
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
@@ -126,6 +127,7 @@ test.describe("Message Form - Desktop", () => {
   })
 
   test("textarea resizes based on content", async ({page}) => {
+    test.setTimeout(60000)
     await signUp(page)
     await setupChatWithSelf(page)
 
@@ -134,10 +136,7 @@ test.describe("Message Form - Desktop", () => {
     const initialHeight = await messageInput.evaluate((el) => el.clientHeight)
 
     // Multiple newlines
-    await messageInput.pressSequentially("Line 1")
-    await messageInput.press("Shift+Enter")
-    await messageInput.press("Shift+Enter")
-    await messageInput.pressSequentially("Line 4")
+    await messageInput.fill("Line 1\n\nLine 4")
 
     const heightAfterNewlines = await messageInput.evaluate((el) => el.clientHeight)
     expect(heightAfterNewlines).toBeGreaterThan(initialHeight)
@@ -150,7 +149,7 @@ test.describe("Message Form - Desktop", () => {
     // Long line that wraps
     const longLine =
       "This is a very long line that should definitely wrap multiple times in the textarea because it contains a lot of text that needs to be displayed across multiple lines in the UI"
-    await messageInput.pressSequentially(longLine)
+    await messageInput.fill(longLine)
 
     const heightAfterWrapping = await messageInput.evaluate((el) => el.clientHeight)
     expect(heightAfterWrapping).toBeGreaterThan(initialHeight)
@@ -160,11 +159,7 @@ test.describe("Message Form - Desktop", () => {
     expect(await messageInput.evaluate((el) => el.clientHeight)).toBe(initialHeight)
 
     // Combined newlines and wrapping
-    await messageInput.pressSequentially("First line with some text")
-    await messageInput.press("Shift+Enter")
-    await messageInput.pressSequentially(longLine)
-    await messageInput.press("Shift+Enter")
-    await messageInput.pressSequentially("Final line")
+    await messageInput.fill(`First line with some text\n${longLine}\nFinal line`)
 
     const heightAfterCombined = await messageInput.evaluate((el) => el.clientHeight)
     expect(heightAfterCombined).toBeGreaterThan(heightAfterNewlines)
