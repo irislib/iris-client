@@ -88,7 +88,8 @@ const ChatContainer = ({
     return windowed
   }, [messages, renderCount])
 
-  const messageGroups = groupMessages(visibleMessages, undefined, isPublicChat)
+  const isDirectMessage = !isPublicChat && !groupId
+  const messageGroups = groupMessages(visibleMessages, undefined, isPublicChat, isDirectMessage)
 
   const handleLoadMore = () => {
     setRenderCount((prev) => Math.min(prev + LOAD_MORE_COUNT, messages.size))

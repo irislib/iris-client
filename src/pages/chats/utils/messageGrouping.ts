@@ -11,7 +11,8 @@ export const comparator = (a: [string, MessageType], b: [string, MessageType]) =
 export const groupMessages = (
   messages: SortedMap<string, MessageType>,
   timeThreshold: number = groupingThreshold,
-  isPublicChat: boolean = false
+  isPublicChat: boolean = false,
+  isDirectMessage: boolean = false
 ) => {
   const groups: MessageType[][] = []
   let currentGroup: MessageType[] = []
@@ -52,14 +53,22 @@ export const groupMessages = (
         currentGroup.push(message)
       } else {
         const lastMessage = currentGroup[currentGroup.length - 1]
-        const timeDiff =
-          getMillisecondTimestamp(message) - getMillisecondTimestamp(lastMessage)
+        const messageMs = getMillisecondTimestamp(message)
+        const lastMessageMs = getMillisecondTimestamp(lastMessage)
+        const timeDiff = messageMs - lastMessageMs
+
+        // In DMs, keep consecutive-minute bubbles together even when > 60s apart.
+        // Example: 12:01:05 -> 12:02:50 is 105s, but still "consecutive minutes".
+        const messageMinute = Math.floor(messageMs / 60000)
+        const lastMessageMinute = Math.floor(lastMessageMs / 60000)
+        const minuteDiff = messageMinute - lastMessageMinute
+        const isConsecutiveMinuteInDM = isDirectMessage && minuteDiff >= 0 && minuteDiff <= 1
 
         // For public chats, we need to handle undefined sender values
         // Messages with the same pubkey should be grouped together
         const isSameSender = message.pubkey === lastMessage.pubkey
 
-        if (isSameSender && timeDiff <= timeThreshold) {
+        if (isSameSender && (timeDiff <= timeThreshold || isConsecutiveMinuteInDM)) {
           currentGroup.push(message)
         } else {
           groups.push(currentGroup)
