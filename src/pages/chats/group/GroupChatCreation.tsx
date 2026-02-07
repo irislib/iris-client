@@ -9,6 +9,7 @@ import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {GroupDetails} from "./types"
 import {KIND_CHANNEL_CREATE} from "@/utils/constants"
 import {sendGroupEvent} from "../utils/groupMessaging"
+import {buildGroupMetadataContent, createGroupData} from "nostr-double-ratchet/src"
 
 const GroupChatCreation = () => {
   const navigate = useNavigate()
@@ -87,27 +88,21 @@ const GroupChatCreation = () => {
       setIsCreating(true)
       setCreateError(null)
 
-      const groupId = crypto.randomUUID()
-      const group = {
-        id: groupId,
-        name: groupDetails.name,
-        description: groupDetails.description,
-        picture: groupDetails.picture,
-        members: [myPubKey, ...selectedMembers],
-        createdAt: Date.now(),
-      }
+      const group = createGroupData(groupDetails.name, myPubKey, selectedMembers)
+      if (groupDetails.description.trim()) group.description = groupDetails.description.trim()
+      if (groupDetails.picture.trim()) group.picture = groupDetails.picture.trim()
       addGroup(group)
 
       // Send group metadata as first message to the group
       await sendGroupEvent({
-        groupId,
+        groupId: group.id,
         groupMembers: group.members,
         senderPubKey: myPubKey,
-        content: JSON.stringify(group),
+        content: buildGroupMetadataContent(group),
         kind: KIND_CHANNEL_CREATE,
       })
 
-      navigate(`/chats/group/${groupId}`)
+      navigate(`/chats/group/${group.id}`)
     } catch (err) {
       console.error("Error creating group:", err)
       setCreateError("Failed to create group")

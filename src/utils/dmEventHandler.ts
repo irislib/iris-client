@@ -3,6 +3,7 @@ import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
+import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
@@ -15,11 +16,16 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {isOwnDeviceEvent} from "@/utils/sessionRouting"
 import {
+  applyMetadataUpdate,
   getMillisecondTimestamp,
+  GROUP_SENDER_KEY_DISTRIBUTION_KIND,
   isTyping,
   parseReceipt,
+  parseGroupMetadata,
   shouldAdvanceReceiptStatus,
+  type SenderKeyDistribution,
   type Rumor,
+  validateMetadataCreation,
 } from "nostr-double-ratchet/src"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -59,38 +65,138 @@ export const attachSessionEventListener = () => {
           const mutedUsers = getSocialGraph().getMutedByUser(publicKey)
           if (!isOwnDevice && mutedUsers.has(effectiveOwner)) return
 
-          // Check if it's a group creation event
           const lTag = getTag("l", event.tags)
-          if (event.kind === KIND_CHANNEL_CREATE && lTag) {
-            try {
-              const group = JSON.parse(event.content)
-              const {addGroup} = useGroupsStore.getState()
-              addGroup(group)
-              log("Received group creation:", group.name, group.id)
-            } catch (e) {
-              error("Failed to parse group creation event:", e)
-            }
-            return
-          }
-
-          // Check if it's a group message (has l tag but not group creation)
           if (lTag) {
-            // Create placeholder group if we don't have metadata yet
+            // Group metadata (kind 40): add/update group and store the invite message.
+            if (event.kind === KIND_CHANNEL_CREATE) {
+              const {groups, addGroup} = useGroupsStore.getState()
+
+              try {
+                const metadata = parseGroupMetadata(event.content)
+                if (
+                  metadata &&
+                  validateMetadataCreation(metadata, effectiveOwner, publicKey)
+                ) {
+                  const existing = groups[metadata.id]
+                  const createdAt = getMillisecondTimestamp(event as Rumor) || Date.now()
+                  addGroup(
+                    existing
+                      ? applyMetadataUpdate(existing, metadata)
+                      : {
+                          id: metadata.id,
+                          name: metadata.name,
+                          description: metadata.description,
+                          picture: metadata.picture,
+                          members: metadata.members,
+                          admins: metadata.admins,
+                          createdAt,
+                          secret: metadata.secret,
+                          accepted: true,
+                        }
+                  )
+                  log("Received group metadata:", metadata.name, metadata.id)
+
+                  void usePrivateMessagesStore
+                    .getState()
+                    .upsert(metadata.id, publicKey, {
+                      ...event,
+                      ownerPubkey: effectiveOwner,
+                    })
+                  return
+                }
+              } catch (e) {
+                error("Failed to parse group metadata:", e)
+              }
+
+              // Legacy fallback: old clients sent a full Group object as JSON.
+              try {
+                const legacy = JSON.parse(event.content) as any
+                if (legacy && typeof legacy.id === "string") {
+                  const createdAt =
+                    typeof legacy.createdAt === "number"
+                      ? legacy.createdAt
+                      : getMillisecondTimestamp(event as Rumor) || Date.now()
+                  addGroup({
+                    id: legacy.id,
+                    name: legacy.name || `Group ${legacy.id.slice(0, 8)}`,
+                    description: legacy.description || "",
+                    picture: legacy.picture || "",
+                    members: Array.isArray(legacy.members) ? legacy.members : [publicKey],
+                    admins: Array.isArray(legacy.admins) && legacy.admins.length > 0
+                      ? legacy.admins
+                      : [effectiveOwner],
+                    createdAt,
+                    secret: typeof legacy.secret === "string" ? legacy.secret : undefined,
+                    accepted: true,
+                  })
+                  log("Received legacy group creation:", legacy.name, legacy.id)
+                  void usePrivateMessagesStore
+                    .getState()
+                    .upsert(legacy.id, publicKey, {
+                      ...event,
+                      ownerPubkey: effectiveOwner,
+                    })
+                  return
+                }
+              } catch (e) {
+                error("Failed to parse legacy group creation event:", e)
+              }
+
+              return
+            }
+
+            // Sender-key distribution: store keys but do not show as a message.
+            if (event.kind === GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
+              try {
+                const parsed = JSON.parse(event.content) as SenderKeyDistribution
+                const dist: SenderKeyDistribution = {
+                  ...parsed,
+                  groupId: parsed.groupId || lTag,
+                }
+
+                if (!dist.groupId || !dist.senderEventPubkey) return
+                if (typeof dist.keyId !== "number" || typeof dist.chainKey !== "string") return
+                if (typeof dist.iteration !== "number" || typeof dist.createdAt !== "number") return
+
+                useGroupSenderKeysStore.getState().upsertDistribution(dist, effectiveOwner)
+
+                // Ensure the group exists for navigation/UI even if metadata arrives later.
+                const {groups, addGroup} = useGroupsStore.getState()
+                if (!groups[dist.groupId]) {
+                  addGroup({
+                    id: dist.groupId,
+                    name: `Group ${dist.groupId.slice(0, 8)}`,
+                    description: "",
+                    picture: "",
+                    members: [publicKey],
+                    admins: [publicKey],
+                    createdAt: Date.now(),
+                    accepted: true,
+                  })
+                  log("Created placeholder group from sender-key distribution:", dist.groupId)
+                }
+              } catch (e) {
+                error("Failed to parse sender-key distribution:", e)
+              }
+              return
+            }
+
+            // Legacy group message (double-ratchet fan-out): store under group ID.
             const {groups, addGroup} = useGroupsStore.getState()
             if (!groups[lTag]) {
-              const placeholderGroup = {
+              addGroup({
                 id: lTag,
                 name: `Group ${lTag.slice(0, 8)}`,
                 description: "",
                 picture: "",
                 members: [publicKey],
+                admins: [publicKey],
                 createdAt: Date.now(),
-              }
-              addGroup(placeholderGroup)
+                accepted: true,
+              })
               log("Created placeholder group:", lTag)
             }
 
-            // Group message or reaction - store under group ID
             log("Received group message for group:", lTag)
             void usePrivateMessagesStore
               .getState()

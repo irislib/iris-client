@@ -26,6 +26,10 @@ import {
   attachSessionEventListener,
   cleanupSessionEventListener,
 } from "./utils/dmEventHandler"
+import {
+  attachGroupMessageListener,
+  cleanupGroupMessageListener,
+} from "./utils/groupMessageHandler"
 import {hasWriteAccess} from "./utils/auth"
 import {
   initAppKeysManager,
@@ -205,6 +209,7 @@ const initializeApp = async () => {
             .getState()
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
+          attachGroupMessageListener()
           subscribeToDMNotifications()
           void autoRegisterDevice()
           log("✅ Device activated and session listener attached")
@@ -287,6 +292,7 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
             .getState()
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
+          attachGroupMessageListener()
           subscribeToDMNotifications()
           void autoRegisterDevice()
           log("✅ Device activated and session listener attached (login)")
@@ -313,5 +319,6 @@ if (import.meta.hot) {
     unsubscribeUser()
     unsubscribeTheme()
     cleanupSessionEventListener()
+    cleanupGroupMessageListener()
   })
 }

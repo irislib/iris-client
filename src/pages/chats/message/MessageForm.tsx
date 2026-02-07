@@ -23,6 +23,7 @@ import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
+import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet/src"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 import {createTypingThrottle} from "@/stores/typingIndicators"
 
@@ -139,7 +140,7 @@ const MessageForm = ({
           groupMembers,
           senderPubKey: myPubKey,
           content: text,
-          kind: KIND_CHAT_MESSAGE,
+          kind: GROUP_SENDER_KEY_MESSAGE_KIND,
           extraTags,
         })
 
@@ -212,28 +213,13 @@ const MessageForm = ({
 
       // Handle group messages
       if (groupId && groupMembers) {
-        const {getEventHash} = await import("nostr-tools")
-        const now = Date.now()
-        const messageEvent = {
+        await sendGroupEvent({
+          groupId,
+          groupMembers,
+          senderPubKey: myPubKey,
           content: token,
-          kind: 0,
-          created_at: Math.floor(now / 1000),
-          tags: [
-            ["l", groupId],
-            ["ms", String(now)],
-          ],
-          pubkey: myPubKey,
-          id: "",
-        }
-        messageEvent.id = getEventHash(messageEvent)
-
-        await usePrivateMessagesStore.getState().upsert(groupId, myPubKey, messageEvent)
-
-        await Promise.all(
-          groupMembers.map((memberPubKey) =>
-            sessionManager.sendEvent(memberPubKey, messageEvent)
-          )
-        )
+          kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+        })
         return
       }
 

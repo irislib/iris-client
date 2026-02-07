@@ -12,13 +12,11 @@ import Message, {MessageType} from "../message/Message"
 import {groupMessages} from "../utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {getSessionManager} from "@/shared/services/PrivateChats"
-import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {KIND_REACTION} from "@/utils/constants"
-import {getEventHash} from "nostr-tools"
 import ReverseVirtualScroll from "@/shared/components/ui/ReverseVirtualScroll"
 import {formatDayLabel} from "@/utils/utils"
+import {sendGroupEvent} from "../utils/groupMessaging"
 
 interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
@@ -107,32 +105,14 @@ const ChatContainer = ({
     if (groupId && groupMembers) {
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
-
-      const sessionManager = getSessionManager()
-      if (!sessionManager) return
-
-      const now = Date.now()
-      const reactionEvent = {
+      await sendGroupEvent({
+        groupId,
+        groupMembers,
+        senderPubKey: myPubKey,
         content: emoji,
         kind: KIND_REACTION,
-        created_at: Math.floor(now / 1000),
-        tags: [
-          ["e", messageId],
-          ["l", groupId],
-          ["ms", String(now)],
-        ],
-        pubkey: myPubKey,
-        id: "",
-      }
-      reactionEvent.id = getEventHash(reactionEvent)
-
-      await usePrivateMessagesStore.getState().upsert(groupId, myPubKey, reactionEvent)
-
-      Promise.all(
-        groupMembers.map((memberPubKey) =>
-          sessionManager.sendEvent(memberPubKey, reactionEvent)
-        )
-      ).catch(console.error)
+        extraTags: [["e", messageId]],
+      })
     }
   }
 
