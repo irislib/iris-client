@@ -1,4 +1,4 @@
-import type {DeviceEntry} from "nostr-double-ratchet/src"
+import type {DeviceEntry} from "nostr-double-ratchet"
 
 export function isOwnDevicePubkey(
   pubkey: string,

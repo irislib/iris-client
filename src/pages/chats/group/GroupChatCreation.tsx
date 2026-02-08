@@ -9,7 +9,7 @@ import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {GroupDetails} from "./types"
 import {KIND_CHANNEL_CREATE} from "@/utils/constants"
 import {sendGroupEvent} from "../utils/groupMessaging"
-import {buildGroupMetadataContent, createGroupData} from "nostr-double-ratchet/src"
+import {buildGroupMetadataContent, createGroupData} from "nostr-double-ratchet"
 
 const GroupChatCreation = () => {
   const navigate = useNavigate()

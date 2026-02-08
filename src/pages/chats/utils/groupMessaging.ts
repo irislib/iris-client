@@ -6,8 +6,8 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
 import {NDKEvent} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
-import {OneToManyChannel, SenderKeyState, type Rumor} from "nostr-double-ratchet/src"
-import {GROUP_SENDER_KEY_DISTRIBUTION_KIND, GROUP_METADATA_KIND} from "nostr-double-ratchet/src"
+import {OneToManyChannel, SenderKeyState, type Rumor} from "nostr-double-ratchet"
+import {GROUP_SENDER_KEY_DISTRIBUTION_KIND, GROUP_METADATA_KIND} from "nostr-double-ratchet"
 
 interface SendGroupEventOptions {
   groupId: string

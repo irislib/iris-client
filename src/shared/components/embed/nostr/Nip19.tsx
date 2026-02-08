@@ -7,7 +7,7 @@ import {ProfileLink} from "@/shared/components/user/ProfileLink"
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem.tsx"
 
 import {NDKEvent} from "@/lib/ndk"
-import type {Rumor} from "nostr-double-ratchet/src"
+import type {Rumor} from "nostr-double-ratchet"
 import {ndk} from "@/utils/ndk"
 
 type EmbedEvent = NDKEvent | Rumor

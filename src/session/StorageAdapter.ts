@@ -1,5 +1,5 @@
 import localForage from "localforage"
-import {StorageAdapter, LocalStorageAdapter} from "nostr-double-ratchet/src"
+import {StorageAdapter, LocalStorageAdapter} from "nostr-double-ratchet"
 
 /**
  * LocalForage-based storage adapter with IndexedDB backend.

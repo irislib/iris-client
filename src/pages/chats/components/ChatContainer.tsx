@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react"
 import ErrorBoundary from "@/shared/components/ui/ErrorBoundary"
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import Message, {MessageType} from "../message/Message"
 import {groupMessages} from "../utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"

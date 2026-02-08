@@ -1,5 +1,5 @@
 import {RiCheckDoubleLine, RiCheckLine} from "@remixicon/react"
-import type {ReceiptType} from "nostr-double-ratchet/src"
+import type {ReceiptType} from "nostr-double-ratchet"
 import classNames from "classnames"
 
 type MessageStatusProps = {

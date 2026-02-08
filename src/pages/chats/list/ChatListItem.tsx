@@ -1,5 +1,5 @@
 import RelativeTime from "@/shared/components/event/RelativeTime"
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import {Avatar} from "@/shared/components/user/Avatar"
 import ProxyImg from "@/shared/components/ProxyImg"

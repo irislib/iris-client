@@ -4,7 +4,7 @@ import * as messageRepository from "@/utils/messageRepository"
 import {KIND_REACTION} from "@/utils/constants"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {create} from "zustand"
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import {useUserStore} from "./user"
 
 const addToMap = (

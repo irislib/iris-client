@@ -7,7 +7,7 @@ import {
   SenderKeyState,
   type SenderKeyDistribution,
   type SenderKeyStateSerialized,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 import {generateSecretKey, getPublicKey} from "nostr-tools"
 
 export interface MyGroupSenderKey {

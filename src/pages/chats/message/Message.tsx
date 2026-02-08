@@ -1,4 +1,4 @@
-import {getMillisecondTimestamp, Rumor, type ReceiptType} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp, Rumor, type ReceiptType} from "nostr-double-ratchet"
 import MessageActionButtons from "../reaction/MessageActionButtons"
 import MessageReactions from "../reaction/MessageReactions"
 import {Avatar} from "@/shared/components/user/Avatar"

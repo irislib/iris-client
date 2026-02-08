@@ -1,5 +1,5 @@
 import {create} from "zustand"
-import type {DeviceEntry} from "nostr-double-ratchet/src"
+import type {DeviceEntry} from "nostr-double-ratchet"
 
 interface DeviceState {
   identityPubkey: string | null

@@ -1,4 +1,4 @@
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp} from "nostr-double-ratchet"
 
 import type {MessageType} from "@/pages/chats/message/Message"
 import type {SortedMap} from "@/utils/SortedMap/SortedMap"

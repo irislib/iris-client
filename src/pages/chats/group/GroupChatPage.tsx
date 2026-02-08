@@ -8,7 +8,7 @@ import GroupChatHeader from "./GroupChatHeader"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {MessageType} from "../message/Message"
 import {comparator} from "../utils/messageGrouping"
-import {getMillisecondTimestamp} from "nostr-double-ratchet/src"
+import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 
 const GroupChatPage = () => {

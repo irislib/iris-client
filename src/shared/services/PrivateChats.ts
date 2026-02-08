@@ -11,7 +11,7 @@ import {
   DeviceEntry,
   INVITE_RESPONSE_KIND,
   decryptInviteResponse,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"

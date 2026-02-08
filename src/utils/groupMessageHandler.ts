@@ -1,6 +1,6 @@
 import {getEventHash} from "nostr-tools"
 
-import {SenderKeyState, OneToManyChannel} from "nostr-double-ratchet/src"
+import {SenderKeyState, OneToManyChannel} from "nostr-double-ratchet"
 
 import {ndk} from "@/utils/ndk"
 import {createDebugLogger} from "@/utils/createDebugLogger"

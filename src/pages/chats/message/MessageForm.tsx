@@ -23,7 +23,7 @@ import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
-import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet/src"
+import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 import {createTypingThrottle} from "@/stores/typingIndicators"
 

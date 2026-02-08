@@ -1,4 +1,4 @@
-import type {ReceiptType} from "nostr-double-ratchet/src"
+import type {ReceiptType} from "nostr-double-ratchet"
 import type {MessageType} from "@/pages/chats/message/Message"
 
 import {KIND_REACTION} from "@/utils/constants"

@@ -7,7 +7,7 @@ import {
   serializeSessionState,
   Session,
   TYPING_KIND,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 import {tryDecryptDmPushEvent} from "./dmPushDecrypt"
 
 const createSessionPair = () => {

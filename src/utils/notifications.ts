@@ -2,7 +2,7 @@ import {
   INVITE_RESPONSE_KIND,
   MESSAGE_EVENT_KIND,
   SessionManager,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"

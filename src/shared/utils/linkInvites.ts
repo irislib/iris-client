@@ -1,4 +1,4 @@
-import {Invite} from "nostr-double-ratchet/src"
+import {Invite} from "nostr-double-ratchet"
 
 const DEFAULT_LINK_INVITE_ROOTS = ["https://iris.to", "https://chat.iris.to"]
 

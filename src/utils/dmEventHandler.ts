@@ -26,7 +26,7 @@ import {
   type SenderKeyDistribution,
   type Rumor,
   validateMetadataCreation,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 

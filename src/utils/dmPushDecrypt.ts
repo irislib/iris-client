@@ -6,7 +6,7 @@ import {
   Rumor,
   Session,
   TYPING_KIND,
-} from "nostr-double-ratchet/src"
+} from "nostr-double-ratchet"
 import type {VerifiedEvent} from "nostr-tools"
 
 type LocalForageInstance = typeof localforage

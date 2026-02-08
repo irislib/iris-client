@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {AppKeys} from "nostr-double-ratchet/src"
+import {AppKeys} from "nostr-double-ratchet"
 import {getNostrSubscribe} from "@/shared/services/PrivateChats"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"

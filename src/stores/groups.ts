@@ -1,7 +1,7 @@
 import {createJSONStorage, persist} from "zustand/middleware"
 import localforage from "localforage"
 import {create} from "zustand"
-import type {GroupData} from "nostr-double-ratchet/src"
+import type {GroupData} from "nostr-double-ratchet"
 
 export type Group = GroupData
 
