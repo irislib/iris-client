@@ -15,6 +15,8 @@ import {isTauri, isMobileTauri} from "./utils/utils"
 import {initializeDebugLogging, createDebugLogger} from "./utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {initServiceWorkerAutoReload} from "@/swInit"
+import {startMessageExpirationCleanup} from "@/utils/messageExpirationCleanup"
+import {syncDisappearingMessagesToSessionManager} from "@/utils/disappearingMessages"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 import {onOpenUrl} from "@tauri-apps/plugin-deep-link"
@@ -44,6 +46,7 @@ import {autoRegisterDevice} from "./utils/autoRegisterDevice"
 
 // Auto-update and auto-reload the PWA when a new service worker version is available.
 initServiceWorkerAutoReload()
+startMessageExpirationCleanup()
 
 // Register deep link handler for hot starts (when app already open)
 // Note: Cold start (app closed) doesn't work due to Tauri bug #13580
@@ -210,6 +213,7 @@ const initializeApp = async () => {
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           attachGroupMessageListener()
+          syncDisappearingMessagesToSessionManager().catch(error)
           subscribeToDMNotifications()
           void autoRegisterDevice()
           log("✅ Device activated and session listener attached")
@@ -293,6 +297,7 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
             .setIdentityPubkey(delegateManager.getIdentityPublicKey())
           attachSessionEventListener()
           attachGroupMessageListener()
+          syncDisappearingMessagesToSessionManager().catch(error)
           subscribeToDMNotifications()
           void autoRegisterDevice()
           log("✅ Device activated and session listener attached (login)")

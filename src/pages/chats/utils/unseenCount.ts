@@ -1,4 +1,4 @@
-import {getMillisecondTimestamp} from "nostr-double-ratchet"
+import {getMillisecondTimestamp, isExpired} from "nostr-double-ratchet"
 
 import type {MessageType} from "@/pages/chats/message/Message"
 import type {SortedMap} from "@/utils/SortedMap/SortedMap"
@@ -17,7 +17,9 @@ export function countUnseenMessages({
 
   const cutoff = lastSeenAtMs || 0
   let count = 0
+  const nowSeconds = Math.floor(Date.now() / 1000)
   for (const [, message] of messages.reverse()) {
+    if (isExpired(message, nowSeconds)) continue
     const ts = getMillisecondTimestamp(message)
     if (cutoff && ts <= cutoff) break
 

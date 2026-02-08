@@ -57,6 +57,9 @@ export const KIND_PICTURE_FIRST = 20
 // Additional kinds found in codebase
 export const KIND_WALLET_CONNECT = 6927
 
+// Iris app-specific kinds (encrypted via double-ratchet; inner rumor kinds)
+export const KIND_CHAT_SETTINGS = 10448
+
 // Debug namespaces for debug pkg
 export const DEBUG_NAMESPACES = {
   // NDK

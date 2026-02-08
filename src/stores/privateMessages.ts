@@ -4,7 +4,7 @@ import * as messageRepository from "@/utils/messageRepository"
 import {KIND_REACTION} from "@/utils/constants"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {create} from "zustand"
-import {getMillisecondTimestamp} from "nostr-double-ratchet"
+import {getMillisecondTimestamp, isExpired} from "nostr-double-ratchet"
 import {useUserStore} from "./user"
 
 const addToMap = (
@@ -40,6 +40,7 @@ interface PrivateMessagesStoreActions {
   ) => Promise<void>
   updateLastSeen: (chatId: string, timestamp?: number) => void
   markOpened: (chatId: string) => void
+  purgeExpired: (nowSeconds?: number) => void
   removeSession: (chatId: string) => Promise<void>
   removeMessage: (chatId: string, messageId: string) => Promise<void>
   clear: () => Promise<void>
@@ -48,11 +49,39 @@ interface PrivateMessagesStoreActions {
 type PrivateMessagesStore = PrivateMessagesStoreState & PrivateMessagesStoreActions
 
 export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) => {
+  const filterExpired = (
+    events: Map<string, SortedMap<string, MessageType>>,
+    nowSeconds: number
+  ): Map<string, SortedMap<string, MessageType>> => {
+    const next = new Map<string, SortedMap<string, MessageType>>()
+    for (const [chatId, messageMap] of events.entries()) {
+      const remaining: Array<[string, MessageType]> = []
+      for (const [id, msg] of messageMap.entries()) {
+        if (isExpired(msg, nowSeconds)) {
+          void messageRepository.deleteMessage(chatId, id).catch(() => {})
+          continue
+        }
+        remaining.push([id, msg])
+      }
+      if (remaining.length === 0) continue
+      // Keep stable reference when nothing was removed.
+      if (remaining.length === messageMap.size) {
+        next.set(chatId, messageMap)
+      } else {
+        next.set(chatId, new SortedMap<string, MessageType>(remaining, comparator))
+      }
+    }
+    return next
+  }
+
   const rehydration = Promise.all([
     messageRepository.loadAll(),
     messageRepository.loadLastSeen(),
   ])
-    .then(([events, lastSeen]) => set({events, lastSeen}))
+    .then(([events, lastSeen]) => {
+      const nowSeconds = Math.floor(Date.now() / 1000)
+      set({events: filterExpired(events, nowSeconds), lastSeen})
+    })
     .catch(console.error)
   return {
     events: new Map(),
@@ -64,6 +93,8 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
     upsert: async (from, to, event) => {
       const myPubKey = useUserStore.getState().publicKey
       const chatId = from === myPubKey ? to : from
+
+      const nowSeconds = Math.floor(Date.now() / 1000)
 
       set((state) => {
         const isReaction = event.kind === KIND_REACTION
@@ -111,6 +142,11 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
               status: event.status ?? existingMessage.status,
             }
           : event
+
+        if (isExpired(mergedMessage, nowSeconds)) {
+          void messageRepository.deleteMessage(chatId, mergedMessage.id).catch(() => {})
+          return state
+        }
 
         // Regular message - add to chat
         return {
@@ -209,6 +245,26 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
         return
       }
       state.updateLastSeen(chatId, targetTimestamp)
+    },
+
+    purgeExpired: (nowSeconds?: number) => {
+      const effectiveNow = typeof nowSeconds === "number" ? nowSeconds : Math.floor(Date.now() / 1000)
+      set((state) => {
+        const nextEvents = filterExpired(state.events, effectiveNow)
+        if (nextEvents === state.events) return state
+        // Cheap structural equality check: compare sizes and object identity in common case.
+        if (nextEvents.size === state.events.size) {
+          let same = true
+          for (const [chatId, map] of nextEvents.entries()) {
+            if (state.events.get(chatId) !== map) {
+              same = false
+              break
+            }
+          }
+          if (same) return state
+        }
+        return {events: nextEvents}
+      })
     },
   }
 })

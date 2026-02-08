@@ -12,11 +12,13 @@ import classNames from "classnames"
 import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
-import {KIND_CHANNEL_CREATE, KIND_REACTION} from "@/utils/constants"
+import {KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS, KIND_REACTION} from "@/utils/constants"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {isOnlyEmoji} from "@/utils/textFormatting"
 import {useUserStore} from "@/stores/user"
 import MessageStatus from "./MessageStatus"
+import {parseChatSettingsMessage} from "@/utils/chatSettings"
+import {getExpirationLabel} from "@/utils/expiration"
 
 export type MessageType = Rumor & {
   reactions?: Record<string, string>
@@ -152,9 +154,67 @@ const Message = ({
     [message]
   )
 
+  if (message.kind === KIND_CHAT_SETTINGS) {
+    const settings = parseChatSettingsMessage(message.content)
+    const authorPubkey = message.ownerPubkey ?? message.pubkey
+    const who = authorPubkey === myPubKey ? "You" : null
+    const ttl = settings?.messageTtlSeconds ?? null
+    const label = ttl ? getExpirationLabel(ttl) : "Off"
+
+    return (
+      <div className="flex items-center p-4 bg-base-200 rounded-xl my-2 justify-center text-sm">
+        <span className="text-base-content/70">
+          {who ? (
+            who
+          ) : (
+            <>
+              <Name pubKey={authorPubkey} />{" "}
+            </>
+          )}
+          set disappearing messages to {label}
+        </span>
+      </div>
+    )
+  }
+
   if (message.kind === KIND_CHANNEL_CREATE) {
     let content = null
-    if (message.pubkey === myPubKey) {
+
+    // Group metadata updates (eg disappearing messages timer) are also kind 40.
+    let groupTtl: number | null | undefined
+    try {
+      const parsed = JSON.parse(message.content) as Record<string, unknown>
+      if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
+        const raw = parsed.messageTtlSeconds
+        groupTtl =
+          raw === null
+            ? null
+            : typeof raw === "number" && Number.isFinite(raw)
+              ? Math.floor(raw) > 0
+                ? Math.floor(raw)
+                : null
+              : undefined
+      }
+    } catch {
+      // ignore
+    }
+
+    if (groupTtl !== undefined) {
+      const authorPubkey = message.ownerPubkey ?? message.pubkey
+      const label = groupTtl ? getExpirationLabel(groupTtl) : "Off"
+      content = (
+        <span className="text-base-content/70">
+          {authorPubkey === myPubKey ? (
+            "You"
+          ) : (
+            <>
+              <Name pubKey={authorPubkey} />{" "}
+            </>
+          )}
+          set disappearing messages to {label}
+        </span>
+      )
+    } else if (message.pubkey === myPubKey) {
       content = "You created the group"
     } else {
       content = (

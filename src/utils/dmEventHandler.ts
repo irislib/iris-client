@@ -9,12 +9,19 @@ import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
-import {KIND_CHANNEL_CREATE, KIND_CHAT_MESSAGE, KIND_REACTION} from "./constants"
+import {
+  KIND_CHANNEL_CREATE,
+  KIND_CHAT_MESSAGE,
+  KIND_CHAT_SETTINGS,
+  KIND_REACTION,
+} from "./constants"
 import {isTauri} from "./utils"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {isOwnDeviceEvent} from "@/utils/sessionRouting"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
+import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {
   applyMetadataUpdate,
   getMillisecondTimestamp,
@@ -79,6 +86,22 @@ export const attachSessionEventListener = () => {
                 ) {
                   const existing = groups[metadata.id]
                   const createdAt = getMillisecondTimestamp(event as Rumor) || Date.now()
+
+                  const hasTtl = Object.prototype.hasOwnProperty.call(
+                    metadata as unknown as Record<string, unknown>,
+                    "messageTtlSeconds"
+                  )
+                  const rawTtl = (metadata as unknown as Record<string, unknown>)
+                    .messageTtlSeconds
+                  const nextTtl =
+                    rawTtl === null
+                      ? null
+                      : typeof rawTtl === "number" && Number.isFinite(rawTtl)
+                        ? Math.floor(rawTtl) > 0
+                          ? Math.floor(rawTtl)
+                          : null
+                        : undefined
+
                   addGroup(
                     existing
                       ? applyMetadataUpdate(existing, metadata)
@@ -94,6 +117,27 @@ export const attachSessionEventListener = () => {
                           accepted: true,
                         }
                   )
+
+                  if (existing && hasTtl && nextTtl !== undefined) {
+                    useGroupsStore.getState().updateGroup(metadata.id, {
+                      messageTtlSeconds: nextTtl,
+                    })
+                  } else if (!existing) {
+                    useGroupsStore.getState().updateGroup(metadata.id, {
+                      messageTtlSeconds: nextTtl ?? null,
+                    })
+                  }
+
+                  if (hasTtl && nextTtl !== undefined) {
+                    useChatExpirationStore.getState().setExpiration(metadata.id, nextTtl)
+                    sessionManager
+                      .setExpirationForGroup(
+                        metadata.id,
+                        nextTtl ? {ttlSeconds: nextTtl} : null
+                      )
+                      .catch(() => {})
+                  }
+
                   log("Received group metadata:", metadata.name, metadata.id)
 
                   void usePrivateMessagesStore
@@ -278,6 +322,24 @@ export const attachSessionEventListener = () => {
           // drop incoming events before they hit the message store.
           if (shouldIgnoreRequest) {
             return
+          }
+
+          if (event.kind === KIND_CHAT_SETTINGS) {
+            const settings = parseChatSettingsMessage(event.content)
+            if (settings) {
+              useChatExpirationStore
+                .getState()
+                .setExpiration(chatId, settings.messageTtlSeconds)
+
+              sessionManager
+                .setExpirationForPeer(
+                  chatId,
+                  settings.messageTtlSeconds
+                    ? {ttlSeconds: settings.messageTtlSeconds}
+                    : null
+                )
+                .catch(() => {})
+            }
           }
 
           if (isTyping(event)) {

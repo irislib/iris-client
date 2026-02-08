@@ -4,9 +4,16 @@ import {getEventHash} from "nostr-tools"
 import {getSessionManager} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {NDKEvent} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
-import {OneToManyChannel, SenderKeyState, type Rumor} from "nostr-double-ratchet"
+import {
+  OneToManyChannel,
+  SenderKeyState,
+  resolveExpirationSeconds,
+  upsertExpirationTag,
+  type Rumor,
+} from "nostr-double-ratchet"
 import {GROUP_SENDER_KEY_DISTRIBUTION_KIND, GROUP_METADATA_KIND} from "nostr-double-ratchet"
 
 interface SendGroupEventOptions {
@@ -37,6 +44,18 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
     pubkey: senderPubKey,
     id: "",
   }
+
+  // Apply group disappearing-messages expiration to normal chat events (not metadata/control).
+  if (kind !== GROUP_METADATA_KIND && kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
+    const ttlSeconds = useChatExpirationStore.getState().expirations[groupId]
+    if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
+      const expiresAtSeconds = resolveExpirationSeconds({ttlSeconds}, event.created_at)
+      if (expiresAtSeconds !== undefined) {
+        upsertExpirationTag(event.tags, expiresAtSeconds)
+      }
+    }
+  }
+
   event.id = getEventHash(event)
 
   // Add to local store immediately for instant UI feedback

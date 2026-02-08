@@ -3,7 +3,13 @@ import localforage from "localforage"
 import {create} from "zustand"
 import type {GroupData} from "nostr-double-ratchet"
 
-export type Group = GroupData
+export type Group = GroupData & {
+  /**
+   * Disappearing messages timer for the group, in seconds.
+   * `null` means explicitly "off".
+   */
+  messageTtlSeconds?: number | null
+}
 
 interface GroupsStore {
   groups: Record<string, Group>
@@ -13,7 +19,7 @@ interface GroupsStore {
   addMember: (groupId: string, memberPubKey: string) => void
 }
 
-const STORAGE_VERSION = 2
+const STORAGE_VERSION = 3
 
 const store = create<GroupsStore>()(
   persist(
@@ -74,7 +80,7 @@ const store = create<GroupsStore>()(
         const groups = raw.groups && typeof raw.groups === "object" ? raw.groups : {}
 
         // v1 stored a simplified group shape without admins/secret/accepted.
-        if (version < STORAGE_VERSION) {
+        if (version < 2) {
           const migrated: Record<string, Group> = {}
           for (const [id, g] of Object.entries(groups)) {
             if (!g || typeof g !== "object") continue
@@ -98,12 +104,34 @@ const store = create<GroupsStore>()(
               secret: typeof (g as any).secret === "string" ? (g as any).secret : undefined,
               accepted:
                 typeof (g as any).accepted === "boolean" ? (g as any).accepted : true,
+              messageTtlSeconds:
+                typeof (g as any).messageTtlSeconds === "number"
+                  ? (g as any).messageTtlSeconds
+                  : null,
             }
           }
           return {groups: migrated}
         }
 
-        return {groups}
+        if (version < STORAGE_VERSION) {
+          // v2 -> v3: add messageTtlSeconds.
+          const migrated: Record<string, Group> = {}
+          for (const [id, g] of Object.entries(groups)) {
+            if (!g || typeof g !== "object") continue
+            migrated[id] = {
+              ...(g as Group),
+              messageTtlSeconds:
+                typeof (g as any).messageTtlSeconds === "number"
+                  ? (g as any).messageTtlSeconds
+                  : (g as any).messageTtlSeconds === null
+                    ? null
+                    : null,
+            }
+          }
+          return {groups: migrated}
+        }
+
+        return {groups: groups as Record<string, Group>}
       },
     }
   )

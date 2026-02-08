@@ -5,7 +5,7 @@ import {Avatar} from "@/shared/components/user/Avatar"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {shouldHideUser} from "@/utils/visibility"
 import {Name} from "@/shared/components/user/Name"
-import {KIND_CHANNEL_MESSAGE, KIND_CHANNEL_CREATE} from "@/utils/constants"
+import {KIND_CHANNEL_MESSAGE, KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS} from "@/utils/constants"
 import {useLocation, NavLink} from "@/navigation"
 import {MessageType} from "../message/Message"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -18,6 +18,8 @@ import {useGroupsStore} from "@/stores/groups"
 import {useTypingStore} from "@/stores/typingIndicators"
 import MessageStatus from "../message/MessageStatus"
 import {countUnseenMessages} from "@/pages/chats/utils/unseenCount"
+import {parseChatSettingsMessage} from "@/utils/chatSettings"
+import {getExpirationLabel} from "@/utils/expiration"
 
 interface ChatListItemProps {
   id: string
@@ -132,6 +134,38 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
     )
   }
 
+  const getDisappearingMessagesPreview = (ttlSeconds: number | null) => {
+    const label = ttlSeconds ? getExpirationLabel(ttlSeconds) : "Off"
+    return <span className="italic">{`Disappearing messages: ${label}`}</span>
+  }
+
+  const getChatSettingsPreview = (content: string) => {
+    const parsed = parseChatSettingsMessage(content)
+    if (!parsed) return <span className="italic">Disappearing messages</span>
+    return getDisappearingMessagesPreview(parsed.messageTtlSeconds)
+  }
+
+  const getGroupMetadataPreview = (content: string) => {
+    try {
+      const parsed = JSON.parse(content) as Record<string, unknown>
+      if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
+        const raw = parsed.messageTtlSeconds
+        const ttlSeconds =
+          raw === null
+            ? null
+            : typeof raw === "number" && Number.isFinite(raw)
+              ? Math.floor(raw) > 0
+                ? Math.floor(raw)
+                : null
+              : null
+        return getDisappearingMessagesPreview(ttlSeconds)
+      }
+    } catch {
+      // ignore
+    }
+    return null
+  }
+
   const previewContent = useMemo(() => {
     if (isPublic && latestMessage?.content) {
       // Show special preview for group invite messages
@@ -147,7 +181,12 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
 
     if (actualLatest?.content) {
       // Show special preview for group invite messages
+      if (actualLatest.kind === KIND_CHAT_SETTINGS) {
+        return getChatSettingsPreview(actualLatest.content)
+      }
       if (actualLatest.kind === KIND_CHANNEL_CREATE) {
+        const metaPreview = getGroupMetadataPreview(actualLatest.content)
+        if (metaPreview) return metaPreview
         return getGroupInvitePreview(
           actualLatest.pubkey,
           actualLatest.pubkey === myPubKey
