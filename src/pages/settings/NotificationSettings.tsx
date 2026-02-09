@@ -66,6 +66,7 @@ const NotificationSettings = () => {
   const [currentEndpoint, setCurrentEndpoint] = useState<string | null>(null)
   const [subscriptionsData, setSubscriptionsData] =
     useState<NotificationSubscriptionResponse>({})
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [showDebugData, setShowDebugData] = useState(false)
   const [inputValue, setInputValue] = useState(notifications.server)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
@@ -493,193 +494,215 @@ const NotificationSettings = () => {
             </SettingsGroup>
           )}
 
-          {!isMobile && (
-            <SettingsGroup title="Server">
-              <SettingsInputItem
-                label="Notification Server"
-                value={inputValue}
-                onChange={handleServerChange}
-                type="url"
-                rightContent={
-                  !isValidUrl ? (
-                    <Icon name="close" size={16} className="text-error" />
-                  ) : undefined
-                }
-              />
-              <SettingsGroupItem isLast>
-                <div className="text-sm text-base-content/70">
-                  Self-host notification server?{" "}
-                  <a
-                    className="link"
-                    href="https://github.com/mmalmi/nostr-notification-server"
-                  >
-                    Source code
-                  </a>
-                </div>
-              </SettingsGroupItem>
-            </SettingsGroup>
-          )}
-
-          <SettingsGroup title="Subscriptions">
-            <SettingsGroupItem>
-              <div className="flex items-center justify-between">
-                <span className="font-medium">
-                  {Object.keys(subscriptionsData).length} active subscriptions
-                </span>
-                <div className="flex items-center gap-2">
-                  {selectedRows.size > 0 && (
-                    <button
-                      className="btn btn-error btn-sm"
-                      onClick={handleDeleteSelected}
-                    >
-                      Delete {selectedRows.size}
-                    </button>
-                  )}
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="checkbox checkbox-sm"
-                      checked={
-                        selectedRows.size > 0 &&
-                        selectedRows.size === Object.keys(subscriptionsData).length
-                      }
-                      onChange={toggleSelectAll}
-                    />
-                    <span className="text-sm">Select all</span>
-                  </label>
-                </div>
-              </div>
-            </SettingsGroupItem>
-            {Object.entries(subscriptionsData)
-              .flatMap(([id, subscription]) => {
-                type SubscriptionItem = {
-                  id: string
-                  subscription: typeof subscription
-                  pushSubscription: PushNotifications | null
-                  fcmToken: string | null
-                  apnsToken: string | null
-                  index: number
-                  isCurrentDevice: boolean
-                }
-
-                const items: SubscriptionItem[] = []
-
-                // Add web push subscriptions
-                if (
-                  subscription?.web_push_subscriptions &&
-                  subscription.web_push_subscriptions.length > 0
-                ) {
-                  subscription.web_push_subscriptions.forEach(
-                    (pushSubscription: PushNotifications, index: number) => {
-                      const isCurrentDevice =
-                        currentEndpoint === pushSubscription.endpoint
-                      items.push({
-                        id,
-                        subscription,
-                        pushSubscription,
-                        fcmToken: null,
-                        apnsToken: null,
-                        index,
-                        isCurrentDevice,
-                      })
-                    }
-                  )
-                }
-
-                // Add FCM tokens
-                if (subscription?.fcm_tokens && subscription.fcm_tokens.length > 0) {
-                  subscription.fcm_tokens.forEach((token: string, index: number) => {
-                    items.push({
-                      id,
-                      subscription,
-                      pushSubscription: null,
-                      fcmToken: token,
-                      apnsToken: null,
-                      index: items.length + index,
-                      isCurrentDevice: false,
-                    })
-                  })
-                }
-
-                // Add APNS tokens
-                if (subscription?.apns_tokens && subscription.apns_tokens.length > 0) {
-                  subscription.apns_tokens.forEach((token: string, index: number) => {
-                    items.push({
-                      id,
-                      subscription,
-                      pushSubscription: null,
-                      fcmToken: null,
-                      apnsToken: token,
-                      index: items.length + index,
-                      isCurrentDevice: false,
-                    })
-                  })
-                }
-
-                // If no subscriptions at all, show empty state
-                if (items.length === 0) {
-                  items.push({
-                    id,
-                    subscription,
-                    pushSubscription: null,
-                    fcmToken: null,
-                    apnsToken: null,
-                    index: 0,
-                    isCurrentDevice: false,
-                  })
-                }
-
-                return items
-              })
-              .sort((a, b) => (b.isCurrentDevice ? 1 : 0) - (a.isCurrentDevice ? 1 : 0))
-              .map(
-                (
-                  {id, subscription, pushSubscription, fcmToken, apnsToken, index},
-                  itemIndex,
-                  array
-                ) => (
-                  <SettingsGroupItem
-                    key={`${id}-${index}`}
-                    isLast={itemIndex === array.length - 1}
-                  >
-                    <NotificationSubscriptionItem
-                      id={id}
-                      subscription={subscription}
-                      pushSubscription={pushSubscription}
-                      fcmToken={fcmToken}
-                      apnsToken={apnsToken}
-                      currentEndpoint={currentEndpoint}
-                      onDelete={handleDeleteSubscription}
-                      isSelected={selectedRows.has(id)}
-                      onToggleSelect={toggleSelection}
-                    />
-                  </SettingsGroupItem>
-                )
-              )}
-          </SettingsGroup>
-
-          <SettingsGroup title="Debug">
-            <SettingsGroupItem
-              onClick={() => setShowDebugData(!showDebugData)}
-              isLast={!showDebugData}
-            >
+          <SettingsGroup title="Advanced">
+            <SettingsGroupItem onClick={() => setShowAdvanced(!showAdvanced)} isLast>
               <div className="flex justify-between items-center">
-                <span>Subscriptions Response</span>
-                {showDebugData ? (
+                <span>Advanced</span>
+                {showAdvanced ? (
                   <RiArrowDownSLine size={20} className="text-base-content/50" />
                 ) : (
                   <RiArrowRightSLine size={20} className="text-base-content/50" />
                 )}
               </div>
             </SettingsGroupItem>
-            {showDebugData && (
-              <SettingsGroupItem isLast>
-                <pre className="bg-base-300 p-4 rounded overflow-auto whitespace-pre-wrap break-all text-sm">
-                  {JSON.stringify(subscriptionsData, null, 2) || ""}
-                </pre>
-              </SettingsGroupItem>
-            )}
           </SettingsGroup>
+
+          {showAdvanced && (
+            <>
+              {!isMobile && (
+                <SettingsGroup title="Server">
+                  <SettingsInputItem
+                    label="Notification Server"
+                    value={inputValue}
+                    onChange={handleServerChange}
+                    type="url"
+                    rightContent={
+                      !isValidUrl ? (
+                        <Icon name="close" size={16} className="text-error" />
+                      ) : undefined
+                    }
+                  />
+                  <SettingsGroupItem isLast>
+                    <div className="text-sm text-base-content/70">
+                      Self-host notification server?{" "}
+                      <a
+                        className="link"
+                        href="https://github.com/mmalmi/nostr-notification-server"
+                      >
+                        Source code
+                      </a>
+                    </div>
+                  </SettingsGroupItem>
+                </SettingsGroup>
+              )}
+
+              <SettingsGroup title="Subscriptions">
+                <SettingsGroupItem>
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">
+                      {Object.keys(subscriptionsData).length} active subscriptions
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {selectedRows.size > 0 && (
+                        <button
+                          className="btn btn-error btn-sm"
+                          onClick={handleDeleteSelected}
+                        >
+                          Delete {selectedRows.size}
+                        </button>
+                      )}
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          checked={
+                            selectedRows.size > 0 &&
+                            selectedRows.size === Object.keys(subscriptionsData).length
+                          }
+                          onChange={toggleSelectAll}
+                        />
+                        <span className="text-sm">Select all</span>
+                      </label>
+                    </div>
+                  </div>
+                </SettingsGroupItem>
+                {Object.entries(subscriptionsData)
+                  .flatMap(([id, subscription]) => {
+                    type SubscriptionItem = {
+                      id: string
+                      subscription: typeof subscription
+                      pushSubscription: PushNotifications | null
+                      fcmToken: string | null
+                      apnsToken: string | null
+                      index: number
+                      isCurrentDevice: boolean
+                    }
+
+                    const items: SubscriptionItem[] = []
+
+                    // Add web push subscriptions
+                    if (
+                      subscription?.web_push_subscriptions &&
+                      subscription.web_push_subscriptions.length > 0
+                    ) {
+                      subscription.web_push_subscriptions.forEach(
+                        (pushSubscription: PushNotifications, index: number) => {
+                          const isCurrentDevice =
+                            currentEndpoint === pushSubscription.endpoint
+                          items.push({
+                            id,
+                            subscription,
+                            pushSubscription,
+                            fcmToken: null,
+                            apnsToken: null,
+                            index,
+                            isCurrentDevice,
+                          })
+                        }
+                      )
+                    }
+
+                    // Add FCM tokens
+                    if (subscription?.fcm_tokens && subscription.fcm_tokens.length > 0) {
+                      subscription.fcm_tokens.forEach((token: string, index: number) => {
+                        items.push({
+                          id,
+                          subscription,
+                          pushSubscription: null,
+                          fcmToken: token,
+                          apnsToken: null,
+                          index: items.length + index,
+                          isCurrentDevice: false,
+                        })
+                      })
+                    }
+
+                    // Add APNS tokens
+                    if (
+                      subscription?.apns_tokens &&
+                      subscription.apns_tokens.length > 0
+                    ) {
+                      subscription.apns_tokens.forEach((token: string, index: number) => {
+                        items.push({
+                          id,
+                          subscription,
+                          pushSubscription: null,
+                          fcmToken: null,
+                          apnsToken: token,
+                          index: items.length + index,
+                          isCurrentDevice: false,
+                        })
+                      })
+                    }
+
+                    // If no subscriptions at all, show empty state
+                    if (items.length === 0) {
+                      items.push({
+                        id,
+                        subscription,
+                        pushSubscription: null,
+                        fcmToken: null,
+                        apnsToken: null,
+                        index: 0,
+                        isCurrentDevice: false,
+                      })
+                    }
+
+                    return items
+                  })
+                  .sort(
+                    (a, b) => (b.isCurrentDevice ? 1 : 0) - (a.isCurrentDevice ? 1 : 0)
+                  )
+                  .map(
+                    (
+                      {id, subscription, pushSubscription, fcmToken, apnsToken, index},
+                      itemIndex,
+                      array
+                    ) => (
+                      <SettingsGroupItem
+                        key={`${id}-${index}`}
+                        isLast={itemIndex === array.length - 1}
+                      >
+                        <NotificationSubscriptionItem
+                          id={id}
+                          subscription={subscription}
+                          pushSubscription={pushSubscription}
+                          fcmToken={fcmToken}
+                          apnsToken={apnsToken}
+                          currentEndpoint={currentEndpoint}
+                          onDelete={handleDeleteSubscription}
+                          isSelected={selectedRows.has(id)}
+                          onToggleSelect={toggleSelection}
+                        />
+                      </SettingsGroupItem>
+                    )
+                  )}
+              </SettingsGroup>
+
+              <SettingsGroup title="Debug">
+                <SettingsGroupItem
+                  onClick={() => setShowDebugData(!showDebugData)}
+                  isLast={!showDebugData}
+                >
+                  <div className="flex justify-between items-center">
+                    <span>Subscriptions Response</span>
+                    {showDebugData ? (
+                      <RiArrowDownSLine size={20} className="text-base-content/50" />
+                    ) : (
+                      <RiArrowRightSLine size={20} className="text-base-content/50" />
+                    )}
+                  </div>
+                </SettingsGroupItem>
+                {showDebugData && (
+                  <SettingsGroupItem isLast>
+                    <pre className="bg-base-300 p-4 rounded overflow-auto whitespace-pre-wrap break-all text-sm">
+                      {JSON.stringify(subscriptionsData, null, 2) || ""}
+                    </pre>
+                  </SettingsGroupItem>
+                )}
+              </SettingsGroup>
+            </>
+          )}
         </div>
       </div>
     </div>
