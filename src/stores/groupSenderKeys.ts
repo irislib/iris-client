@@ -205,8 +205,10 @@ export const useGroupSenderKeysStore = create<GroupSenderKeysStore>()(
         }
         const state = persisted as Partial<GroupSenderKeysStore>
         return {
-          mySenders: state.mySenders && typeof state.mySenders === "object" ? state.mySenders : {},
-          senders: state.senders && typeof state.senders === "object" ? state.senders : {},
+          mySenders:
+            state.mySenders && typeof state.mySenders === "object" ? state.mySenders : {},
+          senders:
+            state.senders && typeof state.senders === "object" ? state.senders : {},
         }
       },
     }
@@ -222,4 +224,3 @@ export function getMySenderEventSecretKeyBytes(groupId: string): Uint8Array | nu
     return null
   }
 }
-

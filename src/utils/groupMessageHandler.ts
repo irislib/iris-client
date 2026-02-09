@@ -20,6 +20,21 @@ let activeAuthorsKey = ""
 const channel = OneToManyChannel.default()
 const senderQueues = new Map<string, Promise<void>>()
 
+type OuterLike = {
+  pubkey?: unknown
+  content?: unknown
+  tags?: unknown
+}
+
+type RumorLike = {
+  content?: unknown
+  kind?: unknown
+  created_at?: unknown
+  pubkey?: unknown
+  tags?: unknown
+  id?: unknown
+}
+
 const stopOuterSubscription = () => {
   unsubscribeOuterMessages?.()
   unsubscribeOuterMessages = null
@@ -42,17 +57,23 @@ const ensurePlaceholderGroup = (groupId: string, myPubkey: string) => {
   })
 }
 
-const handleOuterEvent = async (outer: any) => {
+const handleOuterEvent = async (outer: unknown) => {
   try {
-    const senderEventPubkey: string = outer?.pubkey
-    const content: string = outer?.content
-    if (!senderEventPubkey || typeof content !== "string") return
+    if (!outer || typeof outer !== "object") return
+    const outerObj = outer as OuterLike
+
+    const senderEventPubkey = outerObj.pubkey
+    const content = outerObj.content
+    if (typeof senderEventPubkey !== "string" || typeof content !== "string") return
 
     const record = useGroupSenderKeysStore.getState().senders[senderEventPubkey]
     if (!record) return
 
     // Safety: ignore 1:1 double-ratchet wrapper events (they contain a "header" tag).
-    if (Array.isArray(outer?.tags) && outer.tags.some((t: any[]) => t?.[0] === "header")) {
+    if (
+      Array.isArray(outerObj.tags) &&
+      outerObj.tags.some((t) => Array.isArray(t) && t[0] === "header")
+    ) {
       return
     }
 
@@ -71,7 +92,7 @@ const handleOuterEvent = async (outer: any) => {
       return
     }
 
-    let rumor: any
+    let rumor: unknown
     try {
       rumor = JSON.parse(plaintext)
     } catch {
@@ -79,29 +100,41 @@ const handleOuterEvent = async (outer: any) => {
     }
 
     if (!rumor || typeof rumor !== "object") return
-    if (typeof rumor.content !== "string") return
-    if (!Number.isFinite(rumor.kind)) return
-    if (!Number.isFinite(rumor.created_at)) return
-    if (typeof rumor.pubkey !== "string") return
-    if (!Array.isArray(rumor.tags)) return
+    const rumorObj = rumor as RumorLike
+    if (typeof rumorObj.content !== "string") return
+    if (typeof rumorObj.kind !== "number" || !Number.isFinite(rumorObj.kind)) return
+    if (
+      typeof rumorObj.created_at !== "number" ||
+      !Number.isFinite(rumorObj.created_at)
+    ) {
+      return
+    }
+    if (typeof rumorObj.pubkey !== "string") return
+    if (!Array.isArray(rumorObj.tags)) return
 
     // Trustless: recompute derived ID.
-    rumor.id = getEventHash(rumor)
+    const rumorEvent = rumorObj as unknown as {
+      content: string
+      kind: number
+      created_at: number
+      tags: string[][]
+      pubkey: string
+      id: string
+    }
+    rumorEvent.id = getEventHash(rumorEvent)
 
     const myPubkey = useUserStore.getState().publicKey
     if (!myPubkey) return
 
-    const groupId = getTag("l", rumor.tags) || record.groupId
+    const groupId = getTag("l", rumorEvent.tags) || record.groupId
     if (!groupId) return
 
     ensurePlaceholderGroup(groupId, myPubkey)
 
-    await usePrivateMessagesStore
-      .getState()
-      .upsert(groupId, myPubkey, {
-        ...rumor,
-        ownerPubkey: rumor.pubkey,
-      })
+    await usePrivateMessagesStore.getState().upsert(groupId, myPubkey, {
+      ...rumorEvent,
+      ownerPubkey: rumorEvent.pubkey,
+    })
 
     // Persist updated sender key state.
     useGroupSenderKeysStore
@@ -112,9 +145,12 @@ const handleOuterEvent = async (outer: any) => {
   }
 }
 
-const enqueueOuterEvent = (outer: any) => {
-  const senderEventPubkey: string | undefined = outer?.pubkey
-  if (!senderEventPubkey) return
+const enqueueOuterEvent = (outer: unknown) => {
+  const senderEventPubkey =
+    outer && typeof outer === "object"
+      ? (outer as Record<string, unknown>).pubkey
+      : undefined
+  if (typeof senderEventPubkey !== "string") return
 
   const prev = senderQueues.get(senderEventPubkey) ?? Promise.resolve()
   const next = prev
@@ -145,7 +181,7 @@ const startOuterSubscription = () => {
     authors,
   })
 
-  sub.on("event", (event: any) => {
+  sub.on("event", (event: unknown) => {
     enqueueOuterEvent(event)
   })
 

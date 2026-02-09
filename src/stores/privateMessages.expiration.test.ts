@@ -5,7 +5,12 @@ import {comparator} from "@/pages/chats/utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 
-const makeMessage = (args: {id: string; pubkey: string; createdAtSec: number; expiresAtSec?: number}): MessageType => {
+const makeMessage = (args: {
+  id: string
+  pubkey: string
+  createdAtSec: number
+  expiresAtSec?: number
+}): MessageType => {
   const tags: string[][] = []
   if (args.expiresAtSec !== undefined) {
     tags.push(["expiration", String(args.expiresAtSec)])
@@ -58,4 +63,3 @@ describe("usePrivateMessagesStore expiration purge", () => {
     expect(stored?.get("active")).toBeTruthy()
   })
 })
-

@@ -48,9 +48,7 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
             )}
             <div className="flex flex-col ml-2">
               <span className="font-bold text-base">{group.name}</span>
-              <span className="text-xs text-base-content/70">
-                {group.description}
-              </span>
+              <span className="text-xs text-base-content/70">{group.description}</span>
             </div>
           </Navigate>
           <div className="relative">

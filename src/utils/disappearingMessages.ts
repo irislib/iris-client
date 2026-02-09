@@ -5,16 +5,7 @@ import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
-import {KIND_CHAT_SETTINGS} from "@/utils/constants"
 import {sendGroupEvent} from "@/pages/chats/utils/groupMessaging"
-
-import type {ChatSettingsPayloadV1} from "@/utils/chatSettings"
-
-const buildSettingsPayload = (messageTtlSeconds: number | null): ChatSettingsPayloadV1 => ({
-  type: "chat-settings",
-  v: 1,
-  messageTtlSeconds,
-})
 
 export async function setDmDisappearingMessages(
   peerPubkey: string,
@@ -22,31 +13,22 @@ export async function setDmDisappearingMessages(
 ): Promise<void> {
   if (!peerPubkey) return
 
-  useChatExpirationStore.getState().setExpiration(peerPubkey, messageTtlSeconds)
+  const normalizedTtl =
+    typeof messageTtlSeconds === "number" && Number.isFinite(messageTtlSeconds)
+      ? Math.floor(messageTtlSeconds) > 0
+        ? Math.floor(messageTtlSeconds)
+        : null
+      : null
+
+  useChatExpirationStore.getState().setExpiration(peerPubkey, normalizedTtl)
 
   const sessionManager = getSessionManager()
-  if (sessionManager) {
-    await sessionManager
-      .setExpirationForPeer(
-        peerPubkey,
-        messageTtlSeconds ? {ttlSeconds: messageTtlSeconds} : null
-      )
-      .catch(() => {})
-  }
-
   const myPubKey = useUserStore.getState().publicKey
   if (!myPubKey) return
   if (!sessionManager) return
 
-  const sent = await sessionManager.sendMessage(
-    peerPubkey,
-    JSON.stringify(buildSettingsPayload(messageTtlSeconds)),
-    {
-      kind: KIND_CHAT_SETTINGS,
-      // Settings messages should not disappear (they describe the timer).
-      expiration: null,
-    }
-  )
+  // Use the library helper so the payload/kind/expiration rules stay in sync.
+  const sent = await sessionManager.setChatSettingsForPeer(peerPubkey, normalizedTtl)
 
   await usePrivateMessagesStore
     .getState()

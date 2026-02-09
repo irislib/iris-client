@@ -10,11 +10,12 @@ import {ndk} from "@/utils/ndk"
 import {
   OneToManyChannel,
   SenderKeyState,
+  GROUP_METADATA_KIND,
+  GROUP_SENDER_KEY_DISTRIBUTION_KIND,
   resolveExpirationSeconds,
   upsertExpirationTag,
   type Rumor,
 } from "nostr-double-ratchet"
-import {GROUP_SENDER_KEY_DISTRIBUTION_KIND, GROUP_METADATA_KIND} from "nostr-double-ratchet"
 
 interface SendGroupEventOptions {
   groupId: string
@@ -103,7 +104,10 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
       content: JSON.stringify(dist),
       kind: GROUP_SENDER_KEY_DISTRIBUTION_KIND,
       created_at: Math.floor(now / 1000),
-      tags: [["l", groupId], ["ms", String(now)]],
+      tags: [
+        ["l", groupId],
+        ["ms", String(now)],
+      ],
       pubkey: senderPubKey,
       id: "",
     }
@@ -111,7 +115,9 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
 
     // Fire-and-forget; sessionManager already persists ratchet state before network I/O.
     Promise.all(
-      groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, distEvent))
+      groupMembers.map((memberPubKey) =>
+        sessionManager.sendEvent(memberPubKey, distEvent)
+      )
     ).catch(console.error)
 
     senderKeysStore.markMyDistributionSent(groupId, dist.createdAt)

@@ -248,7 +248,8 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
     },
 
     purgeExpired: (nowSeconds?: number) => {
-      const effectiveNow = typeof nowSeconds === "number" ? nowSeconds : Math.floor(Date.now() / 1000)
+      const effectiveNow =
+        typeof nowSeconds === "number" ? nowSeconds : Math.floor(Date.now() / 1000)
       set((state) => {
         const nextEvents = filterExpired(state.events, effectiveNow)
         if (nextEvents === state.events) return state

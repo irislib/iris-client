@@ -5,7 +5,11 @@ import {Avatar} from "@/shared/components/user/Avatar"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {shouldHideUser} from "@/utils/visibility"
 import {Name} from "@/shared/components/user/Name"
-import {KIND_CHANNEL_MESSAGE, KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS} from "@/utils/constants"
+import {
+  KIND_CHANNEL_MESSAGE,
+  KIND_CHANNEL_CREATE,
+  KIND_CHAT_SETTINGS,
+} from "@/utils/constants"
 import {useLocation, NavLink} from "@/navigation"
 import {MessageType} from "../message/Message"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"

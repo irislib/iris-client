@@ -40,7 +40,11 @@ export function startMessageExpirationCleanup(): void {
   }
 
   // Wait for messages to hydrate before the first scan.
-  usePrivateMessagesStore.getState().awaitHydration().then(tick).catch(() => {})
+  usePrivateMessagesStore
+    .getState()
+    .awaitHydration()
+    .then(tick)
+    .catch(() => {})
 }
 
 export function stopMessageExpirationCleanup(): void {

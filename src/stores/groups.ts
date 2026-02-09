@@ -76,38 +76,49 @@ const store = create<GroupsStore>()(
           return {groups: {}}
         }
 
-        const raw = persisted as {groups?: Record<string, any>}
-        const groups = raw.groups && typeof raw.groups === "object" ? raw.groups : {}
+        const raw = persisted as {groups?: unknown}
+        const groups =
+          raw.groups && typeof raw.groups === "object"
+            ? (raw.groups as Record<string, unknown>)
+            : {}
 
         // v1 stored a simplified group shape without admins/secret/accepted.
         if (version < 2) {
           const migrated: Record<string, Group> = {}
           for (const [id, g] of Object.entries(groups)) {
             if (!g || typeof g !== "object") continue
-            const members = Array.isArray(g.members) ? (g.members as string[]) : []
+            const obj = g as Record<string, unknown>
+
+            const membersRaw = obj.members
+            const members = Array.isArray(membersRaw)
+              ? membersRaw.filter((m): m is string => typeof m === "string")
+              : []
+
+            const adminsRaw = obj.admins
+            const parsedAdmins =
+              Array.isArray(adminsRaw) && adminsRaw.length > 0
+                ? adminsRaw.filter((a): a is string => typeof a === "string")
+                : []
             const admins =
-              Array.isArray((g as any).admins) && (g as any).admins.length > 0
-                ? ((g as any).admins as string[])
-                : members.length > 0
-                  ? [members[0]]
-                  : []
+              parsedAdmins.length > 0 ? parsedAdmins : members[0] ? [members[0]] : []
 
             migrated[id] = {
-              id: String((g as any).id ?? id),
-              name: String((g as any).name ?? ""),
-              description: (g as any).description ?? "",
-              picture: (g as any).picture ?? "",
+              id:
+                typeof obj.id === "string"
+                  ? obj.id
+                  : typeof obj.id === "number"
+                    ? String(obj.id)
+                    : id,
+              name: typeof obj.name === "string" ? obj.name : "",
+              description: typeof obj.description === "string" ? obj.description : "",
+              picture: typeof obj.picture === "string" ? obj.picture : "",
               members,
               admins,
-              createdAt:
-                typeof (g as any).createdAt === "number" ? (g as any).createdAt : Date.now(),
-              secret: typeof (g as any).secret === "string" ? (g as any).secret : undefined,
-              accepted:
-                typeof (g as any).accepted === "boolean" ? (g as any).accepted : true,
+              createdAt: typeof obj.createdAt === "number" ? obj.createdAt : Date.now(),
+              secret: typeof obj.secret === "string" ? obj.secret : undefined,
+              accepted: typeof obj.accepted === "boolean" ? obj.accepted : true,
               messageTtlSeconds:
-                typeof (g as any).messageTtlSeconds === "number"
-                  ? (g as any).messageTtlSeconds
-                  : null,
+                typeof obj.messageTtlSeconds === "number" ? obj.messageTtlSeconds : null,
             }
           }
           return {groups: migrated}
@@ -118,14 +129,11 @@ const store = create<GroupsStore>()(
           const migrated: Record<string, Group> = {}
           for (const [id, g] of Object.entries(groups)) {
             if (!g || typeof g !== "object") continue
+            const obj = g as Record<string, unknown>
             migrated[id] = {
               ...(g as Group),
               messageTtlSeconds:
-                typeof (g as any).messageTtlSeconds === "number"
-                  ? (g as any).messageTtlSeconds
-                  : (g as any).messageTtlSeconds === null
-                    ? null
-                    : null,
+                typeof obj.messageTtlSeconds === "number" ? obj.messageTtlSeconds : null,
             }
           }
           return {groups: migrated}

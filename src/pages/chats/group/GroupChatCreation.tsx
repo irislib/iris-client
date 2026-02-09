@@ -89,7 +89,8 @@ const GroupChatCreation = () => {
       setCreateError(null)
 
       const group = createGroupData(groupDetails.name, myPubKey, selectedMembers)
-      if (groupDetails.description.trim()) group.description = groupDetails.description.trim()
+      if (groupDetails.description.trim())
+        group.description = groupDetails.description.trim()
       if (groupDetails.picture.trim()) group.picture = groupDetails.picture.trim()
       addGroup(group)
 

@@ -33,4 +33,3 @@ export function parseChatSettingsMessage(content: string): ChatSettingsPayloadV1
 
   return null
 }
-

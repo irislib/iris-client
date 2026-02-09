@@ -140,12 +140,10 @@ export const attachSessionEventListener = () => {
 
                   log("Received group metadata:", metadata.name, metadata.id)
 
-                  void usePrivateMessagesStore
-                    .getState()
-                    .upsert(metadata.id, publicKey, {
-                      ...event,
-                      ownerPubkey: effectiveOwner,
-                    })
+                  void usePrivateMessagesStore.getState().upsert(metadata.id, publicKey, {
+                    ...event,
+                    ownerPubkey: effectiveOwner,
+                  })
                   return
                 }
               } catch (e) {
@@ -154,32 +152,44 @@ export const attachSessionEventListener = () => {
 
               // Legacy fallback: old clients sent a full Group object as JSON.
               try {
-                const legacy = JSON.parse(event.content) as any
-                if (legacy && typeof legacy.id === "string") {
+                const legacy = JSON.parse(event.content) as unknown
+                if (!legacy || typeof legacy !== "object") return
+
+                const obj = legacy as Record<string, unknown>
+                if (typeof obj.id === "string") {
                   const createdAt =
-                    typeof legacy.createdAt === "number"
-                      ? legacy.createdAt
+                    typeof obj.createdAt === "number"
+                      ? obj.createdAt
                       : getMillisecondTimestamp(event as Rumor) || Date.now()
+                  const legacyId = obj.id
+                  const legacyName = typeof obj.name === "string" ? obj.name : ""
+                  const legacyDescription =
+                    typeof obj.description === "string" ? obj.description : ""
+                  const legacyPicture = typeof obj.picture === "string" ? obj.picture : ""
+                  const legacyMembers = Array.isArray(obj.members)
+                    ? obj.members.filter((m): m is string => typeof m === "string")
+                    : [publicKey]
+                  const legacyAdmins =
+                    Array.isArray(obj.admins) && obj.admins.length > 0
+                      ? obj.admins.filter((a): a is string => typeof a === "string")
+                      : [effectiveOwner]
+
                   addGroup({
-                    id: legacy.id,
-                    name: legacy.name || `Group ${legacy.id.slice(0, 8)}`,
-                    description: legacy.description || "",
-                    picture: legacy.picture || "",
-                    members: Array.isArray(legacy.members) ? legacy.members : [publicKey],
-                    admins: Array.isArray(legacy.admins) && legacy.admins.length > 0
-                      ? legacy.admins
-                      : [effectiveOwner],
+                    id: legacyId,
+                    name: legacyName || `Group ${legacyId.slice(0, 8)}`,
+                    description: legacyDescription,
+                    picture: legacyPicture,
+                    members: legacyMembers.length > 0 ? legacyMembers : [publicKey],
+                    admins: legacyAdmins.length > 0 ? legacyAdmins : [effectiveOwner],
                     createdAt,
-                    secret: typeof legacy.secret === "string" ? legacy.secret : undefined,
+                    secret: typeof obj.secret === "string" ? obj.secret : undefined,
                     accepted: true,
                   })
-                  log("Received legacy group creation:", legacy.name, legacy.id)
-                  void usePrivateMessagesStore
-                    .getState()
-                    .upsert(legacy.id, publicKey, {
-                      ...event,
-                      ownerPubkey: effectiveOwner,
-                    })
+                  log("Received legacy group creation:", legacyName, legacyId)
+                  void usePrivateMessagesStore.getState().upsert(legacyId, publicKey, {
+                    ...event,
+                    ownerPubkey: effectiveOwner,
+                  })
                   return
                 }
               } catch (e) {
@@ -199,10 +209,17 @@ export const attachSessionEventListener = () => {
                 }
 
                 if (!dist.groupId || !dist.senderEventPubkey) return
-                if (typeof dist.keyId !== "number" || typeof dist.chainKey !== "string") return
-                if (typeof dist.iteration !== "number" || typeof dist.createdAt !== "number") return
+                if (typeof dist.keyId !== "number" || typeof dist.chainKey !== "string")
+                  return
+                if (
+                  typeof dist.iteration !== "number" ||
+                  typeof dist.createdAt !== "number"
+                )
+                  return
 
-                useGroupSenderKeysStore.getState().upsertDistribution(dist, effectiveOwner)
+                useGroupSenderKeysStore
+                  .getState()
+                  .upsertDistribution(dist, effectiveOwner)
 
                 // Ensure the group exists for navigation/UI even if metadata arrives later.
                 const {groups, addGroup} = useGroupsStore.getState()
@@ -217,7 +234,10 @@ export const attachSessionEventListener = () => {
                     createdAt: Date.now(),
                     accepted: true,
                   })
-                  log("Created placeholder group from sender-key distribution:", dist.groupId)
+                  log(
+                    "Created placeholder group from sender-key distribution:",
+                    dist.groupId
+                  )
                 }
               } catch (e) {
                 error("Failed to parse sender-key distribution:", e)

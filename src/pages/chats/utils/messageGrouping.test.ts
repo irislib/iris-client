@@ -64,4 +64,3 @@ describe("groupMessages", () => {
     expect(groups.map((g) => g.map((m) => m.id))).toEqual([["m1"], ["m2"]])
   })
 })
-

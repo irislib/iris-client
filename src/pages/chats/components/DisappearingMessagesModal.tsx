@@ -11,7 +11,9 @@ export function DisappearingMessagesModal({
   onSelect: (ttlSeconds: number | null) => void
 }) {
   const currentLabel =
-    currentTtlSeconds && currentTtlSeconds > 0 ? getExpirationLabel(currentTtlSeconds) : "Off"
+    currentTtlSeconds && currentTtlSeconds > 0
+      ? getExpirationLabel(currentTtlSeconds)
+      : "Off"
 
   return (
     <Modal onClose={onClose}>
@@ -53,4 +55,3 @@ export function DisappearingMessagesModal({
     </Modal>
   )
 }
-

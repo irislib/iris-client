@@ -63,7 +63,8 @@ export const groupMessages = (
         const messageMinute = Math.floor(messageMs / 60000)
         const lastMessageMinute = Math.floor(lastMessageMs / 60000)
         const minuteDiff = messageMinute - lastMessageMinute
-        const isConsecutiveMinuteInDM = isDirectMessage && minuteDiff >= 0 && minuteDiff <= 1
+        const isConsecutiveMinuteInDM =
+          isDirectMessage && minuteDiff >= 0 && minuteDiff <= 1
 
         // For public chats, we need to handle undefined sender values
         // Messages with the same pubkey should be grouped together
