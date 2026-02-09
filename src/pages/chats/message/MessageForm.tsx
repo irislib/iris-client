@@ -25,6 +25,7 @@ import {sendGroupEvent} from "../utils/groupMessaging"
 import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 import {createTypingThrottle} from "@/stores/typingIndicators"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
 
 interface MessageFormProps {
   id: string
@@ -39,6 +40,23 @@ interface MessageFormProps {
 // Extend EncryptionMeta locally to allow imetaTag
 interface EncryptionMetaWithImeta extends BaseEncryptionMeta {
   imetaTag?: string[]
+}
+
+const resolveDmExpirationOptions = (
+  peerPubkey: string
+):
+  | Record<string, never>
+  | {expiration: null}
+  | {
+      ttlSeconds: number
+    } => {
+  const expirationSetting = useChatExpirationStore.getState().expirations[peerPubkey]
+  if (expirationSetting === undefined) return {}
+  if (expirationSetting === null) return {expiration: null}
+  if (typeof expirationSetting === "number" && expirationSetting > 0) {
+    return {ttlSeconds: expirationSetting}
+  }
+  return {}
 }
 
 const MessageForm = ({
@@ -60,15 +78,16 @@ const MessageForm = ({
   const [showCashuSend, setShowCashuSend] = useState(false)
   const textareaRef = useAutosizeTextarea(newMessage)
   const isDM = !isPublicChat && !groupId
+  const dmRecipientPubkey = isDM ? id.split(":").shift()! : id
   const typingThrottle = useMemo(
     () =>
       createTypingThrottle(() => {
         if (!isDM) return
         const sessionManager = getSessionManager()
         if (!sessionManager) return
-        sessionManager.sendTyping(id).catch(() => {})
+        sessionManager.sendTyping(dmRecipientPubkey).catch(() => {})
       }, 3000),
-    [id, isDM]
+    [dmRecipientPubkey, isDM]
   )
 
   useEffect(() => {
@@ -148,14 +167,19 @@ const MessageForm = ({
       }
 
       // DM messages
+      const expirationOptions = resolveDmExpirationOptions(dmRecipientPubkey)
+
       const sentMessage =
         extraTags.length > 0
-          ? await sessionManager.sendMessage(id, text, {tags: extraTags})
-          : await sessionManager.sendMessage(id, text)
+          ? await sessionManager.sendMessage(dmRecipientPubkey, text, {
+              tags: extraTags,
+              ...expirationOptions,
+            })
+          : await sessionManager.sendMessage(dmRecipientPubkey, text, expirationOptions)
 
       await usePrivateMessagesStore
         .getState()
-        .upsert(id, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
+        .upsert(dmRecipientPubkey, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
       setEncryptionMetadata(new Map())
     } catch (error) {
       console.error("Failed to send message:", error)
@@ -223,10 +247,16 @@ const MessageForm = ({
       }
 
       // DM messages
-      const sentMessage = await sessionManager.sendMessage(id, token)
+      const expirationOptions = resolveDmExpirationOptions(dmRecipientPubkey)
+
+      const sentMessage = await sessionManager.sendMessage(
+        dmRecipientPubkey,
+        token,
+        expirationOptions
+      )
       await usePrivateMessagesStore
         .getState()
-        .upsert(id, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
+        .upsert(dmRecipientPubkey, myPubKey, {...sentMessage, ownerPubkey: myPubKey})
     } catch (error) {
       console.error("Failed to send cashu token:", error)
       throw error
@@ -234,7 +264,9 @@ const MessageForm = ({
   }
 
   // Check if recipient has app keys (only for DMs, not group chats)
-  const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(isDM ? id : undefined)
+  const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(
+    isDM ? dmRecipientPubkey : undefined
+  )
 
   // For private/group chats, check if device is registered
   const isPrivateOrGroupChat = !isPublicChat || groupId
