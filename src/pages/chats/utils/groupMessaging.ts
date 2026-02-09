@@ -1,7 +1,7 @@
 import {hexToBytes} from "@noble/hashes/utils"
 import {getEventHash} from "nostr-tools"
 
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
@@ -64,24 +64,17 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
     .getState()
     .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
 
-  const sessionManager = getSessionManager()
+  const sessionManager = await ensureSessionManager(senderPubKey)
 
   // Group metadata (creation / updates) must be delivered privately to members.
   if (kind === GROUP_METADATA_KIND) {
-    if (sessionManager) {
-      Promise.all(
-        groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
-      ).catch(console.error)
-    }
+    Promise.all(
+      groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
+    ).catch(console.error)
     return event
   }
 
   // Sender-key one-to-many publish (outer event).
-  if (!sessionManager) {
-    // Can't distribute sender keys, so other members won't be able to decrypt.
-    return event
-  }
-
   const senderKeysStore = useGroupSenderKeysStore.getState()
   const mySender = senderKeysStore.ensureMySender(groupId)
 

@@ -174,23 +174,40 @@ const Message = ({
   if (message.kind === KIND_CHANNEL_CREATE) {
     let content = null
 
+    let parsed: Record<string, unknown> | null = null
+    try {
+      parsed = JSON.parse(message.content) as Record<string, unknown>
+    } catch {
+      parsed = null
+    }
+
+    if (parsed?.__irisGroupMetaOp === "edit") {
+      const authorPubkey = message.ownerPubkey ?? message.pubkey
+      content = (
+        <span className="text-base-content/70">
+          {authorPubkey === myPubKey ? "You" : <Name pubKey={authorPubkey} />} updated the
+          group
+        </span>
+      )
+      return (
+        <div className="flex items-center p-4 bg-base-200 rounded-xl my-2 justify-center text-sm">
+          {content}
+        </div>
+      )
+    }
+
     // Group metadata updates (eg disappearing messages timer) are also kind 40.
     let groupTtl: number | null | undefined
-    try {
-      const parsed = JSON.parse(message.content) as Record<string, unknown>
-      if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
-        const raw = parsed.messageTtlSeconds
-        if (raw === null) {
-          groupTtl = null
-        } else if (typeof raw === "number" && Number.isFinite(raw)) {
-          const floored = Math.floor(raw)
-          groupTtl = floored > 0 ? floored : null
-        } else {
-          groupTtl = undefined
-        }
+    if (parsed && Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
+      const raw = parsed.messageTtlSeconds
+      if (raw === null) {
+        groupTtl = null
+      } else if (typeof raw === "number" && Number.isFinite(raw)) {
+        const floored = Math.floor(raw)
+        groupTtl = floored > 0 ? floored : null
+      } else {
+        groupTtl = undefined
       }
-    } catch {
-      // ignore
     }
 
     if (groupTtl !== undefined) {

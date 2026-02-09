@@ -152,6 +152,9 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   const getGroupMetadataPreview = (content: string) => {
     try {
       const parsed = JSON.parse(content) as Record<string, unknown>
+      if (parsed.__irisGroupMetaOp === "edit") {
+        return <span className="italic">Group updated</span>
+      }
       if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
         const raw = parsed.messageTtlSeconds
         let ttlSeconds: number | null = null
