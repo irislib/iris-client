@@ -19,10 +19,12 @@ import {shouldHideUser} from "@/utils/visibility"
 import {getExpirationLabel} from "@/utils/expiration"
 import {DisappearingMessagesModal} from "../components/DisappearingMessagesModal"
 import {setGroupDisappearingMessages} from "@/utils/disappearingMessages"
-import {MemberChip} from "./components"
+import {MemberChip, GroupAvatar} from "./components"
 import {sendGroupEvent} from "@/pages/chats/utils/groupMessaging"
 import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
+import {useFileUpload} from "@/shared/hooks/useFileUpload"
+import {processHashtreeFile} from "@/shared/upload/hashtree"
 
 const GroupDetailsPage = () => {
   const location = useLocation()
@@ -44,6 +46,12 @@ const GroupDetailsPage = () => {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showDisappearingMessages, setShowDisappearingMessages] = useState(false)
+
+  const pictureUpload = useFileUpload({
+    onUpload: (url: string) => setDraftPicture(url),
+    accept: "image/*",
+    processFile: processHashtreeFile,
+  })
 
   const startEdit = () => {
     if (!group) return
@@ -261,13 +269,7 @@ const GroupDetailsPage = () => {
       <Header title="Group Details" showBack />
       <div className="w-full mx-auto p-6 text-left pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pt-6 md:pb-6">
         <div className="flex items-start gap-4 mb-6">
-          {group.picture ? (
-            <img src={group.picture} alt="Group" className="w-16 h-16 rounded-full" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-base-300 flex items-center justify-center">
-              <span className="text-2xl">👥</span>
-            </div>
-          )}
+          <GroupAvatar picture={group.picture} size={64} />
           <div className="flex-1 min-w-0">
             <div className="text-2xl font-bold">{group.name}</div>
             <div className="text-base-content/70 mt-1">{group.description}</div>
@@ -337,15 +339,33 @@ const GroupDetailsPage = () => {
 
               <div>
                 <label className="label">
-                  <span className="label-text">Group Picture URL (optional)</span>
+                  <span className="label-text">Group Picture (optional)</span>
                 </label>
-                <input
-                  type="text"
-                  className="input input-bordered w-full"
-                  placeholder="Enter picture URL"
-                  value={draftPicture}
-                  onChange={(e) => setDraftPicture(e.target.value)}
-                />
+                <div className="flex items-center gap-3">
+                  {draftPicture && <GroupAvatar picture={draftPicture} size={48} />}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={pictureUpload.triggerUpload}
+                    disabled={pictureUpload.uploading}
+                  >
+                    {pictureUpload.uploading
+                      ? `Uploading... ${pictureUpload.progress}%`
+                      : "Upload picture"}
+                  </button>
+                  {draftPicture && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setDraftPicture("")}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {pictureUpload.error && (
+                  <div className="text-error text-sm mt-1">{pictureUpload.error}</div>
+                )}
               </div>
 
               <div>

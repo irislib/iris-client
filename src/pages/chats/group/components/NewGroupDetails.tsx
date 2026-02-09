@@ -1,8 +1,11 @@
 import {Avatar} from "@/shared/components/user/Avatar"
 import MemberChip from "./MemberChip"
+import GroupAvatar from "./GroupAvatar"
 import {GroupDetails} from "../types"
 import {FormEvent} from "react"
 import DoubleRatchetInfo from "./DoubleRatchetInfo"
+import {useFileUpload} from "@/shared/hooks/useFileUpload"
+import {processHashtreeFile} from "@/shared/upload/hashtree"
 
 interface GroupDetailsProps {
   selectedMembers: string[]
@@ -31,6 +34,12 @@ const GroupDetailsStep = ({
       [field]: value,
     })
   }
+
+  const pictureUpload = useFileUpload({
+    onUpload: (url: string) => handleInputChange("picture", url),
+    accept: "image/*",
+    processFile: processHashtreeFile,
+  })
 
   return (
     <>
@@ -94,15 +103,35 @@ const GroupDetailsStep = ({
               </div>
               <div>
                 <label className="label">
-                  <span className="label-text">Group Picture URL (optional)</span>
+                  <span className="label-text">Group Picture (optional)</span>
                 </label>
-                <input
-                  type="text"
-                  className="input input-bordered w-full"
-                  placeholder="Enter picture URL"
-                  value={groupDetails.picture}
-                  onChange={(e) => handleInputChange("picture", e.target.value)}
-                />
+                <div className="flex items-center gap-3">
+                  {groupDetails.picture && (
+                    <GroupAvatar picture={groupDetails.picture} size={48} />
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={pictureUpload.triggerUpload}
+                    disabled={pictureUpload.uploading}
+                  >
+                    {pictureUpload.uploading
+                      ? `Uploading... ${pictureUpload.progress}%`
+                      : "Upload picture"}
+                  </button>
+                  {groupDetails.picture && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleInputChange("picture", "")}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {pictureUpload.error && (
+                  <div className="text-error text-sm mt-1">{pictureUpload.error}</div>
+                )}
               </div>
             </div>
           </div>

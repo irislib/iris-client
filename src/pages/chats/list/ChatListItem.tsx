@@ -13,6 +13,7 @@ import {
 import {useLocation, NavLink} from "@/navigation"
 import {MessageType} from "../message/Message"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {GroupAvatar} from "../group/components"
 import {RiEarthLine} from "@remixicon/react"
 import {useUserStore} from "@/stores/user"
 import {useEffect, useState, useMemo, useRef} from "react"
@@ -216,23 +217,7 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   // Avatar rendering
   let avatar
   if (group) {
-    if (group.picture) {
-      avatar = (
-        <ProxyImg
-          width={18}
-          square={true}
-          src={group.picture}
-          alt="Group Icon"
-          className="rounded-full w-10 h-10"
-        />
-      )
-    } else {
-      avatar = (
-        <div className="w-10 h-10 rounded-full bg-base-300 flex items-center justify-center">
-          <span className="text-lg">👥</span>
-        </div>
-      )
-    }
+    avatar = <GroupAvatar picture={group.picture} size={40} />
   } else if (isPublic) {
     if (chat?.picture) {
       avatar = (

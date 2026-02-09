@@ -130,7 +130,6 @@ test.describe("Group admin edits", () => {
 
       await pageA.getByPlaceholder("Enter group name").fill("Renamed Group")
       await pageA.getByPlaceholder("Enter group description").fill("Updated description")
-      await pageA.getByPlaceholder("Enter picture URL").fill("https://example.com/g.png")
 
       await pageA.getByPlaceholder(/npub|hex/i).fill(member.publicKey)
       await pageA.getByRole("button", {name: "Add member"}).click()

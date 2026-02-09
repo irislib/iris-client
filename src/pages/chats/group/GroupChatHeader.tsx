@@ -7,6 +7,7 @@ import {RiMoreLine} from "@remixicon/react"
 import Dropdown from "@/shared/components/ui/Dropdown"
 import {confirm} from "@/utils/utils"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
+import {GroupAvatar} from "./components"
 
 const GroupChatHeader = ({groupId}: {groupId: string}) => {
   const {groups, removeGroup} = useGroupsStore()
@@ -32,13 +33,7 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
             className="flex items-center flex-1"
             to={`/chats/group/${groupId}/details`}
           >
-            {group.picture ? (
-              <img src={group.picture} alt="Group" className="w-8 h-8 rounded-full" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center">
-                <span className="text-lg">👥</span>
-              </div>
-            )}
+            <GroupAvatar picture={group.picture} size={32} />
             <div className="flex flex-col ml-2">
               <span className="font-bold text-base">{group.name}</span>
               <span className="text-xs text-base-content/70">{group.description}</span>

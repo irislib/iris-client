@@ -120,6 +120,8 @@ export function parseFileLink(link: string): {nhash: string; filename: string} |
   let cleaned = link
   if (cleaned.startsWith("htree://")) {
     cleaned = cleaned.substring(8)
+  } else if (cleaned.startsWith("nhash://")) {
+    cleaned = cleaned.substring(8)
   }
 
   const match = cleaned.match(/^(nhash1[a-z0-9]+)\/(.+)$/i)
