@@ -19,6 +19,7 @@ import {useIsFollowing} from "@/utils/socialGraph"
 import {getMessageAuthorPubkey} from "@/pages/chats/utils/messageAuthor"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useNavigate} from "@/navigation"
+import {useUIStore} from "@/stores/ui"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -52,6 +53,7 @@ const Chat = ({id}: {id: string}) => {
     if (!id) return
 
     acceptChat(id)
+    useUIStore.getState().setChatsListActiveTab("all")
 
     if (!myPubKey) return
 
