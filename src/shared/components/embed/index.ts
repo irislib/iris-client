@@ -9,6 +9,7 @@ import TwitchClip from "./twitch/TwitchClip.tsx"
 import SpotifyAlbum from "./spotify/SpotifyAlbum.tsx"
 import SpotifyTrack from "./spotify/SpotifyTrack.tsx"
 import InlineMention from "./nostr/InlineMention.tsx"
+import NostrNote from "./nostr/NostrNote.tsx"
 import SoundCloud from "./soundcloud/SoundCloud.tsx"
 import ApplePodcast from "./apple/ApplePodcast.tsx"
 import Instagram from "./instagram/Instagram.tsx"
@@ -54,6 +55,7 @@ type Embed = {
 }
 
 export const allEmbeds = [
+  NostrNote,
   Audio,
   HashtreeAttachment,
   EncryptedUrl,

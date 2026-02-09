@@ -1,9 +1,8 @@
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem.tsx"
-import Embed, {allEmbeds} from "../index.ts"
+import type Embed from "../index.ts"
 import {nip19} from "nostr-tools"
 
-export const eventRegex =
-  /(?:^|nostr:|(?:https?:\/\/[\w./]+)|iris\.to\/|snort\.social\/e\/|damus\.io\/)((?:@)?note[a-zA-Z0-9]{59,60})(?![\w/])/gi
+import {eventRegex} from "./noteRegex.ts"
 
 const NostrNote: Embed = {
   regex: eventRegex,
@@ -27,8 +26,5 @@ const NostrNote: Embed = {
     }
   },
 }
-
-// need to add this to allEmbeds here to prevent runtime circular dependency
-allEmbeds.unshift(NostrNote)
 
 export default NostrNote

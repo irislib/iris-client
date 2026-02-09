@@ -1,5 +1,5 @@
 import {NDKEvent} from "@/lib/ndk"
-import {eventRegex} from "@/shared/components/embed/nostr/NostrNote"
+import {eventRegex} from "@/shared/components/embed/nostr/noteRegex"
 import {KIND_REPOST, KIND_TEXT_NOTE} from "@/utils/constants"
 import {ndk} from "@/utils/ndk"
 
