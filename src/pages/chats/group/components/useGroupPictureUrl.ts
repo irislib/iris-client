@@ -9,7 +9,8 @@ export function useGroupPictureUrl(picture?: string) {
     if (parsed && isImageFile(parsed.filename)) {
       return getMediaUrl(parsed.nhash, "image/*")
     }
-    return pic
+    // Only allow nhash URLs for group pictures — reject plain URLs
+    return null
   }, [])
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export function useGroupPictureUrl(picture?: string) {
 
     resolve(picture)
       .then((url) => {
-        if (revoked) return
+        if (revoked || !url) return
         if (url.startsWith("blob:")) blobUrl = url
         setImageUrl(url)
       })
