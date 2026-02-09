@@ -164,14 +164,8 @@ const Message = ({
     return (
       <div className="flex items-center p-4 bg-base-200 rounded-xl my-2 justify-center text-sm">
         <span className="text-base-content/70">
-          {who ? (
-            who
-          ) : (
-            <>
-              <Name pubKey={authorPubkey} />{" "}
-            </>
-          )}
-          set disappearing messages to {label}
+          {who ? who : <Name pubKey={authorPubkey} />} set disappearing messages to{" "}
+          {label}
         </span>
       </div>
     )
@@ -204,14 +198,8 @@ const Message = ({
       const label = groupTtl ? getExpirationLabel(groupTtl) : "Off"
       content = (
         <span className="text-base-content/70">
-          {authorPubkey === myPubKey ? (
-            "You"
-          ) : (
-            <>
-              <Name pubKey={authorPubkey} />{" "}
-            </>
-          )}
-          set disappearing messages to {label}
+          {authorPubkey === myPubKey ? "You" : <Name pubKey={authorPubkey} />} set
+          disappearing messages to {label}
         </span>
       )
     } else if (message.pubkey === myPubKey) {
