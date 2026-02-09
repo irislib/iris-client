@@ -25,6 +25,8 @@ import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import {processHashtreeFile} from "@/shared/upload/hashtree"
+import {useGroupPictureUrl} from "./components/useGroupPictureUrl"
+import MediaModal from "@/shared/components/media/MediaModal"
 
 const GroupDetailsPage = () => {
   const location = useLocation()
@@ -46,6 +48,8 @@ const GroupDetailsPage = () => {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [showDisappearingMessages, setShowDisappearingMessages] = useState(false)
+  const [showPictureModal, setShowPictureModal] = useState(false)
+  const resolvedPictureUrl = useGroupPictureUrl(group?.picture)
 
   const pictureUpload = useFileUpload({
     onUpload: (url: string) => setDraftPicture(url),
@@ -269,7 +273,11 @@ const GroupDetailsPage = () => {
       <Header title="Group Details" showBack />
       <div className="w-full mx-auto p-6 text-left pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pt-6 md:pb-6">
         <div className="flex items-start gap-4 mb-6">
-          <GroupAvatar picture={group.picture} size={64} />
+          <GroupAvatar
+            picture={group.picture}
+            size={64}
+            onClick={group.picture ? () => setShowPictureModal(true) : undefined}
+          />
           <div className="flex-1 min-w-0">
             <div className="text-2xl font-bold">{group.name}</div>
             <div className="text-base-content/70 mt-1">{group.description}</div>
@@ -445,6 +453,15 @@ const GroupDetailsPage = () => {
           </ul>
         </div>
       </div>
+
+      {showPictureModal && resolvedPictureUrl && (
+        <MediaModal
+          onClose={() => setShowPictureModal(false)}
+          mediaUrl={resolvedPictureUrl}
+          mediaType="image"
+          showFeedItem={false}
+        />
+      )}
 
       {showDisappearingMessages && (
         <DisappearingMessagesModal

@@ -1,45 +1,13 @@
-import {useCallback, useEffect, useState} from "react"
-import {getMediaUrl, isImageFile, parseFileLink} from "@/lib/hashtree"
+import {useGroupPictureUrl} from "./useGroupPictureUrl"
 
 interface GroupAvatarProps {
   picture?: string
   size?: number
+  onClick?: () => void
 }
 
-export default function GroupAvatar({picture, size = 48}: GroupAvatarProps) {
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-
-  const resolve = useCallback(async (pic: string) => {
-    const parsed = parseFileLink(pic)
-    if (parsed && isImageFile(parsed.filename)) {
-      return getMediaUrl(parsed.nhash, "image/*")
-    }
-    // Regular URL — use directly
-    return pic
-  }, [])
-
-  useEffect(() => {
-    setImageUrl(null)
-    if (!picture) return
-
-    let revoked = false
-    let blobUrl: string | null = null
-
-    resolve(picture)
-      .then((url) => {
-        if (revoked) return
-        // Track blob URLs so we can revoke them
-        if (url.startsWith("blob:")) blobUrl = url
-        setImageUrl(url)
-      })
-      .catch(() => {})
-
-    return () => {
-      revoked = true
-      if (blobUrl) URL.revokeObjectURL(blobUrl)
-    }
-  }, [picture, resolve])
-
+export default function GroupAvatar({picture, size = 48, onClick}: GroupAvatarProps) {
+  const imageUrl = useGroupPictureUrl(picture)
   const px = `${size}px`
 
   if (imageUrl) {
@@ -47,8 +15,9 @@ export default function GroupAvatar({picture, size = 48}: GroupAvatarProps) {
       <img
         src={imageUrl}
         alt="Group"
-        className="rounded-full object-cover"
+        className={`rounded-full object-cover${onClick ? " cursor-pointer" : ""}`}
         style={{width: px, height: px}}
+        onClick={onClick}
       />
     )
   }
