@@ -93,14 +93,15 @@ export const attachSessionEventListener = () => {
                   )
                   const rawTtl = (metadata as unknown as Record<string, unknown>)
                     .messageTtlSeconds
-                  const nextTtl =
-                    rawTtl === null
-                      ? null
-                      : typeof rawTtl === "number" && Number.isFinite(rawTtl)
-                        ? Math.floor(rawTtl) > 0
-                          ? Math.floor(rawTtl)
-                          : null
-                        : undefined
+                  let nextTtl: number | null | undefined
+                  if (rawTtl === null) {
+                    nextTtl = null
+                  } else if (typeof rawTtl === "number" && Number.isFinite(rawTtl)) {
+                    const floored = Math.floor(rawTtl)
+                    nextTtl = floored > 0 ? floored : null
+                  } else {
+                    nextTtl = undefined
+                  }
 
                   addGroup(
                     existing

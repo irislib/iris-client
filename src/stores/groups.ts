@@ -99,16 +99,22 @@ const store = create<GroupsStore>()(
               Array.isArray(adminsRaw) && adminsRaw.length > 0
                 ? adminsRaw.filter((a): a is string => typeof a === "string")
                 : []
-            const admins =
-              parsedAdmins.length > 0 ? parsedAdmins : members[0] ? [members[0]] : []
+            let admins: string[] = []
+            if (parsedAdmins.length > 0) {
+              admins = parsedAdmins
+            } else if (members[0]) {
+              admins = [members[0]]
+            }
+
+            let nextId = id
+            if (typeof obj.id === "string") {
+              nextId = obj.id
+            } else if (typeof obj.id === "number") {
+              nextId = String(obj.id)
+            }
 
             migrated[id] = {
-              id:
-                typeof obj.id === "string"
-                  ? obj.id
-                  : typeof obj.id === "number"
-                    ? String(obj.id)
-                    : id,
+              id: nextId,
               name: typeof obj.name === "string" ? obj.name : "",
               description: typeof obj.description === "string" ? obj.description : "",
               picture: typeof obj.picture === "string" ? obj.picture : "",

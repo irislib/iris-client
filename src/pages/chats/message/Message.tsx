@@ -186,14 +186,14 @@ const Message = ({
       const parsed = JSON.parse(message.content) as Record<string, unknown>
       if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
         const raw = parsed.messageTtlSeconds
-        groupTtl =
-          raw === null
-            ? null
-            : typeof raw === "number" && Number.isFinite(raw)
-              ? Math.floor(raw) > 0
-                ? Math.floor(raw)
-                : null
-              : undefined
+        if (raw === null) {
+          groupTtl = null
+        } else if (typeof raw === "number" && Number.isFinite(raw)) {
+          const floored = Math.floor(raw)
+          groupTtl = floored > 0 ? floored : null
+        } else {
+          groupTtl = undefined
+        }
       }
     } catch {
       // ignore

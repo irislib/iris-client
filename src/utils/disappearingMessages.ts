@@ -7,18 +7,20 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {sendGroupEvent} from "@/pages/chats/utils/groupMessaging"
 
+const normalizeTtlSeconds = (ttlSeconds: number | null): number | null => {
+  if (ttlSeconds === null) return null
+  if (typeof ttlSeconds !== "number" || !Number.isFinite(ttlSeconds)) return null
+  const floored = Math.floor(ttlSeconds)
+  return floored > 0 ? floored : null
+}
+
 export async function setDmDisappearingMessages(
   peerPubkey: string,
   messageTtlSeconds: number | null
 ): Promise<void> {
   if (!peerPubkey) return
 
-  const normalizedTtl =
-    typeof messageTtlSeconds === "number" && Number.isFinite(messageTtlSeconds)
-      ? Math.floor(messageTtlSeconds) > 0
-        ? Math.floor(messageTtlSeconds)
-        : null
-      : null
+  const normalizedTtl = normalizeTtlSeconds(messageTtlSeconds)
 
   useChatExpirationStore.getState().setExpiration(peerPubkey, normalizedTtl)
 

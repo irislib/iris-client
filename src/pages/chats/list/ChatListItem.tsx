@@ -154,14 +154,15 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
       const parsed = JSON.parse(content) as Record<string, unknown>
       if (Object.prototype.hasOwnProperty.call(parsed, "messageTtlSeconds")) {
         const raw = parsed.messageTtlSeconds
-        const ttlSeconds =
-          raw === null
-            ? null
-            : typeof raw === "number" && Number.isFinite(raw)
-              ? Math.floor(raw) > 0
-                ? Math.floor(raw)
-                : null
-              : null
+        let ttlSeconds: number | null = null
+        if (raw === null) {
+          ttlSeconds = null
+        } else if (typeof raw === "number" && Number.isFinite(raw)) {
+          const floored = Math.floor(raw)
+          ttlSeconds = floored > 0 ? floored : null
+        } else {
+          ttlSeconds = null
+        }
         return getDisappearingMessagesPreview(ttlSeconds)
       }
     } catch {
