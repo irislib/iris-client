@@ -18,7 +18,8 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [showDisappearingMessages, setShowDisappearingMessages] = useState(false)
   const myPubKey = useUserStore((state) => state.publicKey)
-  const canEditSettings = !!myPubKey && !!group?.admins?.includes(myPubKey)
+  const canEditSettings =
+    !!myPubKey && (!group?.admins?.length || group.admins.includes(myPubKey))
   const currentTtlSeconds = group?.messageTtlSeconds ?? null
 
   if (!group) return null
