@@ -59,34 +59,30 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
               <RiMoreLine size={20} />
             </button>
             {dropdownOpen && (
-              <div className="dropdown-container">
-                <Dropdown onClose={() => setDropdownOpen(false)}>
-                  <ul className="menu bg-base-100 rounded-box w-52 p-2 shadow">
-                    <li>
-                      <button
-                        disabled={!canEditSettings}
-                        title={
-                          !canEditSettings
-                            ? "Only group admins can change this"
-                            : undefined
-                        }
-                        onClick={() => {
-                          if (!canEditSettings) return
-                          setDropdownOpen(false)
-                          setShowDisappearingMessages(true)
-                        }}
-                      >
-                        Disappearing messages
-                      </button>
-                    </li>
-                    <li>
-                      <button onClick={handleDeleteGroup} className="text-error">
-                        Delete Group
-                      </button>
-                    </li>
-                  </ul>
-                </Dropdown>
-              </div>
+              <Dropdown onClose={() => setDropdownOpen(false)}>
+                <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
+                  <li>
+                    <button
+                      disabled={!canEditSettings}
+                      title={
+                        !canEditSettings ? "Only group admins can change this" : undefined
+                      }
+                      onClick={() => {
+                        if (!canEditSettings) return
+                        setDropdownOpen(false)
+                        setShowDisappearingMessages(true)
+                      }}
+                    >
+                      Disappearing messages
+                    </button>
+                  </li>
+                  <li>
+                    <button onClick={handleDeleteGroup} className="text-error">
+                      Delete Group
+                    </button>
+                  </li>
+                </ul>
+              </Dropdown>
             )}
           </div>
         </div>

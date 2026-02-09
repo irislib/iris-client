@@ -49,22 +49,21 @@ export async function setGroupDisappearingMessages(
   const group = useGroupsStore.getState().groups[groupId]
   if (!group) return
 
-  useGroupsStore.getState().updateGroup(groupId, {messageTtlSeconds})
-  useChatExpirationStore.getState().setExpiration(groupId, messageTtlSeconds)
+  const normalizedTtl = normalizeTtlSeconds(messageTtlSeconds)
+
+  useGroupsStore.getState().updateGroup(groupId, {messageTtlSeconds: normalizedTtl})
+  useChatExpirationStore.getState().setExpiration(groupId, normalizedTtl)
 
   const sessionManager = getSessionManager()
   if (sessionManager) {
     await sessionManager
-      .setExpirationForGroup(
-        groupId,
-        messageTtlSeconds ? {ttlSeconds: messageTtlSeconds} : null
-      )
+      .setExpirationForGroup(groupId, normalizedTtl ? {ttlSeconds: normalizedTtl} : null)
       .catch(() => {})
   }
 
   // Publish group metadata update so all members converge on the same setting.
   const base = JSON.parse(buildGroupMetadataContent(group)) as Record<string, unknown>
-  base.messageTtlSeconds = messageTtlSeconds
+  base.messageTtlSeconds = normalizedTtl
 
   await sendGroupEvent({
     groupId,
