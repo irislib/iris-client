@@ -7,20 +7,12 @@ import {RiMoreLine} from "@remixicon/react"
 import Dropdown from "@/shared/components/ui/Dropdown"
 import {confirm} from "@/utils/utils"
 import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
-import {useUserStore} from "@/stores/user"
-import {DisappearingMessagesModal} from "../components/DisappearingMessagesModal"
-import {setGroupDisappearingMessages} from "@/utils/disappearingMessages"
 
 const GroupChatHeader = ({groupId}: {groupId: string}) => {
   const {groups, removeGroup} = useGroupsStore()
   const group = groups[groupId]
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const [showDisappearingMessages, setShowDisappearingMessages] = useState(false)
-  const myPubKey = useUserStore((state) => state.publicKey)
-  const canEditSettings =
-    !!myPubKey && (!group?.admins?.length || group.admins.includes(myPubKey))
-  const currentTtlSeconds = group?.messageTtlSeconds ?? null
 
   if (!group) return null
 
@@ -63,21 +55,6 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
               <Dropdown onClose={() => setDropdownOpen(false)}>
                 <ul className="dropdown-content z-[1] menu p-2 shadow bg-base-100 rounded-box w-52">
                   <li>
-                    <button
-                      disabled={!canEditSettings}
-                      title={
-                        !canEditSettings ? "Only group admins can change this" : undefined
-                      }
-                      onClick={() => {
-                        if (!canEditSettings) return
-                        setDropdownOpen(false)
-                        setShowDisappearingMessages(true)
-                      }}
-                    >
-                      Disappearing messages
-                    </button>
-                  </li>
-                  <li>
                     <button onClick={handleDeleteGroup} className="text-error">
                       Delete Group
                     </button>
@@ -88,17 +65,6 @@ const GroupChatHeader = ({groupId}: {groupId: string}) => {
           </div>
         </div>
       </Header>
-
-      {showDisappearingMessages && (
-        <DisappearingMessagesModal
-          currentTtlSeconds={currentTtlSeconds}
-          onClose={() => setShowDisappearingMessages(false)}
-          onSelect={(ttl) => {
-            setShowDisappearingMessages(false)
-            setGroupDisappearingMessages(groupId, ttl).catch(console.error)
-          }}
-        />
-      )}
     </>
   )
 }
