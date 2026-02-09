@@ -33,6 +33,7 @@ import {
   type SenderKeyDistribution,
   type Rumor,
   validateMetadataCreation,
+  validateMetadataUpdate,
 } from "nostr-double-ratchet"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -76,16 +77,15 @@ export const attachSessionEventListener = () => {
           if (lTag) {
             // Group metadata (kind 40): add/update group and store the invite message.
             if (event.kind === KIND_CHANNEL_CREATE) {
-              const {groups, addGroup} = useGroupsStore.getState()
+              const {groups, addGroup, removeGroup} = useGroupsStore.getState()
 
               try {
                 const metadata = parseGroupMetadata(event.content)
-                if (
-                  metadata &&
-                  validateMetadataCreation(metadata, effectiveOwner, publicKey)
-                ) {
+                if (metadata) {
                   const existing = groups[metadata.id]
-                  const createdAt = getMillisecondTimestamp(event as Rumor) || Date.now()
+                  const metadataSenderPubkey = metadata.admins.includes(event.pubkey)
+                    ? event.pubkey
+                    : effectiveOwner
 
                   const hasTtl = Object.prototype.hasOwnProperty.call(
                     metadata as unknown as Record<string, unknown>,
@@ -103,21 +103,73 @@ export const attachSessionEventListener = () => {
                     nextTtl = undefined
                   }
 
-                  addGroup(
-                    existing
-                      ? applyMetadataUpdate(existing, metadata)
-                      : {
-                          id: metadata.id,
-                          name: metadata.name,
-                          description: metadata.description,
-                          picture: metadata.picture,
-                          members: metadata.members,
-                          admins: metadata.admins,
-                          createdAt,
-                          secret: metadata.secret,
-                          accepted: true,
-                        }
-                  )
+                  if (existing) {
+                    const isPlaceholderGroup =
+                      !existing.secret &&
+                      existing.members.length === 1 &&
+                      existing.members[0] === publicKey &&
+                      existing.admins.length === 1 &&
+                      existing.admins[0] === publicKey &&
+                      typeof existing.name === "string" &&
+                      existing.name.startsWith("Group ")
+
+                    // Placeholder groups are created from sender-key distribution or legacy group
+                    // messages before metadata arrives. In that case, accept the first metadata
+                    // message as a "creation" (validate against the metadata itself).
+                    if (isPlaceholderGroup) {
+                      if (
+                        !validateMetadataCreation(
+                          metadata,
+                          metadataSenderPubkey,
+                          publicKey
+                        )
+                      ) {
+                        return
+                      }
+                      addGroup(applyMetadataUpdate(existing, metadata))
+                    } else {
+                      const verdict = validateMetadataUpdate(
+                        existing,
+                        metadata,
+                        metadataSenderPubkey,
+                        publicKey
+                      )
+                      if (verdict === "reject") {
+                        return
+                      }
+
+                      if (verdict === "removed") {
+                        removeGroup(metadata.id)
+                        useGroupSenderKeysStore.getState().removeGroupData(metadata.id)
+                        useChatExpirationStore.getState().clearExpiration(metadata.id)
+                        void usePrivateMessagesStore.getState().removeSession(metadata.id)
+                        log("Removed from group:", metadata.id)
+                        return
+                      }
+
+                      addGroup(applyMetadataUpdate(existing, metadata))
+                    }
+                  } else {
+                    if (
+                      !validateMetadataCreation(metadata, metadataSenderPubkey, publicKey)
+                    ) {
+                      return
+                    }
+
+                    const createdAt =
+                      getMillisecondTimestamp(event as Rumor) || Date.now()
+                    addGroup({
+                      id: metadata.id,
+                      name: metadata.name,
+                      description: metadata.description,
+                      picture: metadata.picture,
+                      members: metadata.members,
+                      admins: metadata.admins,
+                      createdAt,
+                      secret: metadata.secret,
+                      accepted: true,
+                    })
+                  }
 
                   if (existing && hasTtl && nextTtl !== undefined) {
                     useGroupsStore.getState().updateGroup(metadata.id, {
@@ -143,7 +195,7 @@ export const attachSessionEventListener = () => {
 
                   void usePrivateMessagesStore.getState().upsert(metadata.id, publicKey, {
                     ...event,
-                    ownerPubkey: effectiveOwner,
+                    ownerPubkey: metadataSenderPubkey,
                   })
                   return
                 }

@@ -134,6 +134,7 @@ let sessionManager: SessionManager | null = null
 let appKeysInitPromise: Promise<void> | null = null
 let delegateInitPromise: Promise<void> | null = null
 let sessionManagerInitPromise: Promise<void> | null = null
+let sessionManagerReadyPromise: Promise<void> | null = null
 
 /**
  * Get the DelegateManager singleton.
@@ -220,6 +221,7 @@ export const activateDevice = async (ownerPubkey: string): Promise<void> => {
 
     await delegateManager.activate(ownerPubkey)
     sessionManager = delegateManager.createSessionManager(new LocalForageStorageAdapter())
+    sessionManagerReadyPromise = null
 
     log("Device activated for owner:", ownerPubkey)
   })()
@@ -233,6 +235,38 @@ export const activateDevice = async (ownerPubkey: string): Promise<void> => {
  */
 export const getSessionManager = (): SessionManager | null => {
   return sessionManager
+}
+
+/**
+ * Ensure a SessionManager is available for the given owner pubkey.
+ *
+ * This is useful in cases where the app has reloaded and startup initialization
+ * (initDelegateManager + activateDevice) may still be in-flight when a feature
+ * tries to send private/group-control events.
+ */
+export const ensureSessionManager = async (
+  ownerPubkey: string
+): Promise<SessionManager> => {
+  if (!ownerPubkey) {
+    throw new Error("Owner pubkey required to initialize SessionManager")
+  }
+
+  if (!sessionManagerInitPromise && !sessionManager) {
+    // Kick off initialization ourselves (safe to call multiple times).
+    await initDelegateManager()
+    await activateDevice(ownerPubkey)
+  }
+
+  const mgr = await waitForSessionManager()
+
+  // SessionManager.init() is not concurrency-safe (it flips an `initialized` flag early),
+  // so gate it behind our own promise to ensure callers truly await readiness.
+  if (!sessionManagerReadyPromise) {
+    sessionManagerReadyPromise = mgr.init()
+  }
+  await sessionManagerReadyPromise
+
+  return mgr
 }
 
 /**
