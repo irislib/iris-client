@@ -3,7 +3,7 @@ import {ElementType, ReactNode, useEffect, useMemo, useRef, useState} from "reac
 import {NDKUserProfile} from "@/lib/ndk"
 import {useNavigate} from "@/navigation"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
-import {nip19} from "nostr-tools"
+import {nip05, nip19} from "nostr-tools"
 
 import HyperText from "@/shared/components/HyperText.tsx"
 import MutedBy from "@/shared/components/user/MutedBy"
@@ -80,8 +80,16 @@ function ProfileDetails({
       const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
 
       if (window.location.pathname !== newPath) {
-        hasRedirectedRef.current = true
-        navigate(newPath, {replace: true})
+        // Verify NIP-05 resolves before redirecting to username URL
+        nip05
+          .queryProfile(displayProfile.nip05)
+          .then((resolved) => {
+            if (resolved && !hasRedirectedRef.current) {
+              hasRedirectedRef.current = true
+              navigate(newPath, {replace: true})
+            }
+          })
+          .catch(() => {})
       }
     }
   }, [isTopOfStack, displayProfile?.nip05, navigate, pubKey])
