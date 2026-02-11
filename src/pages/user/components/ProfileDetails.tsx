@@ -81,12 +81,15 @@ function ProfileDetails({
 
       if (window.location.pathname !== newPath) {
         // Verify NIP-05 resolves before redirecting to username URL
-        nip05.queryProfile(displayProfile.nip05).then((resolved) => {
-          if (resolved && !hasRedirectedRef.current) {
-            hasRedirectedRef.current = true
-            navigate(newPath, {replace: true})
-          }
-        }).catch(() => {})
+        nip05
+          .queryProfile(displayProfile.nip05)
+          .then((resolved) => {
+            if (resolved && !hasRedirectedRef.current) {
+              hasRedirectedRef.current = true
+              navigate(newPath, {replace: true})
+            }
+          })
+          .catch(() => {})
       }
     }
   }, [isTopOfStack, displayProfile?.nip05, navigate, pubKey])
