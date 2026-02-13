@@ -1,5 +1,5 @@
 import {describe, it, expect} from "vitest"
-import {parseLinkInviteInput} from "./linkInvites"
+import {parseChatInviteInput, parseLinkInviteInput} from "./linkInvites"
 
 const OWNER = "a".repeat(64)
 const INVITER = "b".repeat(64)
@@ -87,6 +87,48 @@ describe("parseLinkInviteInput", () => {
     const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
     const invite = parseLinkInviteInput(url, OWNER)
 
+    expect(invite).toBeNull()
+  })
+})
+
+describe("parseChatInviteInput", () => {
+  it("parses a chat invite URL", () => {
+    const payload = {
+      inviter: INVITER,
+      ephemeralKey: EPHEMERAL,
+      sharedSecret: SECRET,
+      purpose: "chat",
+    }
+    const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
+
+    const invite = parseChatInviteInput(url)
+    expect(invite).toBeTruthy()
+    expect(invite?.inviter).toBe(INVITER)
+  })
+
+  it("parses a chat invite without purpose", () => {
+    const payload = {
+      inviter: INVITER,
+      ephemeralKey: EPHEMERAL,
+      sharedSecret: SECRET,
+    }
+    const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
+
+    const invite = parseChatInviteInput(url)
+    expect(invite).toBeTruthy()
+    expect(invite?.inviterEphemeralPublicKey).toBe(EPHEMERAL)
+  })
+
+  it("rejects link-purpose invites", () => {
+    const payload = {
+      inviter: INVITER,
+      ephemeralKey: EPHEMERAL,
+      sharedSecret: SECRET,
+      purpose: "link",
+    }
+    const url = `https://iris.to/#${encodeURIComponent(JSON.stringify(payload))}`
+
+    const invite = parseChatInviteInput(url)
     expect(invite).toBeNull()
   })
 })

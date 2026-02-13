@@ -833,13 +833,10 @@ export const listenForLinkInviteAcceptance = (
 /**
  * Accept a link invite as the owner and publish the response event.
  */
-export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
-  const {publicKey, linkedDevice} = useUserStore.getState()
+const acceptInviteAsCurrentUser = async (invite: Invite): Promise<void> => {
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
-  }
-  if (linkedDevice) {
-    throw new Error("Linked devices cannot accept link invites")
   }
 
   const ndkInstance = ndk()
@@ -862,4 +859,22 @@ export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
 
   const ndkEvent = new NDKEvent(ndkInstance, event)
   await ndkEvent.publish()
+}
+
+/**
+ * Accept a link invite as the owner and publish the response event.
+ */
+export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
+  const {linkedDevice} = useUserStore.getState()
+  if (linkedDevice) {
+    throw new Error("Linked devices cannot accept link invites")
+  }
+  await acceptInviteAsCurrentUser(invite)
+}
+
+/**
+ * Accept a chat invite and publish the response event.
+ */
+export const acceptChatInvite = async (invite: Invite): Promise<void> => {
+  await acceptInviteAsCurrentUser(invite)
 }

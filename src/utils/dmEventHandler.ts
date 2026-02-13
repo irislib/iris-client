@@ -332,20 +332,23 @@ export const attachSessionEventListener = () => {
           const chatId = from === publicKey ? to : from
           const receipt = parseReceipt(event)
           if (receipt) {
-            const {events, updateMessage} = usePrivateMessagesStore.getState()
+            const {events, updateMessage, updateLastSeen, lastSeen} =
+              usePrivateMessagesStore.getState()
             const messageMap = events.get(chatId)
             if (!messageMap) return
             const receiptTimestamp = getMillisecondTimestamp(event as Rumor) || Date.now()
+            let latestSeenIncomingTimestamp = 0
             for (const messageId of receipt.messageIds) {
               const existing = messageMap.get(messageId)
               if (!existing) continue
               const owner = existing.ownerPubkey ?? existing.pubkey
-              if (owner !== publicKey) continue
+              if (!isOwnDevice && owner !== publicKey) continue
+              if (isOwnDevice && owner === publicKey) continue
               const updates: Partial<MessageType> = {}
 
               // A receipt implies our message made it to their device, so it must have
               // been published successfully to at least one relay.
-              if (!existing.sentToRelays) updates.sentToRelays = true
+              if (!isOwnDevice && !existing.sentToRelays) updates.sentToRelays = true
 
               if (receipt.type === "delivered") {
                 if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
@@ -353,6 +356,12 @@ export const attachSessionEventListener = () => {
                 if (!existing.seenAt) updates.seenAt = receiptTimestamp
                 // Seen implies delivered, and older DB rows may have status without timestamp.
                 if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
+                if (isOwnDevice) {
+                  latestSeenIncomingTimestamp = Math.max(
+                    latestSeenIncomingTimestamp,
+                    getMillisecondTimestamp(existing)
+                  )
+                }
               }
 
               if (shouldAdvanceReceiptStatus(existing.status, receipt.type)) {
@@ -361,6 +370,12 @@ export const attachSessionEventListener = () => {
 
               if (Object.keys(updates).length === 0) continue
               void updateMessage(chatId, messageId, updates)
+            }
+            if (isOwnDevice && receipt.type === "seen") {
+              const currentLastSeen = lastSeen.get(chatId) || 0
+              if (latestSeenIncomingTimestamp > currentLastSeen) {
+                updateLastSeen(chatId, latestSeenIncomingTimestamp)
+              }
             }
             return
           }

@@ -104,6 +104,27 @@ export function parseLinkInviteInput(
   ownerPubkey: string,
   roots: string[] = DEFAULT_LINK_INVITE_ROOTS
 ): Invite | null {
+  return parseInviteInput(input, roots, {
+    allowedPurposes: ["link"],
+    ownerPubkey,
+  })
+}
+
+export function parseChatInviteInput(
+  input: string,
+  roots: string[] = DEFAULT_LINK_INVITE_ROOTS
+): Invite | null {
+  return parseInviteInput(input, roots, {
+    allowedPurposes: ["chat"],
+  })
+}
+
+function parseInviteInput(
+  input: string,
+  roots: string[],
+  options: {allowedPurposes: string[]; ownerPubkey?: string}
+): Invite | null {
+  const {allowedPurposes, ownerPubkey} = options
   const trimmed = input.trim()
   if (!trimmed) return null
 
@@ -143,8 +164,8 @@ export function parseLinkInviteInput(
     const tryParse = (candidate: string): Invite | null => {
       try {
         const payload = parseInvitePayload(candidate)
-        if (payload?.purpose && payload.purpose !== "link") return null
-        if (payload?.owner && payload.owner !== ownerPubkey) return null
+        if (payload?.purpose && !allowedPurposes.includes(payload.purpose)) return null
+        if (ownerPubkey && payload?.owner && payload.owner !== ownerPubkey) return null
         return Invite.fromUrl(candidate)
       } catch {
         return null

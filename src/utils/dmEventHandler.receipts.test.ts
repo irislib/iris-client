@@ -214,6 +214,58 @@ describe("dmEventHandler receipts", () => {
     expect(stored?.seenAt).toBe(seenAt)
   })
 
+  it("marks incoming messages seen and updates lastSeen when seen receipt comes from own session", async () => {
+    attachSessionEventListener()
+    await flushPromises()
+
+    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(capturedCallback).toBeTruthy()
+
+    const messageId = "in-1"
+    const incomingAt = 1700000005123
+
+    await usePrivateMessagesStore.getState().upsert(THEIR_PUBKEY, MY_PUBKEY, {
+      id: messageId,
+      kind: KIND_CHAT_MESSAGE,
+      pubkey: THEIR_PUBKEY,
+      ownerPubkey: THEIR_PUBKEY,
+      content: "hello",
+      created_at: Math.floor(incomingAt / 1000),
+      tags: [
+        ["p", MY_PUBKEY],
+        ["ms", String(incomingAt)],
+      ],
+    } as any)
+
+    const beforeSeen = usePrivateMessagesStore.getState().lastSeen.get(THEIR_PUBKEY) || 0
+    expect(beforeSeen).toBe(0)
+
+    const seenAt = incomingAt + 1000
+    capturedCallback?.(
+      {
+        id: "rcpt-own-1",
+        kind: 15,
+        pubkey: MY_PUBKEY,
+        content: "seen",
+        created_at: Math.floor(seenAt / 1000),
+        tags: [
+          ["p", THEIR_PUBKEY],
+          ["e", messageId],
+          ["ms", String(seenAt)],
+        ],
+      },
+      THEIR_PUBKEY
+    )
+
+    await flushPromises()
+
+    const state = usePrivateMessagesStore.getState()
+    const stored = state.events.get(THEIR_PUBKEY)?.get(messageId)
+    expect(stored?.status).toBe("seen")
+    expect(stored?.seenAt).toBe(seenAt)
+    expect((state.lastSeen.get(THEIR_PUBKEY) || 0) >= incomingAt).toBe(true)
+  })
+
   it("ignores incoming message requests when disabled", async () => {
     useMessagesStore.setState({receiveMessageRequests: false})
     isFollowing.mockReturnValue(false)

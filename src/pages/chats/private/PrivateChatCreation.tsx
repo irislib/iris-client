@@ -1,5 +1,8 @@
+import {useState} from "react"
 import {useNavigate} from "@/navigation"
 import {useUserStore} from "@/stores/user"
+import {acceptChatInvite} from "@/shared/services/PrivateChats"
+import {parseChatInviteInput} from "@/shared/utils/linkInvites"
 import DoubleRatchetInfo from "../group/components/DoubleRatchetInfo"
 import {DoubleRatchetUserSearch} from "../components/DoubleRatchetUserSearch"
 import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
@@ -7,15 +10,36 @@ import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
 const PrivateChatCreation = () => {
   const navigate = useNavigate()
   const myPubKey = useUserStore((state) => state.publicKey)
+  const [inviteError, setInviteError] = useState<string>("")
 
   const handleStartChat = async (user: DoubleRatchetUser) => {
     if (!myPubKey) return
+    setInviteError("")
 
     // Navigate directly to chat with userPubKey
     // The chats store will handle session creation automatically
     navigate("/chats/chat", {
       state: {id: user.pubkey},
     })
+  }
+
+  const handleRawInputSubmit = async (rawInput: string): Promise<boolean> => {
+    if (!myPubKey) return false
+    setInviteError("")
+
+    const invite = parseChatInviteInput(rawInput)
+    if (!invite) return false
+
+    try {
+      await acceptChatInvite(invite)
+      navigate("/chats/chat", {
+        state: {id: invite.inviter},
+      })
+      return true
+    } catch (error) {
+      setInviteError(error instanceof Error ? error.message : "Failed to accept chat invite")
+      return true
+    }
   }
 
   if (!myPubKey) {
@@ -34,11 +58,13 @@ const PrivateChatCreation = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Search Users</h2>
           <DoubleRatchetUserSearch
-            placeholder="Search for users"
+            placeholder="Search for users or paste chat invite link"
             onUserSelect={handleStartChat}
+            onRawInputSubmit={handleRawInputSubmit}
             maxResults={10}
             showCount={true}
           />
+          {inviteError && <p className="text-sm text-error mt-2">{inviteError}</p>}
         </div>
       </div>
       <hr className="mx-4 my-6 border-base-300" />

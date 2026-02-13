@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, type KeyboardEvent} from "react"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {useDoubleRatchetUsers} from "../hooks/useDoubleRatchetUsers"
 import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
@@ -6,6 +6,7 @@ import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
 interface DoubleRatchetUserSearchProps {
   placeholder?: string
   onUserSelect: (user: DoubleRatchetUser) => void
+  onRawInputSubmit?: (input: string) => boolean | Promise<boolean>
   maxResults?: number
   showCount?: boolean
   className?: string
@@ -26,6 +27,7 @@ const getUserDisplayName = (user: DoubleRatchetUser): string => {
 export const DoubleRatchetUserSearch = ({
   placeholder = "Search for users",
   onUserSelect,
+  onRawInputSubmit,
   maxResults = 10,
   showCount = true,
   className = "",
@@ -52,6 +54,23 @@ export const DoubleRatchetUserSearch = ({
     }
   }, [count, search, searchInput, maxResults])
 
+  const handleInputKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return
+    if (!onRawInputSubmit) return
+    if (searchResults.length > 0) return
+
+    const raw = searchInput.trim()
+    if (!raw) return
+
+    event.preventDefault()
+    void Promise.resolve(onRawInputSubmit(raw)).then((handled) => {
+      if (handled) {
+        setSearchInput("")
+        setSearchResults([])
+      }
+    })
+  }
+
   return (
     <div className={`flex flex-col gap-4 ${className}`}>
       <div>
@@ -61,6 +80,7 @@ export const DoubleRatchetUserSearch = ({
           placeholder={placeholder}
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
+          onKeyDown={handleInputKeyDown}
         />
         {showCount && (
           <p className="text-sm text-base-content/70 mt-2">
