@@ -1,4 +1,5 @@
-import {test, expect} from "@playwright/test"
+import {test, expect, type Locator} from "@playwright/test"
+import {readFileSync} from "fs"
 import {fileURLToPath} from "url"
 import {signUp} from "./auth.setup"
 
@@ -28,7 +29,91 @@ async function setupChatWithSelf(page) {
   await expect(page.getByPlaceholder("Message").last()).toBeVisible({timeout: 15000})
 }
 
+async function dispatchFileDrop(target: Locator, filePath: string, mimeType: string) {
+  const bytes = Array.from(readFileSync(filePath))
+  const fileName = filePath.split("/").pop() || "attachment"
+
+  await target.evaluate(
+    (element, payload) => {
+      const dt = new DataTransfer()
+      dt.items.add(
+        new File([new Uint8Array(payload.bytes)], payload.fileName, {
+          type: payload.mimeType,
+        })
+      )
+
+      element.dispatchEvent(
+        new DragEvent("dragover", {bubbles: true, cancelable: true, dataTransfer: dt})
+      )
+      element.dispatchEvent(
+        new DragEvent("drop", {bubbles: true, cancelable: true, dataTransfer: dt})
+      )
+    },
+    {bytes, fileName, mimeType}
+  )
+}
+
+async function dispatchFilePaste(target: Locator, filePath: string, mimeType: string) {
+  const bytes = Array.from(readFileSync(filePath))
+  const fileName = filePath.split("/").pop() || "attachment"
+
+  await target.evaluate(
+    (element, payload) => {
+      const dt = new DataTransfer()
+      dt.items.add(
+        new File([new Uint8Array(payload.bytes)], payload.fileName, {
+          type: payload.mimeType,
+        })
+      )
+
+      const pasteEvent = new Event("paste", {bubbles: true, cancelable: true})
+      Object.defineProperty(pasteEvent, "clipboardData", {
+        value: dt,
+        configurable: true,
+      })
+      element.dispatchEvent(pasteEvent)
+    },
+    {bytes, fileName, mimeType}
+  )
+}
+
 test.describe("Hashtree Attachment", () => {
+  test("can attach an image by dropping it in message input", async ({page}) => {
+    test.setTimeout(60000)
+    await signUp(page)
+    await setupChatWithSelf(page)
+
+    const fixturePath = fileURLToPath(new URL("fixtures/test-blob.jpeg", import.meta.url))
+    const messageInput = page.getByPlaceholder("Message").last()
+    await messageInput.focus()
+    await dispatchFileDrop(messageInput, fixturePath, "image/jpeg")
+
+    await expect(messageInput).toHaveValue(/nhash1/i, {timeout: 30000})
+
+    await messageInput.press("Enter")
+
+    const attachment = page.locator('[data-testid="hashtree-attachment"]').last()
+    await expect(attachment).toBeVisible({timeout: 30000})
+  })
+
+  test("can attach an image by pasting from clipboard", async ({page}) => {
+    test.setTimeout(60000)
+    await signUp(page)
+    await setupChatWithSelf(page)
+
+    const fixturePath = fileURLToPath(new URL("fixtures/test-blob.jpeg", import.meta.url))
+    const messageInput = page.getByPlaceholder("Message").last()
+    await messageInput.focus()
+    await dispatchFilePaste(messageInput, fixturePath, "image/jpeg")
+
+    await expect(messageInput).toHaveValue(/nhash1/i, {timeout: 30000})
+
+    await messageInput.press("Enter")
+
+    const attachment = page.locator('[data-testid="hashtree-attachment"]').last()
+    await expect(attachment).toBeVisible({timeout: 30000})
+  })
+
   test("can attach and display an image in DMs", async ({page}) => {
     test.setTimeout(60000)
     await signUp(page)

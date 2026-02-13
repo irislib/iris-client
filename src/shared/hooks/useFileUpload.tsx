@@ -34,7 +34,7 @@ export function useFileUpload({
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
-  const handleFileProcess = async (file: File): Promise<string | null> => {
+  const uploadFile = async (file: File): Promise<string | null> => {
     try {
       setUploading(true)
       setProgress(0)
@@ -67,7 +67,7 @@ export function useFileUpload({
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) {
-        handleFileProcess(file)
+        uploadFile(file)
       }
     }
     input.click()
@@ -75,6 +75,7 @@ export function useFileUpload({
 
   return {
     triggerUpload,
+    uploadFile,
     uploading,
     progress,
     error,

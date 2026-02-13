@@ -4,15 +4,19 @@ import {
   useEffect,
   useMemo,
   ChangeEvent,
+  ClipboardEvent as ReactClipboardEvent,
+  DragEvent as ReactDragEvent,
   KeyboardEvent as ReactKeyboardEvent,
 } from "react"
 import type {EncryptionMeta as BaseEncryptionMeta} from "@/types/global"
 import {useAutosizeTextarea} from "@/shared/hooks/useAutosizeTextarea"
+import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import EmojiButton from "@/shared/components/emoji/EmojiButton"
 import MessageFormReplyPreview from "./MessageFormReplyPreview"
 import MessageFormActionsMenu from "./MessageFormActionsMenu"
 import CashuSendDialog from "./CashuSendDialog"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
+import {processHashtreeFile} from "@/shared/upload/hashtree"
 import Icon from "@/shared/components/Icons/Icon"
 import {Link} from "@/navigation"
 import EmojiType from "@/types/emoji"
@@ -26,6 +30,7 @@ import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 import {createTypingThrottle} from "@/stores/typingIndicators"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
+import {useToastStore} from "@/stores/toast"
 
 interface MessageFormProps {
   id: string
@@ -40,6 +45,29 @@ interface MessageFormProps {
 // Extend EncryptionMeta locally to allow imetaTag
 interface EncryptionMetaWithImeta extends BaseEncryptionMeta {
   imetaTag?: string[]
+}
+
+const hasFileData = (dataTransfer: DataTransfer | null) => {
+  if (!dataTransfer) return false
+  return (
+    dataTransfer.files.length > 0 ||
+    Array.from(dataTransfer.types || []).includes("Files")
+  )
+}
+
+const getFirstFileFromTransfer = (dataTransfer: DataTransfer | null): File | null => {
+  if (!dataTransfer) return null
+  if (dataTransfer.files.length > 0) {
+    return dataTransfer.files[0]
+  }
+
+  for (const item of Array.from(dataTransfer.items || [])) {
+    if (item.kind !== "file") continue
+    const file = item.getAsFile()
+    if (file) return file
+  }
+
+  return null
 }
 
 const resolveDmExpirationOptions = (
@@ -70,6 +98,7 @@ const MessageForm = ({
 }: MessageFormProps) => {
   const {canSendPrivateMessages, appKeysManagerReady, sessionManagerReady} =
     useDevicesStore()
+  const {addToast} = useToastStore()
   const [newMessage, setNewMessage] = useState("")
   const [encryptionMetadata, setEncryptionMetadata] = useState<
     Map<string, EncryptionMetaWithImeta>
@@ -223,6 +252,64 @@ const MessageForm = ({
     textareaRef.current?.focus()
   }
 
+  // Check if recipient has app keys (only for DMs, not group chats)
+  const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(
+    isDM ? dmRecipientPubkey : undefined
+  )
+
+  // For private/group chats, check if device is registered
+  const isPrivateOrGroupChat = !isPublicChat || groupId
+  const isInitializing =
+    isPrivateOrGroupChat && (!appKeysManagerReady || !sessionManagerReady)
+  const needsSetup = isPrivateOrGroupChat && !isInitializing && !canSendPrivateMessages
+  const recipientNotSetup =
+    isDM && canSendPrivateMessages && recipientHasAppKeys === false
+  const isDisabled =
+    !!(isPrivateOrGroupChat && !canSendPrivateMessages) || recipientNotSetup
+
+  const fileUpload = useFileUpload({
+    onUpload: (url, metadata, encryptionMeta, imetaTag) => {
+      handleUpload(
+        url,
+        metadata,
+        encryptionMeta as EncryptionMetaWithImeta | undefined,
+        imetaTag
+      )
+    },
+    onError: (error) => {
+      const errorMsg =
+        error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message
+      addToast(`Upload failed: ${errorMsg}`, "error")
+    },
+    accept: isPublicChat ? "image/*,video/*" : "",
+    processFile: isPublicChat ? undefined : processHashtreeFile,
+  })
+
+  const handleAttachmentFile = (file: File) => {
+    if (isDisabled || fileUpload.uploading) return
+    void fileUpload.uploadFile(file)
+  }
+
+  const handleDragOver = (e: ReactDragEvent<HTMLElement>) => {
+    if (!hasFileData(e.dataTransfer)) return
+    e.preventDefault()
+  }
+
+  const handleDrop = (e: ReactDragEvent<HTMLElement>) => {
+    const file = getFirstFileFromTransfer(e.dataTransfer)
+    if (!file) return
+    e.preventDefault()
+    e.stopPropagation()
+    handleAttachmentFile(file)
+  }
+
+  const handlePaste = (e: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    const file = getFirstFileFromTransfer(e.clipboardData)
+    if (!file) return
+    e.preventDefault()
+    handleAttachmentFile(file)
+  }
+
   const handleCashuSendMessage = async (token: string) => {
     try {
       const sessionManager = getSessionManager()
@@ -263,23 +350,12 @@ const MessageForm = ({
     }
   }
 
-  // Check if recipient has app keys (only for DMs, not group chats)
-  const {hasAppKeys: recipientHasAppKeys} = useRecipientHasAppKeys(
-    isDM ? dmRecipientPubkey : undefined
-  )
-
-  // For private/group chats, check if device is registered
-  const isPrivateOrGroupChat = !isPublicChat || groupId
-  const isInitializing =
-    isPrivateOrGroupChat && (!appKeysManagerReady || !sessionManagerReady)
-  const needsSetup = isPrivateOrGroupChat && !isInitializing && !canSendPrivateMessages
-  const recipientNotSetup =
-    isDM && canSendPrivateMessages && recipientHasAppKeys === false
-  const isDisabled =
-    !!(isPrivateOrGroupChat && !canSendPrivateMessages) || recipientNotSetup
-
   return (
-    <footer className="fixed md:sticky bottom-0 w-full bg-base-200 relative pb-[env(safe-area-inset-bottom,0px)]">
+    <footer
+      className="fixed md:sticky bottom-0 w-full bg-base-200 relative pb-[env(safe-area-inset-bottom,0px)]"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {(isInitializing || needsSetup || recipientNotSetup) && (
         <div className="absolute bottom-full left-0 right-0 px-4 py-2 text-xs bg-base-200">
           {isInitializing && (
@@ -312,9 +388,9 @@ const MessageForm = ({
             isOpen={showActionsMenu}
             onClose={() => setShowActionsMenu(false)}
             onToggle={() => setShowActionsMenu(!showActionsMenu)}
-            onUpload={handleUpload}
+            onAttachmentClick={fileUpload.triggerUpload}
             onCashuSend={() => setShowCashuSend(true)}
-            useHashtreeAttachments={!isPublicChat}
+            attachmentDisabled={isDisabled || fileUpload.uploading}
           />
 
           <CashuSendDialog
@@ -333,6 +409,7 @@ const MessageForm = ({
                   value={newMessage}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
                   placeholder="Message"
                   className={`flex-1 textarea !text-left leading-tight resize-none py-2.5 min-h-[2.5rem] ${
                     newMessage.includes("\n") ? "rounded-lg" : "rounded-full"
