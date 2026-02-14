@@ -841,49 +841,10 @@ const ensureNdkConnected = async (): Promise<NDK> => {
   return ndkInstance
 }
 
-/**
- * Accept a link invite as the owner and publish the response event.
- */
-const acceptInviteAsCurrentUser = async (invite: Invite): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
-
-  const ndkInstance = await ensureNdkConnected()
-
-  const signer = ndkInstance.signer
-  if (!signer) {
-    throw new Error("No signer available to accept link invite")
-  }
-
-  const nostrSubscribe = getNostrSubscribe()
-  const encrypt = async (plaintext: string, pubkey: string) => {
-    const user = ndkInstance.getUser({pubkey})
-    return signer.encrypt(user, plaintext, "nip44")
-  }
-
-  const {event} = await invite.accept(nostrSubscribe, publicKey, encrypt, publicKey)
-
-  const ndkEvent = new NDKEvent(ndkInstance, event)
-  await ndkEvent.publish()
-}
-
-/**
- * Accept a link invite as the owner and publish the response event.
- */
-export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
-  const {linkedDevice} = useUserStore.getState()
-  if (linkedDevice) {
-    throw new Error("Linked devices cannot accept link invites")
-  }
-  await acceptInviteAsCurrentUser(invite)
-}
-
-/**
- * Accept a chat invite and publish the response event.
- */
-export const acceptChatInvite = async (invite: Invite): Promise<string> => {
+const acceptInviteViaSessionManager = async (
+  invite: Invite,
+  ownerPublicKey: string
+): Promise<string> => {
   const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
@@ -891,8 +852,33 @@ export const acceptChatInvite = async (invite: Invite): Promise<string> => {
 
   await ensureNdkConnected()
   const manager = await ensureSessionManager(publicKey)
-  const {ownerPublicKey} = await manager.acceptInvite(invite, {
-    ownerPublicKey: invite.ownerPubkey || invite.inviter,
+  const {ownerPublicKey: acceptedOwnerPublicKey} = await manager.acceptInvite(invite, {
+    ownerPublicKey,
   })
-  return ownerPublicKey
+  return acceptedOwnerPublicKey
+}
+
+/**
+ * Accept a link invite as the owner and publish the response event.
+ */
+export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
+  const {linkedDevice, publicKey} = useUserStore.getState()
+  if (!publicKey) {
+    throw new Error("No public key - user must be logged in")
+  }
+  if (linkedDevice) {
+    throw new Error("Linked devices cannot accept link invites")
+  }
+  if (invite.ownerPubkey && invite.ownerPubkey !== publicKey) {
+    throw new Error("Link invite is for a different account")
+  }
+
+  await acceptInviteViaSessionManager(invite, publicKey)
+}
+
+/**
+ * Accept a chat invite and publish the response event.
+ */
+export const acceptChatInvite = async (invite: Invite): Promise<string> => {
+  return acceptInviteViaSessionManager(invite, invite.ownerPubkey || invite.inviter)
 }
