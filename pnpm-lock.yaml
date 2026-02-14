@@ -110,8 +110,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: 0.0.64
-        version: 0.0.64(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
+        specifier: 0.0.65
+        version: 0.0.65(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -3506,7 +3506,7 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.64:
+  nostr-double-ratchet@0.0.65:
     resolution: {integrity: sha512-FjwM2tmAkGKNHqCFkYxZe4mCJ7p4R5jSOxW2+JgjJ7G8OJmKWpTqruoV07N45fczAcczazXWrZcKeQbSzAvRZA==}
 
   nostr-social-graph@1.0.33:
@@ -8473,7 +8473,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.64(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
+  nostr-double-ratchet@0.0.65(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.19.4(typescript@5.9.3)
     transitivePeerDependencies:

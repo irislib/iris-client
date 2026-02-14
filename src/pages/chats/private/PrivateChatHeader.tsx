@@ -12,6 +12,7 @@ import {confirm} from "@/utils/utils"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {DisappearingMessagesModal} from "../components/DisappearingMessagesModal"
 import {setDmDisappearingMessages} from "@/utils/disappearingMessages"
+import {deletePrivateChat} from "@/shared/services/chatDeletion"
 interface PrivateChatHeaderProps {
   id: string
   messages: SortedMap<string, MessageType>
@@ -36,7 +37,7 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
         console.error("Session manager not available")
         return
       }
-      await sessionManager.deleteUser(id)
+      await deletePrivateChat(sessionManager, id)
       await usePrivateMessagesStore.getState().removeSession(id)
       navigate("/chats")
     } catch (error) {
