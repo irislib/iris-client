@@ -110,8 +110,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: 0.0.62
-        version: 0.0.62(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
+        specifier: 0.0.64
+        version: 0.0.64(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -2906,7 +2906,7 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
 
   globals@13.24.0:
     resolution: {integrity: sha512-AhO5QUcj8llrbG09iWhPU2B204J1xnPeL8kQmVorSsy+Sjj1sk8gIyh6cUocGmH4L0UuhAJy+hJMRA4mgA4mFQ==}
@@ -3506,8 +3506,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.62:
-    resolution: {integrity: sha512-h5ppb0brGHU6BBWE06rK6wZ2AEcnYDXxrfxOvyqxeAcO12YF2fKep41GLDDAMofo1O5qq8caPJdoOl2/8/1vnQ==}
+  nostr-double-ratchet@0.0.64:
+    resolution: {integrity: sha512-FjwM2tmAkGKNHqCFkYxZe4mCJ7p4R5jSOxW2+JgjJ7G8OJmKWpTqruoV07N45fczAcczazXWrZcKeQbSzAvRZA==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -4617,6 +4617,7 @@ packages:
   whatwg-encoding@3.1.1:
     resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
     engines: {node: '>=18'}
+    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
 
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
@@ -8472,7 +8473,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.62(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
+  nostr-double-ratchet@0.0.64(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.19.4(typescript@5.9.3)
     transitivePeerDependencies:

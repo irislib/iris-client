@@ -831,6 +831,17 @@ export const listenForLinkInviteAcceptance = (
 }
 
 /**
+ * Ensure NDK has relay connections before publishing invite responses.
+ */
+const ensureNdkConnected = async (): Promise<NDK> => {
+  const ndkInstance = ndk()
+  if (ndkInstance.pool.connectedRelays().length === 0) {
+    await ndkInstance.pool.connect(5000)
+  }
+  return ndkInstance
+}
+
+/**
  * Accept a link invite as the owner and publish the response event.
  */
 const acceptInviteAsCurrentUser = async (invite: Invite): Promise<void> => {
@@ -839,10 +850,7 @@ const acceptInviteAsCurrentUser = async (invite: Invite): Promise<void> => {
     throw new Error("No public key - user must be logged in")
   }
 
-  const ndkInstance = ndk()
-  if (ndkInstance.pool.connectedRelays().length === 0) {
-    await ndkInstance.pool.connect(5000)
-  }
+  const ndkInstance = await ensureNdkConnected()
 
   const signer = ndkInstance.signer
   if (!signer) {
@@ -875,6 +883,16 @@ export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
 /**
  * Accept a chat invite and publish the response event.
  */
-export const acceptChatInvite = async (invite: Invite): Promise<void> => {
-  await acceptInviteAsCurrentUser(invite)
+export const acceptChatInvite = async (invite: Invite): Promise<string> => {
+  const {publicKey} = useUserStore.getState()
+  if (!publicKey) {
+    throw new Error("No public key - user must be logged in")
+  }
+
+  await ensureNdkConnected()
+  const manager = await ensureSessionManager(publicKey)
+  const {ownerPublicKey} = await manager.acceptInvite(invite, {
+    ownerPublicKey: invite.ownerPubkey || invite.inviter,
+  })
+  return ownerPublicKey
 }

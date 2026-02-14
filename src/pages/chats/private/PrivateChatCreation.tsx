@@ -31,9 +31,9 @@ const PrivateChatCreation = () => {
     if (!invite) return false
 
     try {
-      await acceptChatInvite(invite)
+      const ownerPubkey = await acceptChatInvite(invite)
       navigate("/chats/chat", {
-        state: {id: invite.inviter},
+        state: {id: ownerPubkey},
       })
       return true
     } catch (error) {
