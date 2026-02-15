@@ -62,19 +62,47 @@ describe("DoubleRatchetUserSearch", () => {
     if (!input) throw new Error("input not found")
 
     const pastedInvite = "https://iris.to/#invite"
-    const pasteEvent = new Event("paste", {bubbles: true, cancelable: true}) as Event & {
-      clipboardData?: {getData: (format: string) => string}
+    const inputEvent = new Event("input", {bubbles: true}) as Event & {
+      inputType?: string
     }
-    pasteEvent.clipboardData = {
-      getData: () => pastedInvite,
-    }
+    inputEvent.inputType = "insertFromPaste"
 
     await act(async () => {
-      input.dispatchEvent(pasteEvent)
+      input.value = pastedInvite
+      input.dispatchEvent(inputEvent)
       await Promise.resolve()
     })
 
     expect(onRawInputSubmit).toHaveBeenCalledTimes(1)
     expect(onRawInputSubmit).toHaveBeenCalledWith(pastedInvite)
+  })
+
+  it("does not submit raw input while typing normally", async () => {
+    const onRawInputSubmit = vi.fn().mockResolvedValue(true)
+
+    await act(async () => {
+      root.render(
+        React.createElement(DoubleRatchetUserSearch, {
+          onUserSelect: vi.fn(),
+          onRawInputSubmit,
+        })
+      )
+    })
+
+    const input = container.querySelector("input")
+    if (!input) throw new Error("input not found")
+
+    const inputEvent = new Event("input", {bubbles: true}) as Event & {
+      inputType?: string
+    }
+    inputEvent.inputType = "insertText"
+
+    await act(async () => {
+      input.value = "hello"
+      input.dispatchEvent(inputEvent)
+      await Promise.resolve()
+    })
+
+    expect(onRawInputSubmit).not.toHaveBeenCalled()
   })
 })

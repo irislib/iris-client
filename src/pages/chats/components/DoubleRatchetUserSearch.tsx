@@ -1,4 +1,4 @@
-import {useState, useEffect, type KeyboardEvent, type ClipboardEvent} from "react"
+import {useState, useEffect, type KeyboardEvent, type FormEvent} from "react"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {useDoubleRatchetUsers} from "../hooks/useDoubleRatchetUsers"
 import {DoubleRatchetUser} from "../utils/doubleRatchetUsers"
@@ -75,12 +75,14 @@ export const DoubleRatchetUserSearch = ({
     submitRawInput(searchInput)
   }
 
-  const handleInputPaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    const pasted =
-      event.clipboardData?.getData("text/plain") || event.clipboardData?.getData("text")
+  const handleInput = (event: FormEvent<HTMLInputElement>) => {
+    const value = event.currentTarget.value
+    handleSearchChange(value)
 
-    if (!pasted) return
-    submitRawInput(pasted)
+    const nativeEvent = event.nativeEvent as Event & {inputType?: string}
+    if (nativeEvent.inputType === "insertFromPaste") {
+      submitRawInput(value)
+    }
   }
 
   return (
@@ -91,9 +93,8 @@ export const DoubleRatchetUserSearch = ({
           className="input input-bordered w-full"
           placeholder={placeholder}
           value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          onInput={handleInput}
           onKeyDown={handleInputKeyDown}
-          onPaste={handleInputPaste}
         />
         {showCount && (
           <p className="text-sm text-base-content/70 mt-2">
