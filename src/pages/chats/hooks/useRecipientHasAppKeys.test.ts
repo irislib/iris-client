@@ -1,6 +1,9 @@
 import {describe, expect, it} from "vitest"
 
-import {hasExistingSessionWithRecipient} from "./useRecipientHasAppKeys"
+import {
+  computeTimeoutFallbackHasAppKeys,
+  hasExistingSessionWithRecipient,
+} from "./useRecipientHasAppKeys"
 
 type SessionStateLike = {
   theirCurrentNostrPublicKey?: string
@@ -95,5 +98,19 @@ describe("hasExistingSessionWithRecipient", () => {
     ])
 
     expect(hasExistingSessionWithRecipient(userRecords, "peer-pubkey")).toBe(false)
+  })
+})
+
+describe("computeTimeoutFallbackHasAppKeys", () => {
+  it("keeps explicit empty AppKeys as false even when we have a local session", () => {
+    expect(computeTimeoutFallbackHasAppKeys(false, true)).toBe(false)
+  })
+
+  it("uses local session as fallback when no AppKeys response arrived yet", () => {
+    expect(computeTimeoutFallbackHasAppKeys(null, true)).toBe(true)
+  })
+
+  it("returns false when no AppKeys response and no local session", () => {
+    expect(computeTimeoutFallbackHasAppKeys(null, false)).toBe(false)
   })
 })

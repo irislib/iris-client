@@ -24,6 +24,16 @@ type SessionUserRecordLike = {
 
 type SessionUserRecordsLike = Map<string, SessionUserRecordLike>
 
+export const computeTimeoutFallbackHasAppKeys = (
+  current: boolean | null,
+  hasExistingSession: boolean
+): boolean => {
+  if (current !== null) {
+    return current
+  }
+  return hasExistingSession
+}
+
 export const hasExistingSessionWithRecipient = (
   userRecords: SessionUserRecordsLike | null | undefined,
   recipientPubkey: string
@@ -78,25 +88,23 @@ export const useRecipientHasAppKeys = (
       return
     }
 
+    let hasExistingSession = false
     if (sessionManagerReady) {
       try {
         const sessionManager = getSessionManager()
-        if (
-          sessionManager &&
-          hasExistingSessionWithRecipient(
+        if (sessionManager) {
+          hasExistingSession = hasExistingSessionWithRecipient(
             sessionManager.getUserRecords() as SessionUserRecordsLike,
             recipientPubkey
           )
-        ) {
-          setHasAppKeys(true)
-          return
         }
       } catch {
         // Ignore local session lookup issues and fall back to AppKeys fetch.
       }
     }
 
-    setHasAppKeys(null)
+    // Existing session is optimistic fallback, but explicit AppKeys response overrides this.
+    setHasAppKeys(hasExistingSession ? true : null)
 
     const unsubscribe = AppKeys.fromUser(
       recipientPubkey,
@@ -109,7 +117,9 @@ export const useRecipientHasAppKeys = (
 
     // Set to false after timeout if no response
     const timeout = setTimeout(() => {
-      setHasAppKeys((current) => (current === null ? false : current))
+      setHasAppKeys((current) =>
+        computeTimeoutFallbackHasAppKeys(current, hasExistingSession)
+      )
     }, 3000)
 
     return () => {
