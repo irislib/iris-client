@@ -1,6 +1,10 @@
 import {useEffect, useState} from "react"
 import {AppKeys} from "nostr-double-ratchet"
-import {getNostrSubscribe, getSessionManager} from "@/shared/services/PrivateChats"
+import {
+  ensureSessionManager,
+  getNostrSubscribe,
+  getSessionManager,
+} from "@/shared/services/PrivateChats"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 
@@ -32,6 +36,16 @@ export const computeTimeoutFallbackHasAppKeys = (
     return current
   }
   return hasExistingSession
+}
+
+export const applySessionFallbackHasAppKeys = (
+  current: boolean | null,
+  hasExistingSession: boolean
+): boolean | null => {
+  if (current !== null) {
+    return current
+  }
+  return hasExistingSession ? true : null
 }
 
 export const hasExistingSessionWithRecipient = (
@@ -74,8 +88,7 @@ export const useRecipientHasAppKeys = (
 ): {hasAppKeys: boolean | null} => {
   const [hasAppKeys, setHasAppKeys] = useState<boolean | null>(null)
   const myPubkey = useUserStore((state) => state.publicKey)
-  const {hasLocalAppKeys, isCurrentDeviceRegistered, sessionManagerReady} =
-    useDevicesStore()
+  const {hasLocalAppKeys, isCurrentDeviceRegistered} = useDevicesStore()
 
   useEffect(() => {
     if (!recipientPubkey) {
@@ -88,23 +101,42 @@ export const useRecipientHasAppKeys = (
       return
     }
 
+    let disposed = false
     let hasExistingSession = false
-    if (sessionManagerReady) {
-      try {
-        const sessionManager = getSessionManager()
-        if (sessionManager) {
-          hasExistingSession = hasExistingSessionWithRecipient(
-            sessionManager.getUserRecords() as SessionUserRecordsLike,
-            recipientPubkey
-          )
-        }
-      } catch {
-        // Ignore local session lookup issues and fall back to AppKeys fetch.
+
+    try {
+      const sessionManager = getSessionManager()
+      if (sessionManager) {
+        hasExistingSession = hasExistingSessionWithRecipient(
+          sessionManager.getUserRecords() as SessionUserRecordsLike,
+          recipientPubkey
+        )
       }
+    } catch {
+      // Ignore local session lookup issues and fall back to async check below.
     }
 
     // Existing session is optimistic fallback, but explicit AppKeys response overrides this.
     setHasAppKeys(hasExistingSession ? true : null)
+
+    void (async () => {
+      if (!myPubkey) return
+
+      try {
+        const sessionManager = await ensureSessionManager(myPubkey)
+        if (disposed) return
+
+        hasExistingSession = hasExistingSessionWithRecipient(
+          sessionManager.getUserRecords() as SessionUserRecordsLike,
+          recipientPubkey
+        )
+        setHasAppKeys((current) =>
+          applySessionFallbackHasAppKeys(current, hasExistingSession)
+        )
+      } catch {
+        // Ignore async init errors and rely on AppKeys subscription / timeout fallback.
+      }
+    })()
 
     const unsubscribe = AppKeys.fromUser(
       recipientPubkey,
@@ -123,16 +155,11 @@ export const useRecipientHasAppKeys = (
     }, 3000)
 
     return () => {
+      disposed = true
       unsubscribe()
       clearTimeout(timeout)
     }
-  }, [
-    recipientPubkey,
-    myPubkey,
-    hasLocalAppKeys,
-    isCurrentDeviceRegistered,
-    sessionManagerReady,
-  ])
+  }, [recipientPubkey, myPubkey, hasLocalAppKeys, isCurrentDeviceRegistered])
 
   return {hasAppKeys}
 }

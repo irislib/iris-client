@@ -9,9 +9,9 @@ const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 const AUTO_REGISTER_TIMEOUT_MS = 2000
 
 export const autoRegisterDevice = async () => {
-  const deviceState = useDevicesStore.getState()
-  if (!deviceState.pendingAutoRegistration) return
-  deviceState.setPendingAutoRegistration(false)
+  const initialDeviceState = useDevicesStore.getState()
+  if (!initialDeviceState.pendingAutoRegistration) return
+  initialDeviceState.setPendingAutoRegistration(false)
 
   const {publicKey, linkedDevice} = useUserStore.getState()
   if (!publicKey || linkedDevice) return
@@ -22,7 +22,8 @@ export const autoRegisterDevice = async () => {
     return
   }
 
-  if (deviceState.hasLocalAppKeys || deviceState.isCurrentDeviceRegistered) {
+  const currentDeviceState = useDevicesStore.getState()
+  if (currentDeviceState.isCurrentDeviceRegistered) {
     return
   }
 

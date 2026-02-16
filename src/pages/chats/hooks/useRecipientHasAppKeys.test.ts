@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+  applySessionFallbackHasAppKeys,
   computeTimeoutFallbackHasAppKeys,
   hasExistingSessionWithRecipient,
 } from "./useRecipientHasAppKeys"
@@ -112,5 +113,19 @@ describe("computeTimeoutFallbackHasAppKeys", () => {
 
   it("returns false when no AppKeys response and no local session", () => {
     expect(computeTimeoutFallbackHasAppKeys(null, false)).toBe(false)
+  })
+})
+
+describe("applySessionFallbackHasAppKeys", () => {
+  it("does not override explicit empty AppKeys false", () => {
+    expect(applySessionFallbackHasAppKeys(false, true)).toBe(false)
+  })
+
+  it("converts unknown state to true when local session exists", () => {
+    expect(applySessionFallbackHasAppKeys(null, true)).toBe(true)
+  })
+
+  it("keeps unknown state when no local session exists", () => {
+    expect(applySessionFallbackHasAppKeys(null, false)).toBe(null)
   })
 })

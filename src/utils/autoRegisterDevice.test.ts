@@ -76,14 +76,14 @@ describe("autoRegisterDevice", () => {
     expect(registerDevice).not.toHaveBeenCalled()
   })
 
-  it("skips when hasLocalAppKeys is true", async () => {
+  it("registers when hasLocalAppKeys is true but current device is not registered", async () => {
     useDevicesStore.getState().setPendingAutoRegistration(true)
     useDevicesStore.setState({hasLocalAppKeys: true})
     useUserStore.setState({publicKey: "abc123", privateKey: "def456"})
 
     await autoRegisterDevice()
 
-    expect(registerDevice).not.toHaveBeenCalled()
+    expect(registerDevice).toHaveBeenCalledWith(2000)
   })
 
   it("skips for linked devices", async () => {
