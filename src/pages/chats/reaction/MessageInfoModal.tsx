@@ -4,12 +4,48 @@ import classNames from "classnames"
 import Modal from "@/shared/components/ui/Modal"
 import {ndk} from "@/utils/ndk"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {Name} from "@/shared/components/user/Name"
 import {nip19} from "nostr-tools"
 import {useRebroadcast} from "@/shared/hooks/useRebroadcast"
 import {
   formatDateTimeMilliseconds,
   formatDateTimeSeconds,
 } from "@/pages/chats/utils/formatDateTime"
+
+type ReceiptRecipient = {
+  pubkey: string
+  timestamp: number
+}
+
+const normalizeReceiptRecipients = (
+  recipients?: ReceiptRecipient[]
+): ReceiptRecipient[] => {
+  if (!recipients || recipients.length === 0) return []
+
+  const byPubkey = new Map<string, ReceiptRecipient>()
+  for (const recipient of recipients) {
+    const existing = byPubkey.get(recipient.pubkey)
+    if (!existing || recipient.timestamp < existing.timestamp) {
+      byPubkey.set(recipient.pubkey, recipient)
+    }
+  }
+
+  return Array.from(byPubkey.values()).sort((a, b) => {
+    if (a.timestamp === b.timestamp) {
+      return a.pubkey.localeCompare(b.pubkey)
+    }
+    return a.timestamp - b.timestamp
+  })
+}
+
+const formatPubkeyLabel = (pubkey: string) => {
+  try {
+    const npub = nip19.npubEncode(pubkey)
+    return `${npub.slice(0, 16)}...${npub.slice(-6)}`
+  } catch {
+    return `${pubkey.slice(0, 12)}...${pubkey.slice(-6)}`
+  }
+}
 
 type MessageInfoModalProps = {
   isOpen: boolean
@@ -107,15 +143,27 @@ export const MessageInfoModal = ({
           status?: string
           deliveredAt?: number
           seenAt?: number
+          deliveredTo?: ReceiptRecipient[]
+          seenBy?: ReceiptRecipient[]
         }
       | undefined
 
     const status = receiptFields?.status
     const deliveredAt = receiptFields?.deliveredAt
     const seenAt = receiptFields?.seenAt
+    const deliveredTo = normalizeReceiptRecipients(receiptFields?.deliveredTo)
+    const seenBy = normalizeReceiptRecipients(receiptFields?.seenBy)
 
     // If we have absolutely no receipt metadata, skip the section.
-    if (!status && !deliveredAt && !seenAt) return null
+    if (
+      !status &&
+      !deliveredAt &&
+      !seenAt &&
+      deliveredTo.length === 0 &&
+      seenBy.length === 0
+    ) {
+      return null
+    }
 
     const deliveredText = (() => {
       if (deliveredAt) return formatDateTimeSeconds(deliveredAt)
@@ -130,12 +178,58 @@ export const MessageInfoModal = ({
     })()
 
     return (
-      <div>
+      <div className="space-y-3">
         <p className="text-sm text-base-content/60 mb-2">Receipts:</p>
         <div className="text-sm font-mono space-y-1">
           <div>Delivered: {deliveredText}</div>
           <div>Seen: {seenText}</div>
         </div>
+        {deliveredTo.length > 0 && (
+          <div>
+            <p className="text-sm text-base-content/60 mb-2">Delivered To:</p>
+            <div className="space-y-2">
+              {deliveredTo.map((recipient) => (
+                <div
+                  key={recipient.pubkey}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <Name pubKey={recipient.pubkey} className="text-sm" />
+                    <p className="text-[11px] font-mono text-base-content/60 truncate">
+                      {formatPubkeyLabel(recipient.pubkey)}
+                    </p>
+                  </div>
+                  <p className="text-[11px] font-mono text-base-content/60 shrink-0">
+                    {formatDateTimeMilliseconds(recipient.timestamp)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {seenBy.length > 0 && (
+          <div>
+            <p className="text-sm text-base-content/60 mb-2">Seen By:</p>
+            <div className="space-y-2">
+              {seenBy.map((recipient) => (
+                <div
+                  key={recipient.pubkey}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0">
+                    <Name pubKey={recipient.pubkey} className="text-sm" />
+                    <p className="text-[11px] font-mono text-base-content/60 truncate">
+                      {formatPubkeyLabel(recipient.pubkey)}
+                    </p>
+                  </div>
+                  <p className="text-[11px] font-mono text-base-content/60 shrink-0">
+                    {formatDateTimeMilliseconds(recipient.timestamp)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   })()

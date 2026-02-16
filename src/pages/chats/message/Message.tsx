@@ -21,6 +21,14 @@ import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {getExpirationLabel} from "@/utils/expiration"
 
 export type MessageType = Rumor & {
+  deliveredTo?: Array<{
+    pubkey: string
+    timestamp: number
+  }>
+  seenBy?: Array<{
+    pubkey: string
+    timestamp: number
+  }>
   reactions?: Record<string, string>
   nostrEventId?: string
   sentToRelays?: boolean

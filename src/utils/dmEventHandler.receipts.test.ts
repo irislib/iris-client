@@ -188,6 +188,13 @@ describe("dmEventHandler receipts", () => {
     expect(stored?.status).toBe("delivered")
     expect(stored?.deliveredAt).toBe(deliveredAt)
     expect(stored?.seenAt).toBeUndefined()
+    expect(stored?.deliveredTo).toEqual([
+      {
+        pubkey: THEIR_PUBKEY,
+        timestamp: deliveredAt,
+      },
+    ])
+    expect(stored?.seenBy).toBeUndefined()
 
     const seenAt = deliveredAt + 1000
     capturedCallback?.(
@@ -212,6 +219,18 @@ describe("dmEventHandler receipts", () => {
     expect(stored?.status).toBe("seen")
     expect(stored?.deliveredAt).toBe(deliveredAt)
     expect(stored?.seenAt).toBe(seenAt)
+    expect(stored?.deliveredTo).toEqual([
+      {
+        pubkey: THEIR_PUBKEY,
+        timestamp: deliveredAt,
+      },
+    ])
+    expect(stored?.seenBy).toEqual([
+      {
+        pubkey: THEIR_PUBKEY,
+        timestamp: seenAt,
+      },
+    ])
   })
 
   it("marks incoming messages seen and updates lastSeen when seen receipt comes from own session", async () => {

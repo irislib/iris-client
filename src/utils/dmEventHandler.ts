@@ -40,6 +40,36 @@ const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 let unsubscribeSessionEvents: (() => void) | null = null
 
+const upsertReceiptRecipient = (
+  existing:
+    | Array<{
+        pubkey: string
+        timestamp: number
+      }>
+    | undefined,
+  pubkey: string,
+  timestamp: number
+) => {
+  const next = existing ? [...existing] : []
+  const existingIndex = next.findIndex((entry) => entry.pubkey === pubkey)
+  if (existingIndex === -1) {
+    next.push({pubkey, timestamp})
+  } else {
+    const current = next[existingIndex]
+    // Keep the earliest receipt timestamp for each user.
+    if (timestamp < current.timestamp) {
+      next[existingIndex] = {...current, timestamp}
+    }
+  }
+
+  next.sort((a, b) => {
+    if (a.timestamp === b.timestamp) return a.pubkey.localeCompare(b.pubkey)
+    return a.timestamp - b.timestamp
+  })
+
+  return next
+}
+
 export const cleanupSessionEventListener = () => {
   unsubscribeSessionEvents?.()
 }
@@ -352,10 +382,25 @@ export const attachSessionEventListener = () => {
 
               if (receipt.type === "delivered") {
                 if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
+                updates.deliveredTo = upsertReceiptRecipient(
+                  existing.deliveredTo,
+                  effectiveOwner,
+                  receiptTimestamp
+                )
               } else if (receipt.type === "seen") {
                 if (!existing.seenAt) updates.seenAt = receiptTimestamp
                 // Seen implies delivered, and older DB rows may have status without timestamp.
                 if (!existing.deliveredAt) updates.deliveredAt = receiptTimestamp
+                updates.deliveredTo = upsertReceiptRecipient(
+                  existing.deliveredTo,
+                  effectiveOwner,
+                  receiptTimestamp
+                )
+                updates.seenBy = upsertReceiptRecipient(
+                  existing.seenBy,
+                  effectiveOwner,
+                  receiptTimestamp
+                )
                 if (isOwnDevice) {
                   latestSeenIncomingTimestamp = Math.max(
                     latestSeenIncomingTimestamp,
