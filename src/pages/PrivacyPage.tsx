@@ -61,11 +61,11 @@ export default function PrivacyPage() {
               <p>
                 Iris is open source. Verify our privacy claims at{" "}
                 <a
-                  href="https://github.com/irislib/iris-client"
+                  href="https://files.iris.to/#/npub1xndmdgymsf4a34rzr7346vp8qcptxf75pjqweh8naa8rklgxpfqqmfjtce/iris-client"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  github.com/irislib/iris-client
+                  files.iris.to
                 </a>
               </p>
 

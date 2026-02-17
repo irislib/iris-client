@@ -1,7 +1,7 @@
 import {
   RiInformationLine,
   RiMessage3Line,
-  RiGithubLine,
+  RiCodeLine,
   RiRefreshLine,
   RiUserFollowLine,
   RiFileTextLine,
@@ -189,7 +189,7 @@ export const AboutPage = () => {
                   }}
                   className="flex items-center gap-1 w-fit"
                 >
-                  <RiGithubLine className="inline" /> Source code
+                  <RiCodeLine className="inline" /> Source code
                 </a>
               </p>
 
