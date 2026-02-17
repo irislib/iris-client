@@ -188,12 +188,17 @@ export const usePrivateMessagesStore = create<PrivateMessagesStore>((set, get) =
       await rehydration
       set((state) => {
         const events = new Map(state.events)
-        const eventMap = events.get(chatId)
-        if (eventMap) {
-          const existingMessage = eventMap.get(messageId)
+        const currentEventMap = events.get(chatId)
+        if (currentEventMap) {
+          const existingMessage = currentEventMap.get(messageId)
           if (existingMessage) {
+            const eventMap = new SortedMap<string, MessageType>(
+              Array.from(currentEventMap.entries()),
+              comparator
+            )
             const updatedMessage = {...existingMessage, ...updates}
             eventMap.set(messageId, updatedMessage)
+            events.set(chatId, eventMap)
             messageRepository.save(chatId, updatedMessage)
           }
         }
