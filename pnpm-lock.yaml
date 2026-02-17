@@ -105,8 +105,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: link:../nostr-double-ratchet/ts
-        version: link:../nostr-double-ratchet/ts
+        specifier: 0.0.72
+        version: 0.0.72(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -3505,6 +3505,9 @@ packages:
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
+
+  nostr-double-ratchet@0.0.72:
+    resolution: {integrity: sha512-ZmfIjEmllUOvNoAibpggGqI22It3SwACuWEVPiYYClbbNloOS0hdmn5N/W8R4Vm6f9d47cTlKpkZncCLZht+pQ==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -8456,6 +8459,12 @@ snapshots:
       vm-browserify: 1.1.2
 
   normalize-path@3.0.0: {}
+
+  nostr-double-ratchet@0.0.72(typescript@5.9.3):
+    dependencies:
+      nostr-tools: 2.23.1(typescript@5.9.3)
+    transitivePeerDependencies:
+      - typescript
 
   nostr-social-graph@1.0.33:
     dependencies:
