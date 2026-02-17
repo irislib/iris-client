@@ -4,6 +4,7 @@ import classNames from "classnames"
 import Modal from "@/shared/components/ui/Modal"
 import {ndk} from "@/utils/ndk"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {Avatar} from "@/shared/components/user/Avatar"
 import {Name} from "@/shared/components/user/Name"
 import {nip19} from "nostr-tools"
 import {useRebroadcast} from "@/shared/hooks/useRebroadcast"
@@ -11,32 +12,7 @@ import {
   formatDateTimeMilliseconds,
   formatDateTimeSeconds,
 } from "@/pages/chats/utils/formatDateTime"
-
-type ReceiptRecipient = {
-  pubkey: string
-  timestamp: number
-}
-
-const normalizeReceiptRecipients = (
-  recipients?: ReceiptRecipient[]
-): ReceiptRecipient[] => {
-  if (!recipients || recipients.length === 0) return []
-
-  const byPubkey = new Map<string, ReceiptRecipient>()
-  for (const recipient of recipients) {
-    const existing = byPubkey.get(recipient.pubkey)
-    if (!existing || recipient.timestamp < existing.timestamp) {
-      byPubkey.set(recipient.pubkey, recipient)
-    }
-  }
-
-  return Array.from(byPubkey.values()).sort((a, b) => {
-    if (a.timestamp === b.timestamp) {
-      return a.pubkey.localeCompare(b.pubkey)
-    }
-    return a.timestamp - b.timestamp
-  })
-}
+import {type ReceiptRecipient, getReceiptRecipientsForDisplay} from "./receiptRecipients"
 
 const formatPubkeyLabel = (pubkey: string) => {
   try {
@@ -151,8 +127,10 @@ export const MessageInfoModal = ({
     const status = receiptFields?.status
     const deliveredAt = receiptFields?.deliveredAt
     const seenAt = receiptFields?.seenAt
-    const deliveredTo = normalizeReceiptRecipients(receiptFields?.deliveredTo)
-    const seenBy = normalizeReceiptRecipients(receiptFields?.seenBy)
+    const {deliveredTo, seenBy} = getReceiptRecipientsForDisplay({
+      deliveredTo: receiptFields?.deliveredTo,
+      seenBy: receiptFields?.seenBy,
+    })
 
     // If we have absolutely no receipt metadata, skip the section.
     if (
@@ -193,11 +171,19 @@ export const MessageInfoModal = ({
                   key={recipient.pubkey}
                   className="flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0">
-                    <Name pubKey={recipient.pubkey} className="text-sm" />
-                    <p className="text-[11px] font-mono text-base-content/60 truncate">
-                      {formatPubkeyLabel(recipient.pubkey)}
-                    </p>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <Avatar
+                      pubKey={recipient.pubkey}
+                      width={20}
+                      showBadge={false}
+                      showTooltip={false}
+                    />
+                    <div className="min-w-0">
+                      <Name pubKey={recipient.pubkey} className="text-sm" />
+                      <p className="text-[11px] font-mono text-base-content/60 truncate">
+                        {formatPubkeyLabel(recipient.pubkey)}
+                      </p>
+                    </div>
                   </div>
                   <p className="text-[11px] font-mono text-base-content/60 shrink-0">
                     {formatDateTimeMilliseconds(recipient.timestamp)}
@@ -216,11 +202,19 @@ export const MessageInfoModal = ({
                   key={recipient.pubkey}
                   className="flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0">
-                    <Name pubKey={recipient.pubkey} className="text-sm" />
-                    <p className="text-[11px] font-mono text-base-content/60 truncate">
-                      {formatPubkeyLabel(recipient.pubkey)}
-                    </p>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <Avatar
+                      pubKey={recipient.pubkey}
+                      width={20}
+                      showBadge={false}
+                      showTooltip={false}
+                    />
+                    <div className="min-w-0">
+                      <Name pubKey={recipient.pubkey} className="text-sm" />
+                      <p className="text-[11px] font-mono text-base-content/60 truncate">
+                        {formatPubkeyLabel(recipient.pubkey)}
+                      </p>
+                    </div>
                   </div>
                   <p className="text-[11px] font-mono text-base-content/60 shrink-0">
                     {formatDateTimeMilliseconds(recipient.timestamp)}
