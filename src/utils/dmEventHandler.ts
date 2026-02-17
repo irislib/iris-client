@@ -81,11 +81,10 @@ export const attachSessionEventListener = () => {
       error("Session manager not available")
       return
     }
-    void sessionManager
-      .init()
-      .then(() => {
-        unsubscribeSessionEvents?.()
-        unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey) => {
+    // Attach the callback BEFORE init() so that events decrypted during
+    // init (cached relay events) are not silently dropped.
+    unsubscribeSessionEvents?.()
+    unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey) => {
           const {publicKey} = useUserStore.getState()
           if (!publicKey) return
 
@@ -523,11 +522,11 @@ export const attachSessionEventListener = () => {
           if (!isMine && !isReaction && sendDeliveryReceipts && isChatAccepted) {
             sessionManager.sendReceipt(from, "delivered", [event.id]).catch(() => {})
           }
-        })
-      })
-      .catch((err) => {
-        error("Failed to initialize session manager (possibly corrupt data):", err)
-      })
+    })
+
+    void sessionManager.init().catch((err: unknown) => {
+      error("Failed to initialize session manager (possibly corrupt data):", err)
+    })
   } catch (err) {
     error("Failed to attach session event listener", err)
   }
