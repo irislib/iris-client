@@ -1,12 +1,12 @@
-import { NDKEvent } from "@/lib/ndk"
-import { ensureSessionManager } from "@/shared/services/PrivateChats"
-import { LocalForageStorageAdapter } from "@/session/StorageAdapter"
-import { useDevicesStore } from "@/stores/devices"
-import { type Group, useGroupsStore } from "@/stores/groups"
-import { usePrivateMessagesStore } from "@/stores/privateMessages"
-import { useUserStore } from "@/stores/user"
-import { ndk } from "@/utils/ndk"
-import { getTag } from "@/utils/tagUtils"
+import {NDKEvent} from "@/lib/ndk"
+import {ensureSessionManager} from "@/shared/services/PrivateChats"
+import {LocalForageStorageAdapter} from "@/session/StorageAdapter"
+import {useDevicesStore} from "@/stores/devices"
+import {type Group, useGroupsStore} from "@/stores/groups"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useUserStore} from "@/stores/user"
+import {ndk} from "@/utils/ndk"
+import {getTag} from "@/utils/tagUtils"
 import {
   GroupManager,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
@@ -53,7 +53,7 @@ function createNostrSubscribe(): NostrSubscribe {
     sub.on("event", (event: unknown) => {
       const raw =
         event && typeof event === "object" && "rawEvent" in event
-          ? (event as { rawEvent?: () => unknown }).rawEvent?.()
+          ? (event as {rawEvent?: () => unknown}).rawEvent?.()
           : event
       if (!raw || typeof raw !== "object") return
       onEvent(raw as any)
@@ -69,7 +69,7 @@ function ensurePlaceholderGroup(
   senderOwnerPubkey?: string
 ): void {
   if (!groupId) return
-  const { groups, addGroup } = useGroupsStore.getState()
+  const {groups, addGroup} = useGroupsStore.getState()
   if (groups[groupId]) return
 
   const members = [myPubkey]
@@ -190,13 +190,15 @@ async function ensureGroupForTransport(
     await upsertGroupForTransport(toGroupData(existing))
     return
   }
-  await upsertGroupForTransport(buildFallbackGroupData(groupId, groupMembers, senderPubKey))
+  await upsertGroupForTransport(
+    buildFallbackGroupData(groupId, groupMembers, senderPubKey)
+  )
 }
 
 function maybeDistributionGroupId(event: Rumor): string | undefined {
   if (event.kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) return undefined
   try {
-    const parsed = JSON.parse(event.content) as { groupId?: unknown }
+    const parsed = JSON.parse(event.content) as {groupId?: unknown}
     if (typeof parsed.groupId === "string" && parsed.groupId) {
       return parsed.groupId
     }
@@ -240,8 +242,8 @@ export async function sendGroupEventViaTransport(options: {
   kind: number
   content: string
   tags?: string[][]
-}): Promise<{ inner: Rumor; outerEventId?: string }> {
-  const { groupId, groupMembers, senderPubKey, kind, content, tags } = options
+}): Promise<{inner: Rumor; outerEventId?: string}> {
+  const {groupId, groupMembers, senderPubKey, kind, content, tags} = options
   const manager = ensureGroupManager()
   if (!manager) {
     throw new Error("GroupManager is not ready")
@@ -282,7 +284,7 @@ export async function rotateGroupSenderKey(options: {
   groupMembers: string[]
   senderPubKey: string
 }): Promise<void> {
-  const { groupId, groupMembers, senderPubKey } = options
+  const {groupId, groupMembers, senderPubKey} = options
   const manager = ensureGroupManager()
   if (!manager) return
 

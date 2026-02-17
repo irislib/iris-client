@@ -117,11 +117,9 @@ describe("PrivateChats invite acceptance", () => {
   })
 
   it("acceptLinkInvite uses SessionManager.acceptInvite with current owner pubkey", async () => {
-    const {initDelegateManager, activateDevice, acceptLinkInvite} =
-      await import("./PrivateChats")
+    const {initPrivateMessaging, acceptLinkInvite} = await import("./PrivateChats")
 
-    await initDelegateManager()
-    await activateDevice(mocks.ownerPubkey)
+    await initPrivateMessaging(mocks.ownerPubkey)
 
     const invite = {
       inviter: mocks.devicePubkey,

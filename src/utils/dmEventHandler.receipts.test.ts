@@ -31,9 +31,7 @@ vi.mock("./socialGraph", () => ({
   }),
 }))
 
-vi.mock("@/shared/services/PrivateChats", () => ({
-  getSessionManager: () => sessionManager,
-}))
+vi.mock("@/shared/services/PrivateChats", () => ({}))
 
 import {attachSessionEventListener, cleanupSessionEventListener} from "./dmEventHandler"
 
@@ -63,7 +61,7 @@ describe("dmEventHandler receipts", () => {
   it("does not send delivery receipts when disabled", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: false})
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -88,7 +86,7 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
     isFollowing.mockReturnValue(false)
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -121,7 +119,7 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
     isFollowing.mockReturnValue(true)
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -145,7 +143,7 @@ describe("dmEventHandler receipts", () => {
   })
 
   it("stores delivered/seen timestamps from receipt events for our messages", async () => {
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -234,7 +232,7 @@ describe("dmEventHandler receipts", () => {
   })
 
   it("marks incoming messages seen and updates lastSeen when seen receipt comes from own session", async () => {
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -289,7 +287,7 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({receiveMessageRequests: false})
     isFollowing.mockReturnValue(false)
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(
@@ -313,7 +311,7 @@ describe("dmEventHandler receipts", () => {
     isFollowing.mockReturnValue(false)
     useMessageRequestsStore.getState().acceptChat(THEIR_PUBKEY)
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(

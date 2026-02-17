@@ -37,7 +37,9 @@ const PrivateChatCreation = () => {
       })
       return true
     } catch (error) {
-      setInviteError(error instanceof Error ? error.message : "Failed to accept chat invite")
+      setInviteError(
+        error instanceof Error ? error.message : "Failed to accept chat invite"
+      )
       return true
     }
   }

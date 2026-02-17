@@ -19,6 +19,8 @@ import {useDevicesStore} from "../../stores/devices"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {attachSessionEventListener} from "@/utils/dmEventHandler"
+import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -133,8 +135,7 @@ let sessionManager: SessionManager | null = null
 // Track initialization promises
 let appKeysInitPromise: Promise<void> | null = null
 let delegateInitPromise: Promise<void> | null = null
-let sessionManagerInitPromise: Promise<void> | null = null
-let sessionManagerReadyPromise: Promise<void> | null = null
+let privateMessagingPromise: Promise<SessionManager> | null = null
 
 /**
  * Get the DelegateManager singleton.
@@ -208,25 +209,39 @@ export const initDelegateManager = async (): Promise<void> => {
 }
 
 /**
- * Activate this device with the given owner pubkey.
- * Creates the SessionManager after activation.
+ * Single entry point for private messaging initialization.
+ * Initialises DelegateManager, activates the device, creates SessionManager,
+ * attaches event listeners, then runs sessionManager.init().
+ *
+ * Idempotent — returns the same promise if already in-flight.
  */
-export const activateDevice = async (ownerPubkey: string): Promise<void> => {
-  if (sessionManagerInitPromise) return sessionManagerInitPromise
+export const initPrivateMessaging = async (
+  ownerPubkey: string
+): Promise<SessionManager> => {
+  if (!ownerPubkey) throw new Error("Owner pubkey required")
 
-  sessionManagerInitPromise = (async () => {
-    if (!delegateManager) {
-      throw new Error("DelegateManager not initialized")
-    }
+  if (privateMessagingPromise) return privateMessagingPromise
+
+  privateMessagingPromise = (async () => {
+    await initDelegateManager()
+    if (!delegateManager) throw new Error("DelegateManager not initialized")
 
     await delegateManager.activate(ownerPubkey)
     sessionManager = delegateManager.createSessionManager(new LocalForageStorageAdapter())
-    sessionManagerReadyPromise = null
 
+    // Attach listeners BEFORE init — events arrive during init's loadAllUserRecords
+    attachSessionEventListener(sessionManager)
+    attachGroupMessageListener()
+
+    await sessionManager.init()
     log("Device activated for owner:", ownerPubkey)
+    return sessionManager
   })()
 
-  await sessionManagerInitPromise
+  privateMessagingPromise.catch(() => {
+    privateMessagingPromise = null
+  })
+  return privateMessagingPromise
 }
 
 /**
@@ -239,10 +254,7 @@ export const getSessionManager = (): SessionManager | null => {
 
 /**
  * Ensure a SessionManager is available for the given owner pubkey.
- *
- * This is useful in cases where the app has reloaded and startup initialization
- * (initDelegateManager + activateDevice) may still be in-flight when a feature
- * tries to send private/group-control events.
+ * Delegates to initPrivateMessaging (idempotent).
  */
 export const ensureSessionManager = async (
   ownerPubkey: string
@@ -250,23 +262,7 @@ export const ensureSessionManager = async (
   if (!ownerPubkey) {
     throw new Error("Owner pubkey required to initialize SessionManager")
   }
-
-  if (!sessionManagerInitPromise && !sessionManager) {
-    // Kick off initialization ourselves (safe to call multiple times).
-    await initDelegateManager()
-    await activateDevice(ownerPubkey)
-  }
-
-  const mgr = await waitForSessionManager()
-
-  // SessionManager.init() is not concurrency-safe (it flips an `initialized` flag early),
-  // so gate it behind our own promise to ensure callers truly await readiness.
-  if (!sessionManagerReadyPromise) {
-    sessionManagerReadyPromise = mgr.init()
-  }
-  await sessionManagerReadyPromise
-
-  return mgr
+  return initPrivateMessaging(ownerPubkey)
 }
 
 /**
@@ -296,17 +292,6 @@ export const waitForDelegateManager = async (): Promise<DelegateManager> => {
  */
 export const waitForManagers = async (): Promise<void> => {
   await Promise.all([waitForAppKeysManager(), waitForDelegateManager()])
-}
-
-/**
- * Wait for SessionManager to be initialized.
- */
-export const waitForSessionManager = async (): Promise<SessionManager> => {
-  if (sessionManagerInitPromise) await sessionManagerInitPromise
-  if (!sessionManager) {
-    throw new Error("SessionManager not initialized - device not activated")
-  }
-  return sessionManager
 }
 
 /**

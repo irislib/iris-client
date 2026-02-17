@@ -1,9 +1,9 @@
-import { getEventHash } from "nostr-tools"
+import {getEventHash} from "nostr-tools"
 
-import { ensureSessionManager } from "@/shared/services/PrivateChats"
-import { useChatExpirationStore } from "@/stores/chatExpiration"
-import { usePrivateMessagesStore } from "@/stores/privateMessages"
-import { sendGroupEventViaTransport } from "@/utils/groupTransport"
+import {ensureSessionManager} from "@/shared/services/PrivateChats"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {sendGroupEventViaTransport} from "@/utils/groupTransport"
 import {
   GROUP_METADATA_KIND,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
@@ -24,7 +24,7 @@ interface SendGroupEventOptions {
 const senderKeySendQueue = new Map<string, Promise<unknown>>()
 
 async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor> {
-  const { groupId, groupMembers, senderPubKey, content, kind, extraTags = [] } = options
+  const {groupId, groupMembers, senderPubKey, content, kind, extraTags = []} = options
   const nowMs = Date.now()
   const createdAt = Math.floor(nowMs / 1000)
   const tags: string[][] = [["l", groupId], ["ms", String(nowMs)], ...extraTags]
@@ -43,7 +43,7 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
 
     await usePrivateMessagesStore
       .getState()
-      .upsert(groupId, senderPubKey, { ...event, ownerPubkey: senderPubKey })
+      .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
 
     const sessionManager = await ensureSessionManager(senderPubKey)
     Promise.all(
@@ -57,7 +57,7 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
   if (kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
     const ttlSeconds = useChatExpirationStore.getState().expirations[groupId]
     if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
-      const expiresAtSeconds = resolveExpirationSeconds({ ttlSeconds }, createdAt)
+      const expiresAtSeconds = resolveExpirationSeconds({ttlSeconds}, createdAt)
       if (expiresAtSeconds !== undefined) {
         upsertExpirationTag(tags, expiresAtSeconds)
       }
@@ -76,9 +76,7 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
   await usePrivateMessagesStore.getState().upsert(groupId, senderPubKey, {
     ...sent.inner,
     ownerPubkey: senderPubKey,
-    ...(sent.outerEventId
-      ? { sentToRelays: true, nostrEventId: sent.outerEventId }
-      : {}),
+    ...(sent.outerEventId ? {sentToRelays: true, nostrEventId: sent.outerEventId} : {}),
   })
 
   return sent.inner
