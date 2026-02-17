@@ -13,11 +13,6 @@ overrides:
   nostr-tools: ^2.16.2
   dexie: ^4.2.0
 
-patchedDependencies:
-  nostr-double-ratchet:
-    hash: ovvj5ide2fb43arghfikm4b7cm
-    path: patches/nostr-double-ratchet.patch
-
 importers:
 
   .:
@@ -110,8 +105,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: 0.0.66
-        version: 0.0.66(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3)
+        specifier: link:../nostr-double-ratchet/ts
+        version: link:../nostr-double-ratchet/ts
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -3510,9 +3505,6 @@ packages:
   normalize-path@3.0.0:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
-
-  nostr-double-ratchet@0.0.66:
-    resolution: {integrity: sha512-jK29mNqfs716fJzGFy9lzPrJ4uXObD3SijaKghfgAGPg7G+ZzBg4kpkogsUwQI37EQwQYi8/j89I2mhPzZlvLg==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -8464,12 +8456,6 @@ snapshots:
       vm-browserify: 1.1.2
 
   normalize-path@3.0.0: {}
-
-  nostr-double-ratchet@0.0.66(patch_hash=ovvj5ide2fb43arghfikm4b7cm)(typescript@5.9.3):
-    dependencies:
-      nostr-tools: 2.23.1(typescript@5.9.3)
-    transitivePeerDependencies:
-      - typescript
 
   nostr-social-graph@1.0.33:
     dependencies:

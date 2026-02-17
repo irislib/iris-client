@@ -1,13 +1,11 @@
 import {useState} from "react"
-import {nip19, getEventHash} from "nostr-tools"
+import {nip19} from "nostr-tools"
 import {
   addGroupMember,
   buildGroupMetadataContent,
   GROUP_METADATA_KIND,
-  GROUP_SENDER_KEY_DISTRIBUTION_KIND,
   removeGroupMember,
   updateGroupData,
-  type Rumor,
 } from "nostr-double-ratchet"
 
 import {UserRow} from "@/shared/components/user/UserRow"
@@ -21,8 +19,7 @@ import {DisappearingMessagesModal} from "../components/DisappearingMessagesModal
 import {setGroupDisappearingMessages} from "@/utils/disappearingMessages"
 import {MemberChip, GroupAvatar} from "./components"
 import {sendGroupEvent} from "@/pages/chats/utils/groupMessaging"
-import {ensureSessionManager} from "@/shared/services/PrivateChats"
-import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
+import {rotateGroupSenderKey} from "@/utils/groupTransport"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import {processHashtreeFile} from "@/shared/upload/hashtree"
 import {useGroupPictureUrl} from "./components/useGroupPictureUrl"
@@ -109,50 +106,6 @@ const GroupDetailsPage = () => {
   const removeMemberFromDraft = (pubkey: string) => {
     if (pubkey === myPubKey) return
     setDraftMembers((prev) => prev.filter((m) => m !== pubkey))
-  }
-
-  const sendSenderKeyDistribution = async (
-    groupId: string,
-    recipients: string[],
-    senderPubKey: string
-  ) => {
-    if (!recipients.length) return
-    const sessionManager = await ensureSessionManager(senderPubKey)
-
-    const senderKeysStore = useGroupSenderKeysStore.getState()
-    const mySender = senderKeysStore.ensureMySender(groupId)
-
-    const nowMs = Date.now()
-    const nowSeconds = Math.floor(nowMs / 1000)
-    const stateJson = mySender.state
-
-    const dist = {
-      groupId,
-      keyId: stateJson.keyId,
-      chainKey: stateJson.chainKey,
-      iteration: stateJson.iteration,
-      createdAt: nowSeconds,
-      senderEventPubkey: mySender.senderEventPubkey,
-    }
-
-    const distEvent: Rumor = {
-      content: JSON.stringify(dist),
-      kind: GROUP_SENDER_KEY_DISTRIBUTION_KIND,
-      created_at: nowSeconds,
-      tags: [
-        ["l", groupId],
-        ["ms", String(nowMs)],
-      ],
-      pubkey: senderPubKey,
-      id: "",
-    }
-    distEvent.id = getEventHash(distEvent)
-
-    await Promise.all(
-      recipients.map((recipientPubKey) =>
-        sessionManager.sendEvent(recipientPubKey, distEvent)
-      )
-    ).catch(() => {})
   }
 
   const saveEdits = async () => {
@@ -253,7 +206,13 @@ const GroupDetailsPage = () => {
         })
       }
 
-      await sendSenderKeyDistribution(id, addedMembers, myPubKey)
+      if (addedMembers.length > 0) {
+        await rotateGroupSenderKey({
+          groupId: id,
+          groupMembers: nextGroup.members,
+          senderPubKey: myPubKey,
+        })
+      }
 
       setIsEditing(false)
     } catch (e) {

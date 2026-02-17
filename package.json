@@ -99,7 +99,7 @@
     "lodash": "^4.17.21",
     "markdown-to-jsx": "^7.7.13",
     "minidenticons": "^4.2.1",
-    "nostr-double-ratchet": "0.0.66",
+    "nostr-double-ratchet": "link:../nostr-double-ratchet/ts",
     "nostr-social-graph": "^1.0.33",
     "nostr-tools": "^2.16.2",
     "nostr-wasm": "^0.1.0",
@@ -169,10 +169,5 @@
     "@scure/bip39": "^1.6.0",
     "nostr-tools": "^2.16.2",
     "dexie": "^4.2.0"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "nostr-double-ratchet": "patches/nostr-double-ratchet.patch"
-    }
   }
 }

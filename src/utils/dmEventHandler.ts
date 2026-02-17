@@ -3,7 +3,6 @@ import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
-import {useGroupSenderKeysStore} from "@/stores/groupSenderKeys"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
@@ -22,6 +21,7 @@ import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {isOwnDeviceEvent} from "@/utils/sessionRouting"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
+import {ingestGroupSessionEvent} from "@/utils/groupTransport"
 import {
   applyMetadataUpdate,
   getMillisecondTimestamp,
@@ -30,7 +30,6 @@ import {
   parseReceipt,
   parseGroupMetadata,
   shouldAdvanceReceiptStatus,
-  type SenderKeyDistribution,
   type Rumor,
   validateMetadataCreation,
   validateMetadataUpdate,
@@ -170,7 +169,6 @@ export const attachSessionEventListener = () => {
 
                       if (verdict === "removed") {
                         removeGroup(metadata.id)
-                        useGroupSenderKeysStore.getState().removeGroupData(metadata.id)
                         useChatExpirationStore.getState().clearExpiration(metadata.id)
                         void usePrivateMessagesStore.getState().removeSession(metadata.id)
                         log("Removed from group:", metadata.id)
@@ -284,47 +282,42 @@ export const attachSessionEventListener = () => {
 
             // Sender-key distribution: store keys but do not show as a message.
             if (event.kind === GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
-              try {
-                const parsed = JSON.parse(event.content) as SenderKeyDistribution
-                const dist: SenderKeyDistribution = {
-                  ...parsed,
-                  groupId: parsed.groupId || lTag,
+              const rawGroupId =
+                (() => {
+                  try {
+                    const parsed = JSON.parse(event.content) as {groupId?: unknown}
+                    return typeof parsed.groupId === "string" ? parsed.groupId : undefined
+                  } catch {
+                    return undefined
+                  }
+                })() || lTag
+
+              if (!rawGroupId) return
+
+              const {groups, addGroup} = useGroupsStore.getState()
+              if (!groups[rawGroupId]) {
+                const members = [publicKey]
+                if (effectiveOwner !== publicKey) {
+                  members.push(effectiveOwner)
                 }
-
-                if (!dist.groupId || !dist.senderEventPubkey) return
-                if (typeof dist.keyId !== "number" || typeof dist.chainKey !== "string")
-                  return
-                if (
-                  typeof dist.iteration !== "number" ||
-                  typeof dist.createdAt !== "number"
-                )
-                  return
-
-                useGroupSenderKeysStore
-                  .getState()
-                  .upsertDistribution(dist, effectiveOwner)
-
-                // Ensure the group exists for navigation/UI even if metadata arrives later.
-                const {groups, addGroup} = useGroupsStore.getState()
-                if (!groups[dist.groupId]) {
-                  addGroup({
-                    id: dist.groupId,
-                    name: `Group ${dist.groupId.slice(0, 8)}`,
-                    description: "",
-                    picture: "",
-                    members: [publicKey],
-                    admins: [publicKey],
-                    createdAt: Date.now(),
-                    accepted: true,
-                  })
-                  log(
-                    "Created placeholder group from sender-key distribution:",
-                    dist.groupId
-                  )
-                }
-              } catch (e) {
-                error("Failed to parse sender-key distribution:", e)
+                addGroup({
+                  id: rawGroupId,
+                  name: `Group ${rawGroupId.slice(0, 8)}`,
+                  description: "",
+                  picture: "",
+                  members,
+                  admins: [publicKey],
+                  createdAt: Date.now(),
+                  accepted: true,
+                })
+                log("Created placeholder group from sender-key distribution:", rawGroupId)
               }
+
+              void ingestGroupSessionEvent(event as Rumor, effectiveOwner, event.pubkey).catch(
+                (e) => {
+                  error("Failed to ingest sender-key distribution:", e)
+                }
+              )
               return
             }
 
