@@ -24,19 +24,13 @@ import {
   enable as enableAutostart,
   isEnabled as isAutostartEnabled,
 } from "@tauri-apps/plugin-autostart"
-import {
-  attachSessionEventListener,
-  cleanupSessionEventListener,
-} from "./utils/dmEventHandler"
-import {
-  attachGroupMessageListener,
-  cleanupGroupMessageListener,
-} from "./utils/groupMessageHandler"
+import {cleanupSessionEventListener} from "./utils/dmEventHandler"
+import {cleanupGroupMessageListener} from "./utils/groupMessageHandler"
 import {hasWriteAccess} from "./utils/auth"
 import {
   initAppKeysManager,
   initDelegateManager,
-  activateDevice,
+  initPrivateMessaging,
   hasLocalAppKeys,
   getDelegateManager,
   startAppKeysSubscription,
@@ -93,6 +87,28 @@ const checkDeletedAccount = async (publicKey: string) => {
   } catch (e) {
     error("Error checking deleted account:", e)
   }
+}
+
+const startPrivateMessaging = (ownerPubkey: string) => {
+  initAppKeysManager()
+    .then(() => {
+      useDevicesStore.getState().setAppKeysManagerReady(true)
+      useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
+      startAppKeysSubscription(ownerPubkey)
+    })
+    .catch((err) => error("Failed to initialize AppKeysManager:", err))
+
+  initPrivateMessaging(ownerPubkey)
+    .then(() => {
+      useDevicesStore.getState().setSessionManagerReady(true)
+      const dm = getDelegateManager()
+      useDevicesStore.getState().setIdentityPubkey(dm.getIdentityPublicKey())
+      syncDisappearingMessagesToSessionManager().catch(error)
+      subscribeToDMNotifications()
+      void autoRegisterDevice()
+      log("Device activated and session listener attached")
+    })
+    .catch((err) => error("Failed to activate device:", err))
 }
 
 // Move initialization to a function to avoid side effects
@@ -188,39 +204,7 @@ const initializeApp = async () => {
 
     // Only initialize DM sessions if not in readonly mode
     if (hasWriteAccess()) {
-      // Initialize AppKeysManager first (fast), then DelegateManager + SessionManager
-
-      // Start AppKeysManager first so we can check local keys immediately
-      initAppKeysManager()
-        .then(() => {
-          useDevicesStore.getState().setAppKeysManagerReady(true)
-          useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
-          startAppKeysSubscription(state.publicKey)
-          log("✅ AppKeysManager initialized")
-        })
-        .catch((err) => {
-          error("Failed to initialize AppKeysManager:", err)
-        })
-
-      // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
-      initDelegateManager()
-        .then(() => activateDevice(state.publicKey))
-        .then(() => {
-          useDevicesStore.getState().setSessionManagerReady(true)
-          const delegateManager = getDelegateManager()
-          useDevicesStore
-            .getState()
-            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
-          attachSessionEventListener()
-          attachGroupMessageListener()
-          syncDisappearingMessagesToSessionManager().catch(error)
-          subscribeToDMNotifications()
-          void autoRegisterDevice()
-          log("✅ Device activated and session listener attached")
-        })
-        .catch((err) => {
-          error("Failed to activate device:", err)
-        })
+      startPrivateMessaging(state.publicKey)
     }
   }
 
@@ -272,39 +256,7 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
 
     // Only initialize DM sessions if not in readonly mode
     if (hasWriteAccess()) {
-      // Initialize AppKeysManager first (fast), then DelegateManager + SessionManager
-
-      // Start AppKeysManager first so we can check local keys immediately
-      initAppKeysManager()
-        .then(() => {
-          useDevicesStore.getState().setAppKeysManagerReady(true)
-          useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
-          startAppKeysSubscription(state.publicKey)
-          log("✅ AppKeysManager initialized (login)")
-        })
-        .catch((err) => {
-          error("Failed to initialize AppKeysManager on login:", err)
-        })
-
-      // Initialize DelegateManager and activate device (can happen in parallel with AppKeysManager)
-      initDelegateManager()
-        .then(() => activateDevice(state.publicKey))
-        .then(() => {
-          useDevicesStore.getState().setSessionManagerReady(true)
-          const delegateManager = getDelegateManager()
-          useDevicesStore
-            .getState()
-            .setIdentityPubkey(delegateManager.getIdentityPublicKey())
-          attachSessionEventListener()
-          attachGroupMessageListener()
-          syncDisappearingMessagesToSessionManager().catch(error)
-          subscribeToDMNotifications()
-          void autoRegisterDevice()
-          log("✅ Device activated and session listener attached (login)")
-        })
-        .catch((err) => {
-          error("Failed to activate device on login:", err)
-        })
+      startPrivateMessaging(state.publicKey)
     }
   }
 })

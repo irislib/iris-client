@@ -35,9 +35,7 @@ vi.mock("./socialGraph", () => ({
   }),
 }))
 
-vi.mock("@/shared/services/PrivateChats", () => ({
-  getSessionManager: () => sessionManager,
-}))
+vi.mock("@/shared/services/PrivateChats", () => ({}))
 
 import {attachSessionEventListener, cleanupSessionEventListener} from "./dmEventHandler"
 
@@ -69,7 +67,7 @@ describe("dmEventHandler expiration settings", () => {
   })
 
   it("applies disappearing message TTL from incoming settings messages (and persists it per chat)", async () => {
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
@@ -98,7 +96,7 @@ describe("dmEventHandler expiration settings", () => {
   it("applies group disappearing message TTL from group metadata updates", async () => {
     const groupId = "group-1"
 
-    attachSessionEventListener()
+    attachSessionEventListener(sessionManager as any)
     await flushPromises()
 
     expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
