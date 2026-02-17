@@ -1,8 +1,10 @@
 import {describe, expect, it} from "vitest"
 import {
+  getRecipientProfileRoute,
   getReceiptRecipientsForDisplay,
   normalizeReceiptRecipients,
 } from "./receiptRecipients"
+import {addUsernameToCache} from "@/utils/usernameCache"
 
 describe("receiptRecipients", () => {
   it("normalizes duplicate recipients by pubkey and keeps earliest timestamp", () => {
@@ -39,5 +41,12 @@ describe("receiptRecipients", () => {
 
     expect(deliveredTo).toEqual([])
     expect(seenBy).toEqual([])
+  })
+
+  it("returns username route for recipients when cached username is verified", () => {
+    const pubkey = "c".repeat(64)
+    addUsernameToCache(pubkey, "alice@iris.to", true)
+
+    expect(getRecipientProfileRoute(pubkey)).toBe("/alice")
   })
 })

@@ -1,3 +1,5 @@
+import {getUserRoute} from "@/utils/usernameCache"
+
 export type ReceiptRecipient = {
   pubkey: string
   timestamp: number
@@ -42,4 +44,8 @@ export const getReceiptRecipientsForDisplay = ({
     deliveredTo: normalizedDeliveredTo,
     seenBy: normalizedSeenBy,
   }
+}
+
+export const getRecipientProfileRoute = (pubkey: string): string => {
+  return getUserRoute(pubkey)
 }

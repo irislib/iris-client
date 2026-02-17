@@ -2,6 +2,7 @@ import {useState, useEffect} from "react"
 import {RiFileCopyLine, RiCheckLine, RiRadioLine} from "@remixicon/react"
 import classNames from "classnames"
 import Modal from "@/shared/components/ui/Modal"
+import {Link} from "@/navigation"
 import {ndk} from "@/utils/ndk"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {Avatar} from "@/shared/components/user/Avatar"
@@ -12,16 +13,11 @@ import {
   formatDateTimeMilliseconds,
   formatDateTimeSeconds,
 } from "@/pages/chats/utils/formatDateTime"
-import {type ReceiptRecipient, getReceiptRecipientsForDisplay} from "./receiptRecipients"
-
-const formatPubkeyLabel = (pubkey: string) => {
-  try {
-    const npub = nip19.npubEncode(pubkey)
-    return `${npub.slice(0, 16)}...${npub.slice(-6)}`
-  } catch {
-    return `${pubkey.slice(0, 12)}...${pubkey.slice(-6)}`
-  }
-}
+import {
+  type ReceiptRecipient,
+  getReceiptRecipientsForDisplay,
+  getRecipientProfileRoute,
+} from "./receiptRecipients"
 
 type MessageInfoModalProps = {
   isOpen: boolean
@@ -171,20 +167,18 @@ export const MessageInfoModal = ({
                   key={recipient.pubkey}
                   className="flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0 flex items-center gap-2">
+                  <Link
+                    to={getRecipientProfileRoute(recipient.pubkey)}
+                    className="min-w-0 flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  >
                     <Avatar
                       pubKey={recipient.pubkey}
                       width={20}
                       showBadge={false}
                       showTooltip={false}
                     />
-                    <div className="min-w-0">
-                      <Name pubKey={recipient.pubkey} className="text-sm" />
-                      <p className="text-[11px] font-mono text-base-content/60 truncate">
-                        {formatPubkeyLabel(recipient.pubkey)}
-                      </p>
-                    </div>
-                  </div>
+                    <Name pubKey={recipient.pubkey} className="text-sm truncate" />
+                  </Link>
                   <p className="text-[11px] font-mono text-base-content/60 shrink-0">
                     {formatDateTimeMilliseconds(recipient.timestamp)}
                   </p>
@@ -202,20 +196,18 @@ export const MessageInfoModal = ({
                   key={recipient.pubkey}
                   className="flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0 flex items-center gap-2">
+                  <Link
+                    to={getRecipientProfileRoute(recipient.pubkey)}
+                    className="min-w-0 flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  >
                     <Avatar
                       pubKey={recipient.pubkey}
                       width={20}
                       showBadge={false}
                       showTooltip={false}
                     />
-                    <div className="min-w-0">
-                      <Name pubKey={recipient.pubkey} className="text-sm" />
-                      <p className="text-[11px] font-mono text-base-content/60 truncate">
-                        {formatPubkeyLabel(recipient.pubkey)}
-                      </p>
-                    </div>
-                  </div>
+                    <Name pubKey={recipient.pubkey} className="text-sm truncate" />
+                  </Link>
                   <p className="text-[11px] font-mono text-base-content/60 shrink-0">
                     {formatDateTimeMilliseconds(recipient.timestamp)}
                   </p>
