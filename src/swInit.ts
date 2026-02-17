@@ -23,7 +23,7 @@ export type ServiceWorkerAutoReloadOptions = {
   reloadDebounceMs?: number
 }
 
-const DEFAULT_UPDATE_INTERVAL_MS = 60_000
+const DEFAULT_UPDATE_INTERVAL_MS = 10 * 60_000
 const DEFAULT_RELOAD_DEBOUNCE_MS = 10_000
 
 const RELOAD_AT_KEY = "sw-reload-at"
