@@ -263,7 +263,7 @@ function arrayEqual(a: string[], b: string[]): boolean {
 
 type SessionUserRecords = ReturnType<SessionManager["getUserRecords"]>
 
-function extractSessionPubkeysFromUserRecords(
+export function extractSessionPubkeysFromUserRecords(
   userRecords: SessionUserRecords,
   ourPublicKey?: string
 ): string[] {
@@ -280,7 +280,10 @@ function extractSessionPubkeysFromUserRecords(
       if (!state) return []
       return [state.theirCurrentNostrPublicKey, state.theirNextNostrPublicKey]
     })
-    .filter((key): key is string => typeof key === "string")
+    .filter(
+      (key): key is string =>
+        typeof key === "string" && (!ourPublicKey || key !== ourPublicKey)
+    )
 }
 
 export const subscribeToNotifications = debounce(async () => {
