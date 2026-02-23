@@ -2,10 +2,12 @@ name: "publish"
 
 on:
   push:
-    branches:
-      - release
+    tags:
+      - "v*"
+      - "app-v*"
 
-# This workflow will trigger on each push to the `release` branch to create or update a GitHub release, build your app, and upload the artifacts to the release.
+# This workflow runs when a version tag is pushed, then builds and publishes
+# platform artifacts to the GitHub release for that tag.
 
 jobs:
   publish-tauri:
@@ -58,8 +60,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
-          releaseName: "App v__VERSION__"
+          tagName: ${{ github.ref_name }}
+          releaseName: "App ${{ github.ref_name }}"
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
           prerelease: false
