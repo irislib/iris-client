@@ -31,11 +31,8 @@ tauri-plugin-opener = "2.5"
 tauri-plugin-dialog = "2.4"
 tauri-plugin-deep-link = "2.4"
 tauri-plugin-os = "2"
-nostrdb = { package = "nostrdb-social", path = "/Users/martti/src/nostrdb-rs" }
-enostr = { path = "/Users/martti/src/notedeck/crates/enostr" }
+nostrdb = { git = "https://github.com/damus-io/nostrdb-rs", rev = "34738d2894d841ac44b1c46e0334a7cf2ca09b34" }
+enostr = { path = "../../notedeck/crates/enostr" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-autostart = "2"
-
-[patch."https://github.com/mmalmi/nostrdb-rs"]
-nostrdb-social = { path = "/Users/martti/src/nostrdb-rs" }

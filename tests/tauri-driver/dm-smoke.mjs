@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import {spawn} from "node:child_process"
 import {existsSync} from "node:fs"
 import {mkdir, writeFile} from "node:fs/promises"
@@ -12,11 +13,19 @@ const PNPM_BIN = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
 const TAURI_DRIVER_BIN = process.env.TAURI_DRIVER_BIN || "tauri-driver"
 const TAURI_DRIVER_PORT = Number(process.env.TAURI_DRIVER_PORT || 4444)
 const TAURI_NATIVE_DRIVER_PORT = Number(process.env.TAURI_NATIVE_DRIVER_PORT || 4445)
+const TAURI_DRIVER_PORT_SECONDARY = Number(
+  process.env.TAURI_DRIVER_PORT_SECONDARY || TAURI_DRIVER_PORT + 2
+)
+const TAURI_NATIVE_DRIVER_PORT_SECONDARY = Number(
+  process.env.TAURI_NATIVE_DRIVER_PORT_SECONDARY || TAURI_NATIVE_DRIVER_PORT + 2
+)
 const RELAY_PORT = Number(process.env.IRIS_DM_TEST_RELAY_PORT || 7777)
 const FORCE_BUILD =
-  process.env.IRIS_TAURI_FORCE_BUILD === "1" || process.env.IRIS_TAURI_FORCE_BUILD === "true"
+  process.env.IRIS_TAURI_FORCE_BUILD === "1" ||
+  process.env.IRIS_TAURI_FORCE_BUILD === "true"
 const SKIP_BUILD =
-  process.env.IRIS_TAURI_SKIP_BUILD === "1" || process.env.IRIS_TAURI_SKIP_BUILD === "true"
+  process.env.IRIS_TAURI_SKIP_BUILD === "1" ||
+  process.env.IRIS_TAURI_SKIP_BUILD === "true"
 
 function defaultAppPath() {
   return path.join(ROOT, "src-tauri", "target", "debug", "iris")
@@ -52,6 +61,7 @@ function startBackgroundProcess(command, args, label, env = process.env) {
   const child = spawn(command, args, {
     cwd: ROOT,
     env,
+    detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
   })
 
@@ -63,6 +73,19 @@ function startBackgroundProcess(command, args, label, env = process.env) {
   })
 
   return child
+}
+
+function terminateProcessTree(child, signal) {
+  if (!child?.pid) return
+  if (process.platform !== "win32") {
+    try {
+      process.kill(-child.pid, signal)
+      return
+    } catch {
+      // Fall back to direct child kill.
+    }
+  }
+  child.kill(signal)
 }
 
 async function runCommand(command, args, label, env = process.env) {
@@ -114,7 +137,7 @@ async function terminateChild(child, label) {
   if (!child || child.killed) return
   if (child.exitCode !== null) return
 
-  child.kill("SIGTERM")
+  terminateProcessTree(child, "SIGTERM")
   const exited = await Promise.race([
     new Promise((resolve) => child.once("exit", () => resolve(true))),
     sleep(5_000).then(() => false),
@@ -122,14 +145,21 @@ async function terminateChild(child, label) {
 
   if (!exited) {
     console.warn(`${label} did not stop after SIGTERM; sending SIGKILL`)
-    child.kill("SIGKILL")
+    terminateProcessTree(child, "SIGKILL")
   }
 }
 
 async function waitForVisible(driver, locator, timeout = 15_000) {
-  const element = await driver.wait(until.elementLocated(locator), timeout)
-  await driver.wait(until.elementIsVisible(element), timeout)
-  return element
+  try {
+    const element = await driver.wait(until.elementLocated(locator), timeout)
+    await driver.wait(until.elementIsVisible(element), timeout)
+    return element
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Timed out waiting for visible element (${locator}) after ${timeout}ms: ${detail}`
+    )
+  }
 }
 
 async function isVisible(driver, locator, timeout = 1_000) {
@@ -189,38 +219,36 @@ async function waitForConnectedRelays(driver) {
 }
 
 async function hardResetBrowserState(driver) {
-  await driver.executeAsyncScript((done) => {
-    ;(async () => {
-      try {
-        localStorage.clear()
-        sessionStorage.clear()
+  await driver.executeScript(() => {
+    try {
+      localStorage.clear()
+      sessionStorage.clear()
+    } catch {
+      // Best effort.
+    }
 
-        if (!window.indexedDB || typeof indexedDB.databases !== "function") {
-          done({ok: true})
-          return
-        }
-
-        const databases = await indexedDB.databases()
-        await Promise.all(
-          databases
-            .map((db) => db?.name)
-            .filter(Boolean)
-            .map(
-              (name) =>
-                new Promise((resolve) => {
-                  const request = indexedDB.deleteDatabase(name)
-                  request.onsuccess = () => resolve(undefined)
-                  request.onerror = () => resolve(undefined)
-                  request.onblocked = () => resolve(undefined)
-                })
-            )
+    // Best effort cleanup for IndexedDB without blocking test startup.
+    if (window.indexedDB && typeof indexedDB.databases === "function") {
+      indexedDB
+        .databases()
+        .then((databases) =>
+          Promise.all(
+            databases
+              .map((db) => db?.name)
+              .filter(Boolean)
+              .map(
+                (name) =>
+                  new Promise((resolve) => {
+                    const request = indexedDB.deleteDatabase(name)
+                    request.onsuccess = () => resolve(undefined)
+                    request.onerror = () => resolve(undefined)
+                    request.onblocked = () => resolve(undefined)
+                  })
+              )
+          )
         )
-
-        done({ok: true})
-      } catch (error) {
-        done({ok: false, error: String(error)})
-      }
-    })()
+        .catch(() => {})
+    }
   })
 }
 
@@ -231,10 +259,18 @@ async function openLoginDialog(driver) {
   await hardResetBrowserState(driver)
   await driver.navigate().refresh()
   await waitForVisible(driver, By.css("#main-content"), 20_000)
+  await dismissTermsOfServiceIfPresent(driver)
 
-  const signUpHeading = By.xpath("//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign up']")
-  const signInHeading = By.xpath("//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign in']")
-  if ((await isVisible(driver, signUpHeading, 2_000)) || (await isVisible(driver, signInHeading, 2_000))) {
+  const signUpHeading = By.xpath(
+    "//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign up']"
+  )
+  const signInHeading = By.xpath(
+    "//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign in']"
+  )
+  if (
+    (await isVisible(driver, signUpHeading, 2_000)) ||
+    (await isVisible(driver, signInHeading, 2_000))
+  ) {
     return
   }
 
@@ -242,11 +278,51 @@ async function openLoginDialog(driver) {
   await waitForVisible(driver, By.css("dialog.modal"), 10_000)
 }
 
+async function dismissTermsOfServiceIfPresent(driver) {
+  const termsHeading = By.xpath(
+    "//*[self::h1 or self::h2 or self::h3][contains(normalize-space(), 'Terms of Service')]"
+  )
+  if (!(await isVisible(driver, termsHeading, 2_000))) return
+
+  const agreementLabel = By.xpath(
+    "//label[contains(normalize-space(), 'I have read and agree to the Terms of Service')]"
+  )
+  if (await isVisible(driver, agreementLabel, 2_000)) {
+    const label = await waitForVisible(driver, agreementLabel, 5_000)
+    await label.click()
+  } else {
+    const clicked = await driver.executeScript(() => {
+      const checkbox =
+        document.querySelector("dialog.modal input[type='checkbox']") ||
+        document.querySelector("input[type='checkbox']")
+      if (!checkbox) return false
+      checkbox.click()
+      return true
+    })
+    if (!clicked) {
+      throw new Error("Terms of Service modal shown but agreement checkbox was not found")
+    }
+  }
+
+  const continueButton = await waitForVisible(
+    driver,
+    By.xpath("//button[normalize-space()='Continue']"),
+    10_000
+  )
+  await driver.wait(async () => continueButton.isEnabled(), 10_000)
+  await continueButton.click()
+  await driver.wait(async () => !(await isVisible(driver, termsHeading, 500)), 10_000)
+}
+
 async function ensureSignUpDialog(driver) {
-  const signUpHeading = By.xpath("//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign up']")
+  const signUpHeading = By.xpath(
+    "//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign up']"
+  )
   if (await isVisible(driver, signUpHeading, 1_500)) return
 
-  const signInHeading = By.xpath("//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign in']")
+  const signInHeading = By.xpath(
+    "//*[self::h1 or self::h2 or self::h3][normalize-space()='Sign in']"
+  )
   if (await isVisible(driver, signInHeading, 1_500)) {
     await clickTextElement(driver, "Sign up")
   }
@@ -260,7 +336,9 @@ async function signUp(driver, username) {
 
   const nameInput = await waitForVisible(
     driver,
-    By.css("input[placeholder=\"What's your name?\"], textarea[placeholder=\"What's your name?\"]"),
+    By.css(
+      'input[placeholder="What\'s your name?"], textarea[placeholder="What\'s your name?"]'
+    ),
     10_000
   )
   await nameInput.clear()
@@ -281,11 +359,14 @@ async function signUp(driver, username) {
 
   const storeData = await driver.executeScript(() => {
     const userStore = localStorage.getItem("user-storage")
-    if (!userStore) return null
-    const parsed = JSON.parse(userStore)
+    const parsed = userStore ? JSON.parse(userStore) : null
+    const privateKey =
+      parsed?.state?.privateKey ||
+      localStorage.getItem("cashu.ndk.privateKeySignerPrivateKey")
+    const publicKey = parsed?.state?.publicKey || localStorage.getItem("cashu.ndk.pubkey")
     return {
-      privateKey: parsed?.state?.privateKey || null,
-      publicKey: parsed?.state?.publicKey || null,
+      privateKey: privateKey || null,
+      publicKey: publicKey || null,
     }
   })
 
@@ -296,31 +377,6 @@ async function signUp(driver, username) {
   return storeData
 }
 
-async function ensureDeviceRegistered(driver) {
-  await clickTextElement(driver, "Chats")
-  await clickTextElement(driver, "Devices")
-  await waitForUrlContains(driver, "/chats/new/devices", 20_000)
-  await waitForVisible(driver, By.xpath("//*[normalize-space()='Link another device']"), 20_000)
-
-  const registerButton = By.xpath("//button[normalize-space()='Register this device']")
-  const thisDeviceBadge = By.xpath("//*[normalize-space()='This device']")
-
-  if (await isVisible(driver, thisDeviceBadge, 2_000)) return
-  if (!(await isVisible(driver, registerButton, 5_000))) return
-
-  const button = await waitForVisible(driver, registerButton, 10_000)
-  await button.click()
-
-  const confirmHeading = By.xpath(
-    "//*[self::h1 or self::h2 or self::h3][normalize-space()='Confirm Device Registration']"
-  )
-  if (await isVisible(driver, confirmHeading, 2_000)) {
-    await clickTextElement(driver, "Register Device")
-  }
-
-  await waitForVisible(driver, thisDeviceBadge, 20_000)
-}
-
 async function openChatFromProfile(driver, targetPubkeyHex) {
   const targetNpub = nip19.npubEncode(targetPubkeyHex)
   await driver.get(`tauri://localhost/${targetNpub}`)
@@ -328,11 +384,15 @@ async function openChatFromProfile(driver, targetPubkeyHex) {
   await waitForVisible(driver, By.css('[data-testid="profile-header-actions"]'), 30_000)
 
   const buttonLocators = [
-    By.xpath("//*[@data-testid='profile-header-actions']//button[.//*[contains(@href,'mail-outline')]]"),
+    By.xpath(
+      "//*[@data-testid='profile-header-actions']//button[.//*[contains(@href,'mail-outline')]]"
+    ),
     By.xpath(
       "//*[@data-testid='profile-header-actions']//button[.//*[contains(@*,'mail-outline')]]"
     ),
-    By.xpath("//*[@data-testid='profile-header-actions']//button[contains(@class,'btn-circle')]")
+    By.xpath(
+      "//*[@data-testid='profile-header-actions']//button[contains(@class,'btn-circle')]"
+    ),
   ]
 
   let clicked = false
@@ -354,22 +414,30 @@ async function openChatFromProfile(driver, targetPubkeyHex) {
   await waitForUrlContains(driver, "/chats/chat", 20_000)
   await waitForVisible(
     driver,
-    By.xpath("(//textarea[@placeholder='Message'] | //input[@placeholder='Message'])[last()]"),
+    By.xpath(
+      "(//textarea[@placeholder='Message'] | //input[@placeholder='Message'])[last()]"
+    ),
     20_000
   )
 }
 
 async function sendMessage(driver, message) {
+  await acceptMessageRequestIfVisible(driver)
+
   const input = await waitForVisible(
     driver,
-    By.xpath("(//textarea[@placeholder='Message'] | //input[@placeholder='Message'])[last()]"),
+    By.xpath(
+      "(//textarea[@placeholder='Message'] | //input[@placeholder='Message'])[last()]"
+    ),
     20_000
   )
-  await input.sendKeys(message)
-  await input.sendKeys(Key.ENTER)
+  await driver.wait(async () => input.isEnabled(), 20_000)
+  await input.click()
+  await input.sendKeys(message, Key.ENTER)
 }
 
 async function waitForMessage(driver, message, timeout = 60_000) {
+  await acceptMessageRequestIfVisible(driver, 1_500)
   await waitForVisible(
     driver,
     By.xpath(
@@ -379,7 +447,16 @@ async function waitForMessage(driver, message, timeout = 60_000) {
   )
 }
 
-async function newTauriDriverSession(appPathNoExt) {
+async function acceptMessageRequestIfVisible(driver, timeout = 2_000) {
+  const acceptButton = By.xpath("//button[normalize-space()='Accept']")
+  if (!(await isVisible(driver, acceptButton, timeout))) return
+
+  const button = await waitForVisible(driver, acceptButton, 10_000)
+  await button.click()
+  await driver.wait(async () => !(await isVisible(driver, acceptButton, 500)), 10_000)
+}
+
+async function newTauriDriverSession(appPathNoExt, driverPort = TAURI_DRIVER_PORT) {
   const capabilities = {
     browserName: "wry",
     "tauri:options": {
@@ -389,7 +466,7 @@ async function newTauriDriverSession(appPathNoExt) {
   }
 
   return new Builder()
-    .usingServer(`http://127.0.0.1:${TAURI_DRIVER_PORT}`)
+    .usingServer(`http://127.0.0.1:${driverPort}`)
     .withCapabilities(capabilities)
     .build()
 }
@@ -427,13 +504,15 @@ async function buildTauriIfNeeded(appPathNoExt) {
     "tauri build",
     {
       ...process.env,
+      // Tauri CLI expects CI to be "true"/"false" (not "1"/"0").
+      ...(process.env.CI === "1" ? {CI: "true"} : {}),
       VITE_USE_LOCAL_RELAY: "true",
     }
   )
 }
 
 async function main() {
-  if (!(["linux", "win32"].includes(process.platform))) {
+  if (!["linux", "win32"].includes(process.platform)) {
     console.log(
       `[skip] tauri-driver is unsupported on ${process.platform}. ` +
         "Run this test on Linux or Windows."
@@ -461,10 +540,26 @@ async function main() {
     "relay"
   )
 
-  const tauriDriver = startBackgroundProcess(
+  const tauriDriverPrimary = startBackgroundProcess(
     TAURI_DRIVER_BIN,
-    ["--port", String(TAURI_DRIVER_PORT), "--native-port", String(TAURI_NATIVE_DRIVER_PORT)],
-    "tauri-driver"
+    [
+      "--port",
+      String(TAURI_DRIVER_PORT),
+      "--native-port",
+      String(TAURI_NATIVE_DRIVER_PORT),
+    ],
+    "tauri-driver-primary"
+  )
+
+  const tauriDriverSecondary = startBackgroundProcess(
+    TAURI_DRIVER_BIN,
+    [
+      "--port",
+      String(TAURI_DRIVER_PORT_SECONDARY),
+      "--native-port",
+      String(TAURI_NATIVE_DRIVER_PORT_SECONDARY),
+    ],
+    "tauri-driver-secondary"
   )
 
   let sender
@@ -472,19 +567,25 @@ async function main() {
 
   try {
     await waitForHttpOk(`http://127.0.0.1:${RELAY_PORT}/health`, "local relay", 30_000)
-    await waitForHttpOk(`http://127.0.0.1:${TAURI_DRIVER_PORT}/status`, "tauri-driver", 30_000)
+    await waitForHttpOk(
+      `http://127.0.0.1:${TAURI_DRIVER_PORT}/status`,
+      "primary tauri-driver",
+      30_000
+    )
+    await waitForHttpOk(
+      `http://127.0.0.1:${TAURI_DRIVER_PORT_SECONDARY}/status`,
+      "secondary tauri-driver",
+      30_000
+    )
 
-    sender = await newTauriDriverSession(appPathNoExt)
-    receiver = await newTauriDriverSession(appPathNoExt)
+    sender = await newTauriDriverSession(appPathNoExt, TAURI_DRIVER_PORT)
+    receiver = await newTauriDriverSession(appPathNoExt, TAURI_DRIVER_PORT_SECONDARY)
 
     const senderName = `Sender ${Date.now()}`
     const receiverName = `Receiver ${Date.now()}`
 
     const senderKeys = await signUp(sender, senderName)
     const receiverKeys = await signUp(receiver, receiverName)
-
-    await ensureDeviceRegistered(sender)
-    await ensureDeviceRegistered(receiver)
 
     await waitForConnectedRelays(sender)
     await waitForConnectedRelays(receiver)
@@ -511,7 +612,8 @@ async function main() {
       await sender.quit().catch(() => {})
     }
 
-    await terminateChild(tauriDriver, "tauri-driver")
+    await terminateChild(tauriDriverPrimary, "tauri-driver-primary")
+    await terminateChild(tauriDriverSecondary, "tauri-driver-secondary")
     await terminateChild(relay, "relay")
   }
 }
