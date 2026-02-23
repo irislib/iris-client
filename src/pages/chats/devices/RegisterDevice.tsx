@@ -8,7 +8,7 @@ import {
 } from "@/shared/services/PrivateChats"
 import {RiAddLine, RiComputerLine} from "@remixicon/react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
-import {DEBUG_NAMESPACES, MAX_DR_DEVICES} from "@/utils/constants"
+import {DEBUG_NAMESPACES} from "@/utils/constants"
 import Icon from "@/shared/components/Icons/Icon"
 
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -17,7 +17,6 @@ const RegisterDevice = () => {
   const {isCurrentDeviceRegistered, registeredDevices} = useDevicesStore()
   const isLinkedDevice = useUserStore((s) => s.linkedDevice)
   const [isRegistering, setIsRegistering] = useState(false)
-  const isAtLimit = registeredDevices.length >= MAX_DR_DEVICES
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [preparedRegistration, setPreparedRegistration] =
     useState<PreparedRegistration | null>(null)
@@ -78,7 +77,7 @@ const RegisterDevice = () => {
       <button
         className="btn btn-primary w-full gap-2"
         onClick={handleRegisterClick}
-        disabled={isRegistering || isAtLimit}
+        disabled={isRegistering}
       >
         {isRegistering ? (
           <span className="loading loading-spinner loading-sm" />
@@ -87,13 +86,6 @@ const RegisterDevice = () => {
         )}
         Register this device
       </button>
-      {isAtLimit && (
-        <p className="text-sm text-warning mt-2">
-          Maximum of {MAX_DR_DEVICES} devices reached. Revoke an existing device to
-          register this one.
-        </p>
-      )}
-
       <dialog ref={modalRef} className="modal" onClose={() => setShowConfirmModal(false)}>
         <div className="modal-box">
           <h3 className="font-bold text-lg flex items-center gap-2">

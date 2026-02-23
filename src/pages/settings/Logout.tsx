@@ -12,6 +12,7 @@ import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {SettingsButton} from "@/shared/components/settings/SettingsButton"
 import {confirm} from "@/utils/utils"
+import {revokeCurrentDevice} from "@/shared/services/PrivateChats"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -122,6 +123,14 @@ function Logout() {
 
   async function performLogout() {
     try {
+      // Revoke current device from messaging appkeys
+      try {
+        log("[Logout] Revoking current device from appkeys")
+        await withTimeout(revokeCurrentDevice(), 5000)
+      } catch (e) {
+        error("Error revoking device:", e)
+      }
+
       // Try to unsubscribe from notifications first, while we still have the signer
       try {
         log("[Logout] Unsubscribing from notifications")

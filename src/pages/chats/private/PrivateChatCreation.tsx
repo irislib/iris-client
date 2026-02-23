@@ -1,4 +1,5 @@
 import {useState} from "react"
+import {nip19} from "nostr-tools"
 import {useNavigate} from "@/navigation"
 import {useUserStore} from "@/stores/user"
 import {acceptChatInvite} from "@/shared/services/PrivateChats"
@@ -23,25 +24,47 @@ const PrivateChatCreation = () => {
     })
   }
 
+  const extractNpub = (input: string): string | null => {
+    const match = input.match(/npub1[a-zA-Z0-9]{20,65}/)
+    if (!match) return null
+    try {
+      const decoded = nip19.decode(match[0])
+      if (decoded.type === "npub") return decoded.data as string
+    } catch {
+      // invalid npub
+    }
+    return null
+  }
+
   const handleRawInputSubmit = async (rawInput: string): Promise<boolean> => {
     if (!myPubKey) return false
     setInviteError("")
 
     const invite = parseChatInviteInput(rawInput)
-    if (!invite) return false
+    if (invite) {
+      try {
+        const ownerPubkey = await acceptChatInvite(invite)
+        navigate("/chats/chat", {
+          state: {id: ownerPubkey},
+        })
+        return true
+      } catch (error) {
+        setInviteError(
+          error instanceof Error ? error.message : "Failed to accept chat invite"
+        )
+        return true
+      }
+    }
 
-    try {
-      const ownerPubkey = await acceptChatInvite(invite)
+    const pubkey = extractNpub(rawInput)
+    if (pubkey) {
       navigate("/chats/chat", {
-        state: {id: ownerPubkey},
+        state: {id: pubkey},
       })
       return true
-    } catch (error) {
-      setInviteError(
-        error instanceof Error ? error.message : "Failed to accept chat invite"
-      )
-      return true
     }
+
+    return false
   }
 
   if (!myPubKey) {
@@ -60,7 +83,7 @@ const PrivateChatCreation = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Search Users</h2>
           <DoubleRatchetUserSearch
-            placeholder="Search for users or paste chat invite link"
+            placeholder="Search users, paste npub or chat invite link"
             onUserSelect={handleStartChat}
             onRawInputSubmit={handleRawInputSubmit}
             maxResults={10}

@@ -56,7 +56,7 @@ function createNostrSubscribe(): NostrSubscribe {
           ? (event as {rawEvent?: () => unknown}).rawEvent?.()
           : event
       if (!raw || typeof raw !== "object") return
-      onEvent(raw as any)
+      onEvent(raw as unknown as Parameters<typeof onEvent>[0])
     })
     sub.start()
     return () => sub.stop()

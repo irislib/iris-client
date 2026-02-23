@@ -4,7 +4,6 @@ import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
-import {useDevicesStore} from "@/stores/devices"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
 import {NSEC_NPUB_REGEX, HEX_REGEX} from "@/utils/validation"
@@ -43,8 +42,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           const privateKeySigner = new NDKPrivateKeySigner(hex)
           ndk().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
-          // Enable encrypted messaging automatically on this device after login.
-          useDevicesStore.getState().setPendingAutoRegistration(true)
+
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
@@ -60,8 +58,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           const privateKeySigner = new NDKPrivateKeySigner(hex)
           ndk().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
-          // Enable encrypted messaging automatically on this device after login.
-          useDevicesStore.getState().setPendingAutoRegistration(true)
+
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
@@ -86,17 +83,11 @@ export default function SignIn({onClose, onLink}: SignInProps) {
       } catch (error) {
         console.error("Error getting public key from NIP-07 extension:", error)
       }
-    } else {
-      window.open("https://nostrcheck.me/register/browser-extension.php", "_blank")
     }
   }
 
   function onPrivateKeyChange(e: ChangeEvent<HTMLInputElement>) {
     setInputPrivateKey(e.target.value)
-  }
-
-  function isElectronRenderer() {
-    return navigator.userAgent.toLowerCase().includes("electron")
   }
 
   return (
@@ -106,10 +97,10 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         onSubmit={(e) => e.preventDefault()}
       >
         <h1 className="text-2xl font-bold">Sign in</h1>
-        {!isElectronRenderer() && (
+        {window.nostr && (
           <>
             <button className="btn btn-primary" onClick={() => extensionLogin()}>
-              {window.nostr ? "Nostr Extension Login" : "Install Nostr Extension"}
+              Nostr Extension Login
             </button>
             or
           </>
