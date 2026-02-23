@@ -7,6 +7,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 import {getTag} from "@/utils/tagUtils"
+import type {VerifiedEvent} from "nostr-tools"
 import {
   GroupManager,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
@@ -47,6 +48,20 @@ function resolveSenderOwnerPubkey(
   return event.senderDevicePubkey
 }
 
+function isVerifiedNostrEvent(value: unknown): value is VerifiedEvent {
+  if (!value || typeof value !== "object") return false
+  const candidate = value as Partial<VerifiedEvent>
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.pubkey === "string" &&
+    typeof candidate.sig === "string" &&
+    typeof candidate.created_at === "number" &&
+    typeof candidate.kind === "number" &&
+    typeof candidate.content === "string" &&
+    Array.isArray(candidate.tags)
+  )
+}
+
 function createNostrSubscribe(): NostrSubscribe {
   return (filter, onEvent) => {
     const sub = ndk().subscribe(filter)
@@ -55,8 +70,8 @@ function createNostrSubscribe(): NostrSubscribe {
         event && typeof event === "object" && "rawEvent" in event
           ? (event as {rawEvent?: () => unknown}).rawEvent?.()
           : event
-      if (!raw || typeof raw !== "object") return
-      onEvent(raw as unknown as Parameters<typeof onEvent>[0])
+      if (!isVerifiedNostrEvent(raw)) return
+      onEvent(raw)
     })
     sub.start()
     return () => sub.stop()
