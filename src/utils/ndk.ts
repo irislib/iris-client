@@ -79,15 +79,16 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
   // Create instance immediately so ndk() returns it synchronously
   ndkInstance = new NDK({explicitRelayUrls: []})
 
-  // Create transport immediately (before any subscriptions)
+  // Create worker transport (always - handles search index in both modes)
+  const workerFactory = () =>
+    new Worker(new URL("../workers/relay-worker.ts", import.meta.url), {
+      type: "module",
+    })
+  workerTransport = new NDKWorkerTransport(workerFactory)
+
+  // Create Tauri transport for relay connections (Tauri only)
   if (isTauri()) {
     tauriTransport = new NDKTauriTransport()
-  } else {
-    const workerFactory = () =>
-      new Worker(new URL("../workers/relay-worker.ts", import.meta.url), {
-        type: "module",
-      })
-    workerTransport = new NDKWorkerTransport(workerFactory)
   }
 
   // Start configuration asynchronously (but don't block return)
@@ -124,10 +125,13 @@ async function performInit(opts?: NDKConstructorParams) {
     autoConnectUserRelays
   )
 
-  // Transport already created in initNDK()
-  // Connect it synchronously (registers itself and sends init)
-  const transport = isTauri() ? tauriTransport : workerTransport
-  transport!.connect(ndkInstance!, relays) // Don't await - queues messages
+  // Connect transports (registers as plugin and sends init)
+  if (isTauri()) {
+    tauriTransport!.connect(ndkInstance!, relays) // Relay connections via Tauri backend
+    workerTransport!.connect(ndkInstance!, [], true) // Worker for search only, no relays
+  } else {
+    workerTransport!.connect(ndkInstance!, relays) // Worker handles everything
+  }
 
   const ndk = ndkInstance!
 
