@@ -48,58 +48,6 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
                     let relay_url = pool_event.relay.clone();
                     let event = pool_event.event;
 
-                    // Handle negentropy events
-                    if let Some(neg_event) = pool_event.negentropy_event {
-                        use enostr::NegentropyEvent;
-                        match neg_event {
-                            NegentropyEvent::NeedLocalEvents { relay_url, sub_id, filter } => {
-                                debug!("Negentropy NeedLocalEvents for sub {} on {}", sub_id, relay_url);
-                                // Query local events from ndb
-                                NDB.with(|n| {
-                                    if let Some(ndb) = n.borrow().as_ref() {
-                                        if let Ok(txn) = nostrdb::Transaction::new(ndb) {
-                                            let notes = match ndb.query(&txn, &[filter.clone()], 1000) {
-                                                Ok(results) => {
-                                                    results.iter().map(|r| r.note.clone()).collect::<Vec<_>>()
-                                                }
-                                                Err(_) => vec![],
-                                            };
-                                            debug!("Providing {} local events for negentropy sync", notes.len());
-                                            if let Err(e) = pool.add_negentropy_notes(&relay_url, &sub_id, filter, &notes) {
-                                                warn!("Failed to add negentropy notes: {}", e);
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                            NegentropyEvent::NeedEvents { relay_url, sub_id, event_ids } => {
-                                debug!("Negentropy NeedEvents: {} IDs for sub {} on {}", event_ids.len(), sub_id, relay_url);
-                                // Relay has these events, we need to fetch them
-                                if !event_ids.is_empty() {
-                                    let fetch_filter = nostrdb::Filter::new()
-                                        .ids(event_ids.iter().map(|s| {
-                                            let mut bytes = [0u8; 32];
-                                            let _ = hex::decode_to_slice(s, &mut bytes);
-                                            bytes
-                                        }).collect::<Vec<_>>().iter())
-                                        .build();
-                                    let fetch_msg = enostr::ClientMessage::req(format!("{}-fetch", sub_id), vec![fetch_filter]);
-                                    pool.send(&fetch_msg);
-                                }
-                            }
-                            NegentropyEvent::HaveEvents { event_ids, .. } => {
-                                debug!("Negentropy HaveEvents: we have {} events relay doesn't", event_ids.len());
-                                // We have these, relay doesn't - could upload if bidirectional
-                            }
-                            NegentropyEvent::SyncComplete { sub_id, .. } => {
-                                debug!("Negentropy sync complete for {}", sub_id);
-                            }
-                            NegentropyEvent::Error { sub_id, error, .. } => {
-                                warn!("Negentropy error for {}: {}", sub_id, error);
-                            }
-                        }
-                    }
-
                     match event {
                         ewebsock::WsEvent::Message(ewebsock::WsMessage::Text(text)) => {
                             // Fast path: check for duplicate EVENT messages using string ops
@@ -146,7 +94,7 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
                                                                     let _ = app_handle.emit("nostr_event", NostrResponse::Event {
                                                                         sub_id: sub_id.to_string(),
                                                                         event: event.clone(),
-                                                                        relay: Some(relay_url.clone()),
+                                                                        relay: Some(relay_url.to_string()),
                                                                     });
                                                                 }
                                                             }

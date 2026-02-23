@@ -1,6 +1,6 @@
 [package]
 name = "iris"
-version = "2.4.0"
+version = "2.5.0"
 description = "Iris"
 authors = ["Martti Malmi"]
 license = "MIT"
@@ -31,8 +31,11 @@ tauri-plugin-opener = "2.5"
 tauri-plugin-dialog = "2.4"
 tauri-plugin-deep-link = "2.4"
 tauri-plugin-os = "2"
-nostrdb = { path = "/Users/martti/src/nostrdb-rs" }
+nostrdb = { package = "nostrdb-social", path = "/Users/martti/src/nostrdb-rs" }
 enostr = { path = "/Users/martti/src/notedeck/crates/enostr" }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-autostart = "2"
+
+[patch."https://github.com/mmalmi/nostrdb-rs"]
+nostrdb-social = { path = "/Users/martti/src/nostrdb-rs" }

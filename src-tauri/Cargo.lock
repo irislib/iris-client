@@ -1463,22 +1463,19 @@ dependencies = [
  "hex",
  "interceptor",
  "mio",
- "negentropy 0.5.0",
  "nostr",
- "nostrdb",
+ "nostrdb-social",
  "parking_lot",
  "sdp",
  "serde",
  "serde_derive",
  "serde_json",
- "sha2",
  "stun",
  "thiserror 2.0.12",
  "tokenator",
  "tokio",
  "tracing",
  "url",
- "uuid",
  "webrtc",
  "webrtc-data",
  "webrtc-ice",
@@ -2572,11 +2569,11 @@ dependencies = [
 
 [[package]]
 name = "iris"
-version = "2.4.0"
+version = "2.5.0"
 dependencies = [
  "enostr",
  "hex",
- "nostrdb",
+ "nostrdb-social",
  "rustls",
  "serde",
  "serde_json",
@@ -3029,12 +3026,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43a88da9dd148bbcdce323dd6ac47d369b4769d4a3b78c6c52389b9269f77932"
 
 [[package]]
-name = "negentropy"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0efe882e02d206d8d279c20eb40e03baf7cb5136a1476dc084a324fbc3ec42d"
-
-[[package]]
 name = "new_debug_unreachable"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3109,7 +3100,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nostrdb"
+name = "nostrdb-social"
 version = "0.8.0"
 dependencies = [
  "bindgen",
