@@ -14,6 +14,7 @@ pub fn handle_subscribe(
     pool: &mut RelayPool,
     subscriptions: &mut HashMap<String, Subscription>,
     sub_id_map: &mut HashMap<u64, String>,
+    active_relay_subs: &mut HashMap<String, Vec<Filter>>,
     _app_handle: &tauri::AppHandle,
 ) {
     info!(sub_id = %id, filter_count = filters.len(), "Subscribe request");
@@ -131,6 +132,9 @@ pub fn handle_subscribe(
         return;
     }
 
+    // Store for replay on new relay connections
+    active_relay_subs.insert(id.clone(), relay_filters.clone());
+
     // Use pool.subscribe() which handles negentropy for eligible filters
     pool.subscribe(id.clone(), relay_filters);
     info!(sub_id = %id, relay_count = pool.relays.len(), "Subscribed to relays (with negentropy if eligible)");
@@ -140,11 +144,29 @@ pub fn handle_unsubscribe(
     id: String,
     pool: &mut RelayPool,
     subscriptions: &mut HashMap<String, Subscription>,
+    active_relay_subs: &mut HashMap<String, Vec<Filter>>,
 ) {
     subscriptions.remove(&id);
+    active_relay_subs.remove(&id);
     let close_msg = ClientMessage::close(id.clone());
     pool.send(&close_msg);
     debug!(sub_id = %id, "Sent CLOSE to relays");
+}
+
+/// Replay all active subscriptions to a specific relay (used when a new relay connects)
+pub fn replay_subscriptions_to_relay(
+    active_relay_subs: &HashMap<String, Vec<Filter>>,
+    pool: &mut RelayPool,
+    relay_url: &str,
+) {
+    let count = active_relay_subs.len();
+    if count == 0 {
+        return;
+    }
+    for (sub_id, filters) in active_relay_subs {
+        pool.send_to(&ClientMessage::req(sub_id.clone(), filters.clone()), relay_url);
+    }
+    info!(count = count, relay = %relay_url, "Replayed subscriptions to new relay");
 }
 
 pub fn handle_publish(

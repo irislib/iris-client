@@ -14,6 +14,8 @@ thread_local! {
     static POOL: RefCell<Option<RelayPool>> = RefCell::new(None);
     static SUBSCRIPTIONS: RefCell<HashMap<String, Subscription>> = RefCell::new(HashMap::new());
     static SUB_ID_MAP: RefCell<HashMap<u64, String>> = RefCell::new(HashMap::new());
+    /// Active relay subscription filters, replayed when new relays connect
+    static ACTIVE_RELAY_SUBS: RefCell<HashMap<String, Vec<nostrdb::Filter>>> = RefCell::new(HashMap::new());
 }
 
 pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: tauri::AppHandle) {
@@ -40,12 +42,14 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
     loop {
         let mut had_activity = false;
 
-        // Process relay events
+        // Process relay events, collect newly opened relays for deferred subscription replay
+        let mut newly_opened_relays: Vec<String> = Vec::new();
+
         POOL.with(|p| {
             if let Some(pool) = p.borrow_mut().as_mut() {
                 while let Some(pool_event) = pool.try_recv() {
                     had_activity = true;
-                    let relay_url = pool_event.relay.clone();
+                    let relay_url = pool_event.relay;
                     let event = pool_event.event;
 
                     match event {
@@ -53,105 +57,121 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
                             // Fast path: check for duplicate EVENT messages using string ops
                             let mut already_had = false;
                             if text.len() > 3 && text.as_bytes()[2] == b'E' && text.as_bytes()[3] == b'V' {
-                                    if let Some(id_pos) = text.find(r#""id":""#) {
-                                        let id_start = id_pos + 6;
-                                        let id_end = id_start + 64;
-                                        if id_end <= text.len() {
-                                            let id_str = &text[id_start..id_end];
-                                            let mut id_bytes = [0u8; 32];
-                                            if hex::decode_to_slice(id_str, &mut id_bytes).is_ok() {
-                                                NDB.with(|n| {
-                                                    if let Some(ndb) = n.borrow().as_ref() {
-                                                        if let Ok(txn) = nostrdb::Transaction::new(ndb) {
-                                                            already_had = ndb.get_notekey_by_id(&txn, &id_bytes).is_ok();
-                                                        }
+                                if let Some(id_pos) = text.find(r#""id":""#) {
+                                    let id_start = id_pos + 6;
+                                    let id_end = id_start + 64;
+                                    if id_end <= text.len() {
+                                        let id_str = &text[id_start..id_end];
+                                        let mut id_bytes = [0u8; 32];
+                                        if hex::decode_to_slice(id_str, &mut id_bytes).is_ok() {
+                                            NDB.with(|n| {
+                                                if let Some(ndb) = n.borrow().as_ref() {
+                                                    if let Ok(txn) = nostrdb::Transaction::new(ndb) {
+                                                        already_had = ndb.get_notekey_by_id(&txn, &id_bytes).is_ok();
                                                     }
-                                                });
-                                            }
+                                                }
+                                            });
                                         }
                                     }
                                 }
+                            }
 
-                                // Skip if already had - don't process or forward
-                                if already_had {
-                                    continue;
-                                }
+                            // Skip if already had - don't process or forward
+                            if already_had {
+                                continue;
+                            }
 
-                                debug!(relay = %relay_url, len = text.len(), "Received message");
+                            debug!(relay = %relay_url, len = text.len(), "Received message");
 
-                                // Process through nostrdb (validates signature)
-                                NDB.with(|n| {
-                                    if let Some(ndb) = n.borrow_mut().as_mut() {
-                                        // Try to parse as relay message first
-                                        if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&text) {
-                                            if let Some(arr) = msg.as_array() {
-                                                match arr.get(0).and_then(|v| v.as_str()) {
-                                                    Some("EVENT") if arr.len() >= 3 => {
-                                                        // Validate with nostrdb
-                                                        match ndb.process_event(&text) {
-                                                            Ok(_) => {
-                                                                if let (Some(sub_id), Some(event)) = (arr[1].as_str(), arr.get(2)) {
-                                                                    let _ = app_handle.emit("nostr_event", NostrResponse::Event {
-                                                                        sub_id: sub_id.to_string(),
-                                                                        event: event.clone(),
-                                                                        relay: Some(relay_url.to_string()),
-                                                                    });
-                                                                }
-                                                            }
-                                                            Err(e) => {
-                                                                warn!(error = ?e, "Event rejected");
+                            // Process through nostrdb (validates signature)
+                            NDB.with(|n| {
+                                if let Some(ndb) = n.borrow_mut().as_mut() {
+                                    // Try to parse as relay message first
+                                    if let Ok(msg) = serde_json::from_str::<serde_json::Value>(&text) {
+                                        if let Some(arr) = msg.as_array() {
+                                            match arr.get(0).and_then(|v| v.as_str()) {
+                                                Some("EVENT") if arr.len() >= 3 => {
+                                                    // Validate with nostrdb
+                                                    match ndb.process_event(&text) {
+                                                        Ok(_) => {
+                                                            if let (Some(sub_id), Some(event)) = (arr[1].as_str(), arr.get(2)) {
+                                                                let _ = app_handle.emit("nostr_event", NostrResponse::Event {
+                                                                    sub_id: sub_id.to_string(),
+                                                                    event: event.clone(),
+                                                                    relay: Some(relay_url.to_string()),
+                                                                });
                                                             }
                                                         }
-                                                    }
-                                                    Some("NOTICE") if arr.len() >= 2 => {
-                                                        if let Some(notice) = arr[1].as_str() {
-                                                            warn!(relay = %relay_url, notice = %notice, "Relay notice");
+                                                        Err(e) => {
+                                                            warn!(error = ?e, "Event rejected");
                                                         }
                                                     }
-                                                    Some("EOSE") if arr.len() >= 2 => {
-                                                        if let Some(sub_id) = arr[1].as_str() {
-                                                            debug!(relay = %relay_url, sub_id = %sub_id, "End of stored events (not forwarding to frontend)");
-                                                            // Don't forward EOSEs - they flood the IPC channel
-                                                        }
+                                                }
+                                                Some("NOTICE") if arr.len() >= 2 => {
+                                                    if let Some(notice) = arr[1].as_str() {
+                                                        warn!(relay = %relay_url, notice = %notice, "Relay notice");
                                                     }
-                                                    Some("OK") => {
-                                                        debug!(relay = %relay_url, "Event accepted");
+                                                }
+                                                Some("EOSE") if arr.len() >= 2 => {
+                                                    if let Some(sub_id) = arr[1].as_str() {
+                                                        debug!(relay = %relay_url, sub_id = %sub_id, "End of stored events (not forwarding to frontend)");
                                                     }
-                                                    _ => {
-                                                        debug!(relay = %relay_url, msg = %&text[..text.len().min(100)], "Unknown message");
-                                                    }
+                                                }
+                                                Some("OK") => {
+                                                    debug!(relay = %relay_url, "Event accepted");
+                                                }
+                                                _ => {
+                                                    debug!(relay = %relay_url, msg = %&text[..text.len().min(100)], "Unknown message");
                                                 }
                                             }
                                         }
                                     }
-                                });
-                            }
-                            ewebsock::WsEvent::Opened => {
-                                info!(relay = %relay_url, "Relay connection opened");
-                                // Status already set by pool.try_recv()
-                                let _ = app_handle.emit("nostr_event", serde_json::json!({
-                                    "type": "relayConnected",
-                                    "relay": relay_url
-                                }));
-                            }
-                            ewebsock::WsEvent::Closed => {
-                                info!(relay = %relay_url, "Disconnected");
-                                // Status already set by pool.try_recv()
-                                let _ = app_handle.emit("nostr_event", serde_json::json!({
-                                    "type": "relayDisconnected",
-                                    "relay": relay_url
-                                }));
-                            }
-                            ewebsock::WsEvent::Error(e) => {
-                                error!(relay = %relay_url, error = %e, "Relay error");
-                            }
-                            _ => {
-                                // Ignore other message types (Binary, Ping, Pong, Unknown)
-                            }
+                                }
+                            });
+                        }
+                        ewebsock::WsEvent::Opened => {
+                            info!(relay = %relay_url, "Relay connection opened");
+                            newly_opened_relays.push(relay_url.to_string());
+                            let _ = app_handle.emit("nostr_event", serde_json::json!({
+                                "type": "relayConnected",
+                                "relay": relay_url
+                            }));
+                        }
+                        ewebsock::WsEvent::Closed => {
+                            info!(relay = %relay_url, "Disconnected");
+                            let _ = app_handle.emit("nostr_event", serde_json::json!({
+                                "type": "relayDisconnected",
+                                "relay": relay_url
+                            }));
+                        }
+                        ewebsock::WsEvent::Error(e) => {
+                            error!(relay = %relay_url, error = %e, "Relay error");
+                        }
+                        _ => {
+                            // Ignore other message types (Binary, Ping, Pong, Unknown)
                         }
                     }
                 }
+            }
         });
+
+        // Replay active subscriptions to newly opened relays (deferred to avoid borrow conflict)
+        if !newly_opened_relays.is_empty() {
+            POOL.with(|p| {
+                ACTIVE_RELAY_SUBS.with(|active| {
+                    if let Some(pool) = p.borrow_mut().as_mut() {
+                        let active_subs = active.borrow();
+                        for relay_url in &newly_opened_relays {
+                            subscription_handlers::replay_subscriptions_to_relay(
+                                &active_subs,
+                                pool,
+                                relay_url,
+                            );
+                        }
+                    }
+                });
+            });
+        }
 
         // Process commands
         match rx.try_recv() {
@@ -162,9 +182,18 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
             Ok(NostrRequest::AddRelay { url }) => {
                 had_activity = true;
                 POOL.with(|p| {
-                    if let Some(pool) = p.borrow_mut().as_mut() {
-                        relay_handlers::handle_add_relay(pool, url, &app_handle);
-                    }
+                    ACTIVE_RELAY_SUBS.with(|active| {
+                        if let Some(pool) = p.borrow_mut().as_mut() {
+                            relay_handlers::handle_add_relay(pool, url.clone(), &app_handle);
+                            // Replay active subscriptions to the new relay
+                            let active_subs = active.borrow();
+                            subscription_handlers::replay_subscriptions_to_relay(
+                                &active_subs,
+                                pool,
+                                &url,
+                            );
+                        }
+                    });
                 });
             }
             Ok(NostrRequest::GetRelayStatus { id }) => {
@@ -203,18 +232,21 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
                     POOL.with(|p| {
                         SUBSCRIPTIONS.with(|subs| {
                             SUB_ID_MAP.with(|map| {
-                                if let (Some(ndb), Some(pool)) = (n.borrow().as_ref(), p.borrow_mut().as_mut()) {
-                                    subscription_handlers::handle_subscribe(
-                                        id,
-                                        filters,
-                                        subscribe_opts,
-                                        ndb,
-                                        pool,
-                                        &mut subs.borrow_mut(),
-                                        &mut map.borrow_mut(),
-                                        &app_handle,
-                                    );
-                                }
+                                ACTIVE_RELAY_SUBS.with(|active| {
+                                    if let (Some(ndb), Some(pool)) = (n.borrow().as_ref(), p.borrow_mut().as_mut()) {
+                                        subscription_handlers::handle_subscribe(
+                                            id,
+                                            filters,
+                                            subscribe_opts,
+                                            ndb,
+                                            pool,
+                                            &mut subs.borrow_mut(),
+                                            &mut map.borrow_mut(),
+                                            &mut active.borrow_mut(),
+                                            &app_handle,
+                                        );
+                                    }
+                                });
                             });
                         });
                     });
@@ -234,9 +266,11 @@ pub fn nostr_thread(rx: &Receiver<NostrRequest>, db_path: &str, app_handle: taur
                 had_activity = true;
                 POOL.with(|p| {
                     SUBSCRIPTIONS.with(|subs| {
-                        if let Some(pool) = p.borrow_mut().as_mut() {
-                            subscription_handlers::handle_unsubscribe(id, pool, &mut subs.borrow_mut());
-                        }
+                        ACTIVE_RELAY_SUBS.with(|active| {
+                            if let Some(pool) = p.borrow_mut().as_mut() {
+                                subscription_handlers::handle_unsubscribe(id, pool, &mut subs.borrow_mut(), &mut active.borrow_mut());
+                            }
+                        });
                     });
                 });
             }

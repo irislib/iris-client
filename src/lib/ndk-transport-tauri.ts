@@ -94,9 +94,11 @@ export class NDKTauriTransport {
   >()
   private ready = false
   private readyPromise!: Promise<void>
+  private connectPromise?: Promise<void>
   private unlisten?: UnlistenFn
   private relayStatusCallbacks = new Map<string, (statuses: any[]) => void>()
   private statsCallbacks = new Map<string, (stats: LocalDataStats) => void>()
+  private messageQueue: WorkerMessage[] = []
 
   constructor() {
     this.setupTauri()
@@ -114,6 +116,21 @@ export class NDKTauriTransport {
     }).then(() => {
       this.ready = true
     })
+  }
+
+  private postMessage(msg: WorkerMessage): void {
+    if (this.ready) {
+      invoke("nostr_message", {msg})
+    } else {
+      this.messageQueue.push(msg)
+    }
+  }
+
+  private flushMessageQueue(): void {
+    while (this.messageQueue.length > 0) {
+      const msg = this.messageQueue.shift()!
+      invoke("nostr_message", {msg})
+    }
   }
 
   private handleResponse(response: WorkerResponse) {
@@ -193,14 +210,21 @@ export class NDKTauriTransport {
     }
     ndk.transportPlugins.push(this as any)
 
+    this.connectPromise = this.connectInternal()
+  }
+
+  private async connectInternal(): Promise<void> {
     await this.readyPromise
 
-    // Send relay URLs to backend
+    // Send relay URLs to backend BEFORE flushing queued subscriptions
     if (this.relayUrls.length > 0) {
       for (const url of this.relayUrls) {
         await this.addRelay(url)
       }
     }
+
+    // Now flush any queued subscribe/publish messages
+    this.flushMessageQueue()
   }
 
   async addRelay(url: string): Promise<void> {
@@ -258,26 +282,22 @@ export class NDKTauriTransport {
     }
     this.eoseHandlers.get(subId)!.add(onEose)
 
-    // Send to backend
-    invoke("nostr_message", {
-      msg: {
-        type: "subscribe",
-        id: subId,
-        filters,
-      } as WorkerMessage,
-    })
+    // Queue until relays are connected
+    this.postMessage({
+      type: "subscribe",
+      id: subId,
+      filters,
+    } as WorkerMessage)
   }
 
-  private async unsubscribeInternal(subId: string): Promise<void> {
+  private unsubscribeInternal(subId: string): void {
     this.subscriptions.delete(subId)
     this.eoseHandlers.delete(subId)
 
-    await invoke("nostr_message", {
-      msg: {
-        type: "unsubscribe",
-        id: subId,
-      } as WorkerMessage,
-    })
+    this.postMessage({
+      type: "unsubscribe",
+      id: subId,
+    } as WorkerMessage)
   }
 
   async publish(
