@@ -2,6 +2,7 @@ import {getEventHash} from "nostr-tools"
 
 import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
+import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {sendGroupEventViaTransport} from "@/utils/groupTransport"
 import {
@@ -22,6 +23,32 @@ interface SendGroupEventOptions {
 }
 
 const senderKeySendQueue = new Map<string, Promise<unknown>>()
+
+function resolveGroupMessageTtlSeconds(groupId: string): number | undefined {
+  const expirations = useChatExpirationStore.getState().expirations
+  if (Object.prototype.hasOwnProperty.call(expirations, groupId)) {
+    const fromChatExpiration = expirations[groupId]
+    if (
+      typeof fromChatExpiration === "number" &&
+      Number.isFinite(fromChatExpiration) &&
+      fromChatExpiration > 0
+    ) {
+      return Math.floor(fromChatExpiration)
+    }
+    // Explicitly configured as off (null) or invalid in chat-expiration store.
+    return undefined
+  }
+
+  const fromGroupMetadata = useGroupsStore.getState().groups[groupId]?.messageTtlSeconds
+  if (
+    typeof fromGroupMetadata === "number" &&
+    Number.isFinite(fromGroupMetadata) &&
+    fromGroupMetadata > 0
+  ) {
+    return Math.floor(fromGroupMetadata)
+  }
+  return undefined
+}
 
 async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor> {
   const {groupId, groupMembers, senderPubKey, content, kind, extraTags = []} = options
@@ -55,8 +82,8 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
 
   // Apply group disappearing-messages expiration to normal chat events.
   if (kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
-    const ttlSeconds = useChatExpirationStore.getState().expirations[groupId]
-    if (typeof ttlSeconds === "number" && ttlSeconds > 0) {
+    const ttlSeconds = resolveGroupMessageTtlSeconds(groupId)
+    if (ttlSeconds !== undefined) {
       const expiresAtSeconds = resolveExpirationSeconds({ttlSeconds}, createdAt)
       if (expiresAtSeconds !== undefined) {
         upsertExpirationTag(tags, expiresAtSeconds)
