@@ -7,7 +7,7 @@ import Appearance from "@/pages/settings/Appearance.tsx"
 import Header from "@/shared/components/header/Header"
 import IrisSettings from "./IrisAccount/IrisSettings"
 import {Network} from "@/pages/settings/Network.tsx"
-import {RiArrowRightSLine} from "@remixicon/react"
+import {RiArrowRightSLine, RiComputerLine} from "@remixicon/react"
 import Icon from "@/shared/components/Icons/Icon"
 import Keys from "@/pages/settings/Keys"
 import Logout from "@/pages/settings/Logout"
@@ -23,6 +23,7 @@ import Content from "./Content"
 import {isTauri} from "@/utils/utils"
 import LocalData from "./local/LocalData"
 import MessagesSettings from "./Messages"
+import DevicesTab from "@/pages/chats/devices"
 
 interface SettingsItem {
   icon: string | ReactElement
@@ -84,6 +85,12 @@ function Settings() {
           iconBg: "bg-orange-500",
           message: "Messages",
           path: "/settings/messages",
+        },
+        {
+          icon: <RiComputerLine size={16} />,
+          iconBg: "bg-cyan-500",
+          message: "Devices",
+          path: "/settings/devices",
         },
         {
           icon: "bell-outline",
@@ -188,6 +195,7 @@ function Settings() {
       "social-graph": "Social Graph",
       local: "Local",
       messages: "Messages",
+      devices: "Devices",
       notifications: "Notifications",
       system: "System",
     }
@@ -282,6 +290,8 @@ function Settings() {
                       return <Content />
                     case "messages":
                       return <MessagesSettings />
+                    case "devices":
+                      return <DevicesTab />
                     case "wallet":
                       return <WalletSettings />
                     case "appearance":
