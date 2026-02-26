@@ -46,7 +46,28 @@ function resolveSenderOwnerPubkey(
   ownerPubkey: string,
   devicePubkey: string
 ): string {
-  if (event.senderOwnerPubkey) return event.senderOwnerPubkey
+  const eventWithOrigin = event as GroupDecryptedEvent & {
+    origin?: string
+    isSelf?: boolean
+  }
+
+  if (typeof eventWithOrigin.isSelf === "boolean") {
+    return eventWithOrigin.isSelf
+      ? ownerPubkey
+      : event.senderOwnerPubkey || event.senderDevicePubkey
+  }
+
+  if (
+    eventWithOrigin.origin === "local-device" ||
+    eventWithOrigin.origin === "same-owner-other-device"
+  ) {
+    return ownerPubkey
+  }
+
+  if (event.senderOwnerPubkey) {
+    return event.senderOwnerPubkey === ownerPubkey ? ownerPubkey : event.senderOwnerPubkey
+  }
+
   if (event.senderDevicePubkey === devicePubkey) return ownerPubkey
   return event.senderDevicePubkey
 }
