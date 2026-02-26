@@ -9,7 +9,8 @@ import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {GroupDetails} from "./types"
 import {KIND_CHANNEL_CREATE} from "@/utils/constants"
 import {sendGroupEvent} from "../utils/groupMessaging"
-import {buildGroupMetadataContent, createGroupData} from "nostr-double-ratchet"
+import {createGroupViaTransport} from "@/utils/groupTransport"
+import {buildGroupMetadataContent} from "nostr-double-ratchet"
 
 const GroupChatCreation = () => {
   const navigate = useNavigate()
@@ -88,20 +89,32 @@ const GroupChatCreation = () => {
       setIsCreating(true)
       setCreateError(null)
 
-      const group = createGroupData(groupDetails.name, myPubKey, selectedMembers)
-      if (groupDetails.description.trim())
-        group.description = groupDetails.description.trim()
-      if (groupDetails.picture.trim()) group.picture = groupDetails.picture.trim()
+      const createdGroup = await createGroupViaTransport({
+        name: groupDetails.name.trim(),
+        memberOwnerPubkeys: selectedMembers,
+        senderPubKey: myPubKey,
+      })
+
+      const description = groupDetails.description.trim()
+      const picture = groupDetails.picture.trim()
+      const group = {
+        ...createdGroup,
+        ...(description ? {description} : {}),
+        ...(picture ? {picture} : {}),
+      }
+
       addGroup(group)
 
-      // Send group metadata as first message to the group
-      await sendGroupEvent({
-        groupId: group.id,
-        groupMembers: group.members,
-        senderPubKey: myPubKey,
-        content: buildGroupMetadataContent(group),
-        kind: KIND_CHANNEL_CREATE,
-      })
+      // If optional fields were set, publish a metadata update with full payload.
+      if (description || picture) {
+        await sendGroupEvent({
+          groupId: group.id,
+          groupMembers: group.members,
+          senderPubKey: myPubKey,
+          content: buildGroupMetadataContent(group),
+          kind: KIND_CHANNEL_CREATE,
+        })
+      }
 
       navigate(`/chats/group/${group.id}`)
     } catch (err) {

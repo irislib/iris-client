@@ -105,8 +105,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: 0.0.72
-        version: 0.0.72(typescript@5.9.3)
+        specifier: 0.0.75
+        version: 0.0.75(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -2196,8 +2196,8 @@ packages:
   brace-expansion@2.0.2:
     resolution: {integrity: sha512-Jt0vHyM+jmUBqojB7E1NIYadt0vI0Qxjxd2TErW94wDz+E2LAm5vKMXXwg6ZZBTHPuUlDgQHKXvjGBdfcF1ZDQ==}
 
-  brace-expansion@5.0.4:
-    resolution: {integrity: sha512-h+DEnpVvxmfVefa4jFbCf5HdH5YMDXRsmKflpf1pILZWRFlTbJpxeU55nJl4Smt5HQaGzg1o6RHFPJaOqnmBDg==}
+  brace-expansion@5.0.3:
+    resolution: {integrity: sha512-fy6KJm2RawA5RcHkLa1z/ScpBeA762UF9KmZQxwIbDtRJrgLzM10depAiEQ+CXYcoiqW1/m96OAAoke2nE9EeA==}
     engines: {node: 18 || 20 || >=22}
 
   braces@3.0.3:
@@ -3523,8 +3523,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.72:
-    resolution: {integrity: sha512-ZmfIjEmllUOvNoAibpggGqI22It3SwACuWEVPiYYClbbNloOS0hdmn5N/W8R4Vm6f9d47cTlKpkZncCLZht+pQ==}
+  nostr-double-ratchet@0.0.75:
+    resolution: {integrity: sha512-DZGScCc2eThBEpVkUlzIRnJw2XPMbSLhR4KTFVpifDSEkZIxlpUBSRP3t2W8egrcBdM3WBcYT3/Lp4g0V7o8WQ==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -6923,7 +6923,7 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
 
-  brace-expansion@5.0.4:
+  brace-expansion@5.0.3:
     dependencies:
       balanced-match: 4.0.4
 
@@ -8420,7 +8420,7 @@ snapshots:
 
   minimatch@10.2.4:
     dependencies:
-      brace-expansion: 5.0.4
+      brace-expansion: 5.0.3
 
   minimatch@3.1.2:
     dependencies:
@@ -8498,7 +8498,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.72(typescript@5.9.3):
+  nostr-double-ratchet@0.0.75(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.23.1(typescript@5.9.3)
     transitivePeerDependencies:

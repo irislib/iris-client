@@ -310,6 +310,39 @@ export async function sendGroupEventViaTransport(options: {
   }
 }
 
+export async function createGroupViaTransport(options: {
+  name: string
+  memberOwnerPubkeys: string[]
+  senderPubKey: string
+  fanoutMetadata?: boolean
+  nowMs?: number
+}): Promise<GroupData> {
+  const {name, memberOwnerPubkeys, senderPubKey, fanoutMetadata, nowMs} = options
+  const manager = ensureGroupManager()
+  if (!manager) {
+    throw new Error("GroupManager is not ready")
+  }
+
+  const shouldFanoutMetadata = fanoutMetadata ?? true
+  const sessionManager = shouldFanoutMetadata
+    ? await ensureSessionManager(senderPubKey)
+    : undefined
+
+  const created = await manager.createGroup(name, memberOwnerPubkeys, {
+    fanoutMetadata: shouldFanoutMetadata,
+    ...(shouldFanoutMetadata
+      ? {
+          sendPairwise: async (recipientOwnerPubkey, rumor) => {
+            await sessionManager!.sendEvent(recipientOwnerPubkey, rumor)
+          },
+        }
+      : {}),
+    ...(typeof nowMs === "number" ? {nowMs} : {}),
+  })
+
+  return created.group
+}
+
 export async function rotateGroupSenderKey(options: {
   groupId: string
   groupMembers: string[]
