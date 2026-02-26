@@ -48,6 +48,7 @@ export async function setGroupDisappearingMessages(
 
   const group = useGroupsStore.getState().groups[groupId]
   if (!group) return
+  if (!group.admins?.includes(myPubKey)) return
 
   const normalizedTtl = normalizeTtlSeconds(messageTtlSeconds)
 

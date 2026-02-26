@@ -56,6 +56,7 @@ describe("disappearingMessages", () => {
   beforeEach(async () => {
     sessionManager.sendMessage.mockClear()
     sessionManager.setExpirationForPeer.mockClear()
+    sessionManager.setExpirationForGroup.mockClear()
     sessionManager.setChatSettingsForPeer.mockClear()
     mockedSendGroupEvent.mockClear()
 
@@ -133,6 +134,25 @@ describe("disappearingMessages", () => {
       const call = mockedSendGroupEvent.mock.calls[0][0]
       const content = JSON.parse(call.content)
       expect(content.messageTtlSeconds).toBe(7200)
+    })
+
+    it("ignores group TTL changes from non-admin users", async () => {
+      useGroupsStore.setState({
+        groups: {
+          [GROUP_ID]: {
+            ...useGroupsStore.getState().groups[GROUP_ID],
+            admins: [THEIR_PUBKEY],
+            messageTtlSeconds: null,
+          },
+        },
+      })
+
+      await setGroupDisappearingMessages(GROUP_ID, 3600)
+
+      expect(useGroupsStore.getState().groups[GROUP_ID].messageTtlSeconds).toBeNull()
+      expect(useChatExpirationStore.getState().expirations[GROUP_ID]).toBeUndefined()
+      expect(sessionManager.setExpirationForGroup).not.toHaveBeenCalled()
+      expect(mockedSendGroupEvent).not.toHaveBeenCalled()
     })
   })
 })
