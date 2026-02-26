@@ -1,6 +1,6 @@
 import {RiWebhookLine} from "@remixicon/react"
 import {useUIStore} from "@/stores/ui"
-import {Link} from "@/navigation"
+import {Link, useLocation} from "@/navigation"
 import {useWorkerRelayStatus} from "@/shared/hooks/useWorkerRelayStatus"
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
 
@@ -15,6 +15,7 @@ export const RelayConnectivityIndicator = ({
 }: RelayConnectivityIndicatorProps) => {
   const {showRelayIndicator} = useUIStore()
   const workerRelays = useWorkerRelayStatus()
+  const location = useLocation()
 
   // Count connected relays from worker
   const relayCount = workerRelays.relays.filter((r) => r.status >= 5).length // NDKRelayStatus.CONNECTED = 5
@@ -25,11 +26,15 @@ export const RelayConnectivityIndicator = ({
     return "text-neutral-500"
   }
 
+  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/"
+  const targetPath =
+    normalizedPath === "/settings/network" ? "/settings" : "/settings/network"
+
   if (!showRelayIndicator) return null
 
   return (
     <Link
-      to="/settings/network"
+      to={targetPath}
       className={`flex items-center justify-center gap-1 ${getColorClass()} ${className} hover:opacity-75 transition-opacity`}
       title={`${relayCount} relays connected`}
     >

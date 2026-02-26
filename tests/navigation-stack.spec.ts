@@ -75,4 +75,24 @@ test.describe("Stack Navigation", () => {
     await expect(page).toHaveURL(/\/$/)
     console.log("After third back button, URL is:", page.url())
   })
+
+  test("connectivity indicator returns to settings root when already on network settings", async ({
+    page,
+  }) => {
+    await signUp(page)
+
+    const relayIndicator = page.locator('[title*="relays connected"]').first()
+    await expect(relayIndicator).toBeVisible({timeout: 15000})
+
+    await relayIndicator.click()
+    await expect(page).toHaveURL(/\/settings\/network$/)
+
+    const relayIndicatorOnNetworkPage = page
+      .locator('[title*="relays connected"]')
+      .first()
+    await expect(relayIndicatorOnNetworkPage).toBeVisible({timeout: 15000})
+    await relayIndicatorOnNetworkPage.click()
+
+    await expect(page).toHaveURL(/\/settings$/)
+  })
 })
