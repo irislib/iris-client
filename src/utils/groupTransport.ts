@@ -4,6 +4,7 @@ import {LocalForageStorageAdapter} from "@/session/StorageAdapter"
 import {useDevicesStore} from "@/stores/devices"
 import {type Group, useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useTypingStore} from "@/stores/typingIndicators"
 import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 import {getTag} from "@/utils/tagUtils"
@@ -11,6 +12,8 @@ import type {VerifiedEvent} from "nostr-tools"
 import {
   GroupManager,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
+  getMillisecondTimestamp,
+  isTyping,
   type GroupData,
   type GroupDecryptedEvent,
   type NostrSubscribe,
@@ -145,6 +148,19 @@ async function handleDecryptedEvent(
 
   const senderOwnerPubkey = resolveSenderOwnerPubkey(event, ownerPubkey, devicePubkey)
   ensurePlaceholderGroup(event.groupId, myPubkey, senderOwnerPubkey)
+
+  if (isTyping(event.inner)) {
+    if (senderOwnerPubkey !== myPubkey) {
+      useTypingStore
+        .getState()
+        .setRemoteTyping(event.groupId, getMillisecondTimestamp(event.inner))
+    }
+    return
+  }
+
+  useTypingStore
+    .getState()
+    .clearRemoteTyping(event.groupId, getMillisecondTimestamp(event.inner))
 
   await usePrivateMessagesStore.getState().upsert(event.groupId, myPubkey, {
     ...event.inner,

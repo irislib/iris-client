@@ -1,5 +1,5 @@
 import RelativeTime from "@/shared/components/event/RelativeTime"
-import {getMillisecondTimestamp} from "nostr-double-ratchet"
+import {getMillisecondTimestamp, isTyping} from "nostr-double-ratchet"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import {Avatar} from "@/shared/components/user/Avatar"
 import ProxyImg from "@/shared/components/ProxyImg"
@@ -61,16 +61,28 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
   const {groups} = useGroupsStore()
   const group = groups[id]
   const typingActive = useTypingStore((state) =>
-    type === "private" ? (state.isTyping.get(id) ?? false) : false
+    type === "private" || type === "group" ? (state.isTyping.get(id) ?? false) : false
   )
 
   // Memoize latest message to prevent flash when other chats update
   const actualLatest = useMemo(() => {
+    const latestNonTyping = (
+      messages: typeof privateMessages | typeof groupMessages
+    ): MessageType | undefined => {
+      if (!messages) return undefined
+      let latest: MessageType | undefined
+      for (const [, message] of messages) {
+        if (isTyping(message)) continue
+        latest = message as MessageType
+      }
+      return latest
+    }
+
     if (type === "group") {
-      return groupMessages?.last()?.[1]
+      return latestNonTyping(groupMessages)
     }
     if (type === "private") {
-      return privateMessages?.last()?.[1]
+      return latestNonTyping(privateMessages)
     }
     return undefined
   }, [type, groupMessages, privateMessages])

@@ -7,6 +7,8 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
+import {useTypingStore} from "@/stores/typingIndicators"
+import {TYPING_KIND} from "nostr-double-ratchet"
 
 const MY_PUBKEY = "a".repeat(64)
 const THEIR_PUBKEY = "b".repeat(64)
@@ -62,6 +64,7 @@ describe("dmEventHandler expiration settings", () => {
     useMessageRequestsStore.setState({acceptedChats: {}, rejectedChats: {}})
     useChatExpirationStore.setState({expirations: {}})
     useGroupsStore.setState({groups: {}} as any)
+    useTypingStore.getState().clearAll()
 
     await usePrivateMessagesStore.getState().clear()
   })
@@ -128,5 +131,33 @@ describe("dmEventHandler expiration settings", () => {
     expect(sessionManager.setExpirationForGroup).toHaveBeenCalledWith(groupId, {
       ttlSeconds: 3600,
     })
+  })
+
+  it("treats legacy group typing events as ephemeral", async () => {
+    const groupId = "group-typing"
+
+    attachSessionEventListener(sessionManager as any)
+    await flushPromises()
+
+    expect(capturedCallback).toBeTruthy()
+
+    capturedCallback?.(
+      {
+        id: "typing-1",
+        kind: TYPING_KIND,
+        pubkey: THEIR_PUBKEY,
+        content: "typing",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["l", groupId]],
+      },
+      THEIR_PUBKEY
+    )
+
+    await flushPromises()
+
+    expect(useTypingStore.getState().isTyping.get(groupId)).toBe(true)
+    expect(
+      usePrivateMessagesStore.getState().events.get(groupId)?.get("typing-1")
+    ).toBeUndefined()
   })
 })

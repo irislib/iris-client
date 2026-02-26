@@ -310,6 +310,16 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
           return
         }
 
+        // Legacy group typing events are ephemeral and should not be persisted.
+        if (isTyping(event)) {
+          if (!isOwnDevice) {
+            useTypingStore
+              .getState()
+              .setRemoteTyping(lTag, getMillisecondTimestamp(event))
+          }
+          return
+        }
+
         // Legacy group message (double-ratchet fan-out): store under group ID.
         const {groups, addGroup} = useGroupsStore.getState()
         if (!groups[lTag]) {
@@ -324,6 +334,12 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
             accepted: true,
           })
           log("Created placeholder group:", lTag)
+        }
+
+        if (event.kind !== KIND_REACTION) {
+          useTypingStore
+            .getState()
+            .clearRemoteTyping(lTag, getMillisecondTimestamp(event))
         }
 
         log("Received group message for group:", lTag)

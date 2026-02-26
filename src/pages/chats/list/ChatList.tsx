@@ -9,7 +9,7 @@ import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {comparator} from "@/pages/chats/utils/messageGrouping"
-import {getMillisecondTimestamp} from "nostr-double-ratchet"
+import {getMillisecondTimestamp, isTyping} from "nostr-double-ratchet"
 import {MessageType} from "@/pages/chats/message/Message"
 import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMessagingOnboardingPrompt"
 import {useMessagesStore} from "@/stores/messages"
@@ -37,6 +37,16 @@ const ChatList = ({className}: ChatListProps) => {
   const events = usePrivateMessagesStore((state) => state.events)
 
   const followsSet = useMemo(() => new Set(myFollows), [myFollows])
+  const getLatestNonTypingTimestamp = (messageMap?: SortedMap<string, MessageType>) => {
+    if (!messageMap) return 0
+    let latest: MessageType | undefined
+    for (const [, message] of messageMap.entries()) {
+      if (isTyping(message)) continue
+      latest = message
+    }
+    if (!latest) return 0
+    return getMillisecondTimestamp(latest)
+  }
 
   const privateChatLatestTimestamps = useMemo(() => {
     const latestMap = new Map<string, number>()
@@ -44,13 +54,7 @@ const ChatList = ({className}: ChatListProps) => {
       // Skip group IDs (groups are handled separately)
       if (groups[userPubKey]) continue
 
-      const [, latest] = messageMap.last() ?? []
-      if (!latest) {
-        latestMap.set(userPubKey, 0)
-        continue
-      }
-      const timestamp = getMillisecondTimestamp(latest as MessageType)
-      latestMap.set(userPubKey, timestamp)
+      latestMap.set(userPubKey, getLatestNonTypingTimestamp(messageMap))
     }
     return latestMap
   }, [events, groups])
@@ -115,10 +119,8 @@ const ChatList = ({className}: ChatListProps) => {
 
   const latestForGroup = (id: string) => {
     const events = usePrivateMessagesStore.getState().events
-    const messages = events.get(id) ?? new SortedMap([], comparator)
-    const lastMsg = messages.last()?.[1]
-    if (!lastMsg) return 0
-    return lastMsg.created_at ? new Date(lastMsg.created_at * 1000).getTime() : 0
+    const messages = events.get(id) ?? new SortedMap<string, MessageType>([], comparator)
+    return getLatestNonTypingTimestamp(messages)
   }
 
   const latestForPublicChat = (id: string) => {
