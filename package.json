@@ -46,6 +46,8 @@
     "format": "prettier --write \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
     "format:check": "prettier --check \"**/*.+(js|jsx|tsx|json|yml|yaml|css|md)\"",
     "typecheck": "tsc --noEmit",
+    "ios:sim:build": "bash ./scripts/ios-sim-build.sh",
+    "ios:sim:smoke": "bash ./scripts/ios-smoke-sim.sh",
     "tauri": "tauri"
   },
   "build": {
