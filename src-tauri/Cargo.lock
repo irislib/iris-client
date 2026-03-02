@@ -2576,7 +2576,7 @@ version = "2.5.0"
 dependencies = [
  "enostr",
  "hex",
- "nostrdb-social",
+ "nostrdb",
  "rustls",
  "serde",
  "serde_json",
