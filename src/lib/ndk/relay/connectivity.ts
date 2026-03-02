@@ -373,8 +373,8 @@ export class NDKRelayConnectivity {
       this.ndkRelay.addNonValidatedEvent()
     }
 
-    // Store processed event in manager
-    this.ndk?.subManager.seenEvent(rawEvent.id!, this.ndkRelay, ndkEvent)
+    // Track that this relay has seen the event for de-dup and provenance checks.
+    this.ndk?.subManager.seenEvent(rawEvent.id!, this.ndkRelay)
 
     return ndkEvent
   }
@@ -509,7 +509,10 @@ export class NDKRelayConnectivity {
     const eventId = this.getEventIdFromMessage(msg)
     if (eventId && this.ndk) {
       const seenData = this.ndk.subManager.seenEvents.get(eventId)
-      if (seenData && seenData.relays.length > 0) {
+      const seenRelayCount = Array.isArray(seenData)
+        ? seenData.length
+        : (seenData?.relays?.length ?? 0)
+      if (seenRelayCount > 0) {
         // Already processed from any relay, just track this relay saw it
         this.ndk.subManager.seenEvent(eventId, this.ndkRelay)
         return

@@ -1100,12 +1100,6 @@ export class NDK extends EventEmitter<{
       filters = [filterFromId(idOrFilter)]
       // Extract event ID from filter
       const eventId = filters[0]?.ids?.[0]
-      if (eventId) {
-        const seenData = this.subManager.seenEvents.get(eventId)
-        if (seenData?.processedEvent) {
-          return seenData.processedEvent
-        }
-      }
     } else if (Array.isArray(idOrFilter)) {
       filters = idOrFilter
     } else {

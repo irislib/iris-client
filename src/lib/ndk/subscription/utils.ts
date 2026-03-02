@@ -1,16 +1,16 @@
-import {nip19} from "nostr-tools"
+import { nip19 } from "nostr-tools";
 
-import type {NDK} from "../ndk/index.js"
-import {NDKRelay} from "../relay/index.js"
-import {NDKRelaySet} from "../relay/sets/index.js"
-import type {EventPointer} from "../user/index.js"
-import type {NDKFilter, NDKSubscription} from "./index.js"
+import type { NDK } from "../ndk/index.js";
+import { NDKRelay } from "../relay/index.js";
+import { NDKRelaySet } from "../relay/sets/index.js";
+import type { EventPointer } from "../user/index.js";
+import type { NDKFilter, NDKSubscription } from "./index.js";
 
 /**
  * Don't generate subscription Ids longer than this amount of characters
  * (plus 4-chars random number)
  */
-const MAX_SUBID_LENGTH = 20
+const MAX_SUBID_LENGTH = 20;
 
 /**
  * Checks if a subscription is fully guaranteed to have been filled.
@@ -21,13 +21,13 @@ const MAX_SUBID_LENGTH = 20
  * @returns
  */
 export function queryFullyFilled(subscription: NDKSubscription): boolean {
-  if (filterIncludesIds(subscription.filter)) {
-    if (resultHasAllRequestedIds(subscription)) {
-      return true
+    if (filterIncludesIds(subscription.filter)) {
+        if (resultHasAllRequestedIds(subscription)) {
+            return true;
+        }
     }
-  }
 
-  return false
+    return false;
 }
 
 /**
@@ -45,39 +45,39 @@ export function queryFullyFilled(subscription: NDKSubscription): boolean {
  * @returns
  */
 export function compareFilter(filter1: NDKFilter, filter2: NDKFilter) {
-  // Make sure the filters have the same number of keys
-  if (Object.keys(filter1).length !== Object.keys(filter2).length) return false
+    // Make sure the filters have the same number of keys
+    if (Object.keys(filter1).length !== Object.keys(filter2).length) return false;
 
-  for (const [key, value] of Object.entries(filter1)) {
-    const valuesInFilter2 = filter2[key as keyof NDKFilter] as string[]
+    for (const [key, value] of Object.entries(filter1)) {
+        const valuesInFilter2 = filter2[key as keyof NDKFilter] as string[];
 
-    if (!valuesInFilter2) return false
+        if (!valuesInFilter2) return false;
 
-    if (Array.isArray(value) && Array.isArray(valuesInFilter2)) {
-      const v: string[] = value as string[]
-      // make sure all values in the filter are in the other filter
-      for (const valueInFilter2 of valuesInFilter2) {
-        const val: string = valueInFilter2 as string
-        if (!v.includes(val)) {
-          return false
+        if (Array.isArray(value) && Array.isArray(valuesInFilter2)) {
+            const v: string[] = value as string[];
+            // make sure all values in the filter are in the other filter
+            for (const valueInFilter2 of valuesInFilter2) {
+                const val: string = valueInFilter2 as string;
+                if (!v.includes(val)) {
+                    return false;
+                }
+            }
+        } else {
+            if (valuesInFilter2 !== value) return false;
         }
-      }
-    } else {
-      if (valuesInFilter2 !== value) return false
     }
-  }
 
-  return true
+    return true;
 }
 
 function filterIncludesIds(filter: NDKFilter): boolean {
-  return !!filter.ids
+    return !!filter.ids;
 }
 
 function resultHasAllRequestedIds(subscription: NDKSubscription): boolean {
-  const ids = subscription.filter.ids
+    const ids = subscription.filter.ids;
 
-  return !!ids && ids.length === subscription.eventFirstSeen.size
+    return !!ids && ids.length === subscription.eventFirstSeen.size;
 }
 
 /**
@@ -89,44 +89,41 @@ function resultHasAllRequestedIds(subscription: NDKSubscription): boolean {
  * If none of the subscriptions specify a subId, a subId is generated
  * by joining all the filter keys, and expanding the kinds with the requested kinds.
  */
-export function generateSubId(
-  subscriptions: NDKSubscription[],
-  filters: NDKFilter[]
-): string {
-  const subIds = subscriptions.map((sub) => sub.subId).filter(Boolean)
-  const subIdParts: string[] = []
-  const filterNonKindKeys = new Set<string>()
-  const filterKinds = new Set<number>()
+export function generateSubId(subscriptions: NDKSubscription[], filters: NDKFilter[]): string {
+    const subIds = subscriptions.map((sub) => sub.subId).filter(Boolean);
+    const subIdParts: string[] = [];
+    const filterNonKindKeys = new Set<string>();
+    const filterKinds = new Set<number>();
 
-  if (subIds.length > 0) {
-    subIdParts.push(Array.from(new Set(subIds)).join(","))
-  } else {
-    for (const filter of filters) {
-      for (const key of Object.keys(filter)) {
-        if (key === "kinds") {
-          filter.kinds?.forEach((k) => filterKinds.add(k))
-        } else {
-          filterNonKindKeys.add(key)
+    if (subIds.length > 0) {
+        subIdParts.push(Array.from(new Set(subIds)).join(","));
+    } else {
+        for (const filter of filters) {
+            for (const key of Object.keys(filter)) {
+                if (key === "kinds") {
+                    filter.kinds?.forEach((k) => filterKinds.add(k));
+                } else {
+                    filterNonKindKeys.add(key);
+                }
+            }
         }
-      }
+
+        if (filterKinds.size > 0) {
+            subIdParts.push(`kinds:${Array.from(filterKinds).join(",")}`);
+        }
+
+        if (filterNonKindKeys.size > 0) {
+            subIdParts.push(Array.from(filterNonKindKeys).join(","));
+        }
     }
 
-    if (filterKinds.size > 0) {
-      subIdParts.push(`kinds:${Array.from(filterKinds).join(",")}`)
-    }
+    let subId = subIdParts.join("-");
+    if (subId.length > MAX_SUBID_LENGTH) subId = subId.substring(0, MAX_SUBID_LENGTH);
 
-    if (filterNonKindKeys.size > 0) {
-      subIdParts.push(Array.from(filterNonKindKeys).join(","))
-    }
-  }
+    // Add the random string to the resulting subId
+    subId += `-${Math.floor(Math.random() * 999).toString()}`;
 
-  let subId = subIdParts.join("-")
-  if (subId.length > MAX_SUBID_LENGTH) subId = subId.substring(0, MAX_SUBID_LENGTH)
-
-  // Add the random string to the resulting subId
-  subId += `-${Math.floor(Math.random() * 999).toString()}`
-
-  return subId
+    return subId;
 }
 
 /**
@@ -143,26 +140,24 @@ export function generateSubId(
  * // filter => { "#a": ["30023:ca4e5bf20debb0578ae4bfc5c3e55548900a975847dc38514729a92596645a6b:1719357007561"]}
  */
 export function filterForEventsTaggingId(id: string): NDKFilter | undefined {
-  try {
-    const decoded = nip19.decode(id)
+    try {
+        const decoded = nip19.decode(id);
 
-    switch (decoded.type) {
-      case "naddr":
-        return {
-          "#a": [
-            `${decoded.data.kind}:${decoded.data.pubkey}:${decoded.data.identifier}`,
-          ],
+        switch (decoded.type) {
+            case "naddr":
+                return {
+                    "#a": [`${decoded.data.kind}:${decoded.data.pubkey}:${decoded.data.identifier}`],
+                };
+            case "nevent":
+                return { "#e": [decoded.data.id] };
+            case "note":
+                return { "#e": [decoded.data] };
+            case "nprofile":
+                return { "#p": [decoded.data.pubkey] };
+            case "npub":
+                return { "#p": [decoded.data] };
         }
-      case "nevent":
-        return {"#e": [decoded.data.id]}
-      case "note":
-        return {"#e": [decoded.data]}
-      case "nprofile":
-        return {"#p": [decoded.data.pubkey]}
-      case "npub":
-        return {"#p": [decoded.data]}
-    }
-  } catch {}
+    } catch {}
 }
 
 /**
@@ -175,19 +170,16 @@ export function filterForEventsTaggingId(id: string): NDKFilter | undefined {
  * const { filter, relaySet } = filterAndRelaySetFromBech32(bech32, ndk);
  * // filter => { ids: [...], authors: [...] }
  */
-export function filterAndRelaySetFromBech32(
-  bech32: string,
-  ndk: NDK
-): {filter: NDKFilter; relaySet?: NDKRelaySet} {
-  const filter = filterFromId(bech32)
-  const relays = relaysFromBech32(bech32, ndk)
+export function filterAndRelaySetFromBech32(bech32: string, ndk: NDK): { filter: NDKFilter; relaySet?: NDKRelaySet } {
+    const filter = filterFromId(bech32);
+    const relays = relaysFromBech32(bech32, ndk);
 
-  if (relays.length === 0) return {filter}
+    if (relays.length === 0) return { filter };
 
-  return {
-    filter,
-    relaySet: new NDKRelaySet(new Set(relays), ndk),
-  }
+    return {
+        filter,
+        relaySet: new NDKRelaySet(new Set(relays), ndk),
+    };
 }
 
 /**
@@ -199,66 +191,66 @@ export function filterAndRelaySetFromBech32(
  * // filter => { ids: [...], authors: [...] }
  */
 export function filterFromId(id: string): NDKFilter {
-  let decoded
+    let decoded;
 
-  if (id.match(NIP33_A_REGEX)) {
-    const [kind, pubkey, identifier] = id.split(":")
+    if (id.match(NIP33_A_REGEX)) {
+        const [kind, pubkey, identifier] = id.split(":");
 
-    const filter: NDKFilter = {
-      authors: [pubkey],
-      kinds: [Number.parseInt(kind)],
-    }
+        const filter: NDKFilter = {
+            authors: [pubkey],
+            kinds: [Number.parseInt(kind)],
+        };
 
-    if (identifier) {
-      filter["#d"] = [identifier]
-    }
-
-    return filter
-  }
-
-  if (id.match(BECH32_REGEX)) {
-    try {
-      decoded = nip19.decode(id)
-
-      switch (decoded.type) {
-        case "nevent": {
-          const filter: NDKFilter = {ids: [decoded.data.id]}
-          if (decoded.data.author) filter.authors = [decoded.data.author]
-          if (decoded.data.kind) filter.kinds = [decoded.data.kind]
-          return filter
+        if (identifier) {
+            filter["#d"] = [identifier];
         }
-        case "note":
-          return {ids: [decoded.data]}
-        case "naddr": {
-          const filter: NDKFilter = {
-            authors: [decoded.data.pubkey],
-            kinds: [decoded.data.kind],
-          }
 
-          if (decoded.data.identifier) filter["#d"] = [decoded.data.identifier]
-
-          return filter
-        }
-      }
-    } catch (e) {
-      console.error("Error decoding", id, e)
-      // Empty
+        return filter;
     }
-  }
 
-  return {ids: [id]}
+    if (id.match(BECH32_REGEX)) {
+        try {
+            decoded = nip19.decode(id);
+
+            switch (decoded.type) {
+                case "nevent": {
+                    const filter: NDKFilter = { ids: [decoded.data.id] };
+                    if (decoded.data.author) filter.authors = [decoded.data.author];
+                    if (decoded.data.kind) filter.kinds = [decoded.data.kind];
+                    return filter;
+                }
+                case "note":
+                    return { ids: [decoded.data] };
+                case "naddr": {
+                    const filter: NDKFilter = {
+                        authors: [decoded.data.pubkey],
+                        kinds: [decoded.data.kind],
+                    };
+
+                    if (decoded.data.identifier) filter["#d"] = [decoded.data.identifier];
+
+                    return filter;
+                }
+            }
+        } catch (e) {
+            console.error("Error decoding", id, e);
+            // Empty
+        }
+    }
+
+    return { ids: [id] };
 }
 
 export function isNip33AValue(value: string): boolean {
-  return value.match(NIP33_A_REGEX) !== null
+    return value.match(NIP33_A_REGEX) !== null;
 }
 
 /**
  * Matches an `a` tag of a NIP-33 (kind:pubkey:[identifier])
  */
-export const NIP33_A_REGEX = /^(\d+):([0-9A-Fa-f]+)(?::(.*))?$/
+export const NIP33_A_REGEX = /^(\d+):([0-9A-Fa-f]+)(?::(.*))?$/;
 
-export const BECH32_REGEX = /^n(event|ote|profile|pub|addr)1[\d\w]+$/
+export const BECH32_REGEX = /^n(event|ote|profile|pub|addr)1[\d\w]+$/;
 
 /**
  * Returns the specified relays from a NIP-19 bech32.
@@ -266,21 +258,19 @@ export const BECH32_REGEX = /^n(event|ote|profile|pub|addr)1[\d\w]+$/
  * @param bech32 The NIP-19 bech32.
  */
 export function relaysFromBech32(bech32: string, ndk: NDK): NDKRelay[] {
-  try {
-    const decoded = nip19.decode(bech32)
+    try {
+        const decoded = nip19.decode(bech32);
 
-    if (["naddr", "nevent"].includes(decoded?.type)) {
-      const data = decoded.data as unknown as EventPointer
+        if (["naddr", "nevent"].includes(decoded?.type)) {
+            const data = decoded.data as unknown as EventPointer;
 
-      if (data?.relays) {
-        return data.relays.map(
-          (r: string) => new NDKRelay(r, ndk.relayAuthDefaultPolicy, ndk)
-        )
-      }
+            if (data?.relays) {
+                return data.relays.map((r: string) => new NDKRelay(r, ndk.relayAuthDefaultPolicy, ndk));
+            }
+        }
+    } catch (_e) {
+        /* empty */
     }
-  } catch (_e) {
-    /* empty */
-  }
 
-  return []
+    return [];
 }

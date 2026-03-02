@@ -13,6 +13,7 @@ import Nip44DecryptHandlingStrategy from "./nip44-decrypt.js"
 import Nip44EncryptHandlingStrategy from "./nip44-encrypt.js"
 import PingEventHandlingStrategy from "./ping.js"
 import SignEventHandlingStrategy from "./sign-event.js"
+import SwitchRelaysEventHandlingStrategy from "./switch-relays.js"
 
 export type NIP46Method =
   | "connect"
@@ -22,6 +23,7 @@ export type NIP46Method =
   | "nip44_encrypt"
   | "nip44_decrypt"
   | "get_public_key"
+  | "switch_relays"
   | "ping"
 
 export type Nip46PermitCallbackParams = {
@@ -147,6 +149,7 @@ export class NDKNip46Backend {
     nip44_encrypt: new Nip44EncryptHandlingStrategy(),
     nip44_decrypt: new Nip44DecryptHandlingStrategy(),
     get_public_key: new GetPublicKeyHandlingStrategy(),
+    switch_relays: new SwitchRelaysEventHandlingStrategy(),
     ping: new PingEventHandlingStrategy(),
   }
 

@@ -3,6 +3,7 @@ import {NDKPrivateKeySigner} from "@/lib/ndk"
 import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
+import {useDevicesStore} from "@/stores/devices"
 import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
@@ -16,6 +17,7 @@ interface SignInProps {
 
 export default function SignIn({onClose, onLink}: SignInProps) {
   const {setNip07Login, setPublicKey, setPrivateKey, setLinkedDevice} = useUserStore()
+  const {setPendingAutoRegistration} = useDevicesStore()
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
@@ -46,6 +48,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
+          setPendingAutoRegistration(true)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -62,6 +65,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
+          setPendingAutoRegistration(true)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -69,7 +73,14 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         }
       }
     }
-  }, [inputPrivateKey, setPrivateKey, setPublicKey, onClose, setShowLoginDialog])
+  }, [
+    inputPrivateKey,
+    setPendingAutoRegistration,
+    setPrivateKey,
+    setPublicKey,
+    onClose,
+    setShowLoginDialog,
+  ])
 
   async function extensionLogin() {
     if (window.nostr) {

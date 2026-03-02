@@ -1,20 +1,20 @@
-import type {NDKEvent, NostrEvent} from "../events"
-import {NDKKind} from "../events/kinds"
-import {NDKDVMJobFeedback} from "../events/kinds/dvm"
-import {NDKDVMRequest} from "../events/kinds/dvm/request"
-import type {NDKSubscription} from "../subscription"
-import type {NDKUser} from "../user"
+import type { NDKEvent, NostrEvent } from "../events";
+import { NDKKind } from "../events/kinds";
+import { NDKDVMJobFeedback } from "../events/kinds/dvm";
+import { NDKDVMRequest } from "../events/kinds/dvm/request";
+import type { NDKSubscription } from "../subscription";
+import type { NDKUser } from "../user";
 
 function addRelays(event: NDKEvent, relays?: string[]) {
-  const tags = []
+    const tags = [];
 
-  if (!relays || relays.length === 0) {
-    const poolRelays = event.ndk?.pool.relays
-    relays = poolRelays ? Object.keys(poolRelays) : undefined
-  }
-  if (relays && relays.length > 0) tags.push(["relays", ...relays])
+    if (!relays || relays.length === 0) {
+        const poolRelays = event.ndk?.pool.relays;
+        relays = poolRelays ? Object.keys(poolRelays) : undefined;
+    }
+    if (relays && relays.length > 0) tags.push(["relays", ...relays]);
 
-  return tags
+    return tags;
 }
 
 /**
@@ -36,100 +36,97 @@ function addRelays(event: NDKEvent, relays?: string[]) {
  * console.log(result.status); // "success"
  */
 export async function dvmSchedule(
-  events: NDKEvent | NDKEvent[],
-  dvm: NDKUser,
-  relays?: string[],
-  encrypted = true,
-  waitForConfirmationForMs?: number
+    events: NDKEvent | NDKEvent[],
+    dvm: NDKUser,
+    relays?: string[],
+    encrypted = true,
+    waitForConfirmationForMs?: number,
 ) {
-  if (!Array.isArray(events)) {
-    events = [events]
-  }
-
-  const ndk = events[0].ndk
-
-  if (!ndk) throw new Error("NDK not set")
-
-  for (const event of events) {
-    // check the event has a future date and that it's signed
-    if (!event.sig) throw new Error("Event not signed")
-    if (!event.created_at) throw new Error("Event has no date")
-    if (!dvm) throw new Error("No DVM specified")
-    if (event.created_at <= Date.now() / 1000)
-      throw new Error("Event needs to be in the future")
-  }
-
-  const scheduleEvent = new NDKDVMRequest(ndk, {
-    kind: NDKKind.DVMEventSchedule,
-  } as NostrEvent)
-
-  for (const event of events) {
-    scheduleEvent.addInput(JSON.stringify(event.rawEvent()), "text")
-  }
-
-  scheduleEvent.tags.push(...addRelays(events[0], relays))
-
-  if (encrypted) {
-    await scheduleEvent.encryption(dvm)
-  } else {
-    scheduleEvent.dvm = dvm
-  }
-
-  await scheduleEvent.sign()
-
-  let res: NDKSubscription | undefined
-
-  const schedulePromise = new Promise<NDKDVMJobFeedback | NDKEvent | string | undefined>(
-    (resolve, reject) => {
-      if (waitForConfirmationForMs) {
-        res = ndk.subscribe(
-          {
-            kinds: [NDKKind.DVMEventSchedule + 1000, NDKKind.DVMJobFeedback],
-            ...scheduleEvent.filter(),
-          },
-          {
-            groupable: false,
-            closeOnEose: false,
-            onEvent: async (e: NDKEvent) => {
-              res?.stop()
-              if (e.kind === NDKKind.DVMJobFeedback) {
-                const feedback = await NDKDVMJobFeedback.from(e)
-                if (feedback.status === "error") {
-                  const statusTag = feedback.getMatchingTags("status")
-                  reject(statusTag?.[2] ?? feedback)
-                } else {
-                  resolve(feedback)
-                }
-              }
-
-              resolve(e)
-            },
-          }
-        )
-      }
-
-      scheduleEvent.publish().then(() => {
-        if (!waitForConfirmationForMs) resolve(undefined)
-      })
+    if (!Array.isArray(events)) {
+        events = [events];
     }
-  )
 
-  const timeoutPromise = new Promise<string>((reject) => {
-    setTimeout(() => {
-      res?.stop()
-      reject("Timeout waiting for an answer from the DVM")
-    }, waitForConfirmationForMs)
-  })
+    const ndk = events[0].ndk;
 
-  return new Promise<NDKEvent | string | undefined>((resolve, reject) => {
-    if (waitForConfirmationForMs) {
-      Promise.race([timeoutPromise, schedulePromise])
-        .then((e) => {
-          resolve(e)
-        })
-        .catch(reject)
+    if (!ndk) throw new Error("NDK not set");
+
+    for (const event of events) {
+        // check the event has a future date and that it's signed
+        if (!event.sig) throw new Error("Event not signed");
+        if (!event.created_at) throw new Error("Event has no date");
+        if (!dvm) throw new Error("No DVM specified");
+        if (event.created_at <= Date.now() / 1000) throw new Error("Event needs to be in the future");
+    }
+
+    const scheduleEvent = new NDKDVMRequest(ndk, {
+        kind: NDKKind.DVMEventSchedule,
+    } as NostrEvent);
+
+    for (const event of events) {
+        scheduleEvent.addInput(JSON.stringify(event.rawEvent()), "text");
+    }
+
+    scheduleEvent.tags.push(...addRelays(events[0], relays));
+
+    if (encrypted) {
+        await scheduleEvent.encryption(dvm);
     } else {
-      schedulePromise.then(resolve)
+        scheduleEvent.dvm = dvm;
     }
-  })
+
+    await scheduleEvent.sign();
+
+    let res: NDKSubscription | undefined;
+
+    const schedulePromise = new Promise<NDKDVMJobFeedback | NDKEvent | string | undefined>((resolve, reject) => {
+        if (waitForConfirmationForMs) {
+            res = ndk.subscribe(
+                {
+                    kinds: [NDKKind.DVMEventSchedule + 1000, NDKKind.DVMJobFeedback],
+                    ...scheduleEvent.filter(),
+                },
+                {
+                    groupable: false,
+                    closeOnEose: false,
+                    onEvent: async (e: NDKEvent) => {
+                        res?.stop();
+                        if (e.kind === NDKKind.DVMJobFeedback) {
+                            const feedback = await NDKDVMJobFeedback.from(e);
+                            if (feedback.status === "error") {
+                                const statusTag = feedback.getMatchingTags("status");
+                                reject(statusTag?.[2] ?? feedback);
+                            } else {
+                                resolve(feedback);
+                            }
+                        }
+
+                        resolve(e);
+                    },
+                },
+            );
+        }
+
+        scheduleEvent.publish().then(() => {
+            if (!waitForConfirmationForMs) resolve(undefined);
+        });
+    });
+
+    const timeoutPromise = new Promise<string>((reject) => {
+        setTimeout(() => {
+            res?.stop();
+            reject("Timeout waiting for an answer from the DVM");
+        }, waitForConfirmationForMs);
+    });
+
+    return new Promise<NDKEvent | string | undefined>((resolve, reject) => {
+        if (waitForConfirmationForMs) {
+            Promise.race([timeoutPromise, schedulePromise])
+                .then((e) => {
+                    resolve(e);
+                })
+                .catch(reject);
+        } else {
+            schedulePromise.then(resolve);
+        }
+    });
 }

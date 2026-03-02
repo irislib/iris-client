@@ -1,212 +1,224 @@
 export enum NDKKind {
-  Metadata = 0,
-  Text = 1,
-  RecommendRelay = 2,
-  Contacts = 3,
-  EncryptedDirectMessage = 4,
-  EventDeletion = 5,
-  Repost = 6,
-  Reaction = 7,
-  BadgeAward = 8,
+    Metadata = 0,
+    Text = 1,
+    RecommendRelay = 2,
+    Contacts = 3,
+    EncryptedDirectMessage = 4,
+    EventDeletion = 5,
+    Repost = 6,
+    Reaction = 7,
+    BadgeAward = 8,
 
-  // NIP-29
-  GroupChat = 9,
-  Thread = 11,
-  GroupReply = 12,
-  GiftWrapSeal = 13,
-  // Gift Wrapped Rumors
-  PrivateDirectMessage = 14,
+    // NIP-29
+    GroupChat = 9,
+    Thread = 11,
+    GroupReply = 12,
+    GiftWrapSeal = 13,
+    // Gift Wrapped Rumors
+    PrivateDirectMessage = 14,
 
-  Image = 20,
-  Video = 21,
-  ShortVideo = 22,
-  Story = 23,
+    Image = 20,
+    Video = 21,
+    ShortVideo = 22,
+    Story = 23,
 
-  // NIP-62
-  Vanish = 62,
+    // NIP-62
+    Vanish = 62,
 
-  // NIP-60 backup
-  CashuWalletBackup = 375,
+    // NIP-60 backup
+    CashuWalletBackup = 375,
 
-  // Nip 59 : Gift Wrap
-  GiftWrap = 1059,
+    // Nip 59 : Gift Wrap
+    GiftWrap = 1059,
 
-  GenericRepost = 16,
-  ChannelCreation = 40,
-  ChannelMetadata = 41,
-  ChannelMessage = 42,
-  ChannelHideMessage = 43,
-  ChannelMuteUser = 44,
+    GenericRepost = 16,
+    ChannelCreation = 40,
+    ChannelMetadata = 41,
+    ChannelMessage = 42,
+    ChannelHideMessage = 43,
+    ChannelMuteUser = 44,
 
-  WikiMergeRequest = 818,
+    WikiMergeRequest = 818,
 
-  GenericReply = 1111,
+    GenericReply = 1111,
 
-  Media = 1063,
+    Media = 1063,
 
-  DraftCheckpoint = 1234,
+    // NIP-A0: Voice Messages
+    VoiceMessage = 1222,
+    VoiceReply = 1244,
 
-  Task = 1934,
-  Report = 1984,
-  Label = 1985,
+    DraftCheckpoint = 1234,
 
-  // NIP-90: Data Vending Machines
-  // Text: 5000-5099
-  DVMReqTextExtraction = 5000,
-  DVMReqTextSummarization = 5001,
-  DVMReqTextTranslation = 5002,
-  DVMReqTextGeneration = 5050,
+    Task = 1934,
+    Report = 1984,
+    Label = 1985,
 
-  // Image: 5100-5199
-  DVMReqImageGeneration = 5100,
+    // NIP-90: Data Vending Machines
+    // Text: 5000-5099
+    DVMReqTextExtraction = 5000,
+    DVMReqTextSummarization = 5001,
+    DVMReqTextTranslation = 5002,
+    DVMReqTextGeneration = 5050,
 
-  // Text-to-Speech: 5200-5299
-  DVMReqTextToSpeech = 5250,
+    // Image: 5100-5199
+    DVMReqImageGeneration = 5100,
 
-  // Discovery
-  DVMReqDiscoveryNostrContent = 5300,
-  DVMReqDiscoveryNostrPeople = 5301,
+    // Text-to-Speech: 5200-5299
+    DVMReqTextToSpeech = 5250,
 
-  // Event Timestamping
-  DVMReqTimestamping = 5900,
+    // Discovery
+    DVMReqDiscoveryNostrContent = 5300,
+    DVMReqDiscoveryNostrPeople = 5301,
 
-  DVMEventSchedule = 5905,
+    // Event Timestamping
+    DVMReqTimestamping = 5900,
 
-  // Feedback
-  DVMJobFeedback = 7000,
+    DVMEventSchedule = 5905,
 
-  // Recurring payments
-  Subscribe = 7001,
-  Unsubscribe = 7002,
-  SubscriptionReceipt = 7003,
+    // Feedback
+    DVMJobFeedback = 7000,
 
-  // Cashu Wallet
-  CashuReserve = 7373,
-  CashuQuote = 7374,
-  CashuToken = 7375,
-  CashuWalletTx = 7376,
+    // Recurring payments
+    Subscribe = 7001,
+    Unsubscribe = 7002,
+    SubscriptionReceipt = 7003,
 
-  // NIP-29
-  GroupAdminAddUser = 9000,
-  GroupAdminRemoveUser = 9001,
-  GroupAdminEditMetadata = 9002,
-  GroupAdminEditStatus = 9006,
-  GroupAdminCreateGroup = 9007,
-  GroupAdminRequestJoin = 9021,
+    // Cashu Wallet
+    CashuReserve = 7373,
+    CashuQuote = 7374,
+    CashuToken = 7375,
+    CashuWalletTx = 7376,
 
-  // Lists and Sets
-  MuteList = 10000,
-  PinList = 10001,
-  RelayList = 10002,
-  BookmarkList = 10003,
-  CommunityList = 10004,
-  PublicChatList = 10005,
-  BlockRelayList = 10006,
-  SearchRelayList = 10007,
-  SimpleGroupList = 10009,
-  InterestList = 10015,
-  CashuMintList = 10019,
-  EmojiList = 10030,
-  DirectMessageReceiveRelayList = 10050,
+    // NIP-29
+    GroupAdminAddUser = 9000,
+    GroupAdminRemoveUser = 9001,
+    GroupAdminEditMetadata = 9002,
+    GroupAdminEditStatus = 9006,
+    GroupAdminCreateGroup = 9007,
+    GroupAdminRequestJoin = 9021,
 
-  BlossomList = 10063,
+    // Lists and Sets
+    MuteList = 10000,
+    PinList = 10001,
+    RelayList = 10002,
+    BookmarkList = 10003,
+    CommunityList = 10004,
+    PublicChatList = 10005,
+    BlockRelayList = 10006,
+    SearchRelayList = 10007,
+    SimpleGroupList = 10009,
+    RelayFeedList = 10012,
+    InterestList = 10015,
+    CashuMintList = 10019,
+    EmojiList = 10030,
+    DirectMessageReceiveRelayList = 10050,
 
-  NostrWaletConnectInfo = 13194,
+    BlossomList = 10063,
 
-  TierList = 17000,
+    NostrWaletConnectInfo = 13194,
 
-  // NIP-60
-  CashuWallet = 17375,
+    TierList = 17000,
 
-  FollowSet = 30000,
-  CategorizedPeopleList = NDKKind.FollowSet, // Deprecated but left for backwards compatibility
-  CategorizedBookmarkList = 30001, // Deprecated but left for backwards compatibility
-  RelaySet = 30002,
-  CategorizedRelayList = NDKKind.RelaySet, // Deprecated but left for backwards compatibility
-  BookmarkSet = 30003,
+    // NIP-60
+    CashuWallet = 17375,
 
-  /**
-   * @deprecated Use ArticleCurationSet instead
-   */
-  CurationSet = 30004, // Deprecated but left for backwards compatibility
-  ArticleCurationSet = 30004,
-  VideoCurationSet = 30005,
-  ImageCurationSet = 30006,
-  InterestSet = 30015,
-  InterestsList = NDKKind.InterestSet, // Deprecated but left for backwards compatibility
-  ProjectTemplate = 30717,
-  EmojiSet = 30030,
-  ModularArticle = 30040,
-  ModularArticleItem = 30041,
-  Wiki = 30818,
-  Draft = 31234,
-  Project = 31933,
-  SubscriptionTier = 37001,
+    FollowSet = 30000,
+    CategorizedPeopleList = NDKKind.FollowSet, // Deprecated but left for backwards compatibility
+    CategorizedBookmarkList = 30001, // Deprecated but left for backwards compatibility
+    RelaySet = 30002,
+    CategorizedRelayList = NDKKind.RelaySet, // Deprecated but left for backwards compatibility
+    BookmarkSet = 30003,
 
-  // NIP-87: Cashu & Fedimint Mints
-  EcashMintRecommendation = 38000,
-  CashuMintAnnouncement = 38172,
-  FedimintMintAnnouncement = 38173,
+    /**
+     * @deprecated Use ArticleCurationSet instead
+     */
+    CurationSet = 30004, // Deprecated but left for backwards compatibility
+    ArticleCurationSet = 30004,
+    VideoCurationSet = 30005,
+    ImageCurationSet = 30006,
+    InterestSet = 30015,
+    InterestsList = NDKKind.InterestSet, // Deprecated but left for backwards compatibility
+    ProjectTemplate = 30717,
+    EmojiSet = 30030,
+    ModularArticle = 30040,
+    ModularArticleItem = 30041,
+    Wiki = 30818,
+    Draft = 31234,
+    Project = 31933,
+    SubscriptionTier = 37001,
 
-  HighlightSet = 39802,
-  CategorizedHighlightList = NDKKind.HighlightSet, // Deprecated but left for backwards compatibility
+    // NIP-87: Cashu & Fedimint Mints
+    EcashMintRecommendation = 38000,
+    CashuMintAnnouncement = 38172,
+    FedimintMintAnnouncement = 38173,
 
-  Nutzap = 9321,
-  ZapRequest = 9734,
-  Zap = 9735,
-  Highlight = 9802,
-  ClientAuth = 22242,
+    // NIP-69: P2P Order
+    P2POrder = 38383,
 
-  NostrWalletConnectReq = 23194,
-  NostrWalletConnectRes = 23195,
+    // NIP-C1: Collaborative Events
+    CollaborativeEvent = 39382,
 
-  NostrConnect = 24133,
+    HighlightSet = 39802,
+    CategorizedHighlightList = NDKKind.HighlightSet, // Deprecated but left for backwards compatibility
 
-  BlossomUpload = 24242,
+    Nutzap = 9321,
+    ZapRequest = 9734,
+    Zap = 9735,
+    Highlight = 9802,
+    ClientAuth = 22242,
 
-  HttpAuth = 27235,
+    NostrWalletConnectReq = 23194,
+    NostrWalletConnectRes = 23195,
 
-  ProfileBadge = 30008,
-  BadgeDefinition = 30009,
-  MarketStall = 30017,
-  MarketProduct = 30018,
-  Article = 30023,
-  AppSpecificData = 30078,
-  Classified = 30402,
-  HorizontalVideo = 34235,
-  VerticalVideo = 34236,
+    NostrConnect = 24133,
 
-  GroupMetadata = 39000, // NIP-29
-  GroupAdmins = 39001, // NIP-29
-  GroupMembers = 39002, // NIP-29
+    BlossomUpload = 24242,
 
-  FollowPack = 39089,
-  MediaFollowPack = 39092,
+    HttpAuth = 27235,
 
-  // NIP-89: App Metadata
-  AppRecommendation = 31989,
-  AppHandler = 31990,
+    ProfileBadge = 30008,
+    BadgeDefinition = 30009,
+    MarketStall = 30017,
+    MarketProduct = 30018,
+    Article = 30023,
+    AppSpecificData = 30078,
+    Classified = 30402,
+    HorizontalVideo = 34235,
+    VerticalVideo = 34236,
+
+    GroupMetadata = 39000, // NIP-29
+    GroupAdmins = 39001, // NIP-29
+    GroupMembers = 39002, // NIP-29
+
+    FollowPack = 39089,
+    MediaFollowPack = 39092,
+
+    // NIP-89: App Metadata
+    AppRecommendation = 31989,
+    AppHandler = 31990,
 }
 
 export const NDKListKinds = [
-  NDKKind.MuteList,
-  NDKKind.PinList,
-  NDKKind.RelayList,
-  NDKKind.BookmarkList,
-  NDKKind.CommunityList,
-  NDKKind.PublicChatList,
-  NDKKind.BlockRelayList,
-  NDKKind.SearchRelayList,
-  NDKKind.InterestList,
-  NDKKind.EmojiList,
-  NDKKind.DirectMessageReceiveRelayList,
-  NDKKind.FollowSet,
-  NDKKind.BookmarkSet,
-  NDKKind.CategorizedBookmarkList, // Backwards compatibility
-  NDKKind.RelaySet,
-  NDKKind.ArticleCurationSet,
-  NDKKind.VideoCurationSet,
-  NDKKind.InterestSet,
-  NDKKind.EmojiSet,
-  NDKKind.HighlightSet,
-]
+    NDKKind.MuteList,
+    NDKKind.PinList,
+    NDKKind.RelayList,
+    NDKKind.BookmarkList,
+    NDKKind.CommunityList,
+    NDKKind.PublicChatList,
+    NDKKind.BlockRelayList,
+    NDKKind.SearchRelayList,
+    NDKKind.RelayFeedList,
+    NDKKind.InterestList,
+    NDKKind.EmojiList,
+    NDKKind.DirectMessageReceiveRelayList,
+    NDKKind.FollowSet,
+    NDKKind.BookmarkSet,
+    NDKKind.CategorizedBookmarkList, // Backwards compatibility
+    NDKKind.RelaySet,
+    NDKKind.ArticleCurationSet,
+    NDKKind.VideoCurationSet,
+    NDKKind.InterestSet,
+    NDKKind.EmojiSet,
+    NDKKind.HighlightSet,
+];

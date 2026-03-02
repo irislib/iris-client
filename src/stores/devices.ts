@@ -37,13 +37,16 @@ const computeCanSendPrivateMessages = (
   appKeysManagerReady: boolean,
   sessionManagerReady: boolean,
   hasLocalAppKeys: boolean,
-  isCurrentDeviceRegistered: boolean
+  isCurrentDeviceRegistered: boolean,
+  registeredDevicesCount: number
 ): boolean => {
-  // Can send if AppKeysManager ready AND SessionManager ready AND (has local AppKeys OR device is registered)
+  // Can send if managers are ready and we have any known device keys for this account.
+  // A sign-in on a fresh browser may not have local keys yet, but can still use
+  // an already-registered sibling device discovered from AppKeys events.
   return (
     appKeysManagerReady &&
     sessionManagerReady &&
-    (hasLocalAppKeys || isCurrentDeviceRegistered)
+    (hasLocalAppKeys || isCurrentDeviceRegistered || registeredDevicesCount > 0)
   )
 }
 
@@ -62,7 +65,8 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
         appKeysManagerReady,
         sessionManagerReady,
         hasLocalAppKeys,
-        isCurrentDeviceRegistered
+        isCurrentDeviceRegistered,
+        registeredDevices.length
       ),
     })
   },
@@ -89,43 +93,62 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
         appKeysManagerReady,
         sessionManagerReady,
         hasLocalAppKeys,
-        isCurrentDeviceRegistered
+        isCurrentDeviceRegistered,
+        devices.length
       ),
     })
   },
   setAppKeysManagerReady: (ready: boolean) => {
-    const {sessionManagerReady, hasLocalAppKeys, isCurrentDeviceRegistered} = get()
+    const {
+      sessionManagerReady,
+      hasLocalAppKeys,
+      isCurrentDeviceRegistered,
+      registeredDevices,
+    } = get()
     set({
       appKeysManagerReady: ready,
       canSendPrivateMessages: computeCanSendPrivateMessages(
         ready,
         sessionManagerReady,
         hasLocalAppKeys,
-        isCurrentDeviceRegistered
+        isCurrentDeviceRegistered,
+        registeredDevices.length
       ),
     })
   },
   setSessionManagerReady: (ready: boolean) => {
-    const {appKeysManagerReady, hasLocalAppKeys, isCurrentDeviceRegistered} = get()
+    const {
+      appKeysManagerReady,
+      hasLocalAppKeys,
+      isCurrentDeviceRegistered,
+      registeredDevices,
+    } = get()
     set({
       sessionManagerReady: ready,
       canSendPrivateMessages: computeCanSendPrivateMessages(
         appKeysManagerReady,
         ready,
         hasLocalAppKeys,
-        isCurrentDeviceRegistered
+        isCurrentDeviceRegistered,
+        registeredDevices.length
       ),
     })
   },
   setHasLocalAppKeys: (has: boolean) => {
-    const {appKeysManagerReady, sessionManagerReady, isCurrentDeviceRegistered} = get()
+    const {
+      appKeysManagerReady,
+      sessionManagerReady,
+      isCurrentDeviceRegistered,
+      registeredDevices,
+    } = get()
     set({
       hasLocalAppKeys: has,
       canSendPrivateMessages: computeCanSendPrivateMessages(
         appKeysManagerReady,
         sessionManagerReady,
         has,
-        isCurrentDeviceRegistered
+        isCurrentDeviceRegistered,
+        registeredDevices.length
       ),
     })
   },
