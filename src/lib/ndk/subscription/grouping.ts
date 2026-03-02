@@ -1,6 +1,6 @@
-import type {NDKFilter} from "../index.js"
+import type { NDKFilter } from "../index.js";
 
-export type NDKFilterFingerprint = string
+export type NDKFilterFingerprint = string;
 
 /**
  * Creates a fingerprint for this filter
@@ -18,30 +18,27 @@ export type NDKFilterFingerprint = string
  *
  * @returns The fingerprint, or undefined if the filters are not groupable.
  */
-export function filterFingerprint(
-  filters: NDKFilter[],
-  closeOnEose: boolean
-): NDKFilterFingerprint | undefined {
-  const elements: string[] = []
+export function filterFingerprint(filters: NDKFilter[], closeOnEose: boolean): NDKFilterFingerprint | undefined {
+    const elements: string[] = [];
 
-  for (const filter of filters) {
-    const keys = Object.entries(filter || {})
-      .map(([key, values]) => {
-        if (["since", "until"].includes(key)) {
-          // We don't want to mix different time constraints values, so we include the value in the fingerprint
-          return `${key}:${values as string}`
-        }
-        return key
-      })
-      .sort()
-      .join("-")
+    for (const filter of filters) {
+        const keys = Object.entries(filter || {})
+            .map(([key, values]) => {
+                if (["since", "until"].includes(key)) {
+                    // We don't want to mix different time constraints values, so we include the value in the fingerprint
+                    return `${key}:${values as string}`;
+                }
+                return key;
+            })
+            .sort()
+            .join("-");
 
-    elements.push(keys)
-  }
+        elements.push(keys);
+    }
 
-  let id = closeOnEose ? "+" : ""
-  id += elements.join("|")
-  return id
+    let id = closeOnEose ? "+" : "";
+    id += elements.join("|");
+    return id;
 }
 
 /**
@@ -49,32 +46,31 @@ export function filterFingerprint(
  * relatively similar, and merge them.
  */
 export function mergeFilters(filters: NDKFilter[]): NDKFilter[] {
-  const result: NDKFilter[] = []
-  const lastResult: any = {}
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: NDKFilter[] = [];
+    const lastResult: any = {};
 
-  // concatenate filters that have a limit
-  filters
-    .filter((f) => !!f.limit)
-    .forEach((filterWithLimit) => result.push(filterWithLimit))
+    // concatenate filters that have a limit
+    filters.filter((f) => !!f.limit).forEach((filterWithLimit) => result.push(filterWithLimit));
 
-  // only merge the filters that don't have a limit
-  filters = filters.filter((f) => !f.limit)
+    // only merge the filters that don't have a limit
+    filters = filters.filter((f) => !f.limit);
 
-  if (filters.length === 0) return result
+    if (filters.length === 0) return result;
 
-  filters.forEach((filter) => {
-    Object.entries(filter).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        if (lastResult[key] === undefined) {
-          lastResult[key] = [...value]
-        } else {
-          lastResult[key] = Array.from(new Set([...lastResult[key], ...value]))
-        }
-      } else {
-        lastResult[key] = value
-      }
-    })
-  })
+    filters.forEach((filter) => {
+        Object.entries(filter).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                if (lastResult[key] === undefined) {
+                    lastResult[key] = [...value];
+                } else {
+                    lastResult[key] = Array.from(new Set([...lastResult[key], ...value]));
+                }
+            } else {
+                lastResult[key] = value;
+            }
+        });
+    });
 
-  return [...result, lastResult as NDKFilter]
+    return [...result, lastResult as NDKFilter];
 }

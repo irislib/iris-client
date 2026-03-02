@@ -1,13 +1,13 @@
-import {nip19} from "nostr-tools"
+import { nip19 } from "nostr-tools";
 
-import type {EventPointer, ProfilePointer} from "../user/index.js"
-import {isValidPubkey} from "../utils/validation.js"
-import type {ContentTaggingOptions, NDKEvent, NDKTag} from "./index.js"
+import type { EventPointer, ProfilePointer } from "../user/index.js";
+import { isValidPubkey } from "../utils/validation.js";
+import type { ContentTaggingOptions, NDKEvent, NDKTag } from "./index.js";
 
 export type ContentTag = {
-  tags: NDKTag[]
-  content: string
-}
+    tags: NDKTag[];
+    content: string;
+};
 
 /**
  * Merges two arrays of NDKTag, ensuring uniqueness and preferring more specific tags.
@@ -22,35 +22,35 @@ export type ContentTag = {
  * @returns A merged array of unique NDKTag.
  */
 export function mergeTags(tags1: NDKTag[], tags2: NDKTag[]): NDKTag[] {
-  const tagMap = new Map<string, NDKTag>()
+    const tagMap = new Map<string, NDKTag>();
 
-  // Function to generate a key for the hashmap
-  const generateKey = (tag: NDKTag) => tag.join(",")
+    // Function to generate a key for the hashmap
+    const generateKey = (tag: NDKTag) => tag.join(",");
 
-  // Function to determine if a tag is contained in another
-  const isContained = (smaller: NDKTag, larger: NDKTag) => {
-    return smaller.every((value, index) => value === larger[index])
-  }
+    // Function to determine if a tag is contained in another
+    const isContained = (smaller: NDKTag, larger: NDKTag) => {
+        return smaller.every((value, index) => value === larger[index]);
+    };
 
-  // Function to process and add a tag
-  const processTag = (tag: NDKTag) => {
-    for (const [key, existingTag] of tagMap) {
-      if (isContained(existingTag, tag) || isContained(tag, existingTag)) {
-        // Replace with the longer or equal-length tag
-        if (tag.length >= existingTag.length) {
-          tagMap.set(key, tag)
+    // Function to process and add a tag
+    const processTag = (tag: NDKTag) => {
+        for (const [key, existingTag] of tagMap) {
+            if (isContained(existingTag, tag) || isContained(tag, existingTag)) {
+                // Replace with the longer or equal-length tag
+                if (tag.length >= existingTag.length) {
+                    tagMap.set(key, tag);
+                }
+                return;
+            }
         }
-        return
-      }
-    }
-    // Add new tag if no containing relationship is found
-    tagMap.set(generateKey(tag), tag)
-  }
+        // Add new tag if no containing relationship is found
+        tagMap.set(generateKey(tag), tag);
+    };
 
-  // Process all tags
-  tags1.concat(tags2).forEach(processTag)
+    // Process all tags
+    tags1.concat(tags2).forEach(processTag);
 
-  return Array.from(tagMap.values())
+    return Array.from(tagMap.values());
 }
 
 /**
@@ -60,32 +60,32 @@ export function mergeTags(tags1: NDKTag[], tags2: NDKTag[]): NDKTag[] {
  * @returns
  */
 export function uniqueTag(a: NDKTag, b: NDKTag): NDKTag[] {
-  const aLength = a.length
-  const bLength = b.length
-  const sameLength = aLength === bLength
+    const aLength = a.length;
+    const bLength = b.length;
+    const sameLength = aLength === bLength;
 
-  // If sa    un length
-  if (sameLength) {
-    if (a.every((v, i) => v === b[i])) {
-      // and same values (regardless of length), return one
-      return [a]
+    // If sa    un length
+    if (sameLength) {
+        if (a.every((v, i) => v === b[i])) {
+            // and same values (regardless of length), return one
+            return [a];
+        }
+        // and different values, return both
+        return [a, b];
     }
-    // and different values, return both
-    return [a, b]
-  }
-  if (aLength > bLength && a.every((v, i) => v === b[i])) {
-    // If different length but the longer contains the shorter, return the longer
-    return [a]
-  }
-  if (bLength > aLength && b.every((v, i) => v === a[i])) {
-    return [b]
-  }
+    if (aLength > bLength && a.every((v, i) => v === b[i])) {
+        // If different length but the longer contains the shorter, return the longer
+        return [a];
+    }
+    if (bLength > aLength && b.every((v, i) => v === a[i])) {
+        return [b];
+    }
 
-  // Otherwise, return both
-  return [a, b]
+    // Otherwise, return both
+    return [a, b];
 }
 
-const hashtagRegex = /(?<=\s|^)(#[^\s!@#$%^&*()=+./,[{\]};:'"?><]+)/g
+const hashtagRegex = /(?<=\s|^)(#[^\s!@#$%^&*()=+./,[{\]};:'"?><]+)/g;
 
 /**
  * Generates a unique list of hashtags as used in the content. If multiple variations
@@ -94,152 +94,147 @@ const hashtagRegex = /(?<=\s|^)(#[^\s!@#$%^&*()=+./,[{\]};:'"?><]+)/g
  * @returns
  */
 export function generateHashtags(content: string): string[] {
-  const hashtags = content.match(hashtagRegex)
-  const tagIds = new Set<string>()
-  const tag = new Set<string>()
-  if (hashtags) {
-    for (const hashtag of hashtags) {
-      if (tagIds.has(hashtag.slice(1))) continue
-      tag.add(hashtag.slice(1))
-      tagIds.add(hashtag.slice(1))
+    const hashtags = content.match(hashtagRegex);
+    const tagIds = new Set<string>();
+    const tag = new Set<string>();
+    if (hashtags) {
+        for (const hashtag of hashtags) {
+            if (tagIds.has(hashtag.slice(1))) continue;
+            tag.add(hashtag.slice(1));
+            tagIds.add(hashtag.slice(1));
+        }
     }
-  }
-  return Array.from(tag)
+    return Array.from(tag);
 }
 
 export async function generateContentTags(
-  content: string,
-  tags: NDKTag[] = [],
-  opts?: ContentTaggingOptions,
-  ctx?: NDKEvent
+    content: string,
+    tags: NDKTag[] = [],
+    opts?: ContentTaggingOptions,
+    ctx?: NDKEvent,
 ): Promise<ContentTag> {
-  // Early return if content tagging is disabled
-  if (opts?.skipContentTagging) {
-    return {content, tags}
-  }
-
-  const tagRegex = /(@|nostr:)(npub|nprofile|note|nevent|naddr)[a-zA-Z0-9]+/g
-
-  const promises: Promise<void>[] = []
-
-  const addTagIfNew = (t: NDKTag) => {
-    if (!tags.find((t2) => ["q", t[0]].includes(t2[0]) && t2[1] === t[1])) {
-      tags.push(t)
+    // Early return if content tagging is disabled
+    if (opts?.skipContentTagging) {
+        return { content, tags };
     }
-  }
 
-  content = content.replace(tagRegex, (tag) => {
-    try {
-      const entity = tag.split(/(@|nostr:)/)[2]
-      const {type, data} = nip19.decode(entity)
-      let t: NDKTag | undefined
+    const tagRegex = /(@|nostr:)(npub|nprofile|note|nevent|naddr)[a-zA-Z0-9]+/g;
 
-      // Check if type should be filtered
-      if (opts?.filters) {
-        const shouldInclude =
-          !opts.filters.includeTypes || opts.filters.includeTypes.includes(type as any)
-        const shouldExclude = opts.filters.excludeTypes?.includes(type as any)
-        if (!shouldInclude || shouldExclude) {
-          return tag
+    const promises: Promise<void>[] = [];
+
+    const addTagIfNew = (t: NDKTag) => {
+        if (!tags.find((t2) => ["q", t[0]].includes(t2[0]) && t2[1] === t[1])) {
+            tags.push(t);
         }
-      }
+    };
 
-      switch (type) {
-        case "npub":
-          if (opts?.pTags !== false) {
-            t = ["p", data as string]
-          }
-          break
+    content = content.replace(tagRegex, (tag) => {
+        try {
+            const entity = tag.split(/(@|nostr:)/)[2];
+            const { type, data } = nip19.decode(entity);
+            let t: NDKTag | undefined;
 
-        case "nprofile":
-          if (opts?.pTags !== false) {
-            t = ["p", (data as ProfilePointer).pubkey as string]
-          }
-          break
+            // Check if type should be filtered
+            if (opts?.filters) {
+                const shouldInclude = !opts.filters.includeTypes || opts.filters.includeTypes.includes(type as any);
+                const shouldExclude = opts.filters.excludeTypes?.includes(type as any);
+                if (!shouldInclude || shouldExclude) {
+                    return tag;
+                }
+            }
 
-        case "note":
-          promises.push(
-            new Promise(async (resolve) => {
-              const relay = await maybeGetEventRelayUrl(entity)
-              addTagIfNew(["q", data, relay])
-              resolve()
-            })
-          )
-          break
+            switch (type) {
+                case "npub":
+                    if (opts?.pTags !== false) {
+                        t = ["p", data as string];
+                    }
+                    break;
 
-        case "nevent":
-          promises.push(
-            new Promise(async (resolve) => {
-              const {id, author} = data as EventPointer
-              let {relays} = data as EventPointer
+                case "nprofile":
+                    if (opts?.pTags !== false) {
+                        t = ["p", (data as ProfilePointer).pubkey as string];
+                    }
+                    break;
 
-              // If the nevent doesn't have a relay specified, try to get one
-              if (!relays || relays.length === 0) {
-                relays = [await maybeGetEventRelayUrl(entity)]
-              }
+                case "note":
+                    promises.push(
+                        new Promise(async (resolve) => {
+                            const relay = await maybeGetEventRelayUrl(entity);
+                            addTagIfNew(["q", data, relay]);
+                            resolve();
+                        }),
+                    );
+                    break;
 
-              addTagIfNew(["q", id, relays[0]])
-              if (author && opts?.pTags !== false && opts?.pTagOnQTags !== false)
-                addTagIfNew(["p", author])
-              resolve()
-            })
-          )
-          break
+                case "nevent":
+                    promises.push(
+                        new Promise(async (resolve) => {
+                            const { id, author } = data as EventPointer;
+                            let { relays } = data as EventPointer;
 
-        case "naddr":
-          promises.push(
-            new Promise(async (resolve) => {
-              const id = [data.kind, data.pubkey, data.identifier].join(":")
-              let relays = data.relays ?? []
+                            // If the nevent doesn't have a relay specified, try to get one
+                            if (!relays || relays.length === 0) {
+                                relays = [await maybeGetEventRelayUrl(entity)];
+                            }
 
-              // If the naddr doesn't have a relay specified, try to get one
-              if (relays.length === 0) {
-                relays = [await maybeGetEventRelayUrl(entity)]
-              }
+                            addTagIfNew(["q", id, relays[0]]);
+                            if (author && opts?.pTags !== false && opts?.pTagOnQTags !== false)
+                                addTagIfNew(["p", author]);
+                            resolve();
+                        }),
+                    );
+                    break;
 
-              addTagIfNew(["q", id, relays[0]])
-              if (
-                opts?.pTags !== false &&
-                opts?.pTagOnQTags !== false &&
-                opts?.pTagOnATags !== false
-              )
-                addTagIfNew(["p", data.pubkey])
-              resolve()
-            })
-          )
-          break
-        default:
-          return tag
-      }
+                case "naddr":
+                    promises.push(
+                        new Promise(async (resolve) => {
+                            const id = [data.kind, data.pubkey, data.identifier].join(":");
+                            let relays = data.relays ?? [];
 
-      if (t) addTagIfNew(t)
+                            // If the naddr doesn't have a relay specified, try to get one
+                            if (relays.length === 0) {
+                                relays = [await maybeGetEventRelayUrl(entity)];
+                            }
 
-      return `nostr:${entity}`
-    } catch (_error) {
-      return tag
+                            addTagIfNew(["q", id, relays[0]]);
+                            if (opts?.pTags !== false && opts?.pTagOnQTags !== false && opts?.pTagOnATags !== false)
+                                addTagIfNew(["p", data.pubkey]);
+                            resolve();
+                        }),
+                    );
+                    break;
+                default:
+                    return tag;
+            }
+
+            if (t) addTagIfNew(t);
+
+            return `nostr:${entity}`;
+        } catch (_error) {
+            return tag;
+        }
+    });
+
+    await Promise.all(promises);
+
+    // Only add hashtags if not filtered out
+    if (!opts?.filters?.excludeTypes?.includes("hashtag")) {
+        const newTags = generateHashtags(content).map((hashtag) => ["t", hashtag]);
+        tags = mergeTags(tags, newTags);
     }
-  })
 
-  await Promise.all(promises)
-
-  // Only add hashtags if not filtered out
-  if (!opts?.filters?.excludeTypes?.includes("hashtag")) {
-    const newTags = generateHashtags(content).map((hashtag) => ["t", hashtag])
-    tags = mergeTags(tags, newTags)
-  }
-
-  // Copy p-tags from target event if requested
-  if (opts?.pTags !== false && opts?.copyPTagsFromTarget && ctx) {
-    const pTags = ctx.getMatchingTags("p")
-    for (const pTag of pTags) {
-      if (!pTag[1] || !isValidPubkey(pTag[1])) continue
-      if (!tags.find((t) => t[0] === "p" && t[1] === pTag[1])) {
-        tags.push(pTag)
-      }
+    // Copy p-tags from target event if requested
+    if (opts?.pTags !== false && opts?.copyPTagsFromTarget && ctx) {
+        const pTags = ctx.getMatchingTags("p");
+        for (const pTag of pTags) {
+            if (!pTag[1] || !isValidPubkey(pTag[1])) continue;
+            if (!tags.find((t) => t[0] === "p" && t[1] === pTag[1])) {
+                tags.push(pTag);
+            }
+        }
     }
-  }
 
-  return {content, tags}
+    return { content, tags };
 }
 
 /**
@@ -248,7 +243,7 @@ export async function generateContentTags(
  * @returns Relay URL or an empty string
  */
 async function maybeGetEventRelayUrl(_nip19Id: string): Promise<string> {
-  /* TODO */
+    /* TODO */
 
-  return ""
+    return "";
 }

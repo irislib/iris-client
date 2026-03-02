@@ -1,25 +1,25 @@
-import type {IEventHandlingStrategy, NDKNip46Backend} from "./index.js"
+import type { IEventHandlingStrategy, NDKNip46Backend } from "./index.js";
 
 /**
  * "ping" method handler.
  */
 export default class PingEventHandlingStrategy implements IEventHandlingStrategy {
-  async handle(
-    backend: NDKNip46Backend,
-    id: string,
-    remotePubkey: string,
-    _params: string[]
-  ): Promise<string | undefined> {
-    const debug = backend.debug.extend("ping")
+    async handle(
+        backend: NDKNip46Backend,
+        id: string,
+        remotePubkey: string,
+        _params: string[],
+    ): Promise<string | undefined> {
+        const debug = backend.debug.extend("ping");
 
-    debug(`ping request from ${remotePubkey}`)
+        debug(`ping request from ${remotePubkey}`);
 
-    if (await backend.pubkeyAllowed({id, pubkey: remotePubkey, method: "ping"})) {
-      debug(`connection request from ${remotePubkey} allowed`)
-      return "pong"
+        if (await backend.pubkeyAllowed({ id, pubkey: remotePubkey, method: "ping" })) {
+            debug(`connection request from ${remotePubkey} allowed`);
+            return "pong";
+        }
+        debug(`connection request from ${remotePubkey} rejected`);
+
+        return undefined;
     }
-    debug(`connection request from ${remotePubkey} rejected`)
-
-    return undefined
-  }
 }

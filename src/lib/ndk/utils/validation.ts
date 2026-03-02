@@ -6,19 +6,19 @@
  * @returns true if the string is exactly 64 hex characters, false otherwise
  */
 export function isValidHex64(value: string): boolean {
-  if (typeof value !== "string" || value.length !== 64) {
-    return false
-  }
-
-  for (let i = 0; i < 64; i++) {
-    const c = value.charCodeAt(i)
-    // 0-9: 48-57, a-f: 97-102, A-F: 65-70
-    if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102) || (c >= 65 && c <= 70))) {
-      return false
+    if (typeof value !== "string" || value.length !== 64) {
+        return false;
     }
-  }
 
-  return true
+    for (let i = 0; i < 64; i++) {
+        const c = value.charCodeAt(i);
+        // 0-9: 48-57, a-f: 97-102, A-F: 65-70
+        if (!((c >= 48 && c <= 57) || (c >= 97 && c <= 102) || (c >= 65 && c <= 70))) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -35,7 +35,7 @@ export function isValidHex64(value: string): boolean {
  * ```
  */
 export function isValidPubkey(pubkey: string): boolean {
-  return isValidHex64(pubkey)
+    return isValidHex64(pubkey);
 }
 
 /**
@@ -52,7 +52,7 @@ export function isValidPubkey(pubkey: string): boolean {
  * ```
  */
 export function isValidEventId(id: string): boolean {
-  return isValidHex64(id)
+    return isValidHex64(id);
 }
 
 /**
@@ -70,18 +70,17 @@ export function isValidEventId(id: string): boolean {
  * ```
  */
 export function isValidNip05(input: string): boolean {
-  if (typeof input !== "string") {
-    return false
-  }
-
-  // Simple check: must contain a dot (domain indicator)
-  // This is a fast format check, actual NIP-05 validation happens during resolution
-  for (let i = 0; i < input.length; i++) {
-    if (input.charCodeAt(i) === 46) {
-      // 46 is '.'
-      return true
+    if (typeof input !== "string") {
+        return false;
     }
-  }
 
-  return false
+    // Simple check: must contain a dot (domain indicator)
+    // This is a fast format check, actual NIP-05 validation happens during resolution
+    for (let i = 0; i < input.length; i++) {
+        if (input.charCodeAt(i) === 46) { // 46 is '.'
+            return true;
+        }
+    }
+
+    return false;
 }

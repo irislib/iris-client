@@ -1,39 +1,39 @@
-import {decode} from "light-bolt11-decoder"
+import { decode } from "light-bolt11-decoder";
 
-import type {NDKEvent, NDKEventId, NostrEvent} from "../events/index.js"
+import type { NDKEvent, NDKEventId, NostrEvent } from "../events/index.js";
 
 export interface NDKZapInvoice {
-  id?: NDKEventId
+    id?: NDKEventId;
 
-  /**
-   * The pubkey of the zapper app
-   */
-  zapper: string
+    /**
+     * The pubkey of the zapper app
+     */
+    zapper: string;
 
-  /**
-   * The pubkey of the user sending the zap
-   */
-  zappee: string
+    /**
+     * The pubkey of the user sending the zap
+     */
+    zappee: string;
 
-  /**
-   * The pubkey of the user receiving the zap
-   */
-  zapped: string
+    /**
+     * The pubkey of the user receiving the zap
+     */
+    zapped: string;
 
-  /**
-   * The event that was zapped
-   */
-  zappedEvent?: string
+    /**
+     * The event that was zapped
+     */
+    zappedEvent?: string;
 
-  /**
-   * The amount zapped in millisatoshis
-   */
-  amount: number
+    /**
+     * The amount zapped in millisatoshis
+     */
+    amount: number;
 
-  /**
-   * A comment attached to the zap
-   */
-  comment?: string
+    /**
+     * A comment attached to the zap
+     */
+    comment?: string;
 }
 
 /**
@@ -44,68 +44,68 @@ export interface NDKZapInvoice {
  * @returns NDKZapInvoice | null
  */
 export function zapInvoiceFromEvent(event: NDKEvent): NDKZapInvoice | null {
-  const description = event.getMatchingTags("description")[0]
-  const bolt11 = event.getMatchingTags("bolt11")[0]
-  let decodedInvoice
-  let zapRequest: NostrEvent
+    const description = event.getMatchingTags("description")[0];
+    const bolt11 = event.getMatchingTags("bolt11")[0];
+    let decodedInvoice;
+    let zapRequest: NostrEvent;
 
-  if (!description || !bolt11 || !bolt11[1]) {
-    return null
-  }
-
-  try {
-    let zapRequestPayload = description[1]
-    if (zapRequestPayload.startsWith("%")) {
-      zapRequestPayload = decodeURIComponent(zapRequestPayload)
-    }
-    if (zapRequestPayload === "") {
-      return null
+    if (!description || !bolt11 || !bolt11[1]) {
+        return null;
     }
 
-    zapRequest = JSON.parse(zapRequestPayload)
-    decodedInvoice = decode(bolt11[1])
-  } catch (_e) {
-    return null
-  }
+    try {
+        let zapRequestPayload = description[1];
+        if (zapRequestPayload.startsWith("%")) {
+            zapRequestPayload = decodeURIComponent(zapRequestPayload);
+        }
+        if (zapRequestPayload === "") {
+            return null;
+        }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const amountSection = decodedInvoice.sections.find((s: any) => s.name === "amount") as {
-    name: "amount"
-    letters: string
-    value: string
-  }
-  if (!amountSection) {
-    return null
-  }
+        zapRequest = JSON.parse(zapRequestPayload);
+        decodedInvoice = decode(bolt11[1]);
+    } catch (_e) {
+        return null;
+    }
 
-  const amount = Number.parseInt(amountSection.value)
-  if (!amount) {
-    return null
-  }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const amountSection = decodedInvoice.sections.find((s: any) => s.name === "amount") as {
+        name: "amount";
+        letters: string;
+        value: string;
+    };
+    if (!amountSection) {
+        return null;
+    }
 
-  const content = zapRequest.content
-  const sender = zapRequest.pubkey
-  const recipientTag = event.getMatchingTags("p")[0]
-  const recipient = recipientTag[1]
-  let zappedEvent = event.getMatchingTags("e")[0]
-  if (!zappedEvent) {
-    zappedEvent = event.getMatchingTags("a")[0]
-  }
+    const amount = Number.parseInt(amountSection.value);
+    if (!amount) {
+        return null;
+    }
 
-  const zappedEventId = zappedEvent ? zappedEvent[1] : undefined
+    const content = zapRequest.content;
+    const sender = zapRequest.pubkey;
+    const recipientTag = event.getMatchingTags("p")[0];
+    const recipient = recipientTag[1];
+    let zappedEvent = event.getMatchingTags("e")[0];
+    if (!zappedEvent) {
+        zappedEvent = event.getMatchingTags("a")[0];
+    }
 
-  // ignore self-zaps (TODO: configurable?)
-  // if (sender === recipient) { return null; } XXX
+    const zappedEventId = zappedEvent ? zappedEvent[1] : undefined;
 
-  const zapInvoice: NDKZapInvoice = {
-    id: event.id,
-    zapper: event.pubkey,
-    zappee: sender,
-    zapped: recipient,
-    zappedEvent: zappedEventId,
-    amount,
-    comment: content,
-  }
+    // ignore self-zaps (TODO: configurable?)
+    // if (sender === recipient) { return null; } XXX
 
-  return zapInvoice
+    const zapInvoice: NDKZapInvoice = {
+        id: event.id,
+        zapper: event.pubkey,
+        zappee: sender,
+        zapped: recipient,
+        zappedEvent: zappedEventId,
+        amount,
+        comment: content,
+    };
+
+    return zapInvoice;
 }
