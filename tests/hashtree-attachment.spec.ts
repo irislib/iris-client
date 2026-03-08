@@ -27,6 +27,14 @@ async function setupChatWithSelf(page) {
   await messageButton.click()
 
   await expect(page.getByPlaceholder("Message").last()).toBeVisible({timeout: 15000})
+
+  const acceptButton = page.getByRole("button", {name: "Accept"})
+  if (await acceptButton.isVisible({timeout: 1000}).catch(() => false)) {
+    await acceptButton.click()
+    await expect(acceptButton).not.toBeVisible({timeout: 15000})
+  }
+
+  await expect(page.getByPlaceholder("Message").last()).toBeEnabled({timeout: 15000})
 }
 
 async function dispatchFileDrop(target: Locator, filePath: string, mimeType: string) {
