@@ -1,4 +1,5 @@
 import NDK, { type NDKEventId, NDKRelay, NDKSubscription } from "../index.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NDKSubscriptionManager } from "./manager.js";
 
 const ndk = new NDK();
@@ -38,8 +39,8 @@ describe("NDKSubscriptionManager", () => {
         const eventId: NDKEventId = "event1";
         const relay = new NDKRelay("wss://example.com", undefined, ndk);
         manager.seenEvent(eventId, relay);
-        const seenRelays = manager.seenEvents.get(eventId);
-        expect(seenRelays).toContain(relay);
+        const seenData = manager.seenEvents.get(eventId);
+        expect(seenData?.relays).toContain(relay);
     });
 
     it("should not add duplicate relays with the same URL", () => {
@@ -56,9 +57,9 @@ describe("NDKSubscriptionManager", () => {
         manager.seenEvent(eventId, relay);
         manager.seenEvent(eventId, relay);
 
-        const seenRelays = manager.seenEvents.get(eventId);
-        expect(seenRelays).toBeDefined();
-        expect(seenRelays?.length).toBe(1);
-        expect(seenRelays?.[0]).toBe(relay);
+        const seenData = manager.seenEvents.get(eventId);
+        expect(seenData).toBeDefined();
+        expect(seenData?.relays.length).toBe(1);
+        expect(seenData?.relays[0]).toBe(relay);
     });
 });

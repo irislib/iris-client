@@ -31,6 +31,21 @@ function isNip33Pattern(filters: any): boolean {
     );
 }
 
+/**
+ * Check if filter targets exactly one event by id.
+ */
+function isSingleEventIdFilter(filters: any): boolean {
+    const filterArray = Array.isArray(filters) ? filters : [filters];
+    if (filterArray.length !== 1) return false;
+
+    const filter = filterArray[0];
+    return (
+        filter.ids &&
+        Array.isArray(filter.ids) &&
+        filter.ids.length === 1
+    );
+}
+
 
 /**
  * Check if filter is fetching replaceable events where fetchEvents is appropriate
@@ -118,6 +133,20 @@ export function fetchingEvents(
                 "  ✅ GOOD: const event = await ndk.fetchEvent(naddr);\n" +
                 "  ✅ GOOD: const event = await ndk.fetchEvent('naddr1...');\n\n" +
                 "fetchEvent() handles naddr decoding automatically and returns the event directly.",
+        );
+    } else if (isSingleEventIdFilter(filters)) {
+        warn(
+            "fetch-events-usage",
+            "For fetching a single event, use fetchEvent() instead of fetchEvents().\n\n" +
+                "📦 Your filter:\n   " +
+                formattedFilters +
+                "\n\n" +
+                "  ❌ BAD:  const events = await ndk.fetchEvents({ ids: [eventId] });\n" +
+                "           const event = Array.from(events)[0];\n\n" +
+                "  ✅ GOOD: const event = await ndk.fetchEvent(eventId);\n" +
+                "  ✅ GOOD: const event = await ndk.fetchEvent('note1...');\n" +
+                "  ✅ GOOD: const event = await ndk.fetchEvent('nevent1...');\n\n" +
+                "fetchEvent() returns the matching event directly.",
         );
     } else if (isReplaceableEventFilter(filters)) {
         // Replaceable events - fetchEvents is actually correct here

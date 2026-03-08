@@ -1,4 +1,5 @@
 import { NDK } from "../ndk";
+import { describe, expect, it } from "vitest";
 import { NDKRelayAuthPolicies } from "./auth-policies";
 
 const ndk = new NDK({

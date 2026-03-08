@@ -1,4 +1,5 @@
 import { filterFingerprint, mergeFilters } from "./grouping.js";
+import { describe, expect, it } from "vitest";
 import type { NDKFilter } from "./index.js";
 
 describe("mergeFilters", () => {

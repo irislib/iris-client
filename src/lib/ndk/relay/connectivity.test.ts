@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NDKEvent } from "../events";
 import type { NDK } from "../ndk";
 import { NDKSubscriptionManager } from "../subscription/manager";
 import { NDKRelayConnectivity } from "./connectivity";
@@ -309,17 +310,27 @@ describe("NDKRelayConnectivity", () => {
 
             const eventId = "abc123def456789012345678901234567890123456789012345678901234abcd";
             const subId = "test-sub";
+            const rawEvent = {
+                id: eventId,
+                pubkey: "a".repeat(64),
+                created_at: 1234567890,
+                kind: 1,
+                tags: [],
+                content: "hello",
+                sig: "b".repeat(128),
+            };
 
             // Create a real subManager
             const subManager = new NDKSubscriptionManager();
 
-            // Pre-populate seenEvents (simulating event was seen by subscription A)
-            subManager.seenEvent(eventId, mockRelay);
+            // Pre-populate seenEvents exactly as the live path does after a prior subscription
+            // has already processed the event.
+            subManager.seenEvent(eventId, mockRelay, new NDKEvent(mockNDK as any, rawEvent as any));
 
             // Verify seenEvents is populated
-            const seenRelays = subManager.seenEvents.get(eventId);
-            expect(seenRelays).toBeDefined();
-            expect(seenRelays!.length).toBe(1);
+            const seenData = subManager.seenEvents.get(eventId);
+            expect(seenData).toBeDefined();
+            expect(seenData!.relays.length).toBe(1);
 
             // Create mockNDK with real subManager
             const ndkWithSubManager = {
@@ -354,11 +365,10 @@ describe("NDKRelayConnectivity", () => {
             // Verify subscription is registered
             expect(conn.openSubs.get(subId)).toBe(mockRelaySub);
 
-            // Send the event via WebSocket message
-            const eventMsg = `["EVENT","${subId}",{"id":"${eventId}","pubkey":"xyz","created_at":1234567890,"kind":1,"tags":[],"content":"hello","sig":"sig123"}]`;
-            const mockMessageEvent = new MessageEvent("message", { data: eventMsg });
-
-            conn["onMessage"](mockMessageEvent);
+            // Send the event through the message handler directly so this test
+            // exercises duplicate routing without depending on async inbox queue scheduling.
+            const eventMsg = `["EVENT","${subId}",${JSON.stringify(rawEvent)}]`;
+            conn["handleMessage"](eventMsg);
 
             // The subscription's onevent should have been called
             expect(mockRelaySub.onevent).toHaveBeenCalled();

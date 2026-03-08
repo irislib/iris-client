@@ -1,4 +1,5 @@
 import { nip19 } from "nostr-tools";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NDKUser } from "../user/index.js";
 import { NDK } from "./index.js";
 

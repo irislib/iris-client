@@ -1,4 +1,5 @@
 import { NDK } from "../../../ndk";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NDKUser } from "../../../user";
 import NDKList from ".";
 

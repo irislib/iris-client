@@ -841,6 +841,23 @@ export class NDKSubscription extends EventEmitter<{
     // Event should already be processed as NDKEvent by manager
     const ndkEvent = event instanceof NDKEvent ? event : new NDKEvent(this.ndk, event)
 
+    const futureTimestampGrace = this.ndk.futureTimestampGrace
+    if (
+      typeof futureTimestampGrace === "number" &&
+      typeof ndkEvent.created_at === "number"
+    ) {
+      const now = Math.floor(Date.now() / 1000)
+      if (ndkEvent.created_at > now + futureTimestampGrace) {
+        this.debug(
+          "Event discarded %s created_at=%d now=%d",
+          eventId,
+          ndkEvent.created_at,
+          now
+        )
+        return
+      }
+    }
+
     if (!eventAlreadySeen) {
       // Track cache stats (only in browser)
       if (typeof window !== "undefined") {

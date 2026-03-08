@@ -507,15 +507,18 @@ export class NDKRelayConnectivity {
   private handleMessage(msg: string): void {
     // Early exit for duplicate events before JSON.parse
     const eventId = this.getEventIdFromMessage(msg)
+    let cachedEvent: NDKEvent | undefined
     if (eventId && this.ndk) {
       const seenData = this.ndk.subManager.seenEvents.get(eventId)
       const seenRelayCount = Array.isArray(seenData)
         ? seenData.length
         : (seenData?.relays?.length ?? 0)
       if (seenRelayCount > 0) {
-        // Already processed from any relay, just track this relay saw it
+        // Already processed from another relay. Record this relay too, but keep
+        // handling the message so the relay subscription can route the event to
+        // any newer matching subscriptions.
         this.ndk.subManager.seenEvent(eventId, this.ndkRelay)
-        return
+        cachedEvent = Array.isArray(seenData) ? undefined : seenData?.processedEvent
       }
     }
 
@@ -539,7 +542,7 @@ export class NDKRelayConnectivity {
             return
           }
 
-          const ndkEvent = this.processEvent(rawEvent)
+          const ndkEvent = cachedEvent ?? this.processEvent(rawEvent)
           if (!ndkEvent) return // Failed validation/verification
 
           // Pass processed NDKEvent to subscription

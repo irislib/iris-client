@@ -3,6 +3,7 @@ import type {NostrEvent} from "nostr-tools"
 import {nip19} from "nostr-tools"
 import {EventEmitter} from "tseep"
 import {AIGuardrails} from "../ai-guardrails/index.js"
+import {checkDeprecatedHandlers} from "../ai-guardrails/subscription/deprecated-handlers.js"
 import type {NDKCacheAdapter} from "../cache/index.js"
 import dedupEvent from "../events/dedup.js"
 import {NDKEvent} from "../events/index.js"
@@ -207,6 +208,14 @@ export interface NDKConstructorParams {
   filterValidationMode?: "validate" | "fix" | "ignore"
 
   /**
+   * Maximum number of seconds an event timestamp may be in the future.
+   * Events beyond this grace period are discarded by subscriptions.
+   *
+   * When undefined, future timestamps are accepted.
+   */
+  futureTimestampGrace?: number
+
+  /**
    * ⚠️ STRONGLY RECOMMENDED: Enable AI Guardrails during development
    *
    * AI Guardrails catch 90% of common mistakes before they cause silent failures:
@@ -355,6 +364,7 @@ export class NDK extends EventEmitter<{
   public lowestValidationRatio = 0.1
   public validationRatioFn?: NDKValidationRatioFn
   public filterValidationMode: "validate" | "fix" | "ignore" = "validate"
+  public futureTimestampGrace?: number
   public subManager: NDKSubscriptionManager
   public aiGuardrails: AIGuardrails
 
@@ -523,6 +533,7 @@ export class NDK extends EventEmitter<{
     this.lowestValidationRatio = opts.lowestValidationRatio || 0.1
     this.validationRatioFn = opts.validationRatioFn || this.defaultValidationRatioFn
     this.filterValidationMode = opts.filterValidationMode || "validate"
+    this.futureTimestampGrace = opts.futureTimestampGrace
     this.aiGuardrails = new AIGuardrails(opts.aiGuardrails || false)
 
     // Trigger guardrails hook for NDK instantiation
@@ -961,6 +972,13 @@ export class NDK extends EventEmitter<{
     autoStartOrRelaySet: NDKRelaySet | boolean | NDKSubscriptionEventHandlers = true,
     _autoStart = true
   ): NDKSubscription {
+    checkDeprecatedHandlers(
+      Array.isArray(filters) ? filters : [filters],
+      opts,
+      autoStartOrRelaySet,
+      this.aiGuardrails.warn.bind(this.aiGuardrails)
+    )
+
     let _relaySet: NDKRelaySet | undefined = opts?.relaySet
     let autoStart: boolean | NDKSubscriptionEventHandlers = _autoStart
 
@@ -1139,6 +1157,7 @@ export class NDK extends EventEmitter<{
 
     return new Promise((resolve, reject) => {
       let fetchedEvent: NDKEvent | null = null
+      let subscription: NDKSubscription | undefined
 
       // Prepare options, including the relaySet if available
       const subscribeOpts: NDKSubscriptionOptions = {
@@ -1148,24 +1167,13 @@ export class NDK extends EventEmitter<{
         groupable: true,
         groupableDelay: 100,
         groupableDelayType: "at-least",
-      }
-      if (relaySet) subscribeOpts.relaySet = relaySet
-
-      // 10s timeout - keep sub open to allow network relays to respond after cache EOSE
-      const t2 = setTimeout(() => {
-        s.stop()
-        this.aiGuardrails["_nextCallDisabled"] = null
-        resolve(fetchedEvent)
-      }, 10000)
-
-      const s = this.subscribe(filters, subscribeOpts, {
         onEvent: (event: NDKEvent) => {
           event.ndk = this
 
           // We only emit immediately when the event is not replaceable
           if (!event.isReplaceable()) {
             clearTimeout(t2)
-            s.stop()
+            subscription?.stop()
             this.aiGuardrails["_nextCallDisabled"] = null
             resolve(event)
           } else if (!fetchedEvent || fetchedEvent.created_at! < event.created_at!) {
@@ -1176,7 +1184,23 @@ export class NDK extends EventEmitter<{
           // Don't close on EOSE - let timeout handle it
           // This allows network relays to respond even if cache EOSEs first
         },
-      })
+      }
+      if (relaySet) subscribeOpts.relaySet = relaySet
+
+      // 10s timeout - keep sub open to allow network relays to respond after cache EOSE
+      const t2 = setTimeout(() => {
+        subscription?.stop()
+        this.aiGuardrails["_nextCallDisabled"] = null
+        resolve(fetchedEvent)
+      }, 10000)
+
+      try {
+        subscription = this.subscribe(filters, subscribeOpts)
+      } catch (error) {
+        clearTimeout(t2)
+        this.aiGuardrails["_nextCallDisabled"] = null
+        reject(error)
+      }
     })
   }
 

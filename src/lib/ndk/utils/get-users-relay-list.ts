@@ -93,10 +93,6 @@ export async function getRelayListForUsers(
                 subId: "ndk-relay-list-fetch",
                 addSinceFromCache: true,
                 relaySet,
-            };
-            if (relaySet) subscribeOpts.relaySet = relaySet;
-
-            const sub = ndk.subscribe({ kinds: [3, 10002], authors: pubkeys }, subscribeOpts, {
                 onEvent: (event) => {
                     if (event.kind === NDKKind.RelayList) {
                         const existingEvent = relayListEvents.get(event.pubkey);
@@ -135,7 +131,10 @@ export async function getRelayListForUsers(
                     );
                     resolve(relayLists);
                 },
-            });
+            };
+            if (relaySet) subscribeOpts.relaySet = relaySet;
+
+            const sub = ndk.subscribe({ kinds: [3, 10002], authors: pubkeys }, subscribeOpts);
 
             // Check if any relays are still connecting or disconnected
             const hasDisconnectedRelays = Array.from(set).some(

@@ -108,10 +108,10 @@ export class NDKNip46Backend {
 
     if (privateKeyOrSigner instanceof Uint8Array) {
       this.signer = new NDKPrivateKeySigner(privateKeyOrSigner as Uint8Array)
-    } else if (privateKeyOrSigner instanceof String) {
+    } else if (typeof privateKeyOrSigner === "string") {
       this.signer = new NDKPrivateKeySigner(hexToBytes(privateKeyOrSigner as string))
-    } else if (privateKeyOrSigner instanceof NDKPrivateKeySigner) {
-      this.signer = privateKeyOrSigner as NDKPrivateKeySigner
+    } else if (privateKeyOrSigner && typeof privateKeyOrSigner === "object") {
+      this.signer = privateKeyOrSigner as NDKSigner
     } else {
       throw new Error("Invalid signer")
     }
@@ -194,17 +194,32 @@ export class NDKNip46Backend {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (e: any) {
         this.debug("error handling event", e, {id, method, params})
-        this.rpc.sendResponse(id, remotePubkey, "error", undefined, e.message)
+        try {
+          await this.rpc.sendResponse(
+            id,
+            remotePubkey,
+            "error",
+            undefined,
+            e instanceof Error ? e.message : String(e)
+          )
+        } catch (sendError) {
+          this.debug("error sending error response", sendError, {id, method, params})
+        }
+        return
       }
     } else {
       this.debug("unsupported method", {method, params})
     }
 
-    if (response) {
-      this.debug(`sending response to ${remotePubkey}`, response)
-      this.rpc.sendResponse(id, remotePubkey, response)
-    } else {
-      this.rpc.sendResponse(id, remotePubkey, "error", undefined, "Not authorized")
+    try {
+      if (response !== undefined) {
+        this.debug(`sending response to ${remotePubkey}`, response)
+        await this.rpc.sendResponse(id, remotePubkey, response)
+      } else {
+        await this.rpc.sendResponse(id, remotePubkey, "error", undefined, "Not authorized")
+      }
+    } catch (sendError) {
+      this.debug("error sending response", sendError, {id, method, params, remotePubkey})
     }
   }
 

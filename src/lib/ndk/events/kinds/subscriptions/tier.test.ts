@@ -1,4 +1,5 @@
 import type { NostrEvent } from "../..";
+import { describe, expect, it } from "vitest";
 import { NDKKind } from "../index.js";
 import { NDKSubscriptionTier } from "./tier";
 

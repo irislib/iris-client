@@ -1,4 +1,5 @@
 import { NDK } from "../../ndk/index.js";
+import { beforeEach, describe, expect, it } from "vitest";
 import { NDKKind } from "./index.js";
 import { NDKP2POrder, type P2PRating } from "./p2p-order.js";
 
