@@ -10,6 +10,7 @@ import {RiAddLine, RiComputerLine} from "@remixicon/react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import Icon from "@/shared/components/Icons/Icon"
+import {formatManagedDevicePubkey} from "./formatManagedDevicePubkey"
 
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -115,7 +116,7 @@ const RegisterDevice = () => {
                       }`}
                     />
                     <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
-                      {device.identityPubkey}
+                      {formatManagedDevicePubkey(device.identityPubkey)}
                     </span>
                     {isNewDevice && (
                       <span className="badge badge-primary badge-sm ml-auto shrink-0">

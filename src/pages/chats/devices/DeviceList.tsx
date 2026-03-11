@@ -13,25 +13,13 @@ import {
   PreparedRevocation,
 } from "@/shared/services/PrivateChats"
 import Icon from "@/shared/components/Icons/Icon"
-import {nip19} from "nostr-tools"
+import {formatManagedDevicePubkey} from "./formatManagedDevicePubkey"
 
 const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
   if (revoking) {
     return isCurrentDevice ? "Removing..." : "Revoking..."
   }
   return isCurrentDevice ? "Remove Device" : "Revoke Device"
-}
-
-const formatDevicePubkey = (devicePubkey: string, currentDevicePubkey: string | null) => {
-  if (devicePubkey !== currentDevicePubkey) {
-    return devicePubkey
-  }
-
-  try {
-    return nip19.npubEncode(devicePubkey)
-  } catch {
-    return devicePubkey
-  }
 }
 
 const DeviceList = () => {
@@ -118,7 +106,7 @@ const DeviceList = () => {
         .map((device) => {
           const isCurrentDevice = device.identityPubkey === identityPubkey
           const createdDate = new Date(device.createdAt * 1000).toLocaleDateString()
-          const displayPubkey = formatDevicePubkey(device.identityPubkey, identityPubkey)
+          const displayPubkey = formatManagedDevicePubkey(device.identityPubkey)
 
           return (
             <div
@@ -202,7 +190,7 @@ const DeviceList = () => {
                 <div className="flex items-center gap-2 rounded-lg p-2 bg-error/10 border border-error/30">
                   <RiComputerLine className="w-4 h-4 shrink-0 text-error" />
                   <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block line-through text-error/70">
-                    {formatDevicePubkey(deviceToRevoke, identityPubkey)}
+                    {formatManagedDevicePubkey(deviceToRevoke)}
                   </span>
                   <span className="badge badge-error badge-sm ml-auto shrink-0">
                     Removed
@@ -217,7 +205,7 @@ const DeviceList = () => {
                 >
                   <RiComputerLine className="w-4 h-4 shrink-0 text-base-content/70" />
                   <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
-                    {formatDevicePubkey(device.identityPubkey, identityPubkey)}
+                    {formatManagedDevicePubkey(device.identityPubkey)}
                   </span>
                 </div>
               ))}

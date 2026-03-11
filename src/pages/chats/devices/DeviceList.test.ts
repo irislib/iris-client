@@ -54,7 +54,7 @@ describe("DeviceList", () => {
     }
   })
 
-  it("shows the current device as npub while keeping sibling devices in hex", async () => {
+  it("shows all managed device keys as npub", async () => {
     const currentDevicePubkey =
       "6b911f0f1ca34f7f6a9f2f7a7d8aa0c92e3f0f0d6bb64abd0c4f2e55d8f67f1f"
     const siblingDevicePubkey =
@@ -73,7 +73,8 @@ describe("DeviceList", () => {
     })
 
     expect(container.textContent).toContain(nip19.npubEncode(currentDevicePubkey))
-    expect(container.textContent).toContain(siblingDevicePubkey)
+    expect(container.textContent).toContain(nip19.npubEncode(siblingDevicePubkey))
     expect(container.textContent).not.toContain(currentDevicePubkey)
+    expect(container.textContent).not.toContain(siblingDevicePubkey)
   })
 })
