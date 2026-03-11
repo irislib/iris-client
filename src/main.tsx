@@ -26,7 +26,7 @@ import {
 } from "@tauri-apps/plugin-autostart"
 import {cleanupSessionEventListener} from "./utils/dmEventHandler"
 import {cleanupGroupMessageListener} from "./utils/groupMessageHandler"
-import {hasWriteAccess} from "./utils/auth"
+import {hasWriteAccess, shouldStartPrivateMessagingOnAuthChange} from "./utils/auth"
 import {
   initAppKeysManager,
   initDelegateManager,
@@ -258,6 +258,12 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
     if (hasWriteAccess()) {
       startPrivateMessaging(state.publicKey)
     }
+    return
+  }
+
+  if (shouldStartPrivateMessagingOnAuthChange(state, prevState)) {
+    log("Write access enabled, initializing private messaging")
+    startPrivateMessaging(state.publicKey!)
   }
 })
 

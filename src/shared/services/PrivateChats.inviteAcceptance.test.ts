@@ -3,6 +3,20 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 const mocks = vi.hoisted(() => {
   const ownerPubkey = "a".repeat(64)
   const devicePubkey = "b".repeat(64)
+  const delegateInvite = {
+    inviter: devicePubkey,
+    inviterEphemeralPublicKey: "c".repeat(64),
+    inviterEphemeralPrivateKey: new Uint8Array([1, 2, 3]),
+    sharedSecret: "d".repeat(64),
+    getEvent: vi.fn(() => ({
+      kind: 30078,
+      pubkey: devicePubkey,
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [],
+    })),
+    serialize: vi.fn(() => "delegate-invite"),
+  }
 
   const sessionManager = {
     init: vi.fn().mockResolvedValue(undefined),
@@ -17,6 +31,7 @@ const mocks = vi.hoisted(() => {
     init: vi.fn().mockResolvedValue(undefined),
     activate: vi.fn().mockResolvedValue(undefined),
     createSessionManager: vi.fn(() => sessionManager),
+    getInvite: vi.fn(() => delegateInvite),
   }
 
   const ndkInstance = {
@@ -43,6 +58,7 @@ const mocks = vi.hoisted(() => {
   return {
     ownerPubkey,
     devicePubkey,
+    delegateInvite,
     sessionManager,
     delegateManager,
     ndkInstance,
@@ -64,6 +80,10 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
 
     createSessionManager() {
       return mocks.delegateManager.createSessionManager()
+    }
+
+    getInvite() {
+      return mocks.delegateManager.getInvite()
     }
   }
 
@@ -108,12 +128,23 @@ describe("PrivateChats invite acceptance", () => {
     mocks.delegateManager.init.mockClear()
     mocks.delegateManager.activate.mockClear()
     mocks.delegateManager.createSessionManager.mockClear()
+    mocks.delegateManager.getInvite.mockClear()
     mocks.sessionManager.init.mockClear()
     mocks.sessionManager.acceptInvite.mockClear()
     mocks.ndkInstance.pool.connectedRelays.mockClear()
     mocks.ndkInstance.pool.connect.mockClear()
     mocks.userState.publicKey = mocks.ownerPubkey
     mocks.userState.linkedDevice = false
+  })
+
+  it("createLinkInvite reuses the delegate manager invite", async () => {
+    const {createLinkInvite} = await import("./PrivateChats")
+
+    const invite = await createLinkInvite()
+
+    expect(mocks.delegateManager.init).toHaveBeenCalledTimes(1)
+    expect(mocks.delegateManager.getInvite).toHaveBeenCalledTimes(1)
+    expect(invite).toBe(mocks.delegateInvite)
   })
 
   it("acceptLinkInvite uses SessionManager.acceptInvite with current owner pubkey", async () => {

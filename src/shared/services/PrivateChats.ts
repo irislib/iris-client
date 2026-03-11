@@ -744,9 +744,10 @@ export const createLinkInvite = async (): Promise<Invite> => {
   if (!delegateManager) {
     throw new Error("DelegateManager not initialized")
   }
-  const devicePubkey = delegateManager.getIdentityPublicKey()
-  const invite = Invite.createNew(devicePubkey)
-  ;(invite as Invite & {purpose?: string}).purpose = "link"
+  const invite = delegateManager.getInvite()
+  if (!invite) {
+    throw new Error("No delegate invite available")
+  }
   return invite
 }
 
