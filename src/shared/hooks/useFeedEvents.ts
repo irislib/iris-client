@@ -14,6 +14,7 @@ import {hasImageOrVideo} from "@/shared/utils/mediaUtils"
 import {type FeedConfig} from "@/stores/feed"
 import DebugManager from "@/utils/DebugManager"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
+import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 
 interface FutureEvent {
   event: NDKEvent
@@ -311,110 +312,17 @@ export default function useFeedEvents({
       return
     }
 
-    // Transform search filter to use #t tags for hashtags
-    let subscriptionFilters: NDKFilter | NDKFilter[]
-
-    if (filters.search) {
-      const searchTerms = filters.search.toLowerCase().split(/\s+/)
-      const hashtags: string[] = []
-      const regularWords: string[] = []
-
-      searchTerms.forEach((term) => {
-        if (term.startsWith("#") && term.length > 1) {
-          // Remove # and add to hashtags
-          hashtags.push(term.substring(1))
-        } else if (term.length > 0) {
-          regularWords.push(term)
-        }
-      })
-
-      // Build multiple filters to maximize relay compatibility
-      const baseFilter = {...filters}
-      delete baseFilter.search // Remove search from base filter
-
-      if (untilTimestamp) {
-        baseFilter.until = untilTimestamp
-      }
-
-      // For hashtag-only searches
-      if (hashtags.length > 0 && regularWords.length === 0) {
-        // Include both lowercase and original case versions if different
-        const hashtagVariants: string[] = []
-        hashtags.forEach((tag) => {
-          hashtagVariants.push(tag) // Already lowercase from line 294
-          // Check if original search had uppercase variants
-          const originalTerms = filters.search!.split(/\s+/)
-          originalTerms.forEach((original) => {
-            if (original.startsWith("#") && original.substring(1).toLowerCase() === tag) {
-              const originalTag = original.substring(1)
-              if (originalTag !== tag) {
-                hashtagVariants.push(originalTag)
-              }
-            }
-          })
-        })
-
-        // Use #t filter with OR logic (relay returns posts with ANY of these tags)
-        // For multiple tags, client-side filtering will ensure AND logic
-        subscriptionFilters = {
-          ...baseFilter,
-          "#t": hashtagVariants,
-        }
-      } else {
-        // For searches with regular words or mixed content
-        const filterArray: NDKFilter[] = []
-
-        // If we have hashtags, add them as #t filter
-        if (hashtags.length > 0) {
-          // Include both lowercase and original case versions if different
-          const hashtagVariants: string[] = []
-          hashtags.forEach((tag) => {
-            hashtagVariants.push(tag) // Already lowercase from line 294
-            // Check if original search had uppercase variants
-            const originalTerms = filters.search!.split(/\s+/)
-            originalTerms.forEach((original) => {
-              if (
-                original.startsWith("#") &&
-                original.substring(1).toLowerCase() === tag
-              ) {
-                const originalTag = original.substring(1)
-                if (originalTag !== tag) {
-                  hashtagVariants.push(originalTag)
-                }
-              }
-            })
-          })
-
-          filterArray.push({
-            ...baseFilter,
-            "#t": hashtagVariants,
-          })
-        }
-
-        // If we have regular words
-        if (regularWords.length > 0) {
-          // Add as #t tags (some relays index all words as tags)
-          filterArray.push({
-            ...baseFilter,
-            "#t": regularWords,
-          })
-
-          // Also include search filter for relays that support full-text search
-          filterArray.push({
-            ...baseFilter,
-            search: regularWords.join(" "),
-          })
-        }
-
-        // Use the filter array if we have any filters, otherwise use base filter
-        subscriptionFilters = filterArray.length > 0 ? filterArray : baseFilter
-      }
-    } else {
-      // No search, use original filter
-      subscriptionFilters = untilTimestamp ? {...filters, until: untilTimestamp} : filters
-    }
-
-    const sub = ndk().subscribe(subscriptionFilters, relayUrls ? {relayUrls} : undefined)
+    const subscriptionFilters = buildSearchSubscriptionFilters(
+      filters,
+      untilTimestamp,
+      Math.max(displayCount, 100)
+    )
+    const subscriptionFilterList = Array.isArray(subscriptionFilters)
+      ? subscriptionFilters
+      : [subscriptionFilters]
+    const subs = subscriptionFilterList.map((subscriptionFilter) =>
+      ndk().subscribe(subscriptionFilter, relayUrls ? {relayUrls} : undefined)
+    )
 
     // Reset these flags when subscription changes
     hasReceivedEventsRef.current = eventsRef.current.size > 0
@@ -436,7 +344,7 @@ export default function useFeedEvents({
       }
     }, 500)
 
-    sub.on("event", (event) => {
+    const handleEvent = (event: NDKEvent) => {
       if (!event?.id || !event.created_at) return
       if (eventsRef.current.has(event.id)) return
       if (!shouldAcceptEventRef.current!(event)) {
@@ -501,9 +409,11 @@ export default function useFeedEvents({
       }
 
       markLoadDoneIfHasEvents()
-    })
+    }
+
+    subs.forEach((sub) => sub.on("event", handleEvent))
     return () => {
-      sub.stop()
+      subs.forEach((sub) => sub.stop())
       clearTimeout(initialLoadTimeout)
       markLoadDoneIfHasEvents.cancel()
     }

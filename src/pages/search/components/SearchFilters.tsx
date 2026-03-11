@@ -94,6 +94,7 @@ const SearchFilters = memo(function SearchFilters({
       followDistance: showEventsByUnknownUsers ? undefined : 5,
       filter: {
         kinds: [KIND_TEXT_NOTE],
+        limit: 100,
         ...(activeQuery.trim() && {search: activeQuery}),
       },
     }
