@@ -1,6 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
+import {useDevicesStore} from "@/stores/devices"
 import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -8,6 +9,8 @@ import {useMessageRequestsStore} from "@/stores/messageRequests"
 
 const MY_PUBKEY = "a".repeat(64)
 const THEIR_PUBKEY = "b".repeat(64)
+const MY_DEVICE_PUBKEY = "c".repeat(64)
+const SIBLING_DEVICE_PUBKEY = "d".repeat(64)
 
 type SessionEventCallback = (event: any, pubKey: string) => void
 
@@ -48,6 +51,17 @@ describe("dmEventHandler receipts", () => {
     isFollowing.mockReturnValue(false)
 
     useUserStore.setState({publicKey: MY_PUBKEY})
+    useDevicesStore.setState({
+      identityPubkey: MY_DEVICE_PUBKEY,
+      registeredDevices: [{identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1}],
+      isCurrentDeviceRegistered: true,
+      appKeysManagerReady: true,
+      sessionManagerReady: true,
+      hasLocalAppKeys: true,
+      lastEventTimestamp: 1,
+      pendingAutoRegistration: false,
+      canSendPrivateMessages: true,
+    })
     useMessagesStore.setState({
       sendDeliveryReceipts: true,
       sendReadReceipts: true,
@@ -332,5 +346,33 @@ describe("dmEventHandler receipts", () => {
     expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
       "msg-5",
     ])
+  })
+
+  it("normalizes self-chat events to the owner pubkey when p-tag targets our current device", async () => {
+    attachSessionEventListener(sessionManager as any)
+    await flushPromises()
+
+    expect(capturedCallback).toBeTruthy()
+
+    capturedCallback?.(
+      {
+        id: "self-msg-1",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: SIBLING_DEVICE_PUBKEY,
+        content: "hello from sibling device",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_DEVICE_PUBKEY]],
+      },
+      MY_PUBKEY
+    )
+
+    await flushPromises()
+
+    expect(
+      usePrivateMessagesStore.getState().events.get(MY_PUBKEY)?.get("self-msg-1")
+    ).toBeTruthy()
+    expect(
+      usePrivateMessagesStore.getState().events.get(MY_DEVICE_PUBKEY)
+    ).toBeUndefined()
   })
 })

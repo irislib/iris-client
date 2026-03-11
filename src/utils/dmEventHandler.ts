@@ -17,7 +17,7 @@ import {isTauri} from "./utils"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {isOwnDeviceEvent} from "@/utils/sessionRouting"
+import {isOwnDeviceEvent, isOwnDevicePubkey} from "@/utils/sessionRouting"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {ingestGroupSessionEvent} from "@/utils/groupTransport"
@@ -352,8 +352,23 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
       const pTag = getTag("p", event.tags)
       if (!pTag) return
 
-      const from = isOwnDevice ? pTag : effectiveOwner
-      const to = isOwnDevice ? publicKey : pTag
+      const pTagIsOwnDevice = isOwnDevicePubkey(
+        pTag,
+        publicKey,
+        identityPubkey,
+        registeredDevices
+      )
+      const isSelfChat = effectiveOwner === publicKey && pTagIsOwnDevice
+
+      let from = effectiveOwner
+      let to = pTag
+      if (isSelfChat) {
+        from = publicKey
+        to = publicKey
+      } else if (isOwnDevice) {
+        from = pTag
+        to = publicKey
+      }
 
       if (!from || !to) return
 

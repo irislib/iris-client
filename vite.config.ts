@@ -39,11 +39,11 @@ export default defineConfig({
       filename: "service-worker.ts",
       registerType: "autoUpdate",
       integration: {
-        // The service worker build uses its own Vite config. Match the main build's chunk warning limit
-        // to avoid noisy "chunks are larger than 500 kB" warnings.
+        // Match the main build's calibrated chunk warning limit to avoid noisy size warnings
+        // for the intentionally large shared bundles.
         configureCustomSWViteBuild(inlineConfig) {
           inlineConfig.build ??= {}
-          inlineConfig.build.chunkSizeWarningLimit = 1000
+          inlineConfig.build.chunkSizeWarningLimit = 1100
         },
       },
       devOptions: {
@@ -71,7 +71,7 @@ export default defineConfig({
   },
   build: {
     reportCompressedSize: true,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       input: {
         main: "index.html",
