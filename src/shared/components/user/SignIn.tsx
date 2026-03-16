@@ -17,7 +17,6 @@ interface SignInProps {
 
 export default function SignIn({onClose, onLink}: SignInProps) {
   const {setNip07Login, setPublicKey, setPrivateKey, setLinkedDevice} = useUserStore()
-  const {setPendingAutoRegistration} = useDevicesStore()
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
@@ -48,7 +47,6 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
-          setPendingAutoRegistration(true)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -65,7 +63,6 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           setPrivateKey(hex)
           setPublicKey(publicKey)
           setLinkedDevice(false)
-          setPendingAutoRegistration(true)
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -75,7 +72,6 @@ export default function SignIn({onClose, onLink}: SignInProps) {
     }
   }, [
     inputPrivateKey,
-    setPendingAutoRegistration,
     setPrivateKey,
     setPublicKey,
     onClose,

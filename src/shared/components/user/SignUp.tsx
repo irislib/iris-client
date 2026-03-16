@@ -56,7 +56,6 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
           const privateKeyHex = bytesToHex(sk)
           const publicKey = getPublicKey(sk)
 
-          useDevicesStore.getState().setPendingAutoRegistration(true)
           setState({
             privateKey: privateKeyHex,
             publicKey,
