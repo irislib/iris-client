@@ -78,8 +78,8 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       hasLocalAppKeys,
       lastEventTimestamp,
     } = get()
-    // Only update if timestamp is newer (or no timestamp = forced update)
-    if (timestamp !== undefined && timestamp <= lastEventTimestamp) {
+    // Same-second AppKeys updates are valid; only strictly older events are stale.
+    if (timestamp !== undefined && timestamp < lastEventTimestamp) {
       return // Skip older events
     }
     const isCurrentDeviceRegistered = identityPubkey

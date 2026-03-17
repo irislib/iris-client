@@ -17,6 +17,11 @@ import {useUserStore} from "@/stores/user"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useUIStore} from "@/stores/ui"
+import {getSessionManager} from "@/shared/services/PrivateChats"
+import {
+  hasExistingSessionWithRecipient,
+  type SessionUserRecordsLike,
+} from "@/utils/sessionRouting"
 
 interface ChatListProps {
   className?: string
@@ -70,6 +75,9 @@ const ChatList = ({className}: ChatListProps) => {
   const privateChatSections = useMemo(() => {
     const all: Array<{id: string; type: "private"}> = []
     const requests: Array<{id: string; type: "private"}> = []
+    const sessionUserRecords =
+      (getSessionManager()?.getUserRecords() as SessionUserRecordsLike | undefined) ??
+      null
 
     // "Accepted" = we follow them OR we explicitly accepted OR we've already sent at least one message.
     for (const {userPubKey} of privateChatsList) {
@@ -77,8 +85,12 @@ const ChatList = ({className}: ChatListProps) => {
 
       const isFollowed = followsSet.has(userPubKey)
       const isLocallyAccepted = !!acceptedChats[userPubKey]
+      const hasAcceptedSession = hasExistingSessionWithRecipient(
+        sessionUserRecords,
+        userPubKey
+      )
       let hasSent = false
-      if (!isFollowed && !isLocallyAccepted && myPubKey) {
+      if (!isFollowed && !isLocallyAccepted && !hasAcceptedSession && myPubKey) {
         const messageMap = events.get(userPubKey)
         if (messageMap) {
           for (const msg of messageMap.values()) {
@@ -91,7 +103,7 @@ const ChatList = ({className}: ChatListProps) => {
         }
       }
 
-      if (isFollowed || isLocallyAccepted || hasSent) {
+      if (isFollowed || isLocallyAccepted || hasAcceptedSession || hasSent) {
         all.push({id: userPubKey, type: "private"})
       } else {
         requests.push({id: userPubKey, type: "private"})

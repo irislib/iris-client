@@ -13,16 +13,29 @@ const MY_DEVICE_PUBKEY = "c".repeat(64)
 const SIBLING_DEVICE_PUBKEY = "d".repeat(64)
 
 type SessionEventCallback = (event: any, pubKey: string) => void
+type SessionEventMeta = {
+  senderOwnerPubkey?: string
+  senderDevicePubkey?: string
+  isSelf?: boolean
+  isCrossDeviceSelf?: boolean
+}
 
-let capturedCallback: SessionEventCallback | null = null
+type CapturedSessionEventCallback = (
+  event: any,
+  pubKey: string,
+  meta?: SessionEventMeta
+) => void
+
+let capturedCallback: CapturedSessionEventCallback | null = null
 
 const sessionManager = {
   init: vi.fn().mockResolvedValue(undefined),
-  onEvent: vi.fn((cb: SessionEventCallback) => {
+  onEvent: vi.fn((cb: CapturedSessionEventCallback) => {
     capturedCallback = cb
     return () => {}
   }),
   sendReceipt: vi.fn().mockResolvedValue(undefined),
+  getUserRecords: vi.fn(() => new Map()),
 }
 
 const isFollowing = vi.fn((..._args: unknown[]) => false)
@@ -47,6 +60,8 @@ describe("dmEventHandler receipts", () => {
     sessionManager.init.mockClear()
     sessionManager.onEvent.mockClear()
     sessionManager.sendReceipt.mockClear()
+    sessionManager.getUserRecords.mockReset()
+    sessionManager.getUserRecords.mockReturnValue(new Map())
     isFollowing.mockReset()
     isFollowing.mockReturnValue(false)
 
@@ -154,6 +169,60 @@ describe("dmEventHandler receipts", () => {
     expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
       "msg-3",
     ])
+  })
+
+  it("treats a session-backed sibling chat as accepted", async () => {
+    useMessagesStore.setState({sendDeliveryReceipts: true})
+    sessionManager.getUserRecords.mockReturnValue(
+      new Map([
+        [
+          THEIR_PUBKEY,
+          {
+            devices: new Map([
+              [
+                "device-1",
+                {
+                  activeSession: {
+                    state: {
+                      theirCurrentNostrPublicKey: THEIR_PUBKEY,
+                      theirNextNostrPublicKey: "e".repeat(64),
+                    },
+                  },
+                  inactiveSessions: [],
+                },
+              ],
+            ]),
+          },
+        ],
+      ])
+    )
+
+    attachSessionEventListener(sessionManager as any)
+    await flushPromises()
+
+    capturedCallback?.(
+      {
+        id: "msg-session-backed",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: THEIR_PUBKEY,
+        content: "hello from accepted sibling session",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      },
+      THEIR_PUBKEY
+    )
+
+    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(
+      THEIR_PUBKEY,
+      "delivered",
+      ["msg-session-backed"]
+    )
+
+    const stored = usePrivateMessagesStore
+      .getState()
+      .events.get(THEIR_PUBKEY)
+      ?.get("msg-session-backed")
+    expect(stored?.status).toBe("delivered")
   })
 
   it("stores delivered/seen timestamps from receipt events for our messages", async () => {
@@ -373,6 +442,61 @@ describe("dmEventHandler receipts", () => {
     ).toBeTruthy()
     expect(
       usePrivateMessagesStore.getState().events.get(MY_DEVICE_PUBKEY)
+    ).toBeUndefined()
+  })
+
+  it("routes cross-device self copies to the peer owner when the p-tag is a linked device", async () => {
+    const THEIR_LINKED_DEVICE_PUBKEY = "e".repeat(64)
+    sessionManager.getUserRecords.mockReturnValue(
+      new Map([
+        [
+          THEIR_PUBKEY,
+          {
+            devices: new Map([
+              [
+                THEIR_LINKED_DEVICE_PUBKEY,
+                {
+                  activeSession: null,
+                  inactiveSessions: [],
+                },
+              ],
+            ]),
+            appKeys: {
+              getAllDevices: () => [{identityPubkey: THEIR_LINKED_DEVICE_PUBKEY}],
+            },
+          },
+        ],
+      ])
+    )
+
+    attachSessionEventListener(sessionManager as any)
+    await flushPromises()
+
+    capturedCallback?.(
+      {
+        id: "self-msg-linked-peer",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: SIBLING_DEVICE_PUBKEY,
+        content: "hello to linked peer device",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", THEIR_LINKED_DEVICE_PUBKEY]],
+      },
+      MY_PUBKEY,
+      {
+        senderOwnerPubkey: MY_PUBKEY,
+        senderDevicePubkey: SIBLING_DEVICE_PUBKEY,
+        isSelf: true,
+        isCrossDeviceSelf: true,
+      }
+    )
+
+    await flushPromises()
+
+    expect(
+      usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("self-msg-linked-peer")
+    ).toBeTruthy()
+    expect(
+      usePrivateMessagesStore.getState().events.get(THEIR_LINKED_DEVICE_PUBKEY)
     ).toBeUndefined()
   })
 })

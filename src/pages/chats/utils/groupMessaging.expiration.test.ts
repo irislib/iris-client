@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
-import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
+import {GROUP_METADATA_KIND, GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
 
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
@@ -9,8 +9,10 @@ import {useUserStore} from "@/stores/user"
 const MY_PUBKEY = "a".repeat(64)
 const GROUP_ID = "group-1"
 
-const {sendGroupEventViaTransport} = vi.hoisted(() => ({
+const {sendGroupEventViaTransport, ensureSessionManager, sendEvent} = vi.hoisted(() => ({
   sendGroupEventViaTransport: vi.fn(),
+  ensureSessionManager: vi.fn(),
+  sendEvent: vi.fn(),
 }))
 
 vi.mock("@/utils/groupTransport", async (importOriginal) => {
@@ -20,6 +22,10 @@ vi.mock("@/utils/groupTransport", async (importOriginal) => {
     sendGroupEventViaTransport,
   }
 })
+
+vi.mock("@/shared/services/PrivateChats", () => ({
+  ensureSessionManager,
+}))
 
 import {sendGroupEvent} from "./groupMessaging"
 
@@ -38,12 +44,18 @@ const makeGroup = (messageTtlSeconds: number | null) => ({
 describe("sendGroupEvent expiration", () => {
   beforeEach(async () => {
     sendGroupEventViaTransport.mockReset()
+    ensureSessionManager.mockReset()
+    sendEvent.mockReset()
     useUserStore.setState({publicKey: MY_PUBKEY})
     useChatExpirationStore.setState({expirations: {}})
     useGroupsStore.setState({groups: {}} as any)
     await usePrivateMessagesStore.getState().clear()
 
     let counter = 0
+    sendEvent.mockResolvedValue(undefined)
+    ensureSessionManager.mockResolvedValue({
+      sendEvent,
+    })
     sendGroupEventViaTransport.mockImplementation(
       async ({
         kind,
@@ -138,5 +150,37 @@ describe("sendGroupEvent expiration", () => {
     const sentTags = sendGroupEventViaTransport.mock.calls[0][0].tags as string[][]
     const expirationTag = sentTags.find(([key]) => key === "expiration")
     expect(expirationTag).toBeUndefined()
+  })
+
+  it("awaits metadata fanout to all group members before resolving", async () => {
+    let resolveSecondSend: (() => void) | null = null
+    sendEvent
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveSecondSend = resolve
+          })
+      )
+
+    let settled = false
+    const sendPromise = sendGroupEvent({
+      groupId: GROUP_ID,
+      groupMembers: [MY_PUBKEY, "b".repeat(64)],
+      senderPubKey: MY_PUBKEY,
+      content: JSON.stringify({id: GROUP_ID, name: "Renamed Group"}),
+      kind: GROUP_METADATA_KIND,
+    }).then(() => {
+      settled = true
+    })
+
+    await vi.waitFor(() => {
+      expect(sendEvent).toHaveBeenCalledTimes(2)
+    })
+    expect(settled).toBe(false)
+
+    resolveSecondSend?.()
+    await sendPromise
+    expect(settled).toBe(true)
   })
 })

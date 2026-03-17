@@ -1,15 +1,41 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 
+async function waitForNextCreatedAtSecond() {
+  const currentSecond = Math.floor(Date.now() / 1000)
+  while (Math.floor(Date.now() / 1000) === currentSecond) {
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+}
+
+async function ensureDeviceRegistered(page) {
+  const registerButton = page.getByRole("button", {name: "Register this device"})
+
+  if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
+    await registerButton.waitFor({state: "hidden", timeout: 3000}).catch(() => {})
+
+    if (await registerButton.isVisible().catch(() => false)) {
+      await waitForNextCreatedAtSecond()
+      await registerButton.click({timeout: 10000})
+
+      const confirmHeading = page.getByRole("heading", {
+        name: "Confirm Device Registration",
+      })
+      if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
+        await page.getByRole("button", {name: "Register Device"}).click({
+          timeout: 10000,
+        })
+      }
+
+      await expect(registerButton).not.toBeVisible({timeout: 20000})
+    }
+  }
+}
+
 async function setupChatWithSelf(page) {
   await page.getByRole("link", {name: "Chats"}).click()
   await page.getByRole("link", {name: "Devices"}).click()
-
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-  if (await registerButton.isVisible()) {
-    await registerButton.click()
-    await expect(registerButton).not.toBeVisible({timeout: 15000})
-  }
+  await ensureDeviceRegistered(page)
 
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()

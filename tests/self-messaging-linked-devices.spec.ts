@@ -58,6 +58,17 @@ async function openSelfChat(page: Page) {
   await expect(messageInput).toBeEnabled({timeout: 60000})
 }
 
+async function waitForNextCreatedAtSecond(): Promise<void> {
+  const currentSecond = Math.floor(Date.now() / 1000)
+  while (Math.floor(Date.now() / 1000) === currentSecond) {
+    await pageWait(25)
+  }
+}
+
+function pageWait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function ensureCurrentDeviceRegistered(page: Page) {
   await page.goto("/chats/new/devices")
   await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({
@@ -127,6 +138,7 @@ test.describe("Self-messaging between linked devices", () => {
         throw new Error("Link invite URL missing from linked device flow")
       }
 
+      await waitForNextCreatedAtSecond()
       await ownerPage.getByRole("button", {name: "Link another device"}).click()
       await expect(
         ownerPage.getByRole("heading", {name: "Link another device"})

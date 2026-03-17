@@ -12,7 +12,7 @@ import {
   INVITE_RESPONSE_KIND,
   decryptInviteResponse,
 } from "nostr-double-ratchet"
-import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
+import NDK, {NDKEvent, NDKFilter, NDKSubscriptionCacheUsage} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"
 import {useDevicesStore} from "../../stores/devices"
@@ -77,7 +77,12 @@ let appKeysSubscriptionCleanup: (() => void) | null = null
 
 const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
   return (filter: NDKFilter, onEvent: (event: VerifiedEvent) => void) => {
-    const subscription = ndkInstance.subscribe(filter)
+    const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
+    const subscription = ndkInstance.subscribe(filter, {
+      closeOnEose: false,
+      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+      ...(relayUrls.length > 0 ? {relayUrls} : {}),
+    })
 
     subscription.on("event", (event: NDKEvent) => {
       onEvent(event as unknown as VerifiedEvent)
@@ -600,15 +605,19 @@ export const startAppKeysSubscription = (ownerPubkey: string): void => {
       const eventTime = event.created_at ?? 0
       const storeTimestamp = useDevicesStore.getState().lastEventTimestamp
 
-      // Skip if we already have this or a newer event
-      if (eventTime <= storeTimestamp) {
+      // Skip strictly older snapshots; same-second updates must still merge.
+      if (eventTime < storeTimestamp) {
         return
       }
 
       const incomingAppKeys = AppKeys.fromEvent(event as unknown as VerifiedEvent)
 
       if (appKeysManager) {
-        await appKeysManager.setAppKeys(incomingAppKeys)
+        const mergedAppKeys =
+          eventTime === storeTimestamp && appKeysManager.getAppKeys()
+            ? appKeysManager.getAppKeys()!.merge(incomingAppKeys)
+            : incomingAppKeys
+        await appKeysManager.setAppKeys(mergedAppKeys)
         const devices = appKeysManager.getOwnDevices()
         // Update store with timestamp
         useDevicesStore.getState().setRegisteredDevices(devices, eventTime)

@@ -7,26 +7,10 @@ import {
 } from "@/shared/services/PrivateChats"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
-
-type SessionStateLike = {
-  theirCurrentNostrPublicKey?: string
-  theirNextNostrPublicKey?: string
-}
-
-type SessionLike = {
-  state?: SessionStateLike | null
-}
-
-type SessionDeviceLike = {
-  activeSession?: SessionLike | null
-  inactiveSessions?: Array<SessionLike | null>
-}
-
-type SessionUserRecordLike = {
-  devices?: Map<string, SessionDeviceLike>
-}
-
-type SessionUserRecordsLike = Map<string, SessionUserRecordLike>
+import {
+  hasExistingSessionWithRecipient,
+  type SessionUserRecordsLike,
+} from "@/utils/sessionRouting"
 
 export const computeTimeoutFallbackHasAppKeys = (
   current: boolean | null,
@@ -46,37 +30,6 @@ export const applySessionFallbackHasAppKeys = (
     return current
   }
   return hasExistingSession ? true : null
-}
-
-export const hasExistingSessionWithRecipient = (
-  userRecords: SessionUserRecordsLike | null | undefined,
-  recipientPubkey: string
-): boolean => {
-  if (!userRecords || !recipientPubkey) return false
-
-  for (const [recordPubkey, userRecord] of userRecords.entries()) {
-    const devices = userRecord?.devices
-    if (!devices) continue
-
-    for (const device of devices.values()) {
-      const sessions = [device.activeSession, ...(device.inactiveSessions ?? [])]
-      for (const session of sessions) {
-        if (!session) continue
-        const state = session.state
-        if (!state) continue
-
-        if (
-          recordPubkey === recipientPubkey ||
-          state?.theirCurrentNostrPublicKey === recipientPubkey ||
-          state?.theirNextNostrPublicKey === recipientPubkey
-        ) {
-          return true
-        }
-      }
-    }
-  }
-
-  return false
 }
 
 /**

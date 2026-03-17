@@ -17,7 +17,13 @@ import {isTauri} from "./utils"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {isOwnDeviceEvent, isOwnDevicePubkey} from "@/utils/sessionRouting"
+import {
+  hasExistingSessionWithRecipient,
+  isOwnDeviceEvent,
+  isOwnDevicePubkey,
+  resolveSessionPubkeyToOwner,
+  type SessionUserRecordsLike,
+} from "@/utils/sessionRouting"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {ingestGroupSessionEvent} from "@/utils/groupTransport"
@@ -76,19 +82,26 @@ export const cleanupSessionEventListener = () => {
 export const attachSessionEventListener = (sessionManager: SessionManager) => {
   try {
     unsubscribeSessionEvents?.()
-    unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey) => {
+    unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey, meta) => {
       const {publicKey} = useUserStore.getState()
       if (!publicKey) return
 
       const {registeredDevices, identityPubkey} = useDevicesStore.getState()
-      const isOwnDevice = isOwnDeviceEvent(
-        event.pubkey,
-        pubKey,
-        publicKey,
-        identityPubkey,
-        registeredDevices
-      )
-      const effectiveOwner = isOwnDevice ? publicKey : pubKey
+      const isOwnDevice =
+        meta?.isSelf ??
+        isOwnDeviceEvent(
+          event.pubkey,
+          pubKey,
+          publicKey,
+          identityPubkey,
+          registeredDevices
+        )
+      const effectiveOwner = isOwnDevice ? publicKey : meta?.senderOwnerPubkey || pubKey
+      const sessionUserRecords =
+        typeof (sessionManager as {getUserRecords?: () => unknown}).getUserRecords ===
+        "function"
+          ? (sessionManager.getUserRecords() as SessionUserRecordsLike)
+          : undefined
 
       // Block events from muted users
       const mutedUsers = getSocialGraph().getMutedByUser(publicKey)
@@ -358,15 +371,18 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
         identityPubkey,
         registeredDevices
       )
+      const resolvedPTag = pTagIsOwnDevice
+        ? publicKey
+        : resolveSessionPubkeyToOwner(sessionUserRecords, pTag)
       const isSelfChat = effectiveOwner === publicKey && pTagIsOwnDevice
 
       let from = effectiveOwner
-      let to = pTag
+      let to = resolvedPTag
       if (isSelfChat) {
         from = publicKey
         to = publicKey
       } else if (isOwnDevice) {
-        from = pTag
+        from = resolvedPTag
         to = publicKey
       }
 
@@ -442,11 +458,17 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
       const {acceptedChats, rejectedChats} = useMessageRequestsStore.getState()
       const isLocallyAccepted = !!acceptedChats[chatId]
       const isLocallyRejected = !!rejectedChats[chatId]
+      const hasAcceptedSession = hasExistingSessionWithRecipient(
+        sessionUserRecords,
+        chatId
+      )
       const isChatAccepted =
         // Followed users go straight to "All".
         getSocialGraph().isFollowing(publicKey, chatId) ||
         // Explicitly accepted requests (without following).
         isLocallyAccepted ||
+        // Session bootstraps accepted on a sibling device should not regress to Requests here.
+        hasAcceptedSession ||
         // Treat chats we've already sent to as accepted (request has been "accepted").
         (() => {
           const messageMap = usePrivateMessagesStore.getState().events.get(chatId)

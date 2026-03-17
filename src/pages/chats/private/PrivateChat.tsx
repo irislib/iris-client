@@ -21,6 +21,10 @@ import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useNavigate} from "@/navigation"
 import {useUIStore} from "@/stores/ui"
 import {deletePrivateChat} from "@/shared/services/chatDeletion"
+import {
+  hasExistingSessionWithRecipient,
+  type SessionUserRecordsLike,
+} from "@/utils/sessionRouting"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -36,7 +40,17 @@ const Chat = ({id}: {id: string}) => {
   const isLocallyAccepted = useMessageRequestsStore((state) => !!state.acceptedChats[id])
   const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
   const rejectChat = useMessageRequestsStore((state) => state.rejectChat)
-  const isChatAccepted = isFollowing || haveSent || isLocallyAccepted
+  let hasAcceptedSession = false
+  try {
+    const sessionManager = getSessionManager()
+    hasAcceptedSession = hasExistingSessionWithRecipient(
+      sessionManager?.getUserRecords() as SessionUserRecordsLike | undefined,
+      id
+    )
+  } catch {
+    hasAcceptedSession = false
+  }
+  const isChatAccepted = isFollowing || haveSent || isLocallyAccepted || hasAcceptedSession
 
   // Allow messaging regardless of session state - sessions will be created automatically
 
