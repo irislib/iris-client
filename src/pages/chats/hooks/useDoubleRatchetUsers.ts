@@ -5,6 +5,7 @@ import {useUserStore} from "@/stores/user"
 import {useSocialGraph} from "@/utils/socialGraph"
 import {ndk} from "@/utils/ndk"
 import {NDKEvent, NDKSubscription} from "@/lib/ndk"
+import {buildAppKeysFilter} from "nostr-double-ratchet"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES, KIND_APP_DATA} from "@/utils/constants"
 import {
@@ -69,11 +70,7 @@ export const useDoubleRatchetUsers = () => {
       authors.push(myPubKey)
       socialGraphSize = authors.length - 1 // excluding myPubKey
 
-      currentSub = ndk().subscribe({
-        kinds: [KIND_APP_DATA],
-        authors,
-        "#d": ["double-ratchet/app-keys"],
-      })
+      currentSub = ndk().subscribe(buildAppKeysFilter(authors))
 
       currentSub.on("event", handleEvent)
     }

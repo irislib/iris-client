@@ -1,5 +1,5 @@
 import {create} from "zustand"
-import type {DeviceEntry} from "nostr-double-ratchet"
+import {evaluateDeviceRegistrationState, type DeviceEntry} from "nostr-double-ratchet"
 
 interface DeviceState {
   identityPubkey: string | null
@@ -33,21 +33,20 @@ const initialState = {
   canSendPrivateMessages: false,
 }
 
-const computeCanSendPrivateMessages = (
-  appKeysManagerReady: boolean,
-  sessionManagerReady: boolean,
-  hasLocalAppKeys: boolean,
-  isCurrentDeviceRegistered: boolean,
-  registeredDevicesCount: number
-): boolean => {
-  // Can send if managers are ready and we have any known device keys for this account.
-  // A sign-in on a fresh browser may not have local keys yet, but can still use
-  // an already-registered sibling device discovered from AppKeys events.
-  return (
-    appKeysManagerReady &&
-    sessionManagerReady &&
-    (hasLocalAppKeys || isCurrentDeviceRegistered || registeredDevicesCount > 0)
-  )
+const computeDeviceRegistrationState = (state: {
+  identityPubkey: string | null
+  registeredDevices: DeviceEntry[]
+  appKeysManagerReady: boolean
+  sessionManagerReady: boolean
+  hasLocalAppKeys: boolean
+}) => {
+  return evaluateDeviceRegistrationState({
+    currentDevicePubkey: state.identityPubkey,
+    registeredDevices: state.registeredDevices,
+    hasLocalAppKeys: state.hasLocalAppKeys,
+    appKeysManagerReady: state.appKeysManagerReady,
+    sessionManagerReady: state.sessionManagerReady,
+  })
 }
 
 export const useDevicesStore = create<DeviceState>()((set, get) => ({
@@ -55,19 +54,17 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
   setIdentityPubkey: (pubkey: string) => {
     const {registeredDevices, appKeysManagerReady, sessionManagerReady, hasLocalAppKeys} =
       get()
-    const isCurrentDeviceRegistered = registeredDevices.some(
-      (d) => d.identityPubkey === pubkey
-    )
+    const nextState = computeDeviceRegistrationState({
+      identityPubkey: pubkey,
+      registeredDevices,
+      appKeysManagerReady,
+      sessionManagerReady,
+      hasLocalAppKeys,
+    })
     set({
       identityPubkey: pubkey,
-      isCurrentDeviceRegistered,
-      canSendPrivateMessages: computeCanSendPrivateMessages(
-        appKeysManagerReady,
-        sessionManagerReady,
-        hasLocalAppKeys,
-        isCurrentDeviceRegistered,
-        registeredDevices.length
-      ),
+      isCurrentDeviceRegistered: nextState.isCurrentDeviceRegistered,
+      canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
   },
   setRegisteredDevices: (devices: DeviceEntry[], timestamp?: number) => {
@@ -82,74 +79,63 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
     if (timestamp !== undefined && timestamp < lastEventTimestamp) {
       return // Skip older events
     }
-    const isCurrentDeviceRegistered = identityPubkey
-      ? devices.some((d) => d.identityPubkey === identityPubkey)
-      : false
+    const nextState = computeDeviceRegistrationState({
+      identityPubkey,
+      registeredDevices: devices,
+      appKeysManagerReady,
+      sessionManagerReady,
+      hasLocalAppKeys,
+    })
     set({
       registeredDevices: devices,
-      isCurrentDeviceRegistered,
+      isCurrentDeviceRegistered: nextState.isCurrentDeviceRegistered,
       lastEventTimestamp: timestamp ?? lastEventTimestamp,
-      canSendPrivateMessages: computeCanSendPrivateMessages(
-        appKeysManagerReady,
-        sessionManagerReady,
-        hasLocalAppKeys,
-        isCurrentDeviceRegistered,
-        devices.length
-      ),
+      canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
   },
   setAppKeysManagerReady: (ready: boolean) => {
-    const {
+    const {sessionManagerReady, hasLocalAppKeys, identityPubkey, registeredDevices} =
+      get()
+    const nextState = computeDeviceRegistrationState({
+      identityPubkey,
+      registeredDevices,
+      appKeysManagerReady: ready,
       sessionManagerReady,
       hasLocalAppKeys,
-      isCurrentDeviceRegistered,
-      registeredDevices,
-    } = get()
+    })
     set({
       appKeysManagerReady: ready,
-      canSendPrivateMessages: computeCanSendPrivateMessages(
-        ready,
-        sessionManagerReady,
-        hasLocalAppKeys,
-        isCurrentDeviceRegistered,
-        registeredDevices.length
-      ),
+      canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
   },
   setSessionManagerReady: (ready: boolean) => {
-    const {
-      appKeysManagerReady,
-      hasLocalAppKeys,
-      isCurrentDeviceRegistered,
+    const {appKeysManagerReady, hasLocalAppKeys, identityPubkey, registeredDevices} =
+      get()
+    const nextState = computeDeviceRegistrationState({
+      identityPubkey,
       registeredDevices,
-    } = get()
+      appKeysManagerReady,
+      sessionManagerReady: ready,
+      hasLocalAppKeys,
+    })
     set({
       sessionManagerReady: ready,
-      canSendPrivateMessages: computeCanSendPrivateMessages(
-        appKeysManagerReady,
-        ready,
-        hasLocalAppKeys,
-        isCurrentDeviceRegistered,
-        registeredDevices.length
-      ),
+      canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
   },
   setHasLocalAppKeys: (has: boolean) => {
-    const {
+    const {appKeysManagerReady, sessionManagerReady, identityPubkey, registeredDevices} =
+      get()
+    const nextState = computeDeviceRegistrationState({
+      identityPubkey,
+      registeredDevices,
       appKeysManagerReady,
       sessionManagerReady,
-      isCurrentDeviceRegistered,
-      registeredDevices,
-    } = get()
+      hasLocalAppKeys: has,
+    })
     set({
       hasLocalAppKeys: has,
-      canSendPrivateMessages: computeCanSendPrivateMessages(
-        appKeysManagerReady,
-        sessionManagerReady,
-        has,
-        isCurrentDeviceRegistered,
-        registeredDevices.length
-      ),
+      canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
   },
   setPendingAutoRegistration: (pending: boolean) =>

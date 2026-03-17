@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
     activate: vi.fn().mockResolvedValue(undefined),
     createSessionManager: vi.fn(() => sessionManager),
     getInvite: vi.fn(() => delegateInvite),
+    publishInvite: vi.fn().mockResolvedValue(undefined),
   }
 
   const ndkInstance = {
@@ -85,6 +86,10 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
     getInvite() {
       return mocks.delegateManager.getInvite()
     }
+
+    publishInvite() {
+      return mocks.delegateManager.publishInvite()
+    }
   }
 
   return {
@@ -129,6 +134,7 @@ describe("PrivateChats invite acceptance", () => {
     mocks.delegateManager.activate.mockClear()
     mocks.delegateManager.createSessionManager.mockClear()
     mocks.delegateManager.getInvite.mockClear()
+    mocks.delegateManager.publishInvite.mockClear()
     mocks.sessionManager.init.mockClear()
     mocks.sessionManager.acceptInvite.mockClear()
     mocks.ndkInstance.pool.connectedRelays.mockClear()
@@ -171,6 +177,7 @@ describe("PrivateChats invite acceptance", () => {
     expect(mocks.sessionManager.acceptInvite).toHaveBeenCalledWith(invite, {
       ownerPublicKey: mocks.ownerPubkey,
     })
+    expect(mocks.delegateManager.publishInvite).toHaveBeenCalledTimes(1)
     expect(invite.accept).not.toHaveBeenCalled()
   })
 })

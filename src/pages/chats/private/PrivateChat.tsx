@@ -50,7 +50,8 @@ const Chat = ({id}: {id: string}) => {
   } catch {
     hasAcceptedSession = false
   }
-  const isChatAccepted = isFollowing || haveSent || isLocallyAccepted || hasAcceptedSession
+  const isChatAccepted =
+    isFollowing || haveSent || isLocallyAccepted || hasAcceptedSession
 
   // Allow messaging regardless of session state - sessions will be created automatically
 

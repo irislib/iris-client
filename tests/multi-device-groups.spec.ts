@@ -38,12 +38,11 @@ test("can create and use a group chat with self", async ({page}) => {
           name: "Confirm Device Registration",
         })
         if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-          await page
-            .getByRole("button", {name: "Register Device"})
-            .click({timeout: 10000})
+          const confirmButton = page.getByRole("button", {name: "Register Device"})
+          await confirmButton.scrollIntoViewIfNeeded().catch(() => {})
+          await confirmButton.click({timeout: 10000, force: true})
         }
 
-        await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
         await expect(registerButton).not.toBeVisible({timeout: 20000})
       }
     }

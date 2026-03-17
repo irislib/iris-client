@@ -12,7 +12,6 @@ const THEIR_PUBKEY = "b".repeat(64)
 const MY_DEVICE_PUBKEY = "c".repeat(64)
 const SIBLING_DEVICE_PUBKEY = "d".repeat(64)
 
-type SessionEventCallback = (event: any, pubKey: string) => void
 type SessionEventMeta = {
   senderOwnerPubkey?: string
   senderDevicePubkey?: string
@@ -212,11 +211,9 @@ describe("dmEventHandler receipts", () => {
       THEIR_PUBKEY
     )
 
-    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(
-      THEIR_PUBKEY,
-      "delivered",
-      ["msg-session-backed"]
-    )
+    expect(sessionManager.sendReceipt).toHaveBeenCalledWith(THEIR_PUBKEY, "delivered", [
+      "msg-session-backed",
+    ])
 
     const stored = usePrivateMessagesStore
       .getState()
@@ -493,7 +490,10 @@ describe("dmEventHandler receipts", () => {
     await flushPromises()
 
     expect(
-      usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("self-msg-linked-peer")
+      usePrivateMessagesStore
+        .getState()
+        .events.get(THEIR_PUBKEY)
+        ?.get("self-msg-linked-peer")
     ).toBeTruthy()
     expect(
       usePrivateMessagesStore.getState().events.get(THEIR_LINKED_DEVICE_PUBKEY)

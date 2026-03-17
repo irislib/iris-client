@@ -4,7 +4,6 @@ import {
   applySessionFallbackHasAppKeys,
   computeTimeoutFallbackHasAppKeys,
 } from "./useRecipientHasAppKeys"
-import {hasExistingSessionWithRecipient} from "@/utils/sessionRouting"
 
 describe("computeTimeoutFallbackHasAppKeys", () => {
   it("keeps explicit empty AppKeys as false even when we have a local session", () => {

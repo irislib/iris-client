@@ -3,7 +3,6 @@ import {NDKPrivateKeySigner} from "@/lib/ndk"
 import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
-import {useDevicesStore} from "@/stores/devices"
 import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import {ndk} from "@/utils/ndk"
@@ -70,13 +69,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         }
       }
     }
-  }, [
-    inputPrivateKey,
-    setPrivateKey,
-    setPublicKey,
-    onClose,
-    setShowLoginDialog,
-  ])
+  }, [inputPrivateKey, setPrivateKey, setPublicKey, onClose, setShowLoginDialog])
 
   async function extensionLogin() {
     if (window.nostr) {

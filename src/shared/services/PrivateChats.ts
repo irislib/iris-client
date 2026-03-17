@@ -6,6 +6,8 @@ import {
   SessionManager,
   DelegateManager,
   AppKeysManager,
+  applyAppKeysSnapshot,
+  buildAppKeysFilter,
   AppKeys,
   Invite,
   DeviceEntry,
@@ -239,6 +241,13 @@ export const initPrivateMessaging = async (
     attachGroupMessageListener()
 
     await sessionManager.init()
+    const ndkInstance = ndk()
+    if (ndkInstance.pool.connectedRelays().length === 0) {
+      await ndkInstance.pool.connect(5000)
+    }
+    await delegateManager.publishInvite().catch((error) => {
+      log("Failed to publish invite after private messaging init:", error)
+    })
     log("Device activated for owner:", ownerPubkey)
     return sessionManager
   })()
@@ -594,33 +603,28 @@ export const startAppKeysSubscription = (ownerPubkey: string): void => {
   if (appKeysSubscriptionCleanup) return // Already running
 
   const ndkInstance = ndk()
-  const subscription = ndkInstance.subscribe({
-    kinds: [30078],
-    authors: [ownerPubkey],
-    "#d": ["double-ratchet/app-keys"],
-  } as NDKFilter)
+  const subscription = ndkInstance.subscribe(buildAppKeysFilter(ownerPubkey) as NDKFilter)
 
   subscription.on("event", async (event: NDKEvent) => {
     try {
       const eventTime = event.created_at ?? 0
       const storeTimestamp = useDevicesStore.getState().lastEventTimestamp
-
-      // Skip strictly older snapshots; same-second updates must still merge.
-      if (eventTime < storeTimestamp) {
-        return
-      }
-
       const incomingAppKeys = AppKeys.fromEvent(event as unknown as VerifiedEvent)
 
       if (appKeysManager) {
-        const mergedAppKeys =
-          eventTime === storeTimestamp && appKeysManager.getAppKeys()
-            ? appKeysManager.getAppKeys()!.merge(incomingAppKeys)
-            : incomingAppKeys
-        await appKeysManager.setAppKeys(mergedAppKeys)
+        const nextSnapshot = applyAppKeysSnapshot({
+          currentAppKeys: appKeysManager.getAppKeys(),
+          currentCreatedAt: storeTimestamp,
+          incomingAppKeys,
+          incomingCreatedAt: eventTime,
+        })
+        if (nextSnapshot.decision === "stale") {
+          return
+        }
+
+        await appKeysManager.setAppKeys(nextSnapshot.appKeys)
         const devices = appKeysManager.getOwnDevices()
-        // Update store with timestamp
-        useDevicesStore.getState().setRegisteredDevices(devices, eventTime)
+        useDevicesStore.getState().setRegisteredDevices(devices, nextSnapshot.createdAt)
         log("AppKeys updated from subscription:", devices.length, "devices")
       }
     } catch (err) {
@@ -652,31 +656,12 @@ export const republishInvite = async (): Promise<void> => {
   if (!delegateManager) {
     throw new Error("DelegateManager not initialized")
   }
-
-  const invite = delegateManager.getInvite()
-  if (!invite) {
-    throw new Error("No invite available")
-  }
-
-  // Sign with device identity key, not user's main key
-  const {finalizeEvent} = await import("nostr-tools")
-  const unsignedEvent = invite.getEvent()
-  const signedEvent = finalizeEvent(unsignedEvent, delegateManager.getIdentityKey())
-
   const ndkInstance = ndk()
-  const {NDKEvent} = await import("@/lib/ndk")
-
-  // Wait for relays to connect if needed
   if (ndkInstance.pool.connectedRelays().length === 0) {
     await ndkInstance.pool.connect(5000)
   }
-
-  const event = new NDKEvent(ndkInstance, signedEvent)
-  const relays = await event.publish()
-  log(
-    "Republished invite to relays:",
-    Array.from(relays).map((r) => r.url)
-  )
+  await delegateManager.publishInvite()
+  log("Republished invite")
 }
 
 /**

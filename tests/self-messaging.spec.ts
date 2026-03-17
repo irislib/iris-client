@@ -119,18 +119,14 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageInput1.press("Enter")
 
       // Verify message appears on page1
-      await expect(
-        messageBubble(page1, testMessage1)
-      ).toBeVisible({timeout: 10000})
+      await expect(messageBubble(page1, testMessage1)).toBeVisible({timeout: 10000})
 
       // Page 2: Open self chat after page1 sends the message so page2's subscription can fetch it
       await openSelfChat(page2)
 
       // Verify message from page1 appears on page2
       // The chat should fetch historical messages when opened
-      await expect(
-        messageBubble(page2, testMessage1)
-      ).toBeVisible({timeout: 60000})
+      await expect(messageBubble(page2, testMessage1)).toBeVisible({timeout: 60000})
 
       // Send second message from page2
       const messageInput2 = page2.getByPlaceholder("Message").last()
@@ -138,15 +134,11 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageInput2.press("Enter")
 
       // Verify message appears on page2
-      await expect(
-        messageBubble(page2, testMessage2)
-      ).toBeVisible({timeout: 10000})
+      await expect(messageBubble(page2, testMessage2)).toBeVisible({timeout: 10000})
 
       // Verify message from page2 appears on page1
       // May need to refresh page1 or wait for subscription to pick it up
-      await expect(
-        messageBubble(page1, testMessage2)
-      ).toBeVisible({timeout: 60000})
+      await expect(messageBubble(page1, testMessage2)).toBeVisible({timeout: 60000})
     } finally {
       await context1.close()
       await context2.close()
@@ -187,13 +179,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageInput1.fill(testMessage)
       await messageInput1.press("Enter")
 
-      await expect(
-        messageBubble(page1, testMessage)
-      ).toBeVisible({timeout: 10000})
+      await expect(messageBubble(page1, testMessage)).toBeVisible({timeout: 10000})
 
-      await expect(
-        messageBubble(page2, testMessage)
-      ).toBeVisible({timeout: 60000})
+      await expect(messageBubble(page2, testMessage)).toBeVisible({timeout: 60000})
 
       await expect(page2.getByTestId("message-request-actions")).not.toBeVisible({
         timeout: 5000,
@@ -241,15 +229,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await messageInput1.fill(testMessage)
       await messageInput1.press("Enter")
 
-      await expect(
-        messageBubble(page1, testMessage)
-      ).toBeVisible({timeout: 10000})
-      await expect(
-        messageBubble(page2, testMessage)
-      ).toBeVisible({timeout: 60000})
-      await expect(
-        messageBubble(page3, testMessage)
-      ).toBeVisible({timeout: 60000})
+      await expect(messageBubble(page1, testMessage)).toBeVisible({timeout: 10000})
+      await expect(messageBubble(page2, testMessage)).toBeVisible({timeout: 60000})
+      await expect(messageBubble(page3, testMessage)).toBeVisible({timeout: 60000})
 
       await expect(page2.getByTestId("message-request-actions")).not.toBeVisible({
         timeout: 5000,

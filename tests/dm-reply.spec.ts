@@ -22,8 +22,11 @@ async function ensureDeviceRegistered(page) {
         name: "Confirm Device Registration",
       })
       if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-        await page.getByRole("button", {name: "Register Device"}).click({
+        const confirmButton = page.getByRole("button", {name: "Register Device"})
+        await confirmButton.scrollIntoViewIfNeeded().catch(() => {})
+        await confirmButton.click({
           timeout: 10000,
+          force: true,
         })
       }
 

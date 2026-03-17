@@ -44,8 +44,10 @@ vi.mock("@/stores/devices", () => {
 vi.mock("@/stores/ui", () => ({
   useUIStore: (
     selector?:
-      | ((state: {setShowLoginDialog: typeof mocks.uiStore.setShowLoginDialog}) => unknown)
-      | undefined,
+      | ((state: {
+          setShowLoginDialog: typeof mocks.uiStore.setShowLoginDialog
+        }) => unknown)
+      | undefined
   ) => {
     const state = {setShowLoginDialog: mocks.uiStore.setShowLoginDialog}
     return typeof selector === "function" ? selector(state) : state
@@ -72,10 +74,7 @@ vi.mock("@/shared/components/Icons/Icon", () => ({
 }))
 
 function setInputValue(input: HTMLInputElement, value: string) {
-  const descriptor = Object.getOwnPropertyDescriptor(
-    HTMLInputElement.prototype,
-    "value",
-  )
+  const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")
   descriptor?.set?.call(input, value)
   input.dispatchEvent(new Event("input", {bubbles: true}))
   input.dispatchEvent(new Event("change", {bubbles: true}))

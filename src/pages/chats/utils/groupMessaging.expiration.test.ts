@@ -153,15 +153,13 @@ describe("sendGroupEvent expiration", () => {
   })
 
   it("awaits metadata fanout to all group members before resolving", async () => {
-    let resolveSecondSend: (() => void) | null = null
-    sendEvent
-      .mockResolvedValueOnce(undefined)
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveSecondSend = resolve
-          })
-      )
+    let resolveSecondSend: (() => void) | undefined
+    sendEvent.mockResolvedValueOnce(undefined).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSecondSend = () => resolve()
+        })
+    )
 
     let settled = false
     const sendPromise = sendGroupEvent({
@@ -179,7 +177,8 @@ describe("sendGroupEvent expiration", () => {
     })
     expect(settled).toBe(false)
 
-    resolveSecondSend?.()
+    expect(resolveSecondSend).toBeDefined()
+    resolveSecondSend!()
     await sendPromise
     expect(settled).toBe(true)
   })

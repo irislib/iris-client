@@ -68,17 +68,17 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
     }
     event.id = getEventHash(event)
 
-  await usePrivateMessagesStore
-    .getState()
-    .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
+    await usePrivateMessagesStore
+      .getState()
+      .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
 
-  const sessionManager = await ensureSessionManager(senderPubKey)
-  await Promise.all(
-    groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
-  )
+    const sessionManager = await ensureSessionManager(senderPubKey)
+    await Promise.all(
+      groupMembers.map((memberPubKey) => sessionManager.sendEvent(memberPubKey, event))
+    )
 
-  return event
-}
+    return event
+  }
 
   // Apply group disappearing-messages expiration to normal chat events.
   if (kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) {

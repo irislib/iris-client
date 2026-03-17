@@ -2,7 +2,7 @@ import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 import {Link, useNavigate} from "@/navigation"
 import {useUserStore} from "@/stores/user"
-import {AppKeys} from "nostr-double-ratchet"
+import {AppKeys, buildAppKeysFilter} from "nostr-double-ratchet"
 import {ndk} from "@/utils/ndk"
 import {VerifiedEvent} from "nostr-tools"
 import {useNip05Validation} from "@/shared/hooks/useNip05Validation"
@@ -61,11 +61,9 @@ const ProfileHeader = ({
     log("Checking for AppKeys from user:", pubKeyHex)
 
     const ndkInstance = ndk()
-    const subscription = ndkInstance.subscribe({
-      kinds: [30078],
-      authors: [pubKeyHex],
-      "#d": ["double-ratchet/app-keys"],
-    } as NDKFilter)
+    const subscription = ndkInstance.subscribe(
+      buildAppKeysFilter(pubKeyHex) as NDKFilter
+    )
 
     subscription.on("event", (event: NDKEvent) => {
       try {
