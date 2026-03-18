@@ -1,7 +1,7 @@
 import {useEffect} from "react"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
-import {getDelegateManager} from "@/shared/services/PrivateChats"
+import {getDelegateManager, initDelegateManager} from "@/shared/services/PrivateChats"
 import DeviceList from "./DeviceList"
 import RegisterDevice from "./RegisterDevice"
 import LinkDeviceInvite from "./LinkDeviceInvite"
@@ -11,14 +11,27 @@ const DevicesTab = () => {
   const {setIdentityPubkey} = useDevicesStore()
 
   useEffect(() => {
-    if (!publicKey) return
+    if (!publicKey) {
+      return
+    }
 
-    // Set identity pubkey from DelegateManager
-    try {
-      const delegateManager = getDelegateManager()
-      setIdentityPubkey(delegateManager.getIdentityPublicKey())
-    } catch {
-      // DelegateManager not initialized yet
+    let cancelled = false
+
+    void initDelegateManager()
+      .then(() => {
+        if (cancelled) {
+          return
+        }
+
+        const delegateManager = getDelegateManager()
+        setIdentityPubkey(delegateManager.getIdentityPublicKey())
+      })
+      .catch(() => {
+        // DelegateManager failed to initialize; leave identity unset.
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [publicKey, setIdentityPubkey])
 

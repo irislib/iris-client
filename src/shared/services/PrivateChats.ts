@@ -23,6 +23,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {attachSessionEventListener} from "@/utils/dmEventHandler"
 import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
+import {waitForLatestAppKeysSnapshot} from "./appKeysSnapshots"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -79,11 +80,9 @@ let appKeysSubscriptionCleanup: (() => void) | null = null
 
 const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
   return (filter: NDKFilter, onEvent: (event: VerifiedEvent) => void) => {
-    const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
     const subscription = ndkInstance.subscribe(filter, {
       closeOnEose: false,
       cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
-      ...(relayUrls.length > 0 ? {relayUrls} : {}),
     })
 
     subscription.on("event", (event: NDKEvent) => {
@@ -328,6 +327,7 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
     throw new Error("No public key - user must be logged in")
   }
 
+  await waitForManagers()
   if (!delegateManager || !appKeysManager) {
     throw new Error("Managers not initialized")
   }
@@ -396,6 +396,7 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
     throw new Error("No public key - user must be logged in")
   }
 
+  await waitForManagers()
   if (!delegateManager) {
     throw new Error("DelegateManager not initialized")
   }
@@ -430,6 +431,7 @@ export const prepareRegistrationForIdentity = async (
     throw new Error("No public key - user must be logged in")
   }
 
+  await waitForManagers()
   const baseKeys = await resolveBaseAppKeys(publicKey)
   if (appKeysManager) {
     await appKeysManager.setAppKeys(baseKeys)
@@ -472,6 +474,7 @@ export const publishPreparedRegistration = async (
   }
 
   // Store update with timestamp - this becomes the source of truth
+  useDevicesStore.getState().setHasLocalAppKeys(prepared.devices.length > 0)
   useDevicesStore.getState().setRegisteredDevices(prepared.devices, eventTimestamp)
 
   log("Device registered:", prepared.newDeviceIdentity)
@@ -535,6 +538,7 @@ export const publishPreparedRevocation = async (
   }
 
   // Store update with timestamp - this becomes the source of truth
+  useDevicesStore.getState().setHasLocalAppKeys(prepared.devices.length > 0)
   useDevicesStore.getState().setRegisteredDevices(prepared.devices, eventTimestamp)
 
   log("Device revoked:", prepared.revokedIdentity)
@@ -603,7 +607,10 @@ export const startAppKeysSubscription = (ownerPubkey: string): void => {
   if (appKeysSubscriptionCleanup) return // Already running
 
   const ndkInstance = ndk()
-  const subscription = ndkInstance.subscribe(buildAppKeysFilter(ownerPubkey) as NDKFilter)
+  const subscription = ndkInstance.subscribe(buildAppKeysFilter(ownerPubkey) as NDKFilter, {
+    closeOnEose: false,
+    cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+  })
 
   subscription.on("event", async (event: NDKEvent) => {
     try {
@@ -624,6 +631,7 @@ export const startAppKeysSubscription = (ownerPubkey: string): void => {
 
         await appKeysManager.setAppKeys(nextSnapshot.appKeys)
         const devices = appKeysManager.getOwnDevices()
+        useDevicesStore.getState().setHasLocalAppKeys(devices.length > 0)
         useDevicesStore.getState().setRegisteredDevices(devices, nextSnapshot.createdAt)
         log("AppKeys updated from subscription:", devices.length, "devices")
       }
@@ -635,6 +643,50 @@ export const startAppKeysSubscription = (ownerPubkey: string): void => {
   subscription.start()
   appKeysSubscriptionCleanup = () => subscription.stop()
   log("AppKeys subscription started")
+}
+
+export const refreshOwnAppKeysFromRelay = async (
+  ownerPubkey?: string,
+  timeoutMs: number = APP_KEYS_FAST_TIMEOUT_MS
+): Promise<boolean> => {
+  const resolvedOwnerPubkey = ownerPubkey || useUserStore.getState().publicKey
+  if (!resolvedOwnerPubkey) {
+    return false
+  }
+
+  const ndkInstance = ndk()
+  if (ndkInstance.pool.connectedRelays().length === 0) {
+    await ndkInstance.pool.connect(5000).catch(() => {})
+  }
+
+  const nextSnapshot = await waitForLatestAppKeysSnapshot(
+    resolvedOwnerPubkey,
+    getNostrSubscribe(),
+    timeoutMs
+  )
+  if (!nextSnapshot) {
+    return false
+  }
+
+  const storeTimestamp = useDevicesStore.getState().lastEventTimestamp
+  const appliedSnapshot = applyAppKeysSnapshot({
+    currentAppKeys: appKeysManager?.getAppKeys(),
+    currentCreatedAt: storeTimestamp,
+    incomingAppKeys: nextSnapshot.appKeys,
+    incomingCreatedAt: nextSnapshot.createdAt,
+  })
+  if (appliedSnapshot.decision === "stale") {
+    return false
+  }
+
+  if (appKeysManager) {
+    await appKeysManager.setAppKeys(appliedSnapshot.appKeys)
+  }
+
+  const devices = appliedSnapshot.appKeys.getAllDevices()
+  useDevicesStore.getState().setHasLocalAppKeys(devices.length > 0)
+  useDevicesStore.getState().setRegisteredDevices(devices, appliedSnapshot.createdAt)
+  return true
 }
 
 /**

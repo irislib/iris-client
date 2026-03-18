@@ -94,12 +94,12 @@ const startPrivateMessaging = (ownerPubkey: string) => {
     .then(() => {
       useDevicesStore.getState().setAppKeysManagerReady(true)
       useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
-      startAppKeysSubscription(ownerPubkey)
     })
     .catch((err) => error("Failed to initialize AppKeysManager:", err))
 
   initPrivateMessaging(ownerPubkey)
     .then(() => {
+      startAppKeysSubscription(ownerPubkey)
       useDevicesStore.getState().setSessionManagerReady(true)
       const dm = getDelegateManager()
       useDevicesStore.getState().setIdentityPubkey(dm.getIdentityPublicKey())

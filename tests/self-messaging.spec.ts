@@ -1,5 +1,7 @@
 import {test, expect} from "@playwright/test"
-import {signUp, signIn} from "./auth.setup"
+import {bytesToHex} from "@noble/hashes/utils"
+import {generateSecretKey} from "nostr-tools"
+import {signIn} from "./auth.setup"
 
 async function waitForNextCreatedAtSecond() {
   const currentSecond = Math.floor(Date.now() / 1000)
@@ -22,6 +24,10 @@ async function waitForConnectedRelays(page) {
     .toBeGreaterThan(0)
 }
 
+function registeredDeviceEntries(page) {
+  return page.locator('[data-testid="registered-device-entry"]:visible')
+}
+
 async function ensureDeviceRegistered(page) {
   await page.getByRole("link", {name: "Chats"}).click()
   await page.getByRole("link", {name: "Devices"}).click()
@@ -30,27 +36,81 @@ async function ensureDeviceRegistered(page) {
     timeout: 10000,
   })
 
-  const registerButton = page.getByRole("button", {name: "Register this device"})
+  const initialDeviceCount = await registeredDeviceEntries(page).count()
+  const registerButton = page.getByRole("button", {name: "Register this device"}).first()
+  const thisDeviceBadge = page
+    .locator("span.badge:visible")
+    .filter({hasText: /^This device$/})
+    .first()
 
-  if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
-    await registerButton.waitFor({state: "hidden", timeout: 3000}).catch(() => {})
+  if (!(await thisDeviceBadge.isVisible().catch(() => false))) {
+    if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
+      await Promise.race([
+        thisDeviceBadge.waitFor({state: "visible", timeout: 3000}),
+        registerButton.waitFor({state: "hidden", timeout: 3000}),
+      ]).catch(() => {})
 
-    if (await registerButton.isVisible().catch(() => false)) {
-      await waitForNextCreatedAtSecond()
-      await registerButton.click({timeout: 10000})
-
-      const confirmHeading = page.getByRole("heading", {
-        name: "Confirm Device Registration",
-      })
-      if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-        await page.getByRole("button", {name: "Register Device"}).click({
+      if (
+        !(await thisDeviceBadge.isVisible().catch(() => false)) &&
+        (await registerButton.isVisible().catch(() => false))
+      ) {
+        await waitForNextCreatedAtSecond()
+        await registerButton.scrollIntoViewIfNeeded().catch(() => {})
+        await registerButton.click({
           timeout: 10000,
+          force: true,
         })
-      }
 
-      await expect(registerButton).not.toBeVisible({timeout: 20000})
+        if (initialDeviceCount > 0) {
+          const confirmDialog = page.locator("dialog.modal[open]").first()
+          await expect(confirmDialog).toBeVisible({timeout: 15000})
+          const confirmButton = confirmDialog.getByRole("button", {
+            name: "Register Device",
+          })
+          await confirmButton.scrollIntoViewIfNeeded().catch(() => {})
+          await confirmButton.click({
+            timeout: 10000,
+            force: true,
+          })
+        }
+
+        try {
+          await expect
+            .poll(
+              async () =>
+                (await registeredDeviceEntries(page).count()) > initialDeviceCount ||
+                (await thisDeviceBadge.isVisible().catch(() => false)),
+              {
+                timeout: 30000,
+              }
+            )
+            .toBe(true)
+        } catch (err) {
+          console.log("ensure failure state", {
+            initialDeviceCount,
+            visibleCount: await registeredDeviceEntries(page).count(),
+            visibleRows: await page
+              .locator('[data-testid="registered-device-pubkey"]:visible')
+              .allTextContents(),
+            hasThisDeviceBadge: await thisDeviceBadge.isVisible().catch(() => false),
+          })
+          throw err
+        }
+      }
     }
   }
+}
+
+async function waitForRegisteredDeviceCount(page, minimumCount: number) {
+  await page.goto("/chats/new/devices")
+  await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({
+    timeout: 10000,
+  })
+  await expect
+    .poll(async () => registeredDeviceEntries(page).count(), {
+      timeout: 60000,
+    })
+    .toBeGreaterThanOrEqual(minimumCount)
 }
 
 async function openSelfChat(page) {
@@ -92,13 +152,9 @@ test.describe("Self-messaging between browser sessions", () => {
     const page2 = await context2.newPage()
 
     try {
-      // Sign up on page1 to get a unique private key
-      const {privateKey} = await signUp(page1)
-      if (!privateKey) {
-        throw new Error("Could not get private key from signup")
-      }
+      const privateKey = bytesToHex(generateSecretKey())
 
-      // Sign in on page2 with the same key
+      await signIn(page1, privateKey)
       await signIn(page2, privateKey)
 
       await waitForConnectedRelays(page1)
@@ -106,6 +162,8 @@ test.describe("Self-messaging between browser sessions", () => {
 
       await ensureDeviceRegistered(page1)
       await ensureDeviceRegistered(page2)
+      await waitForRegisteredDeviceCount(page1, 2)
+      await waitForRegisteredDeviceCount(page2, 2)
 
       const timestamp = Date.now()
       const testMessage1 = `Test message 1: ${timestamp}`
@@ -157,11 +215,8 @@ test.describe("Self-messaging between browser sessions", () => {
     const page2 = await context2.newPage()
 
     try {
-      const {privateKey, publicKey} = await signUp(page1)
-      if (!privateKey || !publicKey) {
-        throw new Error("Could not get same-key credentials from signup")
-      }
-
+      const privateKey = bytesToHex(generateSecretKey())
+      await signIn(page1, privateKey)
       await signIn(page2, privateKey)
 
       await waitForConnectedRelays(page1)
@@ -169,6 +224,8 @@ test.describe("Self-messaging between browser sessions", () => {
 
       await ensureDeviceRegistered(page1)
       await ensureDeviceRegistered(page2)
+      await waitForRegisteredDeviceCount(page1, 2)
+      await waitForRegisteredDeviceCount(page2, 2)
 
       await openSelfChat(page1)
       await openSelfChat(page2)
@@ -204,11 +261,8 @@ test.describe("Self-messaging between browser sessions", () => {
     const page3 = await context3.newPage()
 
     try {
-      const {privateKey} = await signUp(page1)
-      if (!privateKey) {
-        throw new Error("Could not get private key from signup")
-      }
-
+      const privateKey = bytesToHex(generateSecretKey())
+      await signIn(page1, privateKey)
       await signIn(page2, privateKey)
       await signIn(page3, privateKey)
 
@@ -219,6 +273,9 @@ test.describe("Self-messaging between browser sessions", () => {
       await ensureDeviceRegistered(page1)
       await ensureDeviceRegistered(page2)
       await ensureDeviceRegistered(page3)
+      await waitForRegisteredDeviceCount(page1, 3)
+      await waitForRegisteredDeviceCount(page2, 3)
+      await waitForRegisteredDeviceCount(page3, 3)
 
       await openSelfChat(page1)
       await openSelfChat(page2)

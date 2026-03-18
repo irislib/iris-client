@@ -11,6 +11,7 @@ import {
   prepareRevocation,
   publishPreparedRevocation,
   PreparedRevocation,
+  refreshOwnAppKeysFromRelay,
 } from "@/shared/services/PrivateChats"
 import Icon from "@/shared/components/Icons/Icon"
 import {formatManagedDevicePubkey} from "./formatManagedDevicePubkey"
@@ -40,6 +41,10 @@ const DeviceList = () => {
       modalRef.current?.close()
     }
   }, [deviceToRevoke, preparedRevocation])
+
+  useEffect(() => {
+    void refreshOwnAppKeysFromRelay()
+  }, [])
 
   const handleRepublishInvite = async () => {
     setRepublishing(true)
@@ -112,12 +117,16 @@ const DeviceList = () => {
             <div
               key={device.identityPubkey}
               className="bg-base-200 rounded-lg overflow-hidden"
+              data-testid="registered-device-entry"
             >
               <div className="flex items-center gap-3 p-3">
                 <RiComputerLine className="w-5 h-5 text-base-content/70" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
+                    <span
+                      className="font-mono text-sm truncate min-w-0 w-0 flex-1 block"
+                      data-testid="registered-device-pubkey"
+                    >
                       {displayPubkey}
                     </span>
                     {isCurrentDevice && (
