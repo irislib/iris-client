@@ -1,82 +1,53 @@
-import {VerifiedEvent} from "nostr-tools"
-import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
+import { VerifiedEvent } from "nostr-tools"
+import { LocalForageStorageAdapter } from "../../session/StorageAdapter"
 import {
-  NostrPublish,
-  NostrSubscribe,
-  SessionManager,
-  DelegateManager,
   AppKeysManager,
-  applyAppKeysSnapshot,
-  buildAppKeysFilter,
-  AppKeys,
+  DelegateManager,
   Invite,
-  DeviceEntry,
   INVITE_RESPONSE_KIND,
+  NdrRuntime,
+  SessionManager,
   decryptInviteResponse,
+  type DeviceEntry,
+  type NdrRuntimeState,
+  type NostrPublish,
+  type NostrSubscribe,
+  type PreparedRegistration,
+  type PreparedRevocation,
 } from "nostr-double-ratchet"
-import NDK, {NDKEvent, NDKFilter, NDKSubscriptionCacheUsage} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
-import {useUserStore} from "../../stores/user"
-import {useDevicesStore} from "../../stores/devices"
-import {usePrivateMessagesStore} from "@/stores/privateMessages"
-import {createDebugLogger} from "@/utils/createDebugLogger"
-import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {attachSessionEventListener} from "@/utils/dmEventHandler"
-import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
-import {waitForLatestAppKeysSnapshot} from "./appKeysSnapshots"
+import NDK, {
+  NDKEvent,
+  NDKFilter,
+  NDKSubscriptionCacheUsage,
+} from "@/lib/ndk"
+import { ndk } from "@/utils/ndk"
+import { useUserStore } from "../../stores/user"
+import { useDevicesStore } from "../../stores/devices"
+import { usePrivateMessagesStore } from "@/stores/privateMessages"
+import { createDebugLogger } from "@/utils/createDebugLogger"
+import { DEBUG_NAMESPACES } from "@/utils/constants"
+import { attachSessionEventListener } from "@/utils/dmEventHandler"
+import { attachGroupMessageListener } from "@/utils/groupMessageHandler"
 
-const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+const { log } = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const APP_KEYS_FETCH_TIMEOUT_MS = 10000
 const APP_KEYS_FAST_TIMEOUT_MS = 2000
 
-const cloneAppKeys = (appKeys: AppKeys): AppKeys => new AppKeys(appKeys.getAllDevices())
+let runtime: NdrRuntime | null = null
+let runtimeCleanup: (() => void) | null = null
+let lastRuntimeState: NdrRuntimeState | null = null
 
-const resolveBaseAppKeys = async (
-  ownerPubkey: string,
-  timeoutMs: number = APP_KEYS_FETCH_TIMEOUT_MS
-): Promise<AppKeys> => {
-  const nostrSubscribe = getNostrSubscribe()
-  try {
-    const existingKeys = await AppKeys.waitFor(
-      ownerPubkey,
-      nostrSubscribe,
-      APP_KEYS_FAST_TIMEOUT_MS
-    )
-    if (existingKeys) {
-      return existingKeys
-    }
-  } catch {
-    // ignore fetch errors, fall back to local sources
+const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
+  const store = useDevicesStore.getState()
+  if (state.currentDevicePubkey) {
+    store.setIdentityPubkey(state.currentDevicePubkey)
   }
-
-  const localKeys = appKeysManager?.getAppKeys()
-  if (localKeys && localKeys.getAllDevices().length > 0) {
-    return cloneAppKeys(localKeys)
-  }
-
-  const {registeredDevices} = useDevicesStore.getState()
-  if (registeredDevices.length > 0) {
-    return new AppKeys(registeredDevices)
-  }
-
-  if (timeoutMs > APP_KEYS_FAST_TIMEOUT_MS) {
-    try {
-      const remaining = Math.max(timeoutMs - APP_KEYS_FAST_TIMEOUT_MS, 0)
-      const existingKeys = await AppKeys.waitFor(ownerPubkey, nostrSubscribe, remaining)
-      if (existingKeys) {
-        return existingKeys
-      }
-    } catch {
-      // ignore fetch errors
-    }
-  }
-
-  return new AppKeys()
+  store.setAppKeysManagerReady(state.appKeysManagerReady)
+  store.setSessionManagerReady(state.sessionManagerReady)
+  store.setHasLocalAppKeys(state.hasLocalAppKeys)
+  store.setRegisteredDevices(state.registeredDevices, state.lastAppKeysCreatedAt)
 }
-
-// Global AppKeys subscription cleanup function
-let appKeysSubscriptionCleanup: (() => void) | null = null
 
 const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
   return (filter: NDKFilter, onEvent: (event: VerifiedEvent) => void) => {
@@ -97,29 +68,23 @@ const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
   }
 }
 
-/**
- * Get NostrSubscribe function for the current NDK instance.
- */
 export const getNostrSubscribe = (): NostrSubscribe => {
   return createSubscribe(ndk())
 }
 
-// NDK-compatible publish function - TODO: remove "as" by handling nostr-tools version mismatch between lib and app
 const createPublish = (ndkInstance: NDK): NostrPublish => {
   return (async (event) => {
     const e = new NDKEvent(ndkInstance, event)
     await e.publish()
 
-    // Private messages are sent as encrypted wrapper events; we store the decrypted inner "rumor" by
-    // its ID. If the wrapper event includes an `inner` tag, we can mark the message as published.
     const innerId = (event.tags ?? []).find(([k]) => k === "inner")?.[1]
     if (innerId) {
-      const {events, updateMessage} = usePrivateMessagesStore.getState()
+      const { events, updateMessage } = usePrivateMessagesStore.getState()
       for (const [chatId, messageMap] of events.entries()) {
         const existing = messageMap.get(innerId)
         if (!existing) continue
 
-        const updates: Partial<typeof existing> = {sentToRelays: true}
+        const updates: Partial<typeof existing> = { sentToRelays: true }
         if (!existing.nostrEventId) {
           updates.nostrEventId = e.id
         }
@@ -133,142 +98,83 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
   }) as NostrPublish
 }
 
-// Singletons
-let delegateManager: DelegateManager | null = null
-let appKeysManager: AppKeysManager | null = null
-let sessionManager: SessionManager | null = null
+const getRuntime = (): NdrRuntime => {
+  if (runtime) {
+    return runtime
+  }
 
-// Track initialization promises
-let appKeysInitPromise: Promise<void> | null = null
-let delegateInitPromise: Promise<void> | null = null
-let privateMessagingPromise: Promise<SessionManager> | null = null
+  runtime = new NdrRuntime({
+    nostrSubscribe: createSubscribe(ndk()),
+    nostrPublish: createPublish(ndk()),
+    storage: new LocalForageStorageAdapter(),
+    appKeysFetchTimeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+    appKeysFastTimeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
+  })
 
-/**
- * Get the DelegateManager singleton.
- * Must call initDelegateManager first.
- */
+  runtimeCleanup = runtime.onStateChange((state) => {
+    syncDeviceStoreFromRuntime(state)
+    lastRuntimeState = state
+  })
+
+  return runtime
+}
+
+const ensureNdkConnected = async (): Promise<void> => {
+  const ndkInstance = ndk()
+  if (ndkInstance.pool.connectedRelays().length === 0) {
+    await ndkInstance.pool.connect(5000)
+  }
+}
+
 export const getDelegateManager = (): DelegateManager => {
-  if (!delegateManager) {
+  const manager = getRuntime().getDelegateManager()
+  if (!manager) {
     throw new Error("DelegateManager not initialized - call initDelegateManager first")
   }
-  return delegateManager
+  return manager
 }
 
-/**
- * Get the AppKeysManager singleton.
- * Must call initAppKeysManager first.
- */
 export const getAppKeysManager = (): AppKeysManager => {
-  if (!appKeysManager) {
+  const manager = getRuntime().getAppKeysManager()
+  if (!manager) {
     throw new Error("AppKeysManager not initialized - call initAppKeysManager first")
   }
-  return appKeysManager
+  return manager
 }
 
-/**
- * Initialize AppKeysManager singleton.
- * Fast initialization - can be used before DelegateManager is ready.
- */
 export const initAppKeysManager = async (): Promise<void> => {
-  if (appKeysManager) return
-  if (appKeysInitPromise) return appKeysInitPromise
-
-  appKeysInitPromise = (async () => {
-    const ndkInstance = ndk()
-    const storage = new LocalForageStorageAdapter()
-
-    appKeysManager = new AppKeysManager({
-      nostrPublish: createPublish(ndkInstance),
-      storage,
-    })
-
-    await appKeysManager.init()
-    log("AppKeysManager initialized")
-  })()
-
-  await appKeysInitPromise
+  await getRuntime().initAppKeysManager()
+  log("AppKeysManager initialized")
 }
 
-/**
- * Initialize DelegateManager singleton.
- * Should be called early in app initialization.
- */
 export const initDelegateManager = async (): Promise<void> => {
-  if (delegateManager) return
-  if (delegateInitPromise) return delegateInitPromise
-
-  delegateInitPromise = (async () => {
-    const ndkInstance = ndk()
-    const storage = new LocalForageStorageAdapter()
-
-    delegateManager = new DelegateManager({
-      nostrSubscribe: createSubscribe(ndkInstance),
-      nostrPublish: createPublish(ndkInstance),
-      storage,
-    })
-
-    await delegateManager.init()
-    log("DelegateManager initialized")
-  })()
-
-  await delegateInitPromise
+  await getRuntime().initDelegateManager()
+  log("DelegateManager initialized")
 }
 
-/**
- * Single entry point for private messaging initialization.
- * Initialises DelegateManager, activates the device, creates SessionManager,
- * attaches event listeners, then runs sessionManager.init().
- *
- * Idempotent — returns the same promise if already in-flight.
- */
 export const initPrivateMessaging = async (
   ownerPubkey: string
 ): Promise<SessionManager> => {
   if (!ownerPubkey) throw new Error("Owner pubkey required")
 
-  if (privateMessagingPromise) return privateMessagingPromise
+  await ensureNdkConnected()
+  const currentRuntime = getRuntime()
+  const sessionManager = await currentRuntime.initForOwner(ownerPubkey)
 
-  privateMessagingPromise = (async () => {
-    await initDelegateManager()
-    if (!delegateManager) throw new Error("DelegateManager not initialized")
+  attachSessionEventListener(sessionManager)
+  attachGroupMessageListener()
 
-    await delegateManager.activate(ownerPubkey)
-    sessionManager = delegateManager.createSessionManager(new LocalForageStorageAdapter())
-
-    // Attach listeners BEFORE init — events arrive during init's loadAllUserRecords
-    attachSessionEventListener(sessionManager)
-    attachGroupMessageListener()
-
-    await sessionManager.init()
-    const ndkInstance = ndk()
-    if (ndkInstance.pool.connectedRelays().length === 0) {
-      await ndkInstance.pool.connect(5000)
-    }
-    await delegateManager.publishInvite().catch((error) => {
-      log("Failed to publish invite after private messaging init:", error)
-    })
-    log("Device activated for owner:", ownerPubkey)
-    return sessionManager
-  })()
-
-  privateMessagingPromise.catch(() => {
-    privateMessagingPromise = null
+  await currentRuntime.republishInvite().catch((error) => {
+    log("Failed to publish invite after private messaging init:", error)
   })
-  return privateMessagingPromise
-}
-
-/**
- * Get the SessionManager singleton.
- * Returns null if device is not yet activated.
- */
-export const getSessionManager = (): SessionManager | null => {
+  log("Device activated for owner:", ownerPubkey)
   return sessionManager
 }
 
-/**
- * Ensure a SessionManager is available for the given owner pubkey.
- * Delegates to initPrivateMessaging (idempotent).
- */
+export const getSessionManager = (): SessionManager | null => {
+  return runtime?.getSessionManager() || null
+}
+
 export const ensureSessionManager = async (
   ownerPubkey: string
 ): Promise<SessionManager> => {
@@ -278,295 +184,133 @@ export const ensureSessionManager = async (
   return initPrivateMessaging(ownerPubkey)
 }
 
-/**
- * Wait for AppKeysManager to be initialized.
- */
 export const waitForAppKeysManager = async (): Promise<AppKeysManager> => {
-  if (appKeysInitPromise) await appKeysInitPromise
-  if (!appKeysManager) {
-    throw new Error("AppKeysManager not initialized")
-  }
-  return appKeysManager
+  await initAppKeysManager()
+  return getAppKeysManager()
 }
 
-/**
- * Wait for DelegateManager to be initialized.
- */
 export const waitForDelegateManager = async (): Promise<DelegateManager> => {
-  if (delegateInitPromise) await delegateInitPromise
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
-  return delegateManager
+  await initDelegateManager()
+  return getDelegateManager()
 }
 
-/**
- * Wait for DelegateManager and AppKeysManager to be initialized.
- */
 export const waitForManagers = async (): Promise<void> => {
-  await Promise.all([waitForAppKeysManager(), waitForDelegateManager()])
+  await getRuntime().initManagers()
 }
 
-/**
- * Check if AppKeys exist locally with registered devices.
- * Returns true if: AppKeys can be read from storage AND contains at least one device.
- */
 export const hasLocalAppKeys = (): boolean => {
-  if (!appKeysManager) return false
-  const appKeys = appKeysManager.getAppKeys()
-  return appKeys !== null && appKeys.getAllDevices().length > 0
+  return getRuntime().getState().hasLocalAppKeys
 }
 
-/**
- * Register the current device by adding it to AppKeys.
- * Fetches existing devices from relay first to avoid overwriting them.
- */
 export const registerDevice = async (timeoutMs?: number): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
-  await waitForManagers()
-  if (!delegateManager || !appKeysManager) {
-    throw new Error("Managers not initialized")
-  }
+  await ensureNdkConnected()
+  await getRuntime().initForOwner(publicKey)
+  await getRuntime().registerCurrentDevice({
+    ownerPubkey: publicKey,
+    timeoutMs,
+  })
 
-  const baseKeys = await resolveBaseAppKeys(publicKey, timeoutMs)
-  await appKeysManager.setAppKeys(baseKeys)
-  log("Loaded base AppKeys with", baseKeys.getAllDevices().length, "devices")
-
-  // Add this device
-  const payload = delegateManager.getRegistrationPayload()
-  appKeysManager.addDevice(payload)
-  await appKeysManager.publish()
-
-  const updatedDevices = appKeysManager.getOwnDevices()
-  useDevicesStore.getState().setHasLocalAppKeys(updatedDevices.length > 0)
-  useDevicesStore
-    .getState()
-    .setRegisteredDevices(updatedDevices, Math.floor(Date.now() / 1000))
-
-  log("Device registered:", payload.identityPubkey)
+  log("Device registered:", getRuntime().getState().currentDevicePubkey)
 }
 
-/**
- * Revoke a device by removing it from AppKeys.
- * Fetches existing devices from relay first to avoid data loss.
- */
 export const revokeDevice = async (identityPubkey: string): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
-  if (!appKeysManager) {
-    throw new Error("AppKeysManager not initialized")
-  }
-
-  // Fetch existing AppKeys from relay first
-  const nostrSubscribe = getNostrSubscribe()
-  const existingKeys = await AppKeys.waitFor(publicKey, nostrSubscribe, 2000)
-
-  if (existingKeys) {
-    await appKeysManager.setAppKeys(existingKeys)
-    log("Loaded existing AppKeys with", existingKeys.getAllDevices().length, "devices")
-  }
-
-  appKeysManager.revokeDevice(identityPubkey)
-  await appKeysManager.publish()
+  await ensureNdkConnected()
+  await getRuntime().initForOwner(publicKey)
+  await getRuntime().revokeDevice({
+    ownerPubkey: publicKey,
+    identityPubkey,
+    timeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
+  })
 
   log("Device revoked:", identityPubkey)
 }
 
-export interface PreparedRegistration {
-  appKeys: AppKeys
-  devices: DeviceEntry[]
-  newDeviceIdentity: string
-}
+export type { PreparedRegistration, PreparedRevocation }
 
-/**
- * Prepare device registration without mutating any state.
- * Uses devices from the store (populated by AppKeys subscription).
- * Call publishPreparedRegistration() to actually publish.
- */
 export const prepareRegistration = async (): Promise<PreparedRegistration> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
   await waitForManagers()
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
-
-  const baseKeys = await resolveBaseAppKeys(publicKey)
-  const appKeys = cloneAppKeys(baseKeys)
-
-  // Add current device
-  const payload = delegateManager.getRegistrationPayload()
-  const device: DeviceEntry = {
-    identityPubkey: payload.identityPubkey,
-    createdAt: Math.floor(Date.now() / 1000),
-  }
-  appKeys.addDevice(device)
-
-  return {
-    appKeys,
-    devices: appKeys.getAllDevices(),
-    newDeviceIdentity: payload.identityPubkey,
-  }
+  return getRuntime().prepareRegistration({
+    ownerPubkey: publicKey,
+    timeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+  })
 }
 
-/**
- * Prepare device registration for a specific identity.
- * Pulls latest AppKeys from relays when possible to avoid overwrites.
- */
 export const prepareRegistrationForIdentity = async (
   identityPubkey: string
 ): Promise<PreparedRegistration> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
   await waitForManagers()
-  const baseKeys = await resolveBaseAppKeys(publicKey)
-  if (appKeysManager) {
-    await appKeysManager.setAppKeys(baseKeys)
-  }
-  const appKeys = cloneAppKeys(baseKeys)
-
-  const device: DeviceEntry = {
+  return getRuntime().prepareRegistrationForIdentity({
+    ownerPubkey: publicKey,
     identityPubkey,
-    createdAt: Math.floor(Date.now() / 1000),
-  }
-  appKeys.addDevice(device)
-
-  return {
-    appKeys,
-    devices: appKeys.getAllDevices(),
-    newDeviceIdentity: identityPubkey,
-  }
+    timeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+  })
 }
 
-/**
- * Publish a prepared registration and update state.
- * Only updates AppKeysManager and store AFTER successful publish.
- */
 export const publishPreparedRegistration = async (
   prepared: PreparedRegistration
 ): Promise<void> => {
-  const ndkInstance = ndk()
-
-  // Get the unsigned event and publish via NDK (which will sign it)
-  const unsignedEvent = prepared.appKeys.getEvent()
-  const ndkEvent = new NDKEvent(ndkInstance, unsignedEvent)
-  await ndkEvent.publish()
-
-  // Update with the timestamp from the event we just published
-  const eventTimestamp = ndkEvent.created_at ?? Math.floor(Date.now() / 1000)
-
-  // Only after successful publish: update AppKeysManager and store
-  if (appKeysManager) {
-    await appKeysManager.setAppKeys(prepared.appKeys)
-  }
-
-  // Store update with timestamp - this becomes the source of truth
-  useDevicesStore.getState().setHasLocalAppKeys(prepared.devices.length > 0)
-  useDevicesStore.getState().setRegisteredDevices(prepared.devices, eventTimestamp)
-
+  await getRuntime().publishPreparedRegistration(prepared)
   log("Device registered:", prepared.newDeviceIdentity)
 }
 
-export interface PreparedRevocation {
-  appKeys: AppKeys
-  devices: DeviceEntry[]
-  revokedIdentity: string
-}
-
-/**
- * Prepare device revocation without mutating any state.
- */
 export const prepareRevocation = async (
   identityPubkey: string
 ): Promise<PreparedRevocation> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
-  // Use devices from the store (populated by AppKeys subscription)
-  const {registeredDevices} = useDevicesStore.getState()
-
-  if (registeredDevices.length === 0) {
-    throw new Error("No devices found - cannot prepare revocation")
-  }
-
-  // Create AppKeys from store devices
-  const appKeys = new AppKeys(registeredDevices)
-
-  // Remove the device
-  appKeys.removeDevice(identityPubkey)
-
-  return {
-    appKeys,
-    devices: appKeys.getAllDevices(),
-    revokedIdentity: identityPubkey,
-  }
+  return getRuntime().prepareRevocation({
+    ownerPubkey: publicKey,
+    identityPubkey,
+    timeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+  })
 }
 
-/**
- * Publish a prepared revocation and update state.
- */
 export const publishPreparedRevocation = async (
   prepared: PreparedRevocation
 ): Promise<void> => {
-  const ndkInstance = ndk()
-
-  const unsignedEvent = prepared.appKeys.getEvent()
-  const ndkEvent = new NDKEvent(ndkInstance, unsignedEvent)
-  await ndkEvent.publish()
-
-  // Update with the timestamp from the event we just published
-  const eventTimestamp = ndkEvent.created_at ?? Math.floor(Date.now() / 1000)
-
-  // Only after successful publish: update AppKeysManager and store
-  if (appKeysManager) {
-    await appKeysManager.setAppKeys(prepared.appKeys)
-  }
-
-  // Store update with timestamp - this becomes the source of truth
-  useDevicesStore.getState().setHasLocalAppKeys(prepared.devices.length > 0)
-  useDevicesStore.getState().setRegisteredDevices(prepared.devices, eventTimestamp)
-
+  await getRuntime().publishPreparedRevocation(prepared)
   log("Device revoked:", prepared.revokedIdentity)
 }
 
 export const revokeCurrentDevice = async (): Promise<void> => {
-  if (!delegateManager) {
+  const manager = getRuntime().getDelegateManager()
+  if (!manager) {
     log("DelegateManager not initialized, skipping device revocation")
     return
   }
 
-  const identityPubkey = delegateManager.getIdentityPublicKey()
-  await revokeDevice(identityPubkey)
+  await revokeDevice(manager.getIdentityPublicKey())
 }
 
-/**
- * Publishes a tombstone event to nullify a device's chat invite
- * Makes the invite invisible to other devices
- */
 export const deleteDeviceInvite = async (deviceId: string) => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
 
-  // Publish tombstone event - same kind and d tag, empty content
   const dTag = `double-ratchet/invites/${deviceId}`
-
-  const {NDKEvent} = await import("@/lib/ndk")
   const deletionEvent = new NDKEvent(ndk(), {
-    kind: 30078, // INVITE_EVENT_KIND
+    kind: 30078,
     pubkey: publicKey,
     content: "",
     created_at: Math.floor(Date.now() / 1000),
@@ -578,15 +322,10 @@ export const deleteDeviceInvite = async (deviceId: string) => {
 
   log("Published invite tombstone for device:", deviceId)
 
-  // Delete invite from our local persistence to prevent republishing
-  const {LocalForageStorageAdapter} = await import("../../session/StorageAdapter")
   const storage = new LocalForageStorageAdapter()
   await storage.del(`invite/${deviceId}`)
 }
 
-/**
- * Deletes the current device's invite (convenience wrapper)
- */
 export const deleteCurrentDeviceInvite = async () => {
   const manager = getSessionManager()
   if (!manager) {
@@ -595,53 +334,11 @@ export const deleteCurrentDeviceInvite = async () => {
   }
 
   await manager.init()
-  const deviceId = manager.getDeviceId()
-  await deleteDeviceInvite(deviceId)
+  await deleteDeviceInvite(manager.getDeviceId())
 }
 
-/**
- * Start a global subscription to AppKeys events.
- * Runs for app lifetime, merges events with AppKeysManager, and updates store.
- */
 export const startAppKeysSubscription = (ownerPubkey: string): void => {
-  if (appKeysSubscriptionCleanup) return // Already running
-
-  const ndkInstance = ndk()
-  const subscription = ndkInstance.subscribe(buildAppKeysFilter(ownerPubkey) as NDKFilter, {
-    closeOnEose: false,
-    cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
-  })
-
-  subscription.on("event", async (event: NDKEvent) => {
-    try {
-      const eventTime = event.created_at ?? 0
-      const storeTimestamp = useDevicesStore.getState().lastEventTimestamp
-      const incomingAppKeys = AppKeys.fromEvent(event as unknown as VerifiedEvent)
-
-      if (appKeysManager) {
-        const nextSnapshot = applyAppKeysSnapshot({
-          currentAppKeys: appKeysManager.getAppKeys(),
-          currentCreatedAt: storeTimestamp,
-          incomingAppKeys,
-          incomingCreatedAt: eventTime,
-        })
-        if (nextSnapshot.decision === "stale") {
-          return
-        }
-
-        await appKeysManager.setAppKeys(nextSnapshot.appKeys)
-        const devices = appKeysManager.getOwnDevices()
-        useDevicesStore.getState().setHasLocalAppKeys(devices.length > 0)
-        useDevicesStore.getState().setRegisteredDevices(devices, nextSnapshot.createdAt)
-        log("AppKeys updated from subscription:", devices.length, "devices")
-      }
-    } catch (err) {
-      log("Failed to process AppKeys event:", err)
-    }
-  })
-
-  subscription.start()
-  appKeysSubscriptionCleanup = () => subscription.stop()
+  getRuntime().startAppKeysSubscription(ownerPubkey)
   log("AppKeys subscription started")
 }
 
@@ -654,94 +351,34 @@ export const refreshOwnAppKeysFromRelay = async (
     return false
   }
 
-  const ndkInstance = ndk()
-  if (ndkInstance.pool.connectedRelays().length === 0) {
-    await ndkInstance.pool.connect(5000).catch(() => {})
-  }
-
-  const nextSnapshot = await waitForLatestAppKeysSnapshot(
-    resolvedOwnerPubkey,
-    getNostrSubscribe(),
-    timeoutMs
-  )
-  if (!nextSnapshot) {
-    return false
-  }
-
-  const storeTimestamp = useDevicesStore.getState().lastEventTimestamp
-  const appliedSnapshot = applyAppKeysSnapshot({
-    currentAppKeys: appKeysManager?.getAppKeys(),
-    currentCreatedAt: storeTimestamp,
-    incomingAppKeys: nextSnapshot.appKeys,
-    incomingCreatedAt: nextSnapshot.createdAt,
-  })
-  if (appliedSnapshot.decision === "stale") {
-    return false
-  }
-
-  if (appKeysManager) {
-    await appKeysManager.setAppKeys(appliedSnapshot.appKeys)
-  }
-
-  const devices = appliedSnapshot.appKeys.getAllDevices()
-  useDevicesStore.getState().setHasLocalAppKeys(devices.length > 0)
-  useDevicesStore.getState().setRegisteredDevices(devices, appliedSnapshot.createdAt)
-  return true
+  await ensureNdkConnected().catch(() => {})
+  return getRuntime().refreshOwnAppKeysFromRelay(resolvedOwnerPubkey, timeoutMs)
 }
 
-/**
- * Stop the global AppKeys subscription.
- */
 export const stopAppKeysSubscription = (): void => {
-  if (appKeysSubscriptionCleanup) {
-    appKeysSubscriptionCleanup()
-    appKeysSubscriptionCleanup = null
-    log("AppKeys subscription stopped")
-  }
+  runtime?.stopAppKeysSubscription()
+  log("AppKeys subscription stopped")
 }
 
-/**
- * Republish the current device's invite event.
- * Useful if the invite wasn't published or relays lost it.
- */
 export const republishInvite = async (): Promise<void> => {
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
-  const ndkInstance = ndk()
-  if (ndkInstance.pool.connectedRelays().length === 0) {
-    await ndkInstance.pool.connect(5000)
-  }
-  await delegateManager.publishInvite()
+  await ensureNdkConnected()
+  await getRuntime().republishInvite()
   log("Republished invite")
 }
 
-/**
- * Rotate the current device's invite - generates new keys and publishes.
- */
 export const rotateInvite = async (): Promise<void> => {
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
-
-  await delegateManager.rotateInvite()
-  log("Rotated invite for device:", delegateManager.getIdentityPublicKey())
+  await getRuntime().rotateInvite()
+  log("Rotated invite for device:", getRuntime().getState().currentDevicePubkey)
 }
 
-/**
- * Get the current device's invite details.
- */
-/**
- * Check if the current device's invite exists on relays.
- * Returns the event if found, null otherwise.
- */
 export const checkInviteOnRelay = async (): Promise<{
   found: boolean
   eventId?: string
   createdAt?: number
 }> => {
+  const delegateManager = getRuntime().getDelegateManager()
   if (!delegateManager) {
-    return {found: false}
+    return { found: false }
   }
 
   const deviceId = delegateManager.getIdentityPublicKey()
@@ -750,7 +387,7 @@ export const checkInviteOnRelay = async (): Promise<{
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       subscription.stop()
-      resolve({found: false})
+      resolve({ found: false })
     }, 3000)
 
     const subscription = ndkInstance.subscribe({
@@ -762,39 +399,21 @@ export const checkInviteOnRelay = async (): Promise<{
     subscription.on("event", (event: NDKEvent) => {
       clearTimeout(timeout)
       subscription.stop()
-
-      // Check if it's a valid invite (has ephemeralKey tag) or a tombstone
-      const hasEphemeralKey = event.tags.some(([k]) => k === "ephemeralKey")
-
-      if (hasEphemeralKey) {
-        resolve({
-          found: true,
-          eventId: event.id,
-          createdAt: event.created_at,
-        })
-      } else {
-        resolve({found: false}) // Tombstone
-      }
+      resolve({
+        found: true,
+        eventId: event.id,
+        createdAt: event.created_at,
+      })
     })
 
     subscription.start()
   })
 }
 
-/**
- * Create a link invite for this device.
- * The invite is private (share via QR) and not published to relays.
- */
 export const createLinkInvite = async (): Promise<Invite> => {
+  const { publicKey } = useUserStore.getState()
   await initDelegateManager()
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
-  const invite = delegateManager.getInvite()
-  if (!invite) {
-    throw new Error("No delegate invite available")
-  }
-  return invite
+  return getRuntime().createLinkInvite(publicKey || undefined)
 }
 
 export const buildLinkInviteUrl = (
@@ -816,85 +435,68 @@ export const buildLinkInviteUrl = (
   return url.toString()
 }
 
-/**
- * Listen for acceptance of a link invite and return the unsubscribe handle.
- */
 export const listenForLinkInviteAcceptance = (
   invite: Invite,
   onAccepted: (ownerPubkey: string) => void
 ): (() => void) => {
-  if (!delegateManager) {
-    throw new Error("DelegateManager not initialized")
-  }
+  const delegateManager = getDelegateManager()
   if (!invite.inviterEphemeralPrivateKey) {
     throw new Error("Invite missing ephemeral private key")
   }
 
   const inviterPrivateKey = delegateManager.getIdentityKey()
-  const nostrSubscribe = getNostrSubscribe()
+  const subscribe = createSubscribe(ndk())
 
-  const filter: NDKFilter = {
-    kinds: [INVITE_RESPONSE_KIND],
-    "#p": [invite.inviterEphemeralPublicKey],
-  }
+  return subscribe(
+    {
+      kinds: [INVITE_RESPONSE_KIND],
+      "#p": [invite.inviterEphemeralPublicKey],
+    } as NDKFilter,
+    async (event) => {
+      try {
+        if (invite.maxUses && invite.usedBy.length >= invite.maxUses) {
+          return
+        }
 
-  return nostrSubscribe(filter, async (event: VerifiedEvent) => {
-    try {
-      if (invite.maxUses && invite.usedBy.length >= invite.maxUses) {
-        return
+        const decrypted = await decryptInviteResponse({
+          envelopeContent: event.content,
+          envelopeSenderPubkey: event.pubkey,
+          inviterEphemeralPrivateKey: invite.inviterEphemeralPrivateKey!,
+          inviterPrivateKey,
+          sharedSecret: invite.sharedSecret,
+        })
+
+        invite.usedBy.push(decrypted.inviteeIdentity)
+        onAccepted(decrypted.ownerPublicKey || decrypted.inviteeIdentity)
+      } catch {
+        // ignore invalid responses
       }
-
-      const decrypted = await decryptInviteResponse({
-        envelopeContent: event.content,
-        envelopeSenderPubkey: event.pubkey,
-        inviterEphemeralPrivateKey: invite.inviterEphemeralPrivateKey!,
-        inviterPrivateKey,
-        sharedSecret: invite.sharedSecret,
-      })
-
-      invite.usedBy.push(decrypted.inviteeIdentity)
-
-      const ownerPubkey = decrypted.ownerPublicKey || decrypted.inviteeIdentity
-      onAccepted(ownerPubkey)
-    } catch {
-      // ignore invalid responses
     }
-  })
-}
-
-/**
- * Ensure NDK has relay connections before publishing invite responses.
- */
-const ensureNdkConnected = async (): Promise<NDK> => {
-  const ndkInstance = ndk()
-  if (ndkInstance.pool.connectedRelays().length === 0) {
-    await ndkInstance.pool.connect(5000)
-  }
-  return ndkInstance
+  )
 }
 
 const acceptInviteViaSessionManager = async (
   invite: Invite,
   ownerPublicKey: string
 ): Promise<string> => {
-  const {publicKey} = useUserStore.getState()
+  const { publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
   await ensureNdkConnected()
-  const manager = await ensureSessionManager(publicKey)
-  const {ownerPublicKey: acceptedOwnerPublicKey} = await manager.acceptInvite(invite, {
-    ownerPublicKey,
-  })
+  await getRuntime().initForOwner(publicKey)
+  const { ownerPublicKey: acceptedOwnerPublicKey } = await getRuntime().acceptInvite(
+    invite,
+    {
+      ownerPublicKey,
+    }
+  )
   return acceptedOwnerPublicKey
 }
 
-/**
- * Accept a link invite as the owner and publish the response event.
- */
 export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
-  const {linkedDevice, publicKey} = useUserStore.getState()
+  const { linkedDevice, publicKey } = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -908,9 +510,6 @@ export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
   await acceptInviteViaSessionManager(invite, publicKey)
 }
 
-/**
- * Accept a chat invite and publish the response event.
- */
 export const acceptChatInvite = async (invite: Invite): Promise<string> => {
   return acceptInviteViaSessionManager(invite, invite.ownerPubkey || invite.inviter)
 }
