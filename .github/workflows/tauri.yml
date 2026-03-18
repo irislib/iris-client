@@ -6,6 +6,9 @@ on:
       - "v*"
       - "app-v*"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # This workflow runs when a version tag is pushed, then builds and publishes
 # platform artifacts to the GitHub release for that tag.
 

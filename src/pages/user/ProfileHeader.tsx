@@ -61,9 +61,7 @@ const ProfileHeader = ({
     log("Checking for AppKeys from user:", pubKeyHex)
 
     const ndkInstance = ndk()
-    const subscription = ndkInstance.subscribe(
-      buildAppKeysFilter(pubKeyHex) as NDKFilter
-    )
+    const subscription = ndkInstance.subscribe(buildAppKeysFilter(pubKeyHex) as NDKFilter)
 
     subscription.on("event", (event: NDKEvent) => {
       try {
