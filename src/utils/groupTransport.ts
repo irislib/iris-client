@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {NDKEvent, NDKSubscriptionCacheUsage} from "@/lib/ndk"
 import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {LocalForageStorageAdapter} from "@/session/StorageAdapter"
 import {useDevicesStore} from "@/stores/devices"
@@ -29,6 +29,12 @@ type GroupManagerRuntime = {
 const groupStorage = new LocalForageStorageAdapter()
 let runtime: GroupManagerRuntime | null = null
 let unsubscribeGroupsStore: (() => void) | null = null
+const GROUP_OUTER_BACKFILL_LOOKBACK_SECONDS = 3600
+const GROUP_OUTER_BACKFILL_RETRY_DELAYS_MS = [0, 500, 1500]
+const GROUP_OUTER_BACKFILL_DEBOUNCE_MS = 1500
+const recentGroupOuterBackfillAt = new Map<string, number>()
+const recentFetchedGroupOuterEventIds = new Map<string, number>()
+const RECENT_GROUP_OUTER_EVENT_TTL_MS = 5 * 60 * 1000
 
 function resolveOwnerPubkey(): string | null {
   const owner = useUserStore.getState().publicKey?.trim()
@@ -88,7 +94,10 @@ function isVerifiedNostrEvent(value: unknown): value is VerifiedEvent {
 
 function createNostrSubscribe(): NostrSubscribe {
   return (filter, onEvent) => {
-    const sub = ndk().subscribe(filter)
+    const sub = ndk().subscribe(filter, {
+      closeOnEose: false,
+      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+    })
     sub.on("event", (event: unknown) => {
       const raw =
         event && typeof event === "object" && "rawEvent" in event
@@ -99,6 +108,114 @@ function createNostrSubscribe(): NostrSubscribe {
     })
     sub.start()
     return () => sub.stop()
+  }
+}
+
+function parseSenderEventPubkey(event: Rumor): string | null {
+  if (event.kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) return null
+  try {
+    const parsed = JSON.parse(event.content) as {senderEventPubkey?: unknown}
+    const senderEventPubkey = parsed.senderEventPubkey
+    if (
+      typeof senderEventPubkey === "string" &&
+      /^[0-9a-f]{64}$/i.test(senderEventPubkey)
+    ) {
+      return senderEventPubkey.toLowerCase()
+    }
+  } catch {
+    // ignore malformed distribution payloads
+  }
+  return null
+}
+
+function parseOuterMessageNumber(content: string): number {
+  try {
+    const binary = atob(content)
+    if (binary.length < 8) return 0
+    return (
+      ((binary.charCodeAt(4) & 0xff) << 24) |
+      ((binary.charCodeAt(5) & 0xff) << 16) |
+      ((binary.charCodeAt(6) & 0xff) << 8) |
+      (binary.charCodeAt(7) & 0xff)
+    ) >>> 0
+  } catch {
+    return 0
+  }
+}
+
+function pruneRecentFetchedGroupOuterEventIds(now: number): void {
+  for (const [eventId, seenAt] of recentFetchedGroupOuterEventIds.entries()) {
+    if (now - seenAt > RECENT_GROUP_OUTER_EVENT_TTL_MS) {
+      recentFetchedGroupOuterEventIds.delete(eventId)
+    }
+  }
+}
+
+async function backfillRecentGroupOuterEvents(
+  manager: GroupManager,
+  senderEventPubkeys: string[]
+): Promise<void> {
+  const now = Date.now()
+  const authors = Array.from(
+    new Set(
+      senderEventPubkeys.filter((pubkey) => {
+        if (!pubkey) return false
+        const lastBackfillAt = recentGroupOuterBackfillAt.get(pubkey) || 0
+        if (now - lastBackfillAt < GROUP_OUTER_BACKFILL_DEBOUNCE_MS) {
+          return false
+        }
+        recentGroupOuterBackfillAt.set(pubkey, now)
+        return true
+      })
+    )
+  )
+  if (authors.length === 0) return
+
+  for (const delayMs of GROUP_OUTER_BACKFILL_RETRY_DELAYS_MS) {
+    setTimeout(() => {
+      void (async () => {
+        const events = await ndk().fetchEvents(
+          {
+            kinds: [1060 as any],
+            authors,
+            since: Math.max(
+              0,
+              Math.floor(Date.now() / 1000) - GROUP_OUTER_BACKFILL_LOOKBACK_SECONDS
+            ),
+          },
+          {
+            cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+          }
+        )
+
+        const attemptNow = Date.now()
+        pruneRecentFetchedGroupOuterEventIds(attemptNow)
+
+        const fetched = Array.from(events)
+          .map((event) => {
+            const raw =
+              event && typeof event === "object" && "rawEvent" in event
+                ? (event as {rawEvent?: () => unknown}).rawEvent?.()
+                : event
+            return isVerifiedNostrEvent(raw) ? raw : null
+          })
+          .filter((event): event is VerifiedEvent => event !== null)
+          .sort((a, b) => {
+            if (a.pubkey !== b.pubkey) return a.pubkey.localeCompare(b.pubkey)
+            const aNumber = parseOuterMessageNumber(a.content)
+            const bNumber = parseOuterMessageNumber(b.content)
+            if (aNumber !== bNumber) return aNumber - bNumber
+            if (a.created_at !== b.created_at) return a.created_at - b.created_at
+            return a.id.localeCompare(b.id)
+          })
+
+        for (const outer of fetched) {
+          if (recentFetchedGroupOuterEventIds.has(outer.id)) continue
+          recentFetchedGroupOuterEventIds.set(outer.id, attemptNow)
+          await manager.handleOuterEvent(outer).catch(() => {})
+        }
+      })().catch(() => {})
+    }, delayMs)
   }
 }
 
@@ -280,11 +397,15 @@ export async function ingestGroupSessionEvent(
   const manager = ensureGroupManager()
   if (!manager) return
 
+  const senderEventPubkey = parseSenderEventPubkey(event)
   await manager.handleIncomingSessionEvent(
     event,
     senderOwnerPubkey,
     senderDevicePubkey || event.pubkey
   )
+  if (senderEventPubkey) {
+    await backfillRecentGroupOuterEvents(manager, [senderEventPubkey])
+  }
 }
 
 export async function sendGroupEventViaTransport(options: {
