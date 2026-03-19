@@ -170,7 +170,7 @@ describe("dmEventHandler receipts", () => {
     ])
   })
 
-  it("treats a session-backed sibling chat as accepted", async () => {
+  it("keeps receive-only session-backed first-contact DMs as requests", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
     sessionManager.getUserRecords.mockReturnValue(
       new Map([
@@ -185,6 +185,62 @@ describe("dmEventHandler receipts", () => {
                     state: {
                       theirCurrentNostrPublicKey: THEIR_PUBKEY,
                       theirNextNostrPublicKey: "e".repeat(64),
+                      sendingChainMessageNumber: 0,
+                      previousSendingChainMessageCount: 0,
+                      receivingChainMessageNumber: 1,
+                    },
+                  },
+                  inactiveSessions: [],
+                },
+              ],
+            ]),
+          },
+        ],
+      ])
+    )
+
+    attachSessionEventListener(sessionManager as any)
+    await flushPromises()
+
+    capturedCallback?.(
+      {
+        id: "msg-session-request",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: THEIR_PUBKEY,
+        content: "hello from unknown sender",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      },
+      THEIR_PUBKEY
+    )
+
+    expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
+
+    const stored = usePrivateMessagesStore
+      .getState()
+      .events.get(THEIR_PUBKEY)
+      ?.get("msg-session-request")
+    expect(stored).toBeTruthy()
+    expect(stored?.status).not.toBe("delivered")
+  })
+
+  it("treats session-backed chats with outgoing activity as accepted", async () => {
+    useMessagesStore.setState({sendDeliveryReceipts: true})
+    sessionManager.getUserRecords.mockReturnValue(
+      new Map([
+        [
+          THEIR_PUBKEY,
+          {
+            devices: new Map([
+              [
+                "device-1",
+                {
+                  activeSession: {
+                    state: {
+                      theirCurrentNostrPublicKey: THEIR_PUBKEY,
+                      theirNextNostrPublicKey: "e".repeat(64),
+                      sendingChainMessageNumber: 1,
+                      previousSendingChainMessageCount: 0,
                     },
                   },
                   inactiveSessions: [],

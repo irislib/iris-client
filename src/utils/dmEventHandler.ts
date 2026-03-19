@@ -18,12 +18,12 @@ import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {
-  hasExistingSessionWithRecipient,
   isOwnDeviceEvent,
   isOwnDevicePubkey,
   resolveSessionPubkeyToOwner,
   type SessionUserRecordsLike,
 } from "@/utils/sessionRouting"
+import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {ingestGroupSessionEvent} from "@/utils/groupTransport"
@@ -458,27 +458,15 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
       const {acceptedChats, rejectedChats} = useMessageRequestsStore.getState()
       const isLocallyAccepted = !!acceptedChats[chatId]
       const isLocallyRejected = !!rejectedChats[chatId]
-      const hasAcceptedSession = hasExistingSessionWithRecipient(
+      const messageMap = usePrivateMessagesStore.getState().events.get(chatId)
+      const isChatAccepted = isPrivateChatAccepted({
+        recipientPubkey: chatId,
+        isFollowed: getSocialGraph().isFollowing(publicKey, chatId),
+        isLocallyAccepted,
+        messages: messageMap?.values(),
+        myPubKey: publicKey,
         sessionUserRecords,
-        chatId
-      )
-      const isChatAccepted =
-        // Followed users go straight to "All".
-        getSocialGraph().isFollowing(publicKey, chatId) ||
-        // Explicitly accepted requests (without following).
-        isLocallyAccepted ||
-        // Session bootstraps accepted on a sibling device should not regress to Requests here.
-        hasAcceptedSession ||
-        // Treat chats we've already sent to as accepted (request has been "accepted").
-        (() => {
-          const messageMap = usePrivateMessagesStore.getState().events.get(chatId)
-          if (!messageMap) return false
-          for (const msg of messageMap.values()) {
-            const owner = msg.ownerPubkey ?? msg.pubkey
-            if (owner === publicKey) return true
-          }
-          return false
-        })()
+      })
 
       const {receiveMessageRequests} = useMessagesStore.getState()
       const shouldIgnoreRequest =

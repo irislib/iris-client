@@ -18,10 +18,8 @@ import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useUIStore} from "@/stores/ui"
 import {getSessionManager} from "@/shared/services/PrivateChats"
-import {
-  hasExistingSessionWithRecipient,
-  type SessionUserRecordsLike,
-} from "@/utils/sessionRouting"
+import {type SessionUserRecordsLike} from "@/utils/sessionRouting"
+import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 
 interface ChatListProps {
   className?: string
@@ -79,31 +77,21 @@ const ChatList = ({className}: ChatListProps) => {
       (getSessionManager()?.getUserRecords() as SessionUserRecordsLike | undefined) ??
       null
 
-    // "Accepted" = we follow them OR we explicitly accepted OR we've already sent at least one message.
+    // "Accepted" = followed, explicitly accepted, locally sent, or backed by outgoing session activity.
     for (const {userPubKey} of privateChatsList) {
       if (rejectedChats[userPubKey]) continue
 
-      const isFollowed = followsSet.has(userPubKey)
-      const isLocallyAccepted = !!acceptedChats[userPubKey]
-      const hasAcceptedSession = hasExistingSessionWithRecipient(
+      const messageMap = events.get(userPubKey)
+      const isAccepted = isPrivateChatAccepted({
+        recipientPubkey: userPubKey,
+        isFollowed: followsSet.has(userPubKey),
+        isLocallyAccepted: !!acceptedChats[userPubKey],
+        messages: messageMap?.values(),
+        myPubKey,
         sessionUserRecords,
-        userPubKey
-      )
-      let hasSent = false
-      if (!isFollowed && !isLocallyAccepted && !hasAcceptedSession && myPubKey) {
-        const messageMap = events.get(userPubKey)
-        if (messageMap) {
-          for (const msg of messageMap.values()) {
-            const owner = msg.ownerPubkey ?? msg.pubkey
-            if (owner === myPubKey) {
-              hasSent = true
-              break
-            }
-          }
-        }
-      }
+      })
 
-      if (isFollowed || isLocallyAccepted || hasAcceptedSession || hasSent) {
+      if (isAccepted) {
         all.push({id: userPubKey, type: "private"})
       } else {
         requests.push({id: userPubKey, type: "private"})

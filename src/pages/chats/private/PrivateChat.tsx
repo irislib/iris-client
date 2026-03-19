@@ -16,20 +16,15 @@ import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {markMessagesSeenAndMaybeSendReceipt} from "../utils/seenReceipts"
 import {markMessagesDeliveredAndMaybeSendReceipt} from "../utils/deliveredReceipts"
 import {useIsFollowing} from "@/utils/socialGraph"
-import {getMessageAuthorPubkey} from "@/pages/chats/utils/messageAuthor"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useNavigate} from "@/navigation"
 import {useUIStore} from "@/stores/ui"
 import {deletePrivateChat} from "@/shared/services/chatDeletion"
-import {
-  hasExistingSessionWithRecipient,
-  type SessionUserRecordsLike,
-} from "@/utils/sessionRouting"
+import {type SessionUserRecordsLike} from "@/utils/sessionRouting"
+import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
-  const [haveReply, setHaveReply] = useState(false)
-  const [haveSent, setHaveSent] = useState(false)
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
   const isTopOfStack = useIsTopOfStack()
   const navigate = useNavigate()
@@ -40,18 +35,6 @@ const Chat = ({id}: {id: string}) => {
   const isLocallyAccepted = useMessageRequestsStore((state) => !!state.acceptedChats[id])
   const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
   const rejectChat = useMessageRequestsStore((state) => state.rejectChat)
-  let hasAcceptedSession = false
-  try {
-    const sessionManager = getSessionManager()
-    hasAcceptedSession = hasExistingSessionWithRecipient(
-      sessionManager?.getUserRecords() as SessionUserRecordsLike | undefined,
-      id
-    )
-  } catch {
-    hasAcceptedSession = false
-  }
-  const isChatAccepted =
-    isFollowing || haveSent || isLocallyAccepted || hasAcceptedSession
 
   // Allow messaging regardless of session state - sessions will be created automatically
 
@@ -59,6 +42,22 @@ const Chat = ({id}: {id: string}) => {
   const eventsMap = usePrivateMessagesStore((state) => state.events)
   const markOpened = usePrivateMessagesStore((state) => state.markOpened)
   const messages = eventsMap.get(id) ?? new SortedMap<string, MessageType>([], comparator)
+  let sessionUserRecords: SessionUserRecordsLike | undefined
+  try {
+    sessionUserRecords = getSessionManager()?.getUserRecords() as
+      | SessionUserRecordsLike
+      | undefined
+  } catch {
+    sessionUserRecords = undefined
+  }
+  const isChatAccepted = isPrivateChatAccepted({
+    recipientPubkey: id,
+    isFollowed: isFollowing,
+    isLocallyAccepted,
+    messages: messages.values(),
+    myPubKey,
+    sessionUserRecords,
+  })
   const lastMessageEntry = messages.last()
   const lastMessage = lastMessageEntry ? lastMessageEntry[1] : undefined
   const lastMessageTimestamp = lastMessage
@@ -132,25 +131,6 @@ const Chat = ({id}: {id: string}) => {
     markOpened(id)
     sendSeenReceipts()
   }, [id, markOpened, isTopOfStack, sendSeenReceipts])
-
-  useEffect(() => {
-    if (!id) {
-      return
-    }
-
-    if (!messages) return
-
-    const myPubKey = useUserStore.getState().publicKey
-    Array.from(messages.entries()).forEach(([, message]) => {
-      const owner = getMessageAuthorPubkey(message)
-      if (!haveReply && owner !== myPubKey) {
-        setHaveReply(true)
-      }
-      if (!haveSent && owner === myPubKey) {
-        setHaveSent(true)
-      }
-    })
-  }, [id, messages, haveReply, haveSent])
 
   useEffect(() => {
     if (!id) return
