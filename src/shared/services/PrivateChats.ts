@@ -1,4 +1,5 @@
 import { VerifiedEvent } from "nostr-tools"
+import {hexToBytes} from "@noble/hashes/utils"
 import { LocalForageStorageAdapter } from "../../session/StorageAdapter"
 import {
   AppKeysManager,
@@ -28,6 +29,10 @@ import { createDebugLogger } from "@/utils/createDebugLogger"
 import { DEBUG_NAMESPACES } from "@/utils/constants"
 import { attachSessionEventListener } from "@/utils/dmEventHandler"
 import { attachGroupMessageListener } from "@/utils/groupMessageHandler"
+import {
+  getCurrentDeviceRegistrationLabels,
+  getLinkedDeviceRegistrationLabels,
+} from "./deviceLabels"
 
 const { log } = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -37,6 +42,7 @@ const APP_KEYS_FAST_TIMEOUT_MS = 2000
 let runtime: NdrRuntime | null = null
 let runtimeCleanup: (() => void) | null = null
 let lastRuntimeState: NdrRuntimeState | null = null
+let runtimeOwnerIdentityKeyHex: string | null = null
 
 const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
   const store = useDevicesStore.getState()
@@ -98,10 +104,31 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
   }) as NostrPublish
 }
 
+const getOwnerIdentityKeyHex = (): string | null => {
+  const { privateKey, linkedDevice } = useUserStore.getState()
+  if (linkedDevice) {
+    return null
+  }
+  return privateKey?.trim() ? privateKey.trim() : null
+}
+
+const closeRuntime = (): void => {
+  runtimeCleanup?.()
+  runtimeCleanup = null
+  runtime?.close()
+  runtime = null
+  lastRuntimeState = null
+  runtimeOwnerIdentityKeyHex = null
+}
+
 const getRuntime = (): NdrRuntime => {
-  if (runtime) {
+  const ownerIdentityKeyHex = getOwnerIdentityKeyHex()
+
+  if (runtime && runtimeOwnerIdentityKeyHex === ownerIdentityKeyHex) {
     return runtime
   }
+
+  closeRuntime()
 
   runtime = new NdrRuntime({
     nostrSubscribe: createSubscribe(ndk()),
@@ -109,7 +136,9 @@ const getRuntime = (): NdrRuntime => {
     storage: new LocalForageStorageAdapter(),
     appKeysFetchTimeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
     appKeysFastTimeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
+    ...(ownerIdentityKeyHex ? {ownerIdentityKey: hexToBytes(ownerIdentityKeyHex)} : {}),
   })
+  runtimeOwnerIdentityKeyHex = ownerIdentityKeyHex
 
   runtimeCleanup = runtime.onStateChange((state) => {
     syncDeviceStoreFromRuntime(state)
@@ -208,11 +237,14 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
     throw new Error("No public key - user must be logged in")
   }
 
+  const labels = await getCurrentDeviceRegistrationLabels()
+
   await ensureNdkConnected()
   await getRuntime().initForOwner(publicKey)
   await getRuntime().registerCurrentDevice({
     ownerPubkey: publicKey,
     timeoutMs,
+    ...labels,
   })
 
   log("Device registered:", getRuntime().getState().currentDevicePubkey)
@@ -243,10 +275,13 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
     throw new Error("No public key - user must be logged in")
   }
 
+  const labels = await getCurrentDeviceRegistrationLabels()
+
   await waitForManagers()
   return getRuntime().prepareRegistration({
     ownerPubkey: publicKey,
     timeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+    ...labels,
   })
 }
 
@@ -258,11 +293,14 @@ export const prepareRegistrationForIdentity = async (
     throw new Error("No public key - user must be logged in")
   }
 
+  const labels = await getLinkedDeviceRegistrationLabels()
+
   await waitForManagers()
   return getRuntime().prepareRegistrationForIdentity({
     ownerPubkey: publicKey,
     identityPubkey,
     timeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
+    ...labels,
   })
 }
 

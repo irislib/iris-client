@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
     identityPubkey: null as string | null,
     registeredDevices: [] as Array<{identityPubkey: string; createdAt: number}>,
   },
+  appKeysManager: {
+    getDeviceLabels: vi.fn(() => undefined as {deviceLabel?: string; clientLabel?: string} | undefined),
+  },
 }))
 
 vi.mock("@/stores/devices", () => ({
@@ -22,6 +25,8 @@ vi.mock("@/shared/services/PrivateChats", () => ({
   republishInvite: vi.fn(),
   prepareRevocation: vi.fn(),
   publishPreparedRevocation: vi.fn(),
+  refreshOwnAppKeysFromRelay: vi.fn(),
+  getAppKeysManager: () => mocks.appKeysManager,
 }))
 
 describe("DeviceList", () => {
@@ -52,6 +57,8 @@ describe("DeviceList", () => {
       identityPubkey: null,
       registeredDevices: [],
     }
+    mocks.appKeysManager.getDeviceLabels.mockReset()
+    mocks.appKeysManager.getDeviceLabels.mockReturnValue(undefined)
   })
 
   it("shows all managed device keys as npub", async () => {
@@ -76,5 +83,27 @@ describe("DeviceList", () => {
     expect(container.textContent).toContain(nip19.npubEncode(siblingDevicePubkey))
     expect(container.textContent).not.toContain(currentDevicePubkey)
     expect(container.textContent).not.toContain(siblingDevicePubkey)
+  })
+
+  it("renders owner-encrypted labels when available", async () => {
+    const currentDevicePubkey =
+      "6b911f0f1ca34f7f6a9f2f7a7d8aa0c92e3f0f0d6bb64abd0c4f2e55d8f67f1f"
+
+    mocks.devicesStore = {
+      identityPubkey: currentDevicePubkey,
+      registeredDevices: [{identityPubkey: currentDevicePubkey, createdAt: 2}],
+    }
+    mocks.appKeysManager.getDeviceLabels.mockImplementation((pubkey: string) =>
+      pubkey === currentDevicePubkey
+        ? {deviceLabel: "Sirius MacBook", clientLabel: "Iris Client Desktop"}
+        : undefined
+    )
+
+    await act(async () => {
+      root.render(React.createElement(DeviceList))
+    })
+
+    expect(container.textContent).toContain("Sirius MacBook")
+    expect(container.textContent).toContain("Iris Client Desktop")
   })
 })

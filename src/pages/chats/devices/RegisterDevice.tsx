@@ -10,7 +10,7 @@ import {RiAddLine, RiComputerLine} from "@remixicon/react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import Icon from "@/shared/components/Icons/Icon"
-import {formatManagedDevicePubkey} from "./formatManagedDevicePubkey"
+import {describeManagedDevice, getStoredManagedDeviceLabels} from "@/shared/services/deviceLabels"
 
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -101,6 +101,13 @@ const RegisterDevice = () => {
               {preparedRegistration?.devices.map((device) => {
                 const isNewDevice =
                   device.identityPubkey === preparedRegistration.newDeviceIdentity
+                const display = describeManagedDevice(
+                  device.identityPubkey,
+                  getStoredManagedDeviceLabels(
+                    device.identityPubkey,
+                    preparedRegistration.appKeys
+                  )
+                )
                 return (
                   <div
                     key={device.identityPubkey}
@@ -115,9 +122,14 @@ const RegisterDevice = () => {
                         isNewDevice ? "text-primary" : "text-base-content/70"
                       }`}
                     />
-                    <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
-                      {formatManagedDevicePubkey(device.identityPubkey)}
-                    </span>
+                    <div className="min-w-0 w-0 flex-1">
+                      <span className="font-mono text-sm truncate block">{display.title}</span>
+                      {display.subtitle && (
+                        <span className="text-xs text-base-content/60 truncate block">
+                          {display.subtitle}
+                        </span>
+                      )}
+                    </div>
                     {isNewDevice && (
                       <span className="badge badge-primary badge-sm ml-auto shrink-0">
                         New

@@ -7,6 +7,7 @@ import {
   RiDeleteBinLine,
 } from "@remixicon/react"
 import {
+  getAppKeysManager,
   republishInvite,
   prepareRevocation,
   publishPreparedRevocation,
@@ -14,7 +15,10 @@ import {
   refreshOwnAppKeysFromRelay,
 } from "@/shared/services/PrivateChats"
 import Icon from "@/shared/components/Icons/Icon"
-import {formatManagedDevicePubkey} from "./formatManagedDevicePubkey"
+import {
+  describeManagedDevice,
+  getStoredManagedDeviceLabels,
+} from "@/shared/services/deviceLabels"
 
 const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
   if (revoking) {
@@ -33,6 +37,14 @@ const DeviceList = () => {
   )
   const [isRemovingCurrentDevice, setIsRemovingCurrentDevice] = useState(false)
   const modalRef = useRef<HTMLDialogElement>(null)
+
+  const appKeysManager = (() => {
+    try {
+      return getAppKeysManager()
+    } catch {
+      return undefined
+    }
+  })()
 
   useEffect(() => {
     if (deviceToRevoke && preparedRevocation) {
@@ -111,7 +123,10 @@ const DeviceList = () => {
         .map((device) => {
           const isCurrentDevice = device.identityPubkey === identityPubkey
           const createdDate = new Date(device.createdAt * 1000).toLocaleDateString()
-          const displayPubkey = formatManagedDevicePubkey(device.identityPubkey)
+          const display = describeManagedDevice(
+            device.identityPubkey,
+            getStoredManagedDeviceLabels(device.identityPubkey, appKeysManager)
+          )
 
           return (
             <div
@@ -127,7 +142,7 @@ const DeviceList = () => {
                       className="font-mono text-sm truncate min-w-0 w-0 flex-1 block"
                       data-testid="registered-device-pubkey"
                     >
-                      {displayPubkey}
+                      {display.title}
                     </span>
                     {isCurrentDevice && (
                       <span className="badge badge-primary badge-sm shrink-0">
@@ -135,7 +150,9 @@ const DeviceList = () => {
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-base-content/60">Added {createdDate}</div>
+                  <div className="text-xs text-base-content/60">
+                    {[display.subtitle, `Added ${createdDate}`].filter(Boolean).join(" • ")}
+                  </div>
                 </div>
                 {isCurrentDevice ? (
                   <div className="flex items-center gap-1">
@@ -198,9 +215,16 @@ const DeviceList = () => {
               {deviceToRevoke && (
                 <div className="flex items-center gap-2 rounded-lg p-2 bg-error/10 border border-error/30">
                   <RiComputerLine className="w-4 h-4 shrink-0 text-error" />
-                  <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block line-through text-error/70">
-                    {formatManagedDevicePubkey(deviceToRevoke)}
-                  </span>
+                  <div className="min-w-0 w-0 flex-1">
+                    <span className="font-mono text-sm truncate block line-through text-error/70">
+                      {
+                        describeManagedDevice(
+                          deviceToRevoke,
+                          getStoredManagedDeviceLabels(deviceToRevoke, appKeysManager)
+                        ).title
+                      }
+                    </span>
+                  </div>
                   <span className="badge badge-error badge-sm ml-auto shrink-0">
                     Removed
                   </span>
@@ -213,9 +237,19 @@ const DeviceList = () => {
                   className="flex items-center gap-2 rounded-lg p-2 bg-base-200"
                 >
                   <RiComputerLine className="w-4 h-4 shrink-0 text-base-content/70" />
-                  <span className="font-mono text-sm truncate min-w-0 w-0 flex-1 block">
-                    {formatManagedDevicePubkey(device.identityPubkey)}
-                  </span>
+                  <div className="min-w-0 w-0 flex-1">
+                    <span className="font-mono text-sm truncate block">
+                      {
+                        describeManagedDevice(
+                          device.identityPubkey,
+                          getStoredManagedDeviceLabels(
+                            device.identityPubkey,
+                            preparedRevocation.appKeys
+                          )
+                        ).title
+                      }
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
