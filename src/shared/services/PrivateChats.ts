@@ -1,4 +1,3 @@
-import { VerifiedEvent } from "nostr-tools"
 import {hexToBytes} from "@noble/hashes/utils"
 import { LocalForageStorageAdapter } from "../../session/StorageAdapter"
 import {
@@ -19,7 +18,6 @@ import {
 import NDK, {
   NDKEvent,
   NDKFilter,
-  NDKSubscriptionCacheUsage,
 } from "@/lib/ndk"
 import { ndk } from "@/utils/ndk"
 import { useUserStore } from "../../stores/user"
@@ -33,6 +31,7 @@ import {
   getCurrentDeviceRegistrationLabels,
   getLinkedDeviceRegistrationLabels,
 } from "./deviceLabels"
+import { createRuntimeSubscribe } from "./runtimeSubscribe"
 
 const { log } = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -56,22 +55,7 @@ const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
 }
 
 const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
-  return (filter: NDKFilter, onEvent: (event: VerifiedEvent) => void) => {
-    const subscription = ndkInstance.subscribe(filter, {
-      closeOnEose: false,
-      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
-    })
-
-    subscription.on("event", (event: NDKEvent) => {
-      onEvent(event as unknown as VerifiedEvent)
-    })
-
-    subscription.start()
-
-    return () => {
-      subscription.stop()
-    }
-  }
+  return createRuntimeSubscribe(ndkInstance)
 }
 
 export const getNostrSubscribe = (): NostrSubscribe => {

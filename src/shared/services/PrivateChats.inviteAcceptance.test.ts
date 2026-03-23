@@ -3,36 +3,45 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 const mocks = vi.hoisted(() => {
   const ownerPubkey = "a".repeat(64)
   const devicePubkey = "b".repeat(64)
-  const delegateInvite = {
+  const linkInvite = {
     inviter: devicePubkey,
     inviterEphemeralPublicKey: "c".repeat(64),
     inviterEphemeralPrivateKey: new Uint8Array([1, 2, 3]),
+    ownerPubkey,
+    purpose: "link",
     sharedSecret: "d".repeat(64),
-    getEvent: vi.fn(() => ({
-      kind: 30078,
-      pubkey: devicePubkey,
-      content: "",
-      created_at: Math.floor(Date.now() / 1000),
-      tags: [],
-    })),
-    serialize: vi.fn(() => "delegate-invite"),
   }
 
-  const sessionManager = {
-    init: vi.fn().mockResolvedValue(undefined),
+  const runtimeState = {
+    ownerPubkey,
+    currentDevicePubkey: devicePubkey,
+    registeredDevices: [],
+    hasLocalAppKeys: false,
+    isCurrentDeviceRegistered: false,
+    appKeysManagerReady: false,
+    sessionManagerReady: false,
+    lastAppKeysCreatedAt: undefined,
+  }
+
+  const runtime = {
+    onStateChange: vi.fn(() => () => {}),
+    close: vi.fn(),
+    getState: vi.fn(() => runtimeState),
+    getDelegateManager: vi.fn(() => null),
+    getAppKeysManager: vi.fn(() => null),
+    getSessionManager: vi.fn(() => null),
+    initDelegateManager: vi.fn().mockResolvedValue(undefined),
+    initForOwner: vi.fn().mockResolvedValue({}),
+    createLinkInvite: vi.fn().mockImplementation(async (ownerPublicKey?: string) => ({
+      ...linkInvite,
+      ownerPubkey: ownerPublicKey,
+    })),
     acceptInvite: vi.fn().mockResolvedValue({
       ownerPublicKey: ownerPubkey,
       deviceId: devicePubkey,
       session: {},
     }),
-  }
-
-  const delegateManager = {
-    init: vi.fn().mockResolvedValue(undefined),
-    activate: vi.fn().mockResolvedValue(undefined),
-    createSessionManager: vi.fn(() => sessionManager),
-    getInvite: vi.fn(() => delegateInvite),
-    publishInvite: vi.fn().mockResolvedValue(undefined),
+    republishInvite: vi.fn().mockResolvedValue(undefined),
   }
 
   const ndkInstance = {
@@ -54,15 +63,16 @@ const mocks = vi.hoisted(() => {
   const userState = {
     publicKey: ownerPubkey,
     linkedDevice: false,
+    privateKey: undefined as string | undefined,
   }
 
   return {
     ownerPubkey,
     devicePubkey,
-    delegateInvite,
-    sessionManager,
-    delegateManager,
+    linkInvite,
+    runtime,
     ndkInstance,
+    runtimeState,
     userState,
   }
 })
@@ -70,31 +80,58 @@ const mocks = vi.hoisted(() => {
 vi.mock("nostr-double-ratchet", async (importOriginal) => {
   const actual = await importOriginal<typeof import("nostr-double-ratchet")>()
 
-  class MockDelegateManager {
-    async init() {
-      return mocks.delegateManager.init()
+  class MockNdrRuntime {
+    constructor(_options: unknown) {}
+
+    onStateChange(callback: (state: typeof mocks.runtimeState) => void) {
+      callback(mocks.runtimeState)
+      return mocks.runtime.onStateChange(callback)
     }
 
-    async activate(ownerPubkey: string) {
-      return mocks.delegateManager.activate(ownerPubkey)
+    close() {
+      return mocks.runtime.close()
     }
 
-    createSessionManager() {
-      return mocks.delegateManager.createSessionManager()
+    getState() {
+      return mocks.runtime.getState()
     }
 
-    getInvite() {
-      return mocks.delegateManager.getInvite()
+    getDelegateManager() {
+      return mocks.runtime.getDelegateManager()
     }
 
-    publishInvite() {
-      return mocks.delegateManager.publishInvite()
+    getAppKeysManager() {
+      return mocks.runtime.getAppKeysManager()
+    }
+
+    getSessionManager() {
+      return mocks.runtime.getSessionManager()
+    }
+
+    initDelegateManager() {
+      return mocks.runtime.initDelegateManager()
+    }
+
+    initForOwner(ownerPubkey: string) {
+      return mocks.runtime.initForOwner(ownerPubkey)
+    }
+
+    createLinkInvite(ownerPubkey?: string) {
+      return mocks.runtime.createLinkInvite(ownerPubkey)
+    }
+
+    acceptInvite(invite: unknown, options?: {ownerPublicKey?: string}) {
+      return mocks.runtime.acceptInvite(invite, options)
+    }
+
+    republishInvite() {
+      return mocks.runtime.republishInvite()
     }
   }
 
   return {
     ...actual,
-    DelegateManager: MockDelegateManager,
+    NdrRuntime: MockNdrRuntime,
   }
 })
 
@@ -104,8 +141,37 @@ vi.mock("../../stores/user", () => ({
   },
 }))
 
+vi.mock("../../stores/devices", () => ({
+  useDevicesStore: {
+    getState: () => ({
+      setIdentityPubkey: vi.fn(),
+      setAppKeysManagerReady: vi.fn(),
+      setSessionManagerReady: vi.fn(),
+      setHasLocalAppKeys: vi.fn(),
+      setRegisteredDevices: vi.fn(),
+    }),
+  },
+}))
+
+vi.mock("@/stores/privateMessages", () => ({
+  usePrivateMessagesStore: {
+    getState: () => ({
+      events: new Map(),
+      updateMessage: vi.fn(),
+    }),
+  },
+}))
+
 vi.mock("@/utils/ndk", () => ({
   ndk: () => mocks.ndkInstance,
+}))
+
+vi.mock("@/utils/dmEventHandler", () => ({
+  attachSessionEventListener: vi.fn(),
+}))
+
+vi.mock("@/utils/groupMessageHandler", () => ({
+  attachGroupMessageListener: vi.fn(),
 }))
 
 vi.mock("@/lib/ndk", () => {
@@ -125,38 +191,51 @@ vi.mock("@/lib/ndk", () => {
   return {
     default: MockNDK,
     NDKEvent: MockNDKEvent,
+    NDKSubscriptionCacheUsage: {
+      PARALLEL: "PARALLEL",
+      ONLY_RELAY: "ONLY_RELAY",
+    },
   }
 })
 
 describe("PrivateChats invite acceptance", () => {
   beforeEach(() => {
-    mocks.delegateManager.init.mockClear()
-    mocks.delegateManager.activate.mockClear()
-    mocks.delegateManager.createSessionManager.mockClear()
-    mocks.delegateManager.getInvite.mockClear()
-    mocks.delegateManager.publishInvite.mockClear()
-    mocks.sessionManager.init.mockClear()
-    mocks.sessionManager.acceptInvite.mockClear()
+    vi.resetModules()
+    mocks.runtime.onStateChange.mockClear()
+    mocks.runtime.close.mockClear()
+    mocks.runtime.getState.mockClear()
+    mocks.runtime.getDelegateManager.mockClear()
+    mocks.runtime.getAppKeysManager.mockClear()
+    mocks.runtime.getSessionManager.mockClear()
+    mocks.runtime.initDelegateManager.mockClear()
+    mocks.runtime.initForOwner.mockClear()
+    mocks.runtime.createLinkInvite.mockClear()
+    mocks.runtime.acceptInvite.mockClear()
+    mocks.runtime.republishInvite.mockClear()
     mocks.ndkInstance.pool.connectedRelays.mockClear()
     mocks.ndkInstance.pool.connect.mockClear()
     mocks.userState.publicKey = mocks.ownerPubkey
     mocks.userState.linkedDevice = false
+    mocks.userState.privateKey = undefined
   })
 
-  it("createLinkInvite reuses the delegate manager invite", async () => {
+  it("createLinkInvite delegates to NdrRuntime with the current owner pubkey", async () => {
     const {createLinkInvite} = await import("./PrivateChats")
 
     const invite = await createLinkInvite()
 
-    expect(mocks.delegateManager.init).toHaveBeenCalledTimes(1)
-    expect(mocks.delegateManager.getInvite).toHaveBeenCalledTimes(1)
-    expect(invite).toBe(mocks.delegateInvite)
+    expect(mocks.runtime.initDelegateManager).toHaveBeenCalledTimes(1)
+    expect(mocks.runtime.createLinkInvite).toHaveBeenCalledTimes(1)
+    expect(mocks.runtime.createLinkInvite).toHaveBeenCalledWith(mocks.ownerPubkey)
+    expect(invite).toMatchObject({
+      inviter: mocks.devicePubkey,
+      ownerPubkey: mocks.ownerPubkey,
+      purpose: "link",
+    })
   })
 
-  it("acceptLinkInvite uses SessionManager.acceptInvite with current owner pubkey", async () => {
-    const {initPrivateMessaging, acceptLinkInvite} = await import("./PrivateChats")
-
-    await initPrivateMessaging(mocks.ownerPubkey)
+  it("acceptLinkInvite delegates to NdrRuntime.acceptInvite with the current owner pubkey", async () => {
+    const {acceptLinkInvite} = await import("./PrivateChats")
 
     const invite = {
       inviter: mocks.devicePubkey,
@@ -173,11 +252,12 @@ describe("PrivateChats invite acceptance", () => {
 
     await acceptLinkInvite(invite)
 
-    expect(mocks.sessionManager.acceptInvite).toHaveBeenCalledTimes(1)
-    expect(mocks.sessionManager.acceptInvite).toHaveBeenCalledWith(invite, {
+    expect(mocks.runtime.initForOwner).toHaveBeenCalledTimes(1)
+    expect(mocks.runtime.initForOwner).toHaveBeenCalledWith(mocks.ownerPubkey)
+    expect(mocks.runtime.acceptInvite).toHaveBeenCalledTimes(1)
+    expect(mocks.runtime.acceptInvite).toHaveBeenCalledWith(invite, {
       ownerPublicKey: mocks.ownerPubkey,
     })
-    expect(mocks.delegateManager.publishInvite).toHaveBeenCalledTimes(1)
     expect(invite.accept).not.toHaveBeenCalled()
   })
 })
