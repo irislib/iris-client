@@ -116,7 +116,7 @@ export default function CsaePage() {
                 Iris is open source software. Our code and safety implementations can be
                 reviewed at{" "}
                 <a
-                  href="https://files.iris.to/#/npub1xndmdgymsf4a34rzr7346vp8qcptxf75pjqweh8naa8rklgxpfqqmfjtce/iris-client"
+                  href="https://files.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
