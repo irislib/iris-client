@@ -24,7 +24,7 @@ const mocks = vi.hoisted(() => {
   }
 
   const runtime = {
-    onStateChange: vi.fn(() => () => {}),
+    onStateChange: vi.fn((_: (state: typeof runtimeState) => void) => () => {}),
     close: vi.fn(),
     getState: vi.fn(() => runtimeState),
     getDelegateManager: vi.fn(() => null),

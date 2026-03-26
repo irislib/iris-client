@@ -1,52 +1,10 @@
 import {test, expect, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {nip19} from "nostr-tools"
-
-async function ensureDeviceRegistered(page: Page) {
-  // Navigate to Chats and register device first (required for private messaging)
-  await page.getByRole("link", {name: "Chats"}).click()
-
-  // Go to Devices tab and register this device
-  await page.getByRole("link", {name: "Devices"}).click()
-  await expect(page).toHaveURL(/\/chats\/new\/devices/)
-  await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({
-    timeout: 10000,
-  })
-
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-  const thisDeviceBadge = page.getByText("This device").first()
-
-  if (!(await thisDeviceBadge.isVisible().catch(() => false))) {
-    if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
-      // The devices store starts out empty, so the register button can appear briefly even when
-      // the current device is already registered. Give it a moment to settle before clicking.
-      await Promise.race([
-        thisDeviceBadge.waitFor({state: "visible", timeout: 3000}),
-        registerButton.waitFor({state: "hidden", timeout: 3000}),
-      ]).catch(() => {})
-
-      if (
-        !(await thisDeviceBadge.isVisible().catch(() => false)) &&
-        (await registerButton.isVisible().catch(() => false))
-      ) {
-        await registerButton.click({timeout: 10000})
-
-        // If there are existing devices, registration requires confirmation.
-        const confirmHeading = page.getByRole("heading", {
-          name: "Confirm Device Registration",
-        })
-        if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-          await page.getByRole("button", {name: "Register Device"}).click({
-            timeout: 10000,
-          })
-        }
-
-        await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
-        await expect(registerButton).not.toBeVisible({timeout: 20000})
-      }
-    }
-  }
-}
+import {
+  ensureCurrentDeviceRegistered,
+  expectDmMessageInputEnabled,
+} from "./private-messaging-helpers"
 
 async function openChatFromProfile(page: Page, targetPubkeyHex: string) {
   const targetNpub = nip19.npubEncode(targetPubkeyHex)
@@ -66,10 +24,7 @@ async function openChatFromProfile(page: Page, targetPubkeyHex: string) {
 
   await messageButton.click()
   await expect(page).toHaveURL(/\/chats\/chat/, {timeout: 15000})
-
-  const messageInput = page.getByPlaceholder("Message").last()
-  await expect(messageInput).toBeVisible({timeout: 15000})
-  await expect(messageInput).toBeEnabled({timeout: 60000})
+  await expectDmMessageInputEnabled(page)
 }
 
 test.describe("Group admin edits", () => {
@@ -90,8 +45,8 @@ test.describe("Group admin edits", () => {
       if (!admin.publicKey) throw new Error("Expected admin publicKey from signup")
       if (!member.publicKey) throw new Error("Expected member publicKey from signup")
 
-      await ensureDeviceRegistered(pageA)
-      await ensureDeviceRegistered(pageB)
+      await ensureCurrentDeviceRegistered(pageA)
+      await ensureCurrentDeviceRegistered(pageB)
 
       // Establish a DM session first so group fanout to the member has an active channel.
       await openChatFromProfile(pageA, member.publicKey)

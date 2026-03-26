@@ -1,8 +1,4 @@
-import {
-  NDKEvent,
-  NDKFilter,
-  NDKSubscriptionCacheUsage,
-} from "@/lib/ndk"
+import {NDKEvent, NDKFilter, NDKSubscriptionCacheUsage} from "@/lib/ndk"
 import {
   buildDirectMessageBackfillFilter,
   DirectMessageSubscriptionTracker,
@@ -42,9 +38,9 @@ export const createRuntimeSubscribe = (
     const forwardEvent = (event: NDKEvent) => {
       const rawEvent =
         typeof (event as {rawEvent?: () => unknown}).rawEvent === "function"
-          ? (event as {rawEvent: () => Parameters<typeof onEvent>[0]}).rawEvent()
-          : (event as Parameters<typeof onEvent>[0])
-      onEvent(rawEvent)
+          ? (event as {rawEvent: () => unknown}).rawEvent()
+          : event
+      onEvent(rawEvent as unknown as Parameters<typeof onEvent>[0])
     }
 
     const {token, addedAuthors} = tracker.registerFilter(filter)

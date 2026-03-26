@@ -1,5 +1,5 @@
 import {hexToBytes} from "@noble/hashes/utils"
-import { LocalForageStorageAdapter } from "../../session/StorageAdapter"
+import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {
   AppKeysManager,
   DelegateManager,
@@ -8,39 +8,34 @@ import {
   NdrRuntime,
   SessionManager,
   decryptInviteResponse,
-  type DeviceEntry,
   type NdrRuntimeState,
   type NostrPublish,
   type NostrSubscribe,
   type PreparedRegistration,
   type PreparedRevocation,
 } from "nostr-double-ratchet"
-import NDK, {
-  NDKEvent,
-  NDKFilter,
-} from "@/lib/ndk"
-import { ndk } from "@/utils/ndk"
-import { useUserStore } from "../../stores/user"
-import { useDevicesStore } from "../../stores/devices"
-import { usePrivateMessagesStore } from "@/stores/privateMessages"
-import { createDebugLogger } from "@/utils/createDebugLogger"
-import { DEBUG_NAMESPACES } from "@/utils/constants"
-import { attachSessionEventListener } from "@/utils/dmEventHandler"
-import { attachGroupMessageListener } from "@/utils/groupMessageHandler"
+import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
+import {ndk} from "@/utils/ndk"
+import {useUserStore} from "../../stores/user"
+import {useDevicesStore} from "../../stores/devices"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {createDebugLogger} from "@/utils/createDebugLogger"
+import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {attachSessionEventListener} from "@/utils/dmEventHandler"
+import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
 import {
   getCurrentDeviceRegistrationLabels,
   getLinkedDeviceRegistrationLabels,
 } from "./deviceLabels"
-import { createRuntimeSubscribe } from "./runtimeSubscribe"
+import {createRuntimeSubscribe} from "./runtimeSubscribe"
 
-const { log } = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const APP_KEYS_FETCH_TIMEOUT_MS = 10000
 const APP_KEYS_FAST_TIMEOUT_MS = 2000
 
 let runtime: NdrRuntime | null = null
 let runtimeCleanup: (() => void) | null = null
-let lastRuntimeState: NdrRuntimeState | null = null
 let runtimeOwnerIdentityKeyHex: string | null = null
 
 const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
@@ -69,12 +64,12 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
 
     const innerId = (event.tags ?? []).find(([k]) => k === "inner")?.[1]
     if (innerId) {
-      const { events, updateMessage } = usePrivateMessagesStore.getState()
+      const {events, updateMessage} = usePrivateMessagesStore.getState()
       for (const [chatId, messageMap] of events.entries()) {
         const existing = messageMap.get(innerId)
         if (!existing) continue
 
-        const updates: Partial<typeof existing> = { sentToRelays: true }
+        const updates: Partial<typeof existing> = {sentToRelays: true}
         if (!existing.nostrEventId) {
           updates.nostrEventId = e.id
         }
@@ -89,7 +84,7 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
 }
 
 const getOwnerIdentityKeyHex = (): string | null => {
-  const { privateKey, linkedDevice } = useUserStore.getState()
+  const {privateKey, linkedDevice} = useUserStore.getState()
   if (linkedDevice) {
     return null
   }
@@ -101,7 +96,6 @@ const closeRuntime = (): void => {
   runtimeCleanup = null
   runtime?.close()
   runtime = null
-  lastRuntimeState = null
   runtimeOwnerIdentityKeyHex = null
 }
 
@@ -126,7 +120,6 @@ const getRuntime = (): NdrRuntime => {
 
   runtimeCleanup = runtime.onStateChange((state) => {
     syncDeviceStoreFromRuntime(state)
-    lastRuntimeState = state
   })
 
   return runtime
@@ -216,7 +209,7 @@ export const hasLocalAppKeys = (): boolean => {
 }
 
 export const registerDevice = async (timeoutMs?: number): Promise<void> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -235,7 +228,7 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
 }
 
 export const revokeDevice = async (identityPubkey: string): Promise<void> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -251,10 +244,10 @@ export const revokeDevice = async (identityPubkey: string): Promise<void> => {
   log("Device revoked:", identityPubkey)
 }
 
-export type { PreparedRegistration, PreparedRevocation }
+export type {PreparedRegistration, PreparedRevocation}
 
 export const prepareRegistration = async (): Promise<PreparedRegistration> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -272,7 +265,7 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
 export const prepareRegistrationForIdentity = async (
   identityPubkey: string
 ): Promise<PreparedRegistration> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -298,7 +291,7 @@ export const publishPreparedRegistration = async (
 export const prepareRevocation = async (
   identityPubkey: string
 ): Promise<PreparedRevocation> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
@@ -328,7 +321,7 @@ export const revokeCurrentDevice = async (): Promise<void> => {
 }
 
 export const deleteDeviceInvite = async (deviceId: string) => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
 
   const dTag = `double-ratchet/invites/${deviceId}`
   const deletionEvent = new NDKEvent(ndk(), {
@@ -400,7 +393,7 @@ export const checkInviteOnRelay = async (): Promise<{
 }> => {
   const delegateManager = getRuntime().getDelegateManager()
   if (!delegateManager) {
-    return { found: false }
+    return {found: false}
   }
 
   const deviceId = delegateManager.getIdentityPublicKey()
@@ -409,7 +402,7 @@ export const checkInviteOnRelay = async (): Promise<{
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
       subscription.stop()
-      resolve({ found: false })
+      resolve({found: false})
     }, 3000)
 
     const subscription = ndkInstance.subscribe({
@@ -433,7 +426,7 @@ export const checkInviteOnRelay = async (): Promise<{
 }
 
 export const createLinkInvite = async (): Promise<Invite> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   await initDelegateManager()
   return getRuntime().createLinkInvite(publicKey || undefined)
 }
@@ -501,14 +494,14 @@ const acceptInviteViaSessionManager = async (
   invite: Invite,
   ownerPublicKey: string
 ): Promise<string> => {
-  const { publicKey } = useUserStore.getState()
+  const {publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }
 
   await ensureNdkConnected()
   await getRuntime().initForOwner(publicKey)
-  const { ownerPublicKey: acceptedOwnerPublicKey } = await getRuntime().acceptInvite(
+  const {ownerPublicKey: acceptedOwnerPublicKey} = await getRuntime().acceptInvite(
     invite,
     {
       ownerPublicKey,
@@ -518,7 +511,7 @@ const acceptInviteViaSessionManager = async (
 }
 
 export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
-  const { linkedDevice, publicKey } = useUserStore.getState()
+  const {linkedDevice, publicKey} = useUserStore.getState()
   if (!publicKey) {
     throw new Error("No public key - user must be logged in")
   }

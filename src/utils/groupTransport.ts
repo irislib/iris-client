@@ -1,4 +1,4 @@
-import {NDKEvent, NDKSubscriptionCacheUsage} from "@/lib/ndk"
+import {NDKEvent, NDKSubscriptionCacheUsage, type NDKKind} from "@/lib/ndk"
 import {ensureSessionManager} from "@/shared/services/PrivateChats"
 import {LocalForageStorageAdapter} from "@/session/StorageAdapter"
 import {useDevicesStore} from "@/stores/devices"
@@ -12,6 +12,7 @@ import type {VerifiedEvent} from "nostr-tools"
 import {
   GroupManager,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
+  MESSAGE_EVENT_KIND,
   getMillisecondTimestamp,
   isTyping,
   type GroupData,
@@ -32,6 +33,7 @@ let unsubscribeGroupsStore: (() => void) | null = null
 const GROUP_OUTER_BACKFILL_LOOKBACK_SECONDS = 3600
 const GROUP_OUTER_BACKFILL_RETRY_DELAYS_MS = [0, 500, 1500]
 const GROUP_OUTER_BACKFILL_DEBOUNCE_MS = 1500
+const GROUP_OUTER_MESSAGE_KIND = MESSAGE_EVENT_KIND as unknown as NDKKind
 const recentGroupOuterBackfillAt = new Map<string, number>()
 const recentFetchedGroupOuterEventIds = new Map<string, number>()
 const RECENT_GROUP_OUTER_EVENT_TTL_MS = 5 * 60 * 1000
@@ -133,11 +135,12 @@ function parseOuterMessageNumber(content: string): number {
     const binary = atob(content)
     if (binary.length < 8) return 0
     return (
-      ((binary.charCodeAt(4) & 0xff) << 24) |
-      ((binary.charCodeAt(5) & 0xff) << 16) |
-      ((binary.charCodeAt(6) & 0xff) << 8) |
-      (binary.charCodeAt(7) & 0xff)
-    ) >>> 0
+      (((binary.charCodeAt(4) & 0xff) << 24) |
+        ((binary.charCodeAt(5) & 0xff) << 16) |
+        ((binary.charCodeAt(6) & 0xff) << 8) |
+        (binary.charCodeAt(7) & 0xff)) >>>
+      0
+    )
   } catch {
     return 0
   }
@@ -176,7 +179,7 @@ async function backfillRecentGroupOuterEvents(
       void (async () => {
         const events = await ndk().fetchEvents(
           {
-            kinds: [1060 as any],
+            kinds: [GROUP_OUTER_MESSAGE_KIND],
             authors,
             since: Math.max(
               0,

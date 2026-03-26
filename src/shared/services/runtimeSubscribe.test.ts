@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { NDKSubscriptionCacheUsage } from "@/lib/ndk"
+import {afterEach, describe, expect, it, vi} from "vitest"
+import {NDKSubscriptionCacheUsage} from "@/lib/ndk"
 
-import { createRuntimeSubscribe } from "./runtimeSubscribe"
+import {createRuntimeSubscribe} from "./runtimeSubscribe"
 
 class FakeSubscription {
   private handler: ((event: {rawEvent: () => unknown}) => void) | null = null
@@ -35,11 +35,13 @@ const createNdk = () => {
       pool: {
         connectedRelays: () => [{url: "wss://relay.one"}, {url: "wss://relay.two"}],
       },
-      subscribe: vi.fn((filter: Record<string, unknown>, opts: Record<string, unknown>) => {
-        const subscription = new FakeSubscription()
-        calls.push({filter, opts, subscription})
-        return subscription
-      }),
+      subscribe: vi.fn(
+        (filter: Record<string, unknown>, opts: Record<string, unknown>) => {
+          const subscription = new FakeSubscription()
+          calls.push({filter, opts, subscription})
+          return subscription
+        }
+      ),
     },
   }
 }

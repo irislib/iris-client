@@ -1,48 +1,16 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
-
-async function waitForNextCreatedAtSecond() {
-  const currentSecond = Math.floor(Date.now() / 1000)
-  while (Math.floor(Date.now() / 1000) === currentSecond) {
-    await new Promise((resolve) => setTimeout(resolve, 25))
-  }
-}
-
-async function ensureDeviceRegistered(page) {
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-
-  if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
-    await registerButton.waitFor({state: "hidden", timeout: 3000}).catch(() => {})
-
-    if (await registerButton.isVisible().catch(() => false)) {
-      await waitForNextCreatedAtSecond()
-      await registerButton.click({timeout: 10000})
-
-      const confirmHeading = page.getByRole("heading", {
-        name: "Confirm Device Registration",
-      })
-      if (await confirmHeading.isVisible({timeout: 2000}).catch(() => false)) {
-        const confirmButton = page.getByRole("button", {name: "Register Device"})
-        await confirmButton.scrollIntoViewIfNeeded().catch(() => {})
-        await confirmButton.click({
-          timeout: 10000,
-          force: true,
-        })
-      }
-
-      await expect(registerButton).not.toBeVisible({timeout: 20000})
-    }
-  }
-}
+import {
+  ensureCurrentDeviceRegistered,
+  expectDmMessageInputEnabled,
+} from "./private-messaging-helpers"
 
 async function setupChatWithSelf(page) {
-  await page.getByRole("link", {name: "Chats"}).click()
-  await page.getByRole("link", {name: "Devices"}).click()
-  await ensureDeviceRegistered(page)
+  await ensureCurrentDeviceRegistered(page)
 
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
-  await page.waitForLoadState("networkidle")
+  await page.waitForLoadState("domcontentloaded")
 
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({timeout: 10000})
 
@@ -52,8 +20,7 @@ async function setupChatWithSelf(page) {
     .first()
   await expect(messageButton).toBeVisible({timeout: 5000})
   await messageButton.click()
-
-  await expect(page.getByPlaceholder("Message").last()).toBeVisible({timeout: 15000})
+  await expectDmMessageInputEnabled(page)
 }
 
 test.describe("DM Reply", () => {

@@ -151,7 +151,9 @@ const DeviceList = () => {
                     )}
                   </div>
                   <div className="text-xs text-base-content/60">
-                    {[display.subtitle, `Added ${createdDate}`].filter(Boolean).join(" • ")}
+                    {[display.subtitle, `Added ${createdDate}`]
+                      .filter(Boolean)
+                      .join(" • ")}
                   </div>
                 </div>
                 {isCurrentDevice ? (

@@ -13,7 +13,13 @@ const mocks = vi.hoisted(() => ({
     registeredDevices: [] as Array<{identityPubkey: string; createdAt: number}>,
   },
   appKeysManager: {
-    getDeviceLabels: vi.fn(() => undefined as {deviceLabel?: string; clientLabel?: string} | undefined),
+    getDeviceLabels: vi
+      .fn<
+        (
+          identityPubkey: string
+        ) => {deviceLabel?: string; clientLabel?: string} | undefined
+      >()
+      .mockReturnValue(undefined),
   },
 }))
 

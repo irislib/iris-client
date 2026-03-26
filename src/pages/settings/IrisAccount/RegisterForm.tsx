@@ -7,6 +7,7 @@ import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {shouldShowShortUsernameSubscriptionUpsell} from "./shortUsernameSubscription"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -166,7 +167,7 @@ function RegisterForm({minLength, subscriptionPlan, onRegister}: RegisterFormPro
                 {errorMessage && <div className="text-error text-sm">{errorMessage}</div>}
 
                 {/* Subscription upgrade link */}
-                {errorMessage && errorMessage.includes("must be") && (
+                {shouldShowShortUsernameSubscriptionUpsell(errorMessage) && (
                   <div className="text-sm">
                     <Link to="/subscribe" className="link">
                       Get a subscription to choose shorter usernames

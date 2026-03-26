@@ -1,9 +1,18 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
-import {finalizeEvent, generateSecretKey, getPublicKey, type VerifiedEvent} from "nostr-tools"
+import {
+  finalizeEvent,
+  generateSecretKey,
+  getPublicKey,
+  type VerifiedEvent,
+} from "nostr-tools"
 import {AppKeys} from "nostr-double-ratchet"
 import {waitForLatestAppKeysSnapshot} from "./appKeysSnapshots"
 
-const createSignedAppKeysEvent = (ownerSecretKey: Uint8Array, devicePubkeys: string[], createdAt: number) => {
+const createSignedAppKeysEvent = (
+  ownerSecretKey: Uint8Array,
+  devicePubkeys: string[],
+  createdAt: number
+) => {
   const appKeys = new AppKeys(
     devicePubkeys.map((identityPubkey) => ({
       identityPubkey,
@@ -44,9 +53,9 @@ describe("waitForLatestAppKeysSnapshot", () => {
 
     const snapshot = await snapshotPromise
     expect(snapshot?.createdAt).toBe(101)
-    expect(snapshot?.appKeys.getAllDevices().map((device) => device.identityPubkey)).toEqual(
-      [device1, device2]
-    )
+    expect(
+      snapshot?.appKeys.getAllDevices().map((device) => device.identityPubkey)
+    ).toEqual([device1, device2])
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

@@ -10,7 +10,10 @@ import {RiAddLine, RiComputerLine} from "@remixicon/react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import Icon from "@/shared/components/Icons/Icon"
-import {describeManagedDevice, getStoredManagedDeviceLabels} from "@/shared/services/deviceLabels"
+import {
+  describeManagedDevice,
+  getStoredManagedDeviceLabels,
+} from "@/shared/services/deviceLabels"
 
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -123,7 +126,9 @@ const RegisterDevice = () => {
                       }`}
                     />
                     <div className="min-w-0 w-0 flex-1">
-                      <span className="font-mono text-sm truncate block">{display.title}</span>
+                      <span className="font-mono text-sm truncate block">
+                        {display.title}
+                      </span>
                       {display.subtitle && (
                         <span className="text-xs text-base-content/60 truncate block">
                           {display.subtitle}

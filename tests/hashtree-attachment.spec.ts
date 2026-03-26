@@ -2,15 +2,13 @@ import {test, expect, type Locator} from "@playwright/test"
 import {readFileSync} from "fs"
 import {fileURLToPath} from "url"
 import {signUp} from "./auth.setup"
+import {
+  ensureCurrentDeviceRegistered,
+  expectDmMessageInputEnabled,
+} from "./private-messaging-helpers"
 
 async function setupChatWithSelf(page) {
-  await page.getByRole("link", {name: "Chats"}).click()
-  await page.getByRole("link", {name: "Devices"}).click()
-
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-  if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
-    await expect(registerButton).not.toBeVisible({timeout: 15000})
-  }
+  await ensureCurrentDeviceRegistered(page)
 
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()
@@ -25,16 +23,7 @@ async function setupChatWithSelf(page) {
     .first()
   await expect(messageButton).toBeVisible({timeout: 5000})
   await messageButton.click()
-
-  await expect(page.getByPlaceholder("Message").last()).toBeVisible({timeout: 15000})
-
-  const acceptButton = page.getByRole("button", {name: "Accept"})
-  if (await acceptButton.isVisible({timeout: 1000}).catch(() => false)) {
-    await acceptButton.click()
-    await expect(acceptButton).not.toBeVisible({timeout: 15000})
-  }
-
-  await expect(page.getByPlaceholder("Message").last()).toBeEnabled({timeout: 15000})
+  await expectDmMessageInputEnabled(page)
 }
 
 async function dispatchFileDrop(target: Locator, filePath: string, mimeType: string) {

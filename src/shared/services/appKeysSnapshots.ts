@@ -1,4 +1,9 @@
-import {AppKeys, applyAppKeysSnapshot, buildAppKeysFilter, NostrSubscribe} from "nostr-double-ratchet"
+import {
+  AppKeys,
+  applyAppKeysSnapshot,
+  buildAppKeysFilter,
+  NostrSubscribe,
+} from "nostr-double-ratchet"
 
 export interface AppKeysSnapshot {
   appKeys: AppKeys

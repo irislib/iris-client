@@ -69,6 +69,7 @@ vi.mock("nostr-double-ratchet", () => {
   return {
     GroupManager: MockGroupManager,
     GROUP_SENDER_KEY_DISTRIBUTION_KIND: 10411,
+    MESSAGE_EVENT_KIND: 1060,
     isTyping: (rumor: {kind?: number}) => rumor.kind === TYPING_KIND,
     isExpired: () => false,
     getMillisecondTimestamp: (event: {created_at?: number; tags?: string[][]}) => {

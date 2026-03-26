@@ -76,7 +76,9 @@ export const inferBrowserDeviceLabel = (userAgent: string): string => {
   return browser || platform || "Browser"
 }
 
-const platformFallbackDeviceLabel = (platformName?: string | null): string | undefined => {
+const platformFallbackDeviceLabel = (
+  platformName?: string | null
+): string | undefined => {
   switch (platformName) {
     case "macos":
       return "Mac"
@@ -116,12 +118,13 @@ const resolveTauriDeviceLabel = async (): Promise<string | undefined> => {
 
   try {
     const {hostname, platform} = await import("@tauri-apps/plugin-os")
-    const [host, platformName] = await Promise.all([
-      hostname().catch(() => undefined),
-      platform().catch(() => undefined),
-    ])
+    const platformName = platform()
+    const host = await hostname().catch(() => undefined)
 
-    return prettifyHostname(host) || platformFallbackDeviceLabel(platformName)
+    return (
+      (host ? prettifyHostname(host) : undefined) ||
+      platformFallbackDeviceLabel(platformName)
+    )
   } catch {
     return undefined
   }
