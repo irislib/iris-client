@@ -3,6 +3,7 @@ import {useSettingsStore} from "@/stores/settings"
 import {ndk} from "./ndk"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {getShareableAppOrigin} from "@/utils/utils"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -189,9 +190,7 @@ class DebugManager {
     if (!this.debugSession) {
       return ""
     }
-    const origin = window.location.origin.startsWith("tauri://")
-      ? "https://iris.to"
-      : window.location.origin
+    const origin = getShareableAppOrigin()
     return `${origin}/debug.html#${this.debugSession.getPrivateKey()}`
   }
 }

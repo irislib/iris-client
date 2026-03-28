@@ -13,7 +13,6 @@ import RelayList from "./RelayList.tsx"
 import {useNavigate} from "@/navigation"
 import {useRebroadcast} from "@/shared/hooks/useRebroadcast"
 import {getMuteLabel, getUnmuteLabel} from "@/utils/muteLabels"
-import {isTauri} from "@/utils/utils"
 
 type FeedItemDropdownProps = {
   event: NDKEvent
@@ -139,7 +138,7 @@ function FeedItemDropdown({event, onClose}: FeedItemDropdownProps) {
               </button>
             </li>
           )}
-          {isTauri() && myPubKey !== event.pubkey && event.kind !== 9735 && (
+          {myPubKey !== event.pubkey && event.kind !== 9735 && (
             <li>
               <button onClick={() => setReporting(true)}>Report</button>
             </li>

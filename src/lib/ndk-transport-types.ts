@@ -1,5 +1,8 @@
 import type {NDKFilter} from "./ndk/subscription"
 import type {SettingsState} from "../stores/settings"
+import type {SearchResult} from "../utils/profileSearchData"
+
+export type {SearchResult} from "../utils/profileSearchData"
 
 export interface WorkerSubscribeOpts {
   destinations?: ("cache" | "relay")[]
@@ -18,12 +21,6 @@ export interface LocalDataStats {
   totalEvents: number
   eventsByKind: Record<number, number>
   databaseSize?: string
-}
-
-export type SearchResult = {
-  name: string
-  pubKey: string
-  nip05?: string
 }
 
 export interface WorkerMessage {

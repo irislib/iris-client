@@ -16,7 +16,7 @@ import {SettingsInputItem} from "@/shared/components/settings/SettingsInputItem"
 import Icon from "@/shared/components/Icons/Icon"
 import {RiArrowRightSLine, RiArrowDownSLine} from "@remixicon/react"
 import debounce from "lodash/debounce"
-import {confirm, alert, isTauri, isMobileTauri} from "@/utils/utils"
+import {confirm, alert, isMobileUA} from "@/utils/utils"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -49,9 +49,6 @@ const StatusIndicator = ({
 const NotificationSettings = () => {
   const {notifications, updateNotifications} = useSettingsStore()
   const [serviceWorkerReady, setServiceWorkerReady] = useState(false)
-  const [tauriPermissionGranted, setTauriPermissionGranted] = useState(false)
-  const isTauriApp = isTauri()
-  const [isMobile, setIsMobile] = useState(false)
   const hasNotificationsApi = "Notification" in window
   const [notificationsAllowed, setNotificationsAllowed] = useState(
     hasNotificationsApi && window.Notification?.permission === "granted"
@@ -70,6 +67,7 @@ const NotificationSettings = () => {
   const [showDebugData, setShowDebugData] = useState(false)
   const [inputValue, setInputValue] = useState(notifications.server)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const isMobile = isMobileUA()
   const [debouncedValidation] = useState(() =>
     debounce((url: string) => {
       const valid = validateUrl(url)
@@ -79,12 +77,6 @@ const NotificationSettings = () => {
       }
     }, 500)
   )
-
-  useEffect(() => {
-    if (isTauriApp) {
-      isMobileTauri().then(setIsMobile)
-    }
-  }, [isTauriApp])
 
   const trySubscribePush = async () => {
     try {
@@ -128,28 +120,14 @@ const NotificationSettings = () => {
   }, [allGood, subscribedToPush, notifications.server])
 
   useEffect(() => {
-    const checkPlatform = async () => {
-      if (isTauriApp) {
-        try {
-          const {isPermissionGranted} = await import("@tauri-apps/plugin-notification")
-          const granted = await isPermissionGranted()
-          log("[NotificationSettings] Tauri permission check:", granted)
-          setTauriPermissionGranted(granted)
-        } catch (e) {
-          error("Failed to check Tauri notification permission:", e)
-        }
-      }
-    }
-    checkPlatform()
-
-    if (!isTauriApp && "serviceWorker" in navigator) {
+    if ("serviceWorker" in navigator) {
       navigator.serviceWorker.ready.then((registration) => {
         if (registration.active) {
           setServiceWorkerReady(true)
         }
       })
     }
-  }, [isTauriApp])
+  }, [])
 
   // Get the current service worker subscription endpoint
   useEffect(() => {
@@ -181,49 +159,6 @@ const NotificationSettings = () => {
   }
 
   const fireTestNotification = async () => {
-    log("[Test Notification] isTauri:", isTauriApp)
-    if (isTauriApp) {
-      // Tauri notifications (desktop or mobile)
-      log("[Test Notification] Sending Tauri notification")
-      try {
-        const {sendNotification, isPermissionGranted, requestPermission} =
-          await import("@tauri-apps/plugin-notification")
-
-        // Check permission first
-        let granted = await isPermissionGranted()
-        log("[Test Notification] Initial permission:", granted)
-
-        if (!granted) {
-          log("[Test Notification] Requesting permission...")
-          const permission = await requestPermission()
-          granted = permission === "granted"
-          log("[Test Notification] Permission result:", permission)
-        }
-
-        if (granted) {
-          // Send notification
-          log("[Test Notification] Sending notification...")
-          await sendNotification({
-            title: "Test Notification",
-            body: "Notifications are working!",
-          })
-          log("[Test Notification] Sent successfully")
-        } else {
-          log("[Test Notification] Permission denied")
-          await alert(
-            "Permission denied. Please enable notifications in system settings."
-          )
-        }
-
-        setTauriPermissionGranted(granted)
-      } catch (err) {
-        error("[Test Notification] Error:", err)
-        await alert(`Error: ${err}`)
-      }
-      return
-    }
-
-    // Web browser notifications
     if (notificationsAllowed) {
       const title = "Test notification"
       const options = {
@@ -269,7 +204,7 @@ const NotificationSettings = () => {
     }
 
     fetchSubscriptionsData()
-  }, [])
+  }, [notifications.server])
 
   const handleDeleteSubscription = async (subscriptionId: string) => {
     try {
@@ -457,88 +392,66 @@ const NotificationSettings = () => {
             </SettingsGroupItem>
           </SettingsGroup>
 
-          {isTauriApp && (
-            <SettingsGroup title="Status">
-              <SettingsGroupItem isLast>
-                <div className="flex items-center justify-between">
-                  <StatusIndicator
-                    status={tauriPermissionGranted}
-                    enabledMessage="Notifications are allowed"
-                    disabledMessage="Notifications are not allowed. Use the Test button to request permission."
-                  />
-                  <button
-                    className="btn btn-neutral btn-sm"
-                    onClick={fireTestNotification}
-                  >
-                    Test
-                  </button>
-                </div>
-              </SettingsGroupItem>
-            </SettingsGroup>
-          )}
-
-          {!isTauriApp && (
-            <SettingsGroup title="Status">
-              <SettingsGroupItem>
+          <SettingsGroup title="Status">
+            <SettingsGroupItem>
+              <StatusIndicator
+                status={hasNotificationsApi}
+                enabledMessage="Notifications API is enabled"
+                disabledMessage="Notifications API is disabled"
+              />
+            </SettingsGroupItem>
+            <SettingsGroupItem>
+              <div className="flex items-center justify-between">
                 <StatusIndicator
-                  status={hasNotificationsApi}
-                  enabledMessage="Notifications API is enabled"
-                  disabledMessage="Notifications API is disabled"
+                  status={notificationsAllowed}
+                  enabledMessage="Notifications are allowed"
+                  disabledMessage="Notifications are not allowed"
                 />
-              </SettingsGroupItem>
-              <SettingsGroupItem>
-                <div className="flex items-center justify-between">
-                  <StatusIndicator
-                    status={notificationsAllowed}
-                    enabledMessage="Notifications are allowed"
-                    disabledMessage="Notifications are not allowed"
-                  />
-                  <div className="flex items-center gap-2">
-                    {hasNotificationsApi && !notificationsAllowed && (
-                      <button
-                        className="btn btn-neutral btn-sm"
-                        onClick={requestNotificationPermission}
-                      >
-                        Allow
-                      </button>
-                    )}
-                    {notificationsAllowed && (
-                      <button
-                        className="btn btn-neutral btn-sm"
-                        onClick={fireTestNotification}
-                      >
-                        Test
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </SettingsGroupItem>
-              <SettingsGroupItem>
-                <StatusIndicator
-                  status={serviceWorkerReady}
-                  enabledMessage="Service Worker is running"
-                  disabledMessage="Service Worker is not running"
-                />
-              </SettingsGroupItem>
-              <SettingsGroupItem isLast>
-                <div className="flex items-center justify-between">
-                  <StatusIndicator
-                    status={subscribedToPush}
-                    enabledMessage="Subscribed to push notifications"
-                    disabledMessage="Not subscribed to push notifications"
-                  />
-                  {allGood && !subscribedToPush && (
+                <div className="flex items-center gap-2">
+                  {hasNotificationsApi && !notificationsAllowed && (
                     <button
-                      className="btn btn-primary btn-sm"
-                      onClick={subscribeToNotifications}
+                      className="btn btn-neutral btn-sm"
+                      onClick={requestNotificationPermission}
                     >
-                      Subscribe
+                      Allow
+                    </button>
+                  )}
+                  {notificationsAllowed && (
+                    <button
+                      className="btn btn-neutral btn-sm"
+                      onClick={fireTestNotification}
+                    >
+                      Test
                     </button>
                   )}
                 </div>
-              </SettingsGroupItem>
-            </SettingsGroup>
-          )}
+              </div>
+            </SettingsGroupItem>
+            <SettingsGroupItem>
+              <StatusIndicator
+                status={serviceWorkerReady}
+                enabledMessage="Service Worker is running"
+                disabledMessage="Service Worker is not running"
+              />
+            </SettingsGroupItem>
+            <SettingsGroupItem isLast>
+              <div className="flex items-center justify-between">
+                <StatusIndicator
+                  status={subscribedToPush}
+                  enabledMessage="Subscribed to push notifications"
+                  disabledMessage="Not subscribed to push notifications"
+                />
+                {allGood && !subscribedToPush && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={subscribeToNotifications}
+                  >
+                    Subscribe
+                  </button>
+                )}
+              </div>
+            </SettingsGroupItem>
+          </SettingsGroup>
 
           <SettingsGroup title="Advanced">
             <SettingsGroupItem onClick={() => setShowAdvanced(!showAdvanced)} isLast>

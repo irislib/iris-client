@@ -1,11 +1,8 @@
 import {NDKUserProfile} from "@/lib/ndk"
 import {getWorkerTransport} from "@/utils/ndk"
+import type {SearchResult} from "@/utils/profileSearchData"
 
-export type SearchResult = {
-  name: string
-  pubKey: string
-  nip05?: string
-}
+export type {SearchResult} from "@/utils/profileSearchData"
 
 // Profile events are now handled directly in relay-worker when kind 0 events arrive
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

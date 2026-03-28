@@ -1,6 +1,7 @@
 import {useEffect, useState, useRef, ChangeEvent} from "react"
 import {DebugSession} from "./DebugSession"
 import CopyButton from "@/shared/components/button/CopyButton"
+import {getShareableAppOrigin} from "@/utils/utils"
 
 interface SystemInfo {
   appVersion: string
@@ -120,9 +121,7 @@ const DebugApp = () => {
     }
 
     // Always create a session link with the current private key
-    const origin = window.location.origin.startsWith("tauri://")
-      ? "https://iris.to"
-      : window.location.origin
+    const origin = getShareableAppOrigin()
     const linkWithKey = `${origin}${window.location.pathname}#${debugSession.getPrivateKey()}`
     setSessionLink(linkWithKey)
 

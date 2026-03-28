@@ -7,7 +7,7 @@ export default function OldWallet() {
     <div className="flex justify-center h-screen">
       <div className="flex-1 overflow-hidden">
         <iframe
-          src="/cashu/index.html"
+          src={`${import.meta.env.BASE_URL}cashu/index.html`}
           title="Legacy Cashu Wallet"
           className="w-full h-full border-0"
         />

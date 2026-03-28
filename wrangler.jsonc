@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "iris-client",
+  "main": "scripts/well-known-proxy-worker.mjs",
+  "workers_dev": true,
+  "preview_urls": true,
+  "compatibility_date": "2026-03-26",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/.well-known/*"]
+  }
+}

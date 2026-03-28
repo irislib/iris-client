@@ -23,7 +23,6 @@ import Icon from "@/shared/components/Icons/Icon"
 import {usePublicKey} from "@/stores/user"
 import TermsOfService from "@/shared/components/TermsOfService"
 import {useSettingsStore} from "@/stores/settings"
-import {isTauri} from "@/utils/utils"
 import {
   useHistoryEnrichment,
   type EnrichedHistoryEntry,
@@ -242,9 +241,9 @@ export default function CashuWallet() {
     }
   }, [])
 
-  // Check if we need to show ToS for non-Tauri wallet access
+  // Check if we need to show ToS before wallet access.
   useEffect(() => {
-    if (!isTauri() && !legal.tosAccepted) {
+    if (!legal.tosAccepted) {
       setShowToS(true)
     }
   }, [legal.tosAccepted])

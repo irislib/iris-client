@@ -1,6 +1,5 @@
 import {useState, useEffect} from "react"
-import {getWorkerTransport, getTauriTransport} from "@/utils/ndk"
-import {isTauri} from "@/utils/utils"
+import {getWorkerTransport} from "@/utils/ndk"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -25,7 +24,7 @@ export function useWorkerRelayStatus() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const transport = isTauri() ? getTauriTransport() : getWorkerTransport()
+    const transport = getWorkerTransport()
     if (!transport) {
       setLoading(false)
       return
@@ -75,7 +74,7 @@ export function useWorkerRelayStatus() {
  * Hook to manage relays in worker
  */
 export function useWorkerRelayManager() {
-  const transport = isTauri() ? getTauriTransport() : getWorkerTransport()
+  const transport = getWorkerTransport()
 
   const addRelay = async (url: string) => {
     await transport?.addRelay(url)

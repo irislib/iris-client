@@ -22,15 +22,6 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 
 const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UI_FEED)
 
-// Callback for desktop notifications
-let desktopNotificationCallback: ((event: NDKEvent) => void) | null = null
-
-export const setDesktopNotificationCallback = (
-  callback: ((event: NDKEvent) => void) | null
-) => {
-  desktopNotificationCallback = callback
-}
-
 let sub: NDKSubscription | undefined
 
 // Clean up notifications from muted users by filtering out muted events
@@ -138,11 +129,6 @@ export const startNotificationsSubscription = debounce(async (myPubKey?: string)
   const maxFollowDistanceForReplies = settings.content?.maxFollowDistanceForReplies
 
   sub.on("event", async (event: NDKEvent) => {
-    // Notify desktop if callback is registered
-    if (desktopNotificationCallback) {
-      desktopNotificationCallback(event)
-    }
-
     if (event.kind !== KIND_ZAP_RECEIPT) {
       // allow zap notifs from self & unknown users
       if (event.pubkey === myPubKey) return

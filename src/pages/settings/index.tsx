@@ -20,7 +20,6 @@ import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import {ReactElement} from "react"
 import Content from "./Content"
-import {isTauri} from "@/utils/utils"
 import LocalData from "./local/LocalData"
 import MessagesSettings from "./Messages"
 import DevicesTab from "@/pages/chats/devices"
@@ -141,39 +140,23 @@ function Settings() {
         },
       ],
     },
-    ...(isTauri()
-      ? [
-          {
-            title: "Account",
-            items: [
-              {
-                icon: "trash" as const,
-                iconBg: "bg-red-600",
-                message: "Delete account",
-                path: "/settings/delete-account",
-              },
-              {
-                icon: "key" as const,
-                iconBg: "bg-red-500",
-                message: "Log out",
-                path: "/settings/logout",
-              },
-            ],
-          },
-        ]
-      : [
-          {
-            title: "Log out",
-            items: [
-              {
-                icon: "key" as const,
-                iconBg: "bg-red-500",
-                message: "Log out",
-                path: "/settings/logout",
-              },
-            ],
-          },
-        ]),
+    {
+      title: "Account",
+      items: [
+        {
+          icon: "trash" as const,
+          iconBg: "bg-red-600",
+          message: "Delete account",
+          path: "/settings/delete-account",
+        },
+        {
+          icon: "key" as const,
+          iconBg: "bg-red-500",
+          message: "Log out",
+          path: "/settings/logout",
+        },
+      ],
+    },
   ]
 
   const getSettingsTitle = () => {

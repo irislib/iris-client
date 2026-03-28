@@ -1,23 +1,9 @@
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
-const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 export const MOBILE_BREAKPOINT = 768
-
-export const isTauri = () =>
-  typeof window !== "undefined" && !!(window.__TAURI__ || window.__TAURI_INTERNALS__)
-
-export const isMobileTauri = async (): Promise<boolean> => {
-  if (!isTauri()) return false
-  try {
-    const {platform} = await import("@tauri-apps/plugin-os")
-    const platformType = await platform()
-    return platformType === "android" || platformType === "ios"
-  } catch {
-    return false
-  }
-}
 
 export const isMobileUA = (): boolean => {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
@@ -27,48 +13,40 @@ export const isAboveMobileBreakpoint = (): boolean => {
   return typeof window !== "undefined" && window.innerWidth >= MOBILE_BREAKPOINT
 }
 
-export const openExternalLink = async (url: string) => {
-  if (isTauri()) {
-    try {
-      const {openUrl} = await import("@tauri-apps/plugin-opener")
-      log("Opening external URL in Tauri:", url)
-      await openUrl(url)
-      log("Successfully opened URL")
-    } catch (err) {
-      error("Failed to open URL in Tauri:", err)
-      // Fallback to window.open
-      window.open(url, "_blank")
-    }
-  } else {
-    window.open(url, "_blank")
+const isShareableProtocol = (protocol: string): boolean =>
+  protocol === "http:" || protocol === "https:"
+
+const isLoopbackLikeHost = (hostname: string): boolean =>
+  hostname === "127.0.0.1" ||
+  hostname === "localhost" ||
+  hostname.endsWith(".htree.localhost")
+
+export const getShareableAppOrigin = (): string => {
+  if (typeof window === "undefined") {
+    return "https://iris.to"
   }
+
+  const protocol = window.location.protocol?.toLowerCase() || ""
+  const hostname = window.location.hostname?.toLowerCase() || ""
+
+  if (isShareableProtocol(protocol) && !isLoopbackLikeHost(hostname)) {
+    return window.location.origin
+  }
+
+  return "https://iris.to"
+}
+
+export const openExternalLink = async (url: string) => {
+  log("Opening external URL:", url)
+  window.open(url, "_blank")
 }
 
 export const confirm = async (message: string, title?: string): Promise<boolean> => {
-  if (isTauri()) {
-    try {
-      const {confirm: tauriConfirm} = await import("@tauri-apps/plugin-dialog")
-      return await tauriConfirm(message, {title, kind: "warning"})
-    } catch (err) {
-      error("Failed to show Tauri confirm dialog:", err)
-      return window.confirm(title ? `${title}\n\n${message}` : message)
-    }
-  }
   return window.confirm(title ? `${title}\n\n${message}` : message)
 }
 
 export const alert = async (message: string, title?: string): Promise<void> => {
-  if (isTauri()) {
-    try {
-      const {message: tauriMessage} = await import("@tauri-apps/plugin-dialog")
-      await tauriMessage(message, {title, kind: "info"})
-    } catch (err) {
-      error("Failed to show Tauri alert dialog:", err)
-      window.alert(title ? `${title}\n\n${message}` : message)
-    }
-  } else {
-    window.alert(title ? `${title}\n\n${message}` : message)
-  }
+  window.alert(title ? `${title}\n\n${message}` : message)
 }
 
 export const formatAmount = (n: number, maxSignificantDigits = 4) => {

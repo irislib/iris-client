@@ -28,8 +28,6 @@ import {
   type FeedConfig,
 } from "@/stores/feed"
 import Toast from "@/shared/components/ui/Toast"
-import TermsOfService from "@/shared/components/TermsOfService"
-import {isTauri} from "@/utils/utils"
 
 const openedAt = Math.floor(Date.now() / 1000)
 
@@ -117,22 +115,6 @@ const Layout = ({children}: {children: ReactNode}) => {
     !location.pathname.startsWith("/chats")
 
   // Social graph loading is now non-blocking and reactive via useFollowsFromGraph
-
-  // ToS state for Tauri apps
-  const {legal, updateLegal} = useSettingsStore()
-  const [showToS, setShowToS] = useState(false)
-
-  // Check if we need to show ToS on first launch for Tauri apps
-  useEffect(() => {
-    if (isTauri() && !legal.tosAccepted) {
-      setShowToS(true)
-    }
-  }, [legal.tosAccepted])
-
-  const handleToSAccept = () => {
-    updateLegal({tosAccepted: true, tosAcceptedVersion: 1})
-    setShowToS(false)
-  }
 
   // Initialize wallet providers on app startup
   useEffect(() => {
@@ -302,7 +284,6 @@ const Layout = ({children}: {children: ReactNode}) => {
       </ErrorBoundary>
       <Footer />
       <Toast />
-      {showToS && <TermsOfService onAccept={handleToSAccept} />}
       <Helmet titleTemplate={`%s / ${CONFIG.appName}`} defaultTitle={CONFIG.appName}>
         <title>{CONFIG.appName}</title>
       </Helmet>

@@ -24,12 +24,8 @@ self.onunhandledrejection = (event: PromiseRejectionEvent) => {
 }
 
 import NDK from "../lib/ndk"
-import {
-  initSearchIndex,
-  searchProfiles,
-  updateSearchIndex,
-  type SearchResult,
-} from "./profile-search"
+import {initSearchIndex, searchProfiles, updateSearchIndex} from "./profile-search"
+import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 import {NDKEvent} from "../lib/ndk/events"
 import {NDKSubscriptionCacheUsage, type NDKFilter} from "../lib/ndk/subscription"
 import {NDKRelay} from "../lib/ndk/relay"
@@ -77,13 +73,13 @@ async function initSearchFromDexie() {
     const profiles = await db.profiles.toArray()
     const searchProfiles: SearchResult[] = []
     for (const p of profiles) {
-      const name = p.name || p.username
-      if (name) {
-        searchProfiles.push({
-          pubKey: p.pubkey,
-          name: String(name),
-          nip05: p.nip05 || undefined,
-        })
+      const searchProfile = buildProfileSearchResult(
+        p.pubkey,
+        p as unknown as Record<string, unknown>,
+        p.created_at
+      )
+      if (searchProfile) {
+        searchProfiles.push(searchProfile)
       }
     }
     initSearchIndex(searchProfiles)
@@ -290,12 +286,14 @@ function handleSubscribe(
     if (rawEvent.kind === 0) {
       try {
         const content = JSON.parse(rawEvent.content)
-        updateSearchIndex(
+        const searchProfile = buildProfileSearchResult(
           rawEvent.pubkey,
-          content.name || content.username,
-          content.nip05,
+          content,
           rawEvent.created_at
         )
+        if (searchProfile) {
+          updateSearchIndex(searchProfile)
+        }
       } catch {
         // Invalid profile content, skip
       }

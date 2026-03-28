@@ -4,6 +4,10 @@ import {getRouteParams} from "./routeMatcher"
 import {routes} from "./routes"
 import {matchPath} from "./utils"
 import {NavigationContext} from "./contexts"
+import {
+  getInjectedHtreeRuntimeLocation,
+  toInjectedHtreeBrowserPath,
+} from "@/utils/nativeHtree"
 
 const MAX_STACK_SIZE = 5
 
@@ -12,25 +16,52 @@ type NavigationState = {
   currentIndex: number
 }
 
+function getBrowserPath() {
+  if (typeof window === "undefined") return "/"
+  return `${window.location.pathname}${window.location.search}`
+}
+
+function getNavigationBootstrap() {
+  const htreeLocation = getInjectedHtreeRuntimeLocation()
+  if (htreeLocation) {
+    return htreeLocation
+  }
+
+  const browserPath = getBrowserPath()
+  return {
+    appPath: browserPath,
+    browserPath,
+    historyRootPath: "",
+  }
+}
+
 export const NavigationProvider = ({children}: {children: ReactNode}) => {
   const [navState, setNavState] = useState<NavigationState>({
     stack: [],
     currentIndex: -1,
   })
   const stackIndexRef = useRef(0)
+  const htreeHistoryRootRef = useRef("")
 
   // Initialize with current URL
   useEffect(() => {
-    const initialPath = window.location.pathname + window.location.search
+    const bootstrap = getNavigationBootstrap()
+    const initialPath = bootstrap.appPath
+    htreeHistoryRootRef.current = bootstrap.historyRootPath
 
     // Check if we already have history state (e.g., from page refresh)
     const existingState = window.history.state
 
     if (existingState && typeof existingState.index === "number") {
+      const stateUrl =
+        typeof existingState.url === "string" && existingState.url
+          ? existingState.url
+          : initialPath
+
       // We have existing state, use it
       const initialItem: StackItem = {
         index: existingState.index,
-        url: initialPath,
+        url: stateUrl,
         component: null,
         state: existingState.state,
       }
@@ -52,18 +83,20 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
       })
 
       // Replace browser state
-      window.history.replaceState({index: 0, url: initialPath}, "", initialPath)
+      window.history.replaceState({index: 0, url: initialPath}, "", bootstrap.browserPath)
     }
   }, [])
 
   // Track current URL to detect changes
-  const currentUrlRef = useRef(window.location.pathname + window.location.search)
+  const currentUrlRef = useRef(getNavigationBootstrap().appPath)
 
   // Handle browser back/forward
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      const newUrl = window.location.pathname + window.location.search
       const state = event.state
+      const bootstrap = getNavigationBootstrap()
+      const newUrl =
+        typeof state?.url === "string" && state.url ? state.url : bootstrap.appPath
 
       // Update our navigation state to match the browser
       setNavState((prevState) => {
@@ -216,8 +249,9 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.replaceState(
           {index: newStack[currentIndex]?.index || 0, url: path, state: options.state},
           "",
-          path
+          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
         )
+        currentUrlRef.current = path
 
         return {...prevState, stack: newStack}
       })
@@ -247,7 +281,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.pushState(
           {index: newIndex, url: path, state: options.state},
           "",
-          path
+          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
         )
         currentUrlRef.current = path
 
@@ -267,7 +301,11 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         const existingItem = updatedStack[existingIndex]
 
         // Move to this existing item
-        window.history.pushState({index: existingItem.index, url: path}, "", path)
+        window.history.pushState(
+          {index: existingItem.index, url: path},
+          "",
+          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+        )
         currentUrlRef.current = path
 
         return {
@@ -313,7 +351,11 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         })
       }
 
-      window.history.pushState({index: newIndex, url: path}, "", path)
+      window.history.pushState(
+        {index: newIndex, url: path},
+        "",
+        toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+      )
       currentUrlRef.current = path
 
       return {
@@ -338,7 +380,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.replaceState(
           {index: newStack[currentIndex].index, url: path},
           "",
-          path
+          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
         )
         currentUrlRef.current = path
       }
@@ -379,7 +421,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
   // Parse current params from path
   const currentParams = getRouteParams(currentPath)
 
-  // Handle deep link events from Tauri
+  // Handle app-level deep link events dispatched onto the window
   useEffect(() => {
     const handleDeepLink = (event: Event) => {
       const customEvent = event as CustomEvent<{

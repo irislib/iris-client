@@ -7,13 +7,7 @@ import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
-import {
-  KIND_CHANNEL_CREATE,
-  KIND_CHAT_MESSAGE,
-  KIND_CHAT_SETTINGS,
-  KIND_REACTION,
-} from "./constants"
-import {isTauri} from "./utils"
+import {KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS, KIND_REACTION} from "./constants"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -503,18 +497,6 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
             .setRemoteTyping(chatId, getMillisecondTimestamp(event))
         }
         return
-      }
-
-      // Trigger desktop notification for DMs if on desktop
-      if (
-        isTauri() &&
-        !isOwnDevice &&
-        event.pubkey !== publicKey &&
-        event.kind === KIND_CHAT_MESSAGE
-      ) {
-        import("./desktopNotifications").then(({handleDMEvent}) => {
-          handleDMEvent(event, effectiveOwner).catch(console.error)
-        })
       }
 
       const isReaction = event.kind === KIND_REACTION

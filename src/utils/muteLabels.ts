@@ -1,16 +1,14 @@
-import {isTauri} from "./utils"
-
 export const getMuteLabel = (capitalized = true): string => {
-  const label = isTauri() ? "block" : "mute"
+  const label = "mute"
   return capitalized ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }
 
 export const getMutedLabel = (capitalized = true): string => {
-  const label = isTauri() ? "blocked" : "muted"
+  const label = "muted"
   return capitalized ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }
 
 export const getUnmuteLabel = (capitalized = true): string => {
-  const label = isTauri() ? "unblock" : "unmute"
+  const label = "unmute"
   return capitalized ? label.charAt(0).toUpperCase() + label.slice(1) : label
 }

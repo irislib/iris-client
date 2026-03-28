@@ -5,50 +5,41 @@
  * Used by relay-worker to handle search queries.
  */
 import Fuse from "fuse.js"
+import type {SearchResult} from "../utils/profileSearchData"
 
-export type SearchResult = {
-  name: string
-  pubKey: string
-  nip05?: string
-}
+const FUSE_KEYS = ["name", "aliases", "nip05", "pubKey"]
 
 let searchIndex: Fuse<SearchResult> = new Fuse<SearchResult>([], {
-  keys: ["name", "nip05"],
+  keys: FUSE_KEYS,
   includeScore: true,
 })
 
-const indexedPubkeys = new Set<string>()
 const latestProfileTimestamps = new Map<string, number>()
 
-export function updateSearchIndex(
-  pubkey: string,
-  name: string,
-  nip05?: string,
-  created_at?: number
-) {
-  if (!name) return
+export function updateSearchIndex(profile: SearchResult) {
+  if (!profile.name) return
 
-  const lastSeen = latestProfileTimestamps.get(pubkey) || 0
-  if (created_at && created_at <= lastSeen) return
+  const lastSeen = latestProfileTimestamps.get(profile.pubKey) || 0
+  if (profile.created_at && profile.created_at <= lastSeen) return
 
-  if (created_at) {
-    latestProfileTimestamps.set(pubkey, created_at)
+  if (profile.created_at) {
+    latestProfileTimestamps.set(profile.pubKey, profile.created_at)
   }
-  searchIndex.remove((profile) => profile.pubKey === pubkey)
-  searchIndex.add({name: String(name), pubKey: pubkey, nip05})
-  indexedPubkeys.add(pubkey)
+  searchIndex.remove((existingProfile) => existingProfile.pubKey === profile.pubKey)
+  searchIndex.add({...profile, name: String(profile.name)})
 }
 
 export function initSearchIndex(profiles: SearchResult[]) {
   const validProfiles = profiles.filter((p) => p.name)
   searchIndex = new Fuse<SearchResult>(validProfiles, {
-    keys: ["name", "nip05"],
+    keys: FUSE_KEYS,
     includeScore: true,
   })
-  indexedPubkeys.clear()
   latestProfileTimestamps.clear()
   for (const profile of validProfiles) {
-    indexedPubkeys.add(profile.pubKey)
+    if (profile.created_at) {
+      latestProfileTimestamps.set(profile.pubKey, profile.created_at)
+    }
   }
 }
 

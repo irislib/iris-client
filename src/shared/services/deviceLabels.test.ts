@@ -1,10 +1,16 @@
-import {describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {
   describeManagedDevice,
+  getCurrentDeviceRegistrationLabels,
   getLinkedDeviceRegistrationLabels,
   inferBrowserDeviceLabel,
 } from "./deviceLabels"
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.resetModules()
+})
 
 describe("deviceLabels", () => {
   it("prefers the encrypted device label and keeps client metadata in the subtitle", () => {
@@ -43,6 +49,26 @@ describe("deviceLabels", () => {
     await expect(getLinkedDeviceRegistrationLabels()).resolves.toEqual({
       deviceLabel: "Linked device",
       clientLabel: "Iris Client",
+    })
+  })
+
+  it("ignores stray Tauri globals and keeps browser-derived labels", async () => {
+    vi.stubGlobal("navigator", {
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    })
+    vi.stubGlobal("window", {
+      location: {
+        protocol: "https:",
+        hostname: "iris.to",
+        search: "",
+      },
+      __TAURI__: {},
+    })
+
+    await expect(getCurrentDeviceRegistrationLabels()).resolves.toEqual({
+      deviceLabel: "Chrome on Windows",
+      clientLabel: "Iris Client Web",
     })
   })
 })

@@ -7,13 +7,12 @@ import NDK, {
   NDKUser,
 } from "@/lib/ndk"
 import {NDKWorkerTransport} from "@/lib/ndk-transport-worker"
-import {NDKTauriTransport} from "@/lib/ndk-transport-tauri"
 import {useUserStore} from "@/stores/user"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {isTauri} from "@/utils/utils"
+import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.NDK_RELAY)
 
 let ndkInstance: NDK | null = null
@@ -21,7 +20,6 @@ let privateKeySigner: NDKPrivateKeySigner | undefined
 let nip07Signer: NDKNip07Signer | undefined
 let initPromise: Promise<void> | null = null
 let workerTransport: NDKWorkerTransport | undefined
-let tauriTransport: NDKTauriTransport | undefined
 
 function normalizeRelayUrl(url: string): string {
   // Ensure URL ends with / to match NDK's internal normalization
@@ -35,13 +33,6 @@ export {DEFAULT_RELAYS}
  */
 export function getWorkerTransport(): NDKWorkerTransport | undefined {
   return workerTransport
-}
-
-/**
- * Get Tauri transport instance (only available in Tauri mode)
- */
-export function getTauriTransport(): NDKTauriTransport | undefined {
-  return tauriTransport
 }
 
 // Don't create placeholder - will be created in initNDK with proper transport
@@ -79,17 +70,12 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
   // Create instance immediately so ndk() returns it synchronously
   ndkInstance = new NDK({explicitRelayUrls: []})
 
-  // Create worker transport (always - handles search index in both modes)
+  // Create worker transport - it owns relay connectivity and search indexing.
   const workerFactory = () =>
     new Worker(new URL("../workers/relay-worker.ts", import.meta.url), {
       type: "module",
     })
   workerTransport = new NDKWorkerTransport(workerFactory)
-
-  // Create Tauri transport for relay connections (Tauri only)
-  if (isTauri()) {
-    tauriTransport = new NDKTauriTransport()
-  }
 
   // Start configuration asynchronously (but don't block return)
   initPromise = performInit(opts)
@@ -103,9 +89,14 @@ async function performInit(opts?: NDKConstructorParams) {
   // Only include enabled relays
   const enabledRelays =
     store.relayConfigs?.filter((c) => !c.disabled).map((c) => c.url) || []
-  const relays = opts?.explicitRelayUrls || enabledRelays
+  const configuredRelays = opts?.explicitRelayUrls || enabledRelays
+  const injectedHtreeRelayUrl = getInjectedHtreeRelayUrl()
+  const relays = injectedHtreeRelayUrl ? [injectedHtreeRelayUrl] : configuredRelays
 
   log("Initializing NDK with enabled relays:", relays)
+  if (injectedHtreeRelayUrl) {
+    log("Routing NDK through injected htree daemon relay:", injectedHtreeRelayUrl)
+  }
 
   // Log when using test relay
   if (import.meta.env.VITE_USE_TEST_RELAY) {
@@ -125,13 +116,8 @@ async function performInit(opts?: NDKConstructorParams) {
     autoConnectUserRelays
   )
 
-  // Connect transports (registers as plugin and sends init)
-  if (isTauri()) {
-    tauriTransport!.connect(ndkInstance!, relays) // Relay connections via Tauri backend
-    workerTransport!.connect(ndkInstance!, [], true) // Worker for search only, no relays
-  } else {
-    workerTransport!.connect(ndkInstance!, relays) // Worker handles everything
-  }
+  // Connect transport (registers as plugin and sends init).
+  workerTransport!.connect(ndkInstance!, relays)
 
   const ndk = ndkInstance!
 
@@ -175,9 +161,7 @@ function setupVisibilityReconnection() {
   let wasHidden = false
 
   const reconnectDisconnectedRelays = (reason: string) => {
-    // Forward to transport
-    const transport = isTauri() ? tauriTransport : workerTransport
-    transport?.reconnectDisconnected?.(reason)
+    workerTransport?.reconnectDisconnected?.(reason)
   }
 
   // Handle visibility changes (PWA/mobile only - desktop keeps WS open)

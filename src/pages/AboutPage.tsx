@@ -20,7 +20,7 @@ import Widget from "@/shared/components/ui/Widget"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {useState, useEffect} from "react"
 import {Link} from "@/navigation"
-import {openExternalLink, isTauri} from "@/utils/utils"
+import {openExternalLink} from "@/utils/utils"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 
 export const AboutPage = () => {
@@ -117,67 +117,61 @@ export const AboutPage = () => {
                 </Link>
               </p>
 
-              {!isTauri() && (
-                <>
-                  <h2>Download</h2>
-                  <p>
-                    <a
-                      href="https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        openExternalLink(
-                          "https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
-                        )
-                      }}
-                      className="flex items-center gap-1 w-fit"
-                    >
-                      <RiAppleFill className="inline" /> iOS App Store
-                    </a>
-                  </p>
-                  <p>
-                    <a
-                      href="https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        openExternalLink(
-                          "https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
-                        )
-                      }}
-                      className="flex items-center gap-1 w-fit"
-                    >
-                      <RiAndroidFill className="inline" /> Android Zapstore
-                    </a>
-                  </p>
-                  <p>
-                    <a
-                      href="https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        openExternalLink(
-                          "https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
-                        )
-                      }}
-                      className="flex items-center gap-1 w-fit"
-                    >
-                      <RiGooglePlayFill className="inline" /> Google Play Store
-                    </a>
-                  </p>
-                  <p>
-                    <a
-                      href="https://github.com/irislib/iris-client/releases"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        openExternalLink(
-                          "https://github.com/irislib/iris-client/releases"
-                        )
-                      }}
-                      className="flex items-center gap-1 w-fit"
-                    >
-                      <RiMacbookFill className="inline" /> Desktop
-                    </a>
-                  </p>
-                </>
-              )}
+              <h2>Download</h2>
+              <p>
+                <a
+                  href="https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternalLink(
+                      "https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
+                    )
+                  }}
+                  className="flex items-center gap-1 w-fit"
+                >
+                  <RiAppleFill className="inline" /> iOS App Store
+                </a>
+              </p>
+              <p>
+                <a
+                  href="https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternalLink(
+                      "https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
+                    )
+                  }}
+                  className="flex items-center gap-1 w-fit"
+                >
+                  <RiAndroidFill className="inline" /> Android Zapstore
+                </a>
+              </p>
+              <p>
+                <a
+                  href="https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternalLink(
+                      "https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
+                    )
+                  }}
+                  className="flex items-center gap-1 w-fit"
+                >
+                  <RiGooglePlayFill className="inline" /> Google Play Store
+                </a>
+              </p>
+              <p>
+                <a
+                  href="https://github.com/irislib/iris-client/releases"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternalLink("https://github.com/irislib/iris-client/releases")
+                  }}
+                  className="flex items-center gap-1 w-fit"
+                >
+                  <RiMacbookFill className="inline" /> Desktop
+                </a>
+              </p>
 
               <h2>Developers</h2>
               <p>
@@ -207,20 +201,7 @@ export const AboutPage = () => {
 
               <h2>Application</h2>
               <div className="mt-4">
-                <p>
-                  Version:{" "}
-                  {isTauri() ? (
-                    <>
-                      <span className="line-through opacity-50">Web</span> /{" "}
-                      <strong>Native</strong>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Web</strong> /{" "}
-                      <span className="line-through opacity-50">Native</span>
-                    </>
-                  )}
-                </p>
+                <p>Runtime: Web</p>
                 <p>App build time: {formatBuildTime(buildTime)}</p>
               </div>
 

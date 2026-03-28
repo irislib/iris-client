@@ -1,6 +1,6 @@
 # Development Guidelines
 
-- vision: Highly performant and normie-friendly offline-first Nostr web client that is not dependent on any single relay or other server. Featuring a Cashu wallet, secure DMs and social graph based content filtering. Can be packaged as a Tauri app for desktop/android/ios.
+- vision: Highly performant and normie-friendly offline-first Nostr web client that is not dependent on any single relay or other server. Featuring a Cashu wallet, secure DMs and social graph based content filtering.
 - Don't hardcode Nostr event kinds or other magic numbers. Put them in a constants file`
 - Don't import React. Instead import from "react", e.g. `import {RefObject} from "react"`
 - Don't repeat yourself — build reusable hooks and components. Keep the code clean and beautiful.

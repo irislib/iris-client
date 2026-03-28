@@ -178,18 +178,15 @@ export class NDKWorkerTransport {
     }
   }
 
-  async connect(ndk: NDK, relayUrls?: string[], searchOnly?: boolean): Promise<void> {
+  async connect(ndk: NDK, relayUrls?: string[]): Promise<void> {
     this.ndk = ndk
     this.relayUrls = relayUrls || []
 
     // Register as transport plugin for publish and subscription interception
-    // Skip in searchOnly mode (Tauri transport handles relays)
-    if (!searchOnly) {
-      if (!ndk.transportPlugins) {
-        ndk.transportPlugins = []
-      }
-      ndk.transportPlugins.push(this as any) // Type compatibility handled at runtime
+    if (!ndk.transportPlugins) {
+      ndk.transportPlugins = []
     }
+    ndk.transportPlugins.push(this as any) // Type compatibility handled at runtime
 
     const settingsState = useSettingsStore.getState()
     const settings = {

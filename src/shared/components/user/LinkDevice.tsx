@@ -8,21 +8,14 @@ import {
 } from "@/shared/services/PrivateChats"
 import {ndk} from "@/utils/ndk"
 import Icon from "@/shared/components/Icons/Icon"
+import {getShareableAppOrigin} from "@/utils/utils"
 
 interface LinkDeviceProps {
   onBack: () => void
 }
 
 const getInviteBaseUrl = (): string => {
-  const origin = window.location.origin
-  if (
-    origin.startsWith("tauri://") ||
-    origin.startsWith("http://localhost") ||
-    origin.startsWith("http://127.0.0.1")
-  ) {
-    return "https://iris.to"
-  }
-  return origin
+  return getShareableAppOrigin()
 }
 
 const truncateMiddle = (value: string, maxLength: number) => {

@@ -1,6 +1,6 @@
 import {nip19} from "nostr-tools"
 
-import {isMobileUA, isTauri} from "@/utils/utils"
+import {isMobileUA} from "@/utils/utils"
 
 export interface DeviceLabels {
   deviceLabel?: string
@@ -19,15 +19,6 @@ interface ManagedDeviceDisplay {
 const normalizeLabel = (value?: string | null): string | undefined => {
   const normalized = value?.trim()
   return normalized ? normalized : undefined
-}
-
-const titleCaseWords = (value: string): string => {
-  return value.replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-const prettifyHostname = (value: string): string | undefined => {
-  const normalized = normalizeLabel(value)?.replace(/[._-]+/g, " ")
-  return normalized ? titleCaseWords(normalized) : undefined
 }
 
 const platformLabelFromUserAgent = (userAgent: string): string | undefined => {
@@ -49,7 +40,6 @@ const browserLabelFromUserAgent = (userAgent: string): string | undefined => {
   return undefined
 }
 
-const desktopClientLabel = "Iris Client Desktop"
 const mobileClientLabel = "Iris Client Mobile"
 const webClientLabel = "Iris Client Web"
 
@@ -76,65 +66,15 @@ export const inferBrowserDeviceLabel = (userAgent: string): string => {
   return browser || platform || "Browser"
 }
 
-const platformFallbackDeviceLabel = (
-  platformName?: string | null
-): string | undefined => {
-  switch (platformName) {
-    case "macos":
-      return "Mac"
-    case "windows":
-      return "Windows PC"
-    case "linux":
-      return "Linux machine"
-    case "android":
-      return "Android device"
-    case "ios":
-      return "iPhone"
-    default:
-      return undefined
-  }
-}
-
 const resolveClientLabel = async (): Promise<string> => {
-  if (!isTauri()) {
-    return isMobileUA() ? mobileClientLabel : webClientLabel
-  }
-
-  try {
-    const {platform} = await import("@tauri-apps/plugin-os")
-    const platformName = await platform()
-    return platformName === "android" || platformName === "ios"
-      ? mobileClientLabel
-      : desktopClientLabel
-  } catch {
-    return desktopClientLabel
-  }
-}
-
-const resolveTauriDeviceLabel = async (): Promise<string | undefined> => {
-  if (!isTauri()) {
-    return undefined
-  }
-
-  try {
-    const {hostname, platform} = await import("@tauri-apps/plugin-os")
-    const platformName = platform()
-    const host = await hostname().catch(() => undefined)
-
-    return (
-      (host ? prettifyHostname(host) : undefined) ||
-      platformFallbackDeviceLabel(platformName)
-    )
-  } catch {
-    return undefined
-  }
+  return isMobileUA() ? mobileClientLabel : webClientLabel
 }
 
 export const getCurrentDeviceRegistrationLabels = async (): Promise<DeviceLabels> => {
   const clientLabel = await resolveClientLabel()
-  const deviceLabel =
-    (await resolveTauriDeviceLabel()) ||
-    inferBrowserDeviceLabel(typeof navigator === "undefined" ? "" : navigator.userAgent)
+  const deviceLabel = inferBrowserDeviceLabel(
+    typeof navigator === "undefined" ? "" : navigator.userAgent
+  )
 
   return {
     deviceLabel,

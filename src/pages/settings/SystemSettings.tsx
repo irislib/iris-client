@@ -5,11 +5,6 @@ import CopyButton from "@/shared/components/button/CopyButton"
 import {LogViewer} from "@/shared/components/settings/LogViewer"
 import Debug from "@/utils/DebugManager"
 import {useSettingsStore} from "@/stores/settings"
-import {isTauri, isMobileTauri} from "@/utils/utils"
-import {
-  enable as enableAutostart,
-  disable as disableAutostart,
-} from "@tauri-apps/plugin-autostart"
 
 export default function SystemSettings() {
   const [memoryUsage, setMemoryUsage] = useState<{
@@ -21,8 +16,7 @@ export default function SystemSettings() {
   const [debugSessionLink, setDebugSessionLink] = useState<string>("")
   const [testValue, setTestValue] = useState<string>("")
   const [preserveDebugSession, setPreserveDebugSession] = useState(false)
-  const [isDesktopTauri, setIsDesktopTauri] = useState(false)
-  const {debug, desktop, updateDesktop} = useSettingsStore()
+  const {debug} = useSettingsStore()
 
   const appVersion = import.meta.env.VITE_APP_VERSION || "dev"
   const buildTime = import.meta.env.VITE_BUILD_TIME || "development"
@@ -39,15 +33,6 @@ export default function SystemSettings() {
       return timestamp
     }
   }
-
-  useEffect(() => {
-    // Check if running on desktop Tauri (not mobile)
-    if (isTauri()) {
-      isMobileTauri().then((isMobile) => {
-        setIsDesktopTauri(!isMobile)
-      })
-    }
-  }, [])
 
   useEffect(() => {
     const updateMemoryUsage = () => {
@@ -151,48 +136,10 @@ export default function SystemSettings() {
     window.location.reload()
   }
 
-  const toggleStartOnBoot = async () => {
-    const newValue = !desktop.startOnBoot
-    updateDesktop({startOnBoot: newValue})
-
-    try {
-      if (newValue) {
-        await enableAutostart()
-      } else {
-        await disableAutostart()
-      }
-    } catch (error) {
-      console.error("Failed to update autostart setting:", error)
-      // Revert on error
-      updateDesktop({startOnBoot: !newValue})
-    }
-  }
-
   return (
     <div className="bg-base-200 min-h-full">
       <div className="p-4">
         <div className="space-y-6">
-          {isDesktopTauri && (
-            <SettingsGroup title="Desktop">
-              <SettingsGroupItem isLast>
-                <div className="flex justify-between items-center">
-                  <div className="flex flex-col">
-                    <span>Start on System Boot</span>
-                    <span className="text-sm text-base-content/60">
-                      Launch Iris automatically when your computer starts (minimized)
-                    </span>
-                  </div>
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={desktop.startOnBoot}
-                    onChange={toggleStartOnBoot}
-                  />
-                </div>
-              </SettingsGroupItem>
-            </SettingsGroup>
-          )}
-
           <SettingsGroup title="Maintenance">
             <SettingsGroupItem isLast>
               <div className="flex flex-col space-y-2">
@@ -214,20 +161,8 @@ export default function SystemSettings() {
           <SettingsGroup title="Application Info">
             <SettingsGroupItem>
               <div className="flex justify-between items-center">
-                <span>Version</span>
-                <span className="text-base-content/70">
-                  {isTauri() ? (
-                    <>
-                      <span className="line-through opacity-50">Web</span> /{" "}
-                      <strong>Native</strong>
-                    </>
-                  ) : (
-                    <>
-                      <strong>Web</strong> /{" "}
-                      <span className="line-through opacity-50">Native</span>
-                    </>
-                  )}
-                </span>
+                <span>Runtime</span>
+                <span className="text-base-content/70">Web</span>
               </div>
             </SettingsGroupItem>
 

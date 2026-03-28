@@ -2,6 +2,7 @@ import {useState, useEffect, useRef} from "react"
 import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {isOvermuted} from "@/utils/visibility"
 import {search} from "@/utils/profileSearch"
+import {hasProfileSearchPrefixMatch} from "@/utils/profileSearchData"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
 import {nip19} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
@@ -91,9 +92,7 @@ export function useSearch({
             ? socialGraph.followedByFriends(result.item.pubKey).size || 0
             : 0
 
-          const nameLower = result.item.name.toLowerCase()
-          const nip05Lower = result.item.nip05?.toLowerCase() || ""
-          const prefixMatch = nameLower.startsWith(query) || nip05Lower.startsWith(query)
+          const prefixMatch = hasProfileSearchPrefixMatch(result.item, query)
 
           if (isSingleChar) {
             // For single-character queries, exclude non-prefix matches entirely

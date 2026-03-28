@@ -7,7 +7,7 @@ import {confirm} from "@/utils/utils"
 import Dexie from "dexie"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {getTauriTransport, getWorkerTransport} from "@/utils/ndk"
+import {getWorkerTransport} from "@/utils/ndk"
 
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -37,8 +37,7 @@ export function LocalData() {
       setLoading(true)
       setErrorMessage(null)
 
-      // Get stats from transport (worker or tauri backend)
-      const transport = getTauriTransport() || getWorkerTransport()
+      const transport = getWorkerTransport()
 
       if (!transport?.getStats) {
         throw new Error("No transport with getStats available")

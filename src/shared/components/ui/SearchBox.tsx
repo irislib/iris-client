@@ -10,6 +10,7 @@ import {
 import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {useKeyboardNavigation} from "@/shared/hooks/useKeyboardNavigation"
 import {UserRow} from "@/shared/components/user/UserRow"
+import {hasProfileSearchPrefixMatch} from "@/utils/profileSearchData"
 import {isOvermuted} from "@/utils/visibility"
 import {search} from "@/utils/profileSearch"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
@@ -159,10 +160,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
               ? socialGraph.followedByFriends(result.item.pubKey).size || 0
               : 0
 
-            const nameLower = result.item.name.toLowerCase()
-            const nip05Lower = result.item.nip05?.toLowerCase() || ""
-            const prefixMatch =
-              nameLower.startsWith(query) || nip05Lower.startsWith(query)
+            const prefixMatch = hasProfileSearchPrefixMatch(result.item, query)
 
             if (isSingleChar) {
               // For single-character queries, exclude non-prefix matches entirely
