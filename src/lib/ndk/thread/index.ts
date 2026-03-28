@@ -238,5 +238,5 @@ export function getReplyTag(event: NDKEvent, searchTag?: string): NDKTag | undef
 }
 
 function isTagRootTag(tag: NDKTag): boolean {
-    return tag[0] === "E" || tag[3] === "root";
+    return tag[0] === "A" || tag[0] === "E" || tag[0] === "I" || tag[3] === "root";
 }

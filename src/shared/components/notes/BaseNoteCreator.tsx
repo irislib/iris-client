@@ -32,7 +32,7 @@ interface BaseNoteCreatorProps {
   className?: string
   showPreview?: boolean
   variant?: "inline" | "modal"
-  onPublish?: () => void
+  onPublish?: (event: NDKEvent) => void
   expandOnFocus?: boolean
   alwaysExpanded?: boolean
 }
@@ -133,6 +133,7 @@ export function BaseNoteCreator({
 
   if (!myPubKey) return null
 
+  const effectiveEventKind = replyingTo ? KIND_TEXT_NOTE : state.eventKind
   const shouldExpand = Boolean(
     alwaysExpanded || !expandOnFocus || isFocused || state.text.trim()
   )
@@ -174,17 +175,19 @@ export function BaseNoteCreator({
               Preview
             </button>
           </div>
-          <select
-            value={state.eventKind}
-            onChange={(e) =>
-              dispatch({type: "SET_EVENT_KIND", payload: Number(e.target.value)})
-            }
-            className="select select-sm select-bordered"
-            disabled={publishing}
-          >
-            <option value={KIND_TEXT_NOTE}>Post</option>
-            <option value={KIND_CLASSIFIED}>Market Listing</option>
-          </select>
+          {!replyingTo && (
+            <select
+              value={state.eventKind}
+              onChange={(e) =>
+                dispatch({type: "SET_EVENT_KIND", payload: Number(e.target.value)})
+              }
+              className="select select-sm select-bordered"
+              disabled={publishing}
+            >
+              <option value={KIND_TEXT_NOTE}>Post</option>
+              <option value={KIND_CLASSIFIED}>Market Listing</option>
+            </select>
+          )}
         </div>
       )}
 
@@ -196,7 +199,7 @@ export function BaseNoteCreator({
         </ProfileLink>
 
         <div className="flex-1">
-          {state.eventKind === KIND_CLASSIFIED && shouldExpand && !previewMode && (
+          {effectiveEventKind === KIND_CLASSIFIED && shouldExpand && !previewMode && (
             <MarketListingFields
               title={state.title}
               price={state.price}
@@ -213,7 +216,7 @@ export function BaseNoteCreator({
             onFocus={() => setIsFocused(true)}
             onKeyDown={handlers.handleKeyDown}
             placeholder={
-              state.eventKind === KIND_CLASSIFIED ? "Description" : placeholder
+              effectiveEventKind === KIND_CLASSIFIED ? "Description" : placeholder
             }
             previewMode={previewMode}
             isModal={isModal}

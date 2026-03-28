@@ -10,9 +10,12 @@ import {useUserStore} from "@/stores/user"
 import Icon from "../../Icons/Icon"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
-import {getEventReplyingTo, getEventRoot} from "@/utils/nostr"
 import {LRUCache} from "typescript-lru-cache"
-import {KIND_TEXT_NOTE} from "@/utils/constants"
+import {
+  buildReplySubscriptionFilters,
+  getEventReplyReference,
+  getEventRootReference,
+} from "@/utils/threadReferences"
 
 interface FeedItemCommentProps {
   event: NDKEvent
@@ -23,7 +26,10 @@ const replyCountByEventCache = new LRUCache({maxSize: 100})
 
 function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProps) {
   const myPubKey = useUserStore((state) => state.publicKey)
-  const [replyCount, setReplyCount] = useState(replyCountByEventCache.get(event.id) || 0)
+  const threadReference = event.tagId()
+  const [replyCount, setReplyCount] = useState(
+    replyCountByEventCache.get(threadReference) || 0
+  )
 
   const [isPopupOpen, setPopupOpen] = useState(false)
 
@@ -41,38 +47,40 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
     if (!showReactionCounts) return
 
     const replies = new Set<string>()
-    setReplyCount(replyCountByEventCache.get(event.id) || 0)
-    const filter: NDKFilter = {
-      kinds: [KIND_TEXT_NOTE],
-      ["#e"]: [event.id],
-    }
+    setReplyCount(replyCountByEventCache.get(threadReference) || 0)
+    const filters: NDKFilter[] = buildReplySubscriptionFilters(event)
 
     const debouncedSetReplyCount = debounce((count) => {
       setReplyCount(count)
-      replyCountByEventCache.set(event.id, count)
+      replyCountByEventCache.set(threadReference, count)
     }, 300)
 
     try {
       // Closed on eose because NDK will otherwise send too many concurrent REQs for all the feed item reaction subscriptions
-      const sub = ndk().subscribe(filter, {closeOnEose: true})
+      const subs = filters.map((filter) => ndk().subscribe(filter, {closeOnEose: true}))
 
-      sub?.on("event", (e: NDKEvent) => {
-        // Check if event should be hidden (author or mentions muted users)
-        if (shouldHideEvent(e)) return
-        // Count if this event has current as root or is replying to it
-        if (getEventRoot(e) !== event.id && getEventReplyingTo(e) !== event.id) return
-        replies.add(e.id)
-        debouncedSetReplyCount(replies.size)
-      })
+      subs.forEach((sub) =>
+        sub?.on("event", (e: NDKEvent) => {
+          if (shouldHideEvent(e)) return
+          if (
+            getEventRootReference(e) !== threadReference &&
+            getEventReplyReference(e) !== threadReference
+          )
+            return
+
+          replies.add(e.id)
+          debouncedSetReplyCount(replies.size)
+        })
+      )
 
       return () => {
-        sub.stop()
+        subs.forEach((sub) => sub.stop())
         debouncedSetReplyCount.cancel()
       }
     } catch (error) {
       console.warn(error)
     }
-  }, [event.id, showReactionCounts])
+  }, [event, showReactionCounts, threadReference])
 
   return (
     <>

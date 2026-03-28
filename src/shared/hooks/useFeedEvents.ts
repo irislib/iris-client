@@ -8,13 +8,13 @@ import {seenEventIds} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
-import {getEventReplyingTo} from "@/utils/nostr"
 import {hasMedia} from "@/shared/components/embed"
 import {hasImageOrVideo} from "@/shared/utils/mediaUtils"
 import {type FeedConfig} from "@/stores/feed"
 import DebugManager from "@/utils/DebugManager"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
+import {getEventReplyReference} from "@/utils/threadReferences"
 
 interface FutureEvent {
   event: NDKEvent
@@ -30,6 +30,8 @@ interface UseFeedEventsProps {
   relayUrls?: string[]
   bottomVisibleEventTimestamp?: number
   displayAs?: "list" | "grid"
+  subscriptionFilters?: NDKFilter[]
+  injectedEvents?: NDKEvent[]
 }
 
 export default function useFeedEvents({
@@ -41,6 +43,8 @@ export default function useFeedEvents({
   relayUrls,
   bottomVisibleEventTimestamp = Infinity,
   displayAs = "list",
+  subscriptionFilters,
+  injectedEvents,
 }: UseFeedEventsProps) {
   const socialGraph = useSocialGraph()
   const bottomVisibleEventTimestampRef = useRef(bottomVisibleEventTimestamp)
@@ -73,6 +77,23 @@ export default function useFeedEvents({
   )
   const hasReceivedEventsRef = useRef<boolean>(eventsRef.current.size > 0)
   const [eventsVersion, setEventsVersion] = useState(0) // Version counter for filtered events
+  const resolvedSubscriptionFilters = useMemo(() => {
+    const baseFilters = subscriptionFilters?.length ? subscriptionFilters : [filters]
+
+    return baseFilters.flatMap((filter) => {
+      const builtFilters = buildSearchSubscriptionFilters(
+        filter,
+        untilTimestamp,
+        Math.max(displayCount, 100)
+      )
+
+      return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
+    })
+  }, [filters, subscriptionFilters, untilTimestamp, displayCount])
+  const subscriptionFingerprint = useMemo(
+    () => JSON.stringify(subscriptionFilters?.length ? subscriptionFilters : [filters]),
+    [filters, subscriptionFilters]
+  )
 
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
@@ -95,7 +116,7 @@ export default function useFeedEvents({
     // Cache expensive calls
     const replyingTo =
       feedConfig.hideReplies || feedConfig.requiresReplies || feedConfig.repliesTo
-        ? getEventReplyingTo(event)
+        ? getEventReplyReference(event)
         : null
 
     if (feedConfig.hideReplies && replyingTo) return false
@@ -265,6 +286,40 @@ export default function useFeedEvents({
     }
   }
 
+  const addEventToMain = useCallback(
+    (event: NDKEvent, markLoadDone = false) => {
+      if (!event?.id || !event.created_at) return
+      if (eventsRef.current.has(event.id)) return
+
+      oldestRef.current = Math.min(
+        oldestRef.current ?? event.created_at,
+        event.created_at
+      )
+      hasReceivedEventsRef.current = true
+      eventsRef.current.set(event.id, event)
+
+      if (markLoadDone && !initialLoadDoneRef.current) {
+        initialLoadDoneRef.current = true
+        setInitialLoadDoneState(true)
+      }
+
+      setEventsVersion((prev) => prev + 1)
+
+      const debugSession = DebugManager.getDebugSession()
+      if (debugSession) {
+        debugSession.publish("feed_events", {
+          action: "addMain",
+          cacheKey,
+          feedName: feedConfig.name || feedConfig.id || "unknown",
+          eventsRefSize: eventsRef.current.size,
+          eventId: event.id,
+          timestamp: Date.now(),
+        })
+      }
+    },
+    [cacheKey, feedConfig.id, feedConfig.name]
+  )
+
   const filteredEvents = useMemo((): NDKEvent[] => {
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
@@ -299,28 +354,33 @@ export default function useFeedEvents({
   const prevFiltersStringRef = useRef<string | undefined>(undefined)
 
   useEffect(() => {
-    const filtersString = JSON.stringify(filters)
-    if (prevFiltersStringRef.current !== filtersString) {
-      prevFiltersStringRef.current = filtersString
+    if (prevFiltersStringRef.current !== subscriptionFingerprint) {
+      prevFiltersStringRef.current = subscriptionFingerprint
       oldestRef.current = undefined
       setUntilTimestamp(undefined)
     }
-  }, [filters])
+  }, [subscriptionFingerprint])
+
+  useEffect(() => {
+    if (!injectedEvents?.length) {
+      return
+    }
+
+    injectedEvents.forEach((event) => {
+      if (!event?.id || !event.created_at) return
+      if (eventsRef.current.has(event.id)) return
+      if (!shouldAcceptEventRef.current!(event)) return
+
+      addEventToMain(event, true)
+    })
+  }, [injectedEvents, addEventToMain])
 
   useEffect(() => {
     if (filters.authors && filters.authors.length === 0) {
       return
     }
 
-    const subscriptionFilters = buildSearchSubscriptionFilters(
-      filters,
-      untilTimestamp,
-      Math.max(displayCount, 100)
-    )
-    const subscriptionFilterList = Array.isArray(subscriptionFilters)
-      ? subscriptionFilters
-      : [subscriptionFilters]
-    const subs = subscriptionFilterList.map((subscriptionFilter) =>
+    const subs = resolvedSubscriptionFilters.map((subscriptionFilter) =>
       ndk().subscribe(subscriptionFilter, relayUrls ? {relayUrls} : undefined)
     )
 
@@ -359,30 +419,6 @@ export default function useFeedEvents({
         addFutureEvent(event)
         return
       }
-
-      oldestRef.current = Math.min(
-        oldestRef.current ?? event.created_at,
-        event.created_at
-      )
-      hasReceivedEventsRef.current = true
-
-      const addMain = () => {
-        eventsRef.current.set(event.id, event)
-        setEventsVersion((prev) => prev + 1)
-
-        // Debug logging
-        const debugSession = DebugManager.getDebugSession()
-        if (debugSession) {
-          debugSession.publish("feed_events", {
-            action: "addMain",
-            cacheKey,
-            feedName: feedConfig.name || feedConfig.id || "unknown",
-            eventsRefSize: eventsRef.current.size,
-            eventId: event.id,
-            timestamp: Date.now(),
-          })
-        }
-      }
       const addNew = () => {
         setNewEvents((prev) => new Map([...prev, [event.id, event]]))
         setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
@@ -401,11 +437,11 @@ export default function useFeedEvents({
         isNewEvent && (event.created_at || 0) < currentBottomVisible
 
       if (wouldBeBelowViewport) {
-        addMain() // Add directly, no layout shift
+        addEventToMain(event) // Add directly, no layout shift
       } else if (isNewEvent && wouldBeInViewport) {
         addNew() // Buffer for "show new" button
       } else {
-        addMain()
+        addEventToMain(event)
       }
 
       markLoadDoneIfHasEvents()
@@ -417,7 +453,12 @@ export default function useFeedEvents({
       clearTimeout(initialLoadTimeout)
       markLoadDoneIfHasEvents.cancel()
     }
-  }, [JSON.stringify(filters), untilTimestamp, addFutureEvent])
+  }, [
+    resolvedSubscriptionFilters,
+    JSON.stringify(filters),
+    addFutureEvent,
+    addEventToMain,
+  ])
 
   // Cleanup future event timers on unmount
   useEffect(() => {

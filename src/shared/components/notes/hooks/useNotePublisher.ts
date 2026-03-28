@@ -24,17 +24,27 @@ export function useNotePublisher(params: UseNotePublisherParams) {
 
     setPublishing(true)
     try {
-      const event = new NDKEvent(params.ndkInstance)
-      event.kind = state.eventKind as NDKKind
+      const effectiveEventKind = params.replyingTo ? NDKKind.Text : state.eventKind
+      const event = params.replyingTo
+        ? params.replyingTo.reply()
+        : new NDKEvent(params.ndkInstance)
+      event.ndk ??= params.ndkInstance
+
+      if (!params.replyingTo) {
+        event.kind = effectiveEventKind as NDKKind
+      }
+
       event.content = state.text
       event.tags = buildEventTags({
         replyingTo: params.replyingTo,
+        initialTags: params.replyingTo ? event.tags : undefined,
+        includeReplyTags: !params.replyingTo,
         quotedEvent: params.quotedEvent,
         imeta: state.imeta,
         gTags: params.gTags,
         text: state.text,
         expirationDelta: state.expirationDelta,
-        eventKind: state.eventKind,
+        eventKind: effectiveEventKind,
         title: state.title,
         price: state.price,
         myPubKey: params.myPubKey,
@@ -61,6 +71,7 @@ export function useNotePublisher(params: UseNotePublisherParams) {
 
       return {
         success: true,
+        event,
         eventId: event.id,
       }
     } catch (error) {
@@ -68,6 +79,7 @@ export function useNotePublisher(params: UseNotePublisherParams) {
       setPublishing(false)
       return {
         success: false,
+        event: null,
         eventId: null,
       }
     }

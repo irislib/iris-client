@@ -229,6 +229,8 @@ describe("Threads to make Gigi ⚡🧡 happy", () => {
         let op: NDKEvent;
         let reply1: NDKEvent;
         let reply2: NDKEvent;
+        let article: NDKEvent;
+        let articleReply: NDKEvent;
 
         beforeAll(async () => {
             op = new NDKEvent(ndk, {
@@ -242,6 +244,16 @@ describe("Threads to make Gigi ⚡🧡 happy", () => {
             reply2 = reply1.reply();
             reply2.content = "this is the reply to the reply";
             await reply2.sign();
+
+            article = new NDKEvent(ndk, {
+                kind: 30023,
+                content: "This is the root article",
+                tags: [["d", "article-slug"]],
+            } as NostrEvent);
+            await article.sign();
+            articleReply = article.reply();
+            articleReply.content = "this is the article reply";
+            await articleReply.sign();
         });
 
         it("finds the root event of the first-level reply", () => {
@@ -262,6 +274,16 @@ describe("Threads to make Gigi ⚡🧡 happy", () => {
         it("finds the reply event of the second-level reply", () => {
             const replyEventId = getEventReplyId(reply2);
             expect(replyEventId).toBe(reply1.id);
+        });
+
+        it("finds the root address of a reply to an addressable event", () => {
+            const rootEventId = getRootEventId(articleReply);
+            expect(rootEventId).toBe(article.tagId());
+        });
+
+        it("finds the uppercase root tag of a reply to an addressable event", () => {
+            const rootTag = getRootTag(articleReply);
+            expect(rootTag).toEqual(expect.arrayContaining(["A", article.tagId()]));
         });
     });
 });

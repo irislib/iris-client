@@ -31,7 +31,7 @@ function InlineNoteCreator({
       expandOnFocus={!alwaysExpanded}
       alwaysExpanded={alwaysExpanded}
       showPreview={showPreview}
-      onPublish={onPublish ? () => onPublish(null as unknown as NDKEvent) : undefined}
+      onPublish={onPublish}
     />
   )
 }

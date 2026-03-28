@@ -14,6 +14,7 @@ interface UseNoteCreatorHandlersParams {
     | false
     | {
         success: boolean
+        event: NDKEvent | null
         eventId: string | null
       }
   >
@@ -32,7 +33,7 @@ interface UseNoteCreatorHandlersParams {
   setIsFocused: (focused: boolean) => void
   replyingTo?: NDKEvent
   onClose?: () => void
-  onPublishCallback?: () => void
+  onPublishCallback?: (event: NDKEvent) => void
 }
 
 export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
@@ -55,7 +56,9 @@ export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
       }
       // Close modal and call callback after navigation
       params.onClose?.()
-      params.onPublishCallback?.()
+      if (result.event) {
+        params.onPublishCallback?.(result.event)
+      }
     }
   }
 

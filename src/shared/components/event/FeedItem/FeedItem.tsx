@@ -2,12 +2,7 @@ import {useEffect, useMemo, useState, useRef, memo} from "react"
 import {NDKEvent, NDKSubscription} from "@/lib/ndk"
 import classNames from "classnames"
 
-import {
-  getEventReplyingTo,
-  getEventRoot,
-  isRepost,
-  getZappingUser,
-} from "@/utils/nostr.ts"
+import {isRepost, getZappingUser} from "@/utils/nostr.ts"
 import {getEventIdHex, handleEventContent} from "@/shared/components/event/utils.ts"
 import RepostHeader from "@/shared/components/event/RepostHeader.tsx"
 import FeedItemActions from "../reactions/FeedItemActions.tsx"
@@ -27,11 +22,18 @@ import {Link, useNavigate} from "@/navigation"
 import LikeHeader from "../LikeHeader"
 import ZapReceiptHeader from "../ZapReceiptHeader"
 import ReplyHeader from "../ReplyHeader"
-import {nip19} from "nostr-tools"
 import {fetchEventReliable} from "@/utils/fetchEventsReliable"
-import {KIND_TEXT_NOTE, KIND_REACTION, KIND_ZAP_RECEIPT} from "@/utils/constants"
+import {KIND_REACTION, KIND_ZAP_RECEIPT} from "@/utils/constants"
 import InlineNoteCreator from "@/shared/components/create/InlineNoteCreator"
 import {usePublicKey} from "@/stores/user"
+import {
+  buildReplyFeedFilter,
+  buildReplySubscriptionFilters,
+  getEventReplyReference,
+  getEventRootReference,
+  getHexEventIdFromThreadReference,
+  getThreadReferenceRoute,
+} from "@/utils/threadReferences"
 
 type FeedItemProps = {
   event?: NDKEvent
@@ -119,11 +121,47 @@ function FeedItem({
   const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
   const [loadingEvent, setLoadingEvent] = useState<boolean>(!initialEvent && !!eventId)
   const [referredEvent, setReferredEvent] = useState<NDKEvent | undefined>()
+  const [optimisticReplies, setOptimisticReplies] = useState<NDKEvent[]>([])
 
-  const repliedToEventId = useMemo(() => event && getEventReplyingTo(event), [event])
-  const rootId = useMemo(() => event && getEventRoot(event), [event])
+  const repliedToReference = useMemo(
+    () => (event ? getEventReplyReference(event) : undefined),
+    [event]
+  )
+  const repliedToEventId = useMemo(
+    () => getHexEventIdFromThreadReference(repliedToReference),
+    [repliedToReference]
+  )
+  const rootReference = useMemo(
+    () => (event ? getEventRootReference(event) : undefined),
+    [event]
+  )
+  const rootRoute = useMemo(() => getThreadReferenceRoute(rootReference), [rootReference])
   const showThreadRoot =
-    standalone && rootId && rootId !== eventIdHex && rootId !== repliedToEventId
+    standalone &&
+    !!rootRoute &&
+    !!rootReference &&
+    rootReference !== event?.tagId() &&
+    rootReference !== repliedToEventId
+  const replyFeedConfig = useMemo(
+    () =>
+      event
+        ? {
+            name: "Replies",
+            id: `replies-${event.id}`,
+            repliesTo: event.tagId(),
+            sortType: "followDistance" as const,
+            showRepliedTo: false,
+            filter: buildReplyFeedFilter(event),
+            followDistance:
+              useSettingsStore.getState().content.maxFollowDistanceForReplies,
+          }
+        : undefined,
+    [event]
+  )
+  const replySubscriptionFilters = useMemo(
+    () => (event ? buildReplySubscriptionFilters(event) : []),
+    [event]
+  )
 
   const feedItemRef = useRef<HTMLDivElement>(null)
 
@@ -236,7 +274,7 @@ function FeedItem({
       {showThreadRoot && (
         <div className="px-4 py-2 text-sm text-base-content/70">
           <Link
-            to={`/${nip19.noteEncode(rootId)}`}
+            to={rootRoute!}
             onClick={(e) => e.stopPropagation()}
             className="hover:underline"
           >
@@ -244,7 +282,7 @@ function FeedItem({
           </Link>
         </div>
       )}
-      {event.kind === KIND_TEXT_NOTE && showRepliedTo && repliedToEventId && (
+      {showRepliedTo && repliedToEventId && (
         <>
           <FeedItem
             borderTop={borderTop}
@@ -302,8 +340,7 @@ function FeedItem({
               />
             </div>
           )}
-          {event.kind === KIND_TEXT_NOTE &&
-            !standalone &&
+          {!standalone &&
             !asReply &&
             repliedToEventId &&
             !(showRepliedTo && repliedToEventId) && (
@@ -392,30 +429,37 @@ function FeedItem({
       {showReplies > 0 && (eventId || event?.id) && (
         <div className="flex flex-col justify-center">
           {standalone && myPubKey && event && (
-            <InlineNoteCreator repliedEvent={event} placeholder="Reply to this post..." />
+            <InlineNoteCreator
+              repliedEvent={event}
+              placeholder="Reply to this post..."
+              onPublish={(publishedEvent) => {
+                setOptimisticReplies((prev) =>
+                  prev.some((existingEvent) => existingEvent.id === publishedEvent.id)
+                    ? prev
+                    : [...prev, publishedEvent]
+                )
+                setHasActualReplies(true)
+                onEvent?.(publishedEvent)
+              }}
+            />
           )}
-          <Feed
-            asReply={true}
-            feedConfig={{
-              name: "Replies",
-              id: `replies-${event.id}`,
-              repliesTo: event.id,
-              sortType: "followDistance",
-              showRepliedTo: false,
-              filter: {kinds: [KIND_TEXT_NOTE], "#e": eventIdHex ? [eventIdHex] : []},
-              followDistance:
-                useSettingsStore.getState().content.maxFollowDistanceForReplies,
-            }}
-            onEvent={(e) => {
-              onEvent?.(e)
-              setHasActualReplies(true)
-            }}
-            borderTopFirst={false}
-            emptyPlaceholder={null}
-            showReplies={showReplies}
-            showDisplayAsSelector={false}
-            displayAs="list"
-          />
+          {replyFeedConfig && (
+            <Feed
+              asReply={true}
+              feedConfig={replyFeedConfig}
+              subscriptionFilters={replySubscriptionFilters}
+              injectedEvents={optimisticReplies}
+              onEvent={(e) => {
+                onEvent?.(e)
+                setHasActualReplies(true)
+              }}
+              borderTopFirst={false}
+              emptyPlaceholder={null}
+              showReplies={showReplies}
+              showDisplayAsSelector={false}
+              displayAs="list"
+            />
+          )}
           <FeedItemTitle event={event} />
         </div>
       )}

@@ -10,6 +10,7 @@ export interface FeedFilter {
   "#g"?: string[]
   "#p"?: string[]
   "#t"?: string[]
+  [key: `#${string}`]: string[] | undefined
 }
 
 export interface FeedConfig {

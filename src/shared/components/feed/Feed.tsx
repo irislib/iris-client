@@ -31,6 +31,8 @@ interface FeedProps {
   showDisplayAsSelector?: boolean
   onDisplayAsChange?: (display: "list" | "grid") => void
   forceShowZapAll?: boolean
+  subscriptionFilters?: NDKFilter[]
+  injectedEvents?: NDKEvent[]
 }
 
 const DefaultEmptyPlaceholder = (
@@ -51,6 +53,8 @@ const Feed = memo(function Feed({
   showDisplayAsSelector = true,
   onDisplayAsChange,
   forceShowZapAll = false,
+  subscriptionFilters,
+  injectedEvents,
 }: FeedProps) {
   const socialGraph = useSocialGraph()
   if (!feedConfig?.filter) {
@@ -152,6 +156,8 @@ const Feed = memo(function Feed({
     relayUrls: feedConfig.relayUrls,
     bottomVisibleEventTimestamp,
     displayAs,
+    subscriptionFilters,
+    injectedEvents,
   })
 
   // Track which events we've already notified about

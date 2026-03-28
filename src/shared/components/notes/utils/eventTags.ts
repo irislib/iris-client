@@ -1,12 +1,12 @@
 import {NDKEvent} from "@/lib/ndk"
 import {ImetaTag} from "@/stores/draft"
+import {getEventRoot} from "@/utils/nostr"
 import {extractHashtags} from "./hashtags"
 import {KIND_CLASSIFIED} from "@/utils/constants"
 
 export function buildReplyTags(replyingTo: NDKEvent, myPubKey: string): string[][] {
   const tags: string[][] = []
-  const rootTag = replyingTo.tagValue("e")
-  const rootEvent = rootTag || replyingTo.id
+  const rootEvent = getEventRoot(replyingTo) || replyingTo.id
 
   tags.push(["e", rootEvent, "", "root"])
   tags.push(["e", replyingTo.id, "", "reply"])
@@ -112,6 +112,8 @@ export function buildMarketListingTags(
 interface BuildEventTagsParams {
   replyingTo?: NDKEvent
   quotedEvent?: NDKEvent
+  initialTags?: string[][]
+  includeReplyTags?: boolean
   imeta: ImetaTag[]
   gTags?: string[]
   text: string
@@ -123,9 +125,11 @@ interface BuildEventTagsParams {
 }
 
 export function buildEventTags(params: BuildEventTagsParams): string[][] {
-  const tags: string[][] = []
+  const tags: string[][] = params.initialTags
+    ? params.initialTags.map((tag) => [...tag])
+    : []
 
-  if (params.replyingTo) {
+  if (params.replyingTo && params.includeReplyTags !== false) {
     tags.push(...buildReplyTags(params.replyingTo, params.myPubKey))
   }
 
