@@ -1,2 +1,2 @@
+# Keep the Cashu sub-app reachable without forcing global Worker execution.
 /cashu    /cashu    200
-/*    /index.html   200
