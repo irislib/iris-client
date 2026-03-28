@@ -114,6 +114,9 @@ const NotificationSubscriptionItem = ({
                 )}
               </span>
               {getSubscriptionTypeBadge(pushSubscription, fcmToken, apnsToken)}
+              {subscription.social_graph_filter && (
+                <span className="badge badge-sm badge-secondary">Social graph</span>
+              )}
               {isCurrentDevice && (
                 <span className="badge badge-primary text-xs shrink-0">This device</span>
               )}
@@ -178,6 +181,10 @@ const NotificationSubscriptionItem = ({
           <pre className="w-full overflow-x-auto whitespace-pre-wrap break-all bg-base-200 p-2 rounded text-sm mt-1">
             {JSON.stringify(removeNullValues(subscription.filter), null, 2)}
           </pre>
+          <div className="mt-2 text-sm">
+            <strong>Social Graph Filter:</strong>{" "}
+            {subscription.social_graph_filter ? "On" : "Off"}
+          </div>
         </div>
       )}
     </div>

@@ -102,6 +102,32 @@ const NotificationSettings = () => {
   }, [allGood])
 
   useEffect(() => {
+    if (!allGood || !subscribedToPush) {
+      return
+    }
+
+    subscribeToNotifications()
+  }, [
+    allGood,
+    subscribedToPush,
+    notifications.server,
+    notifications.preferences.mentions,
+    notifications.preferences.replies,
+    notifications.preferences.reposts,
+    notifications.preferences.reactions,
+    notifications.preferences.zaps,
+    notifications.socialGraphFilter,
+  ])
+
+  useEffect(() => {
+    if (!allGood || !subscribedToPush) {
+      return
+    }
+
+    subscribeToDMNotifications()
+  }, [allGood, subscribedToPush, notifications.server])
+
+  useEffect(() => {
     const checkPlatform = async () => {
       if (isTauriApp) {
         try {
@@ -394,7 +420,7 @@ const NotificationSettings = () => {
                 />
               </div>
             </SettingsGroupItem>
-            <SettingsGroupItem isLast>
+            <SettingsGroupItem>
               <div className="flex items-center justify-between">
                 <span>Direct Messages</span>
                 <input
@@ -404,6 +430,26 @@ const NotificationSettings = () => {
                   onChange={(e) =>
                     updateNotifications({
                       preferences: {...notifications.preferences, dms: e.target.checked},
+                    })
+                  }
+                />
+              </div>
+            </SettingsGroupItem>
+            <SettingsGroupItem isLast>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div>Only from social graph</div>
+                  <div className="text-sm text-base-content/70">
+                    Reduce spam using the crawled graph and your mute list
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary"
+                  checked={notifications.socialGraphFilter}
+                  onChange={(e) =>
+                    updateNotifications({
+                      socialGraphFilter: e.target.checked,
                     })
                   }
                 />

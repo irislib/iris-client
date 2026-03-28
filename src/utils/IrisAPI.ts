@@ -15,6 +15,7 @@ export interface NotificationSubscription {
   web_push_subscriptions: PushNotifications[]
   fcm_tokens?: string[]
   apns_tokens?: string[]
+  social_graph_filter?: boolean
   filter: {
     ids?: string[]
     authors?: string[]
@@ -66,7 +67,8 @@ export default class IrisAPI {
   registerPushNotifications(
     web_push_subscriptions: PushNotifications[],
     filter: Filter,
-    mobile_tokens?: {fcm_tokens?: string[]; apns_tokens?: string[]}
+    mobile_tokens?: {fcm_tokens?: string[]; apns_tokens?: string[]},
+    social_graph_filter = false
   ) {
     return this.getJsonAuthd<void>(`subscriptions`, "POST", {
       web_push_subscriptions,
@@ -74,6 +76,7 @@ export default class IrisAPI {
       filter,
       fcm_tokens: mobile_tokens?.fcm_tokens || [],
       apns_tokens: mobile_tokens?.apns_tokens || [],
+      social_graph_filter,
     })
   }
 

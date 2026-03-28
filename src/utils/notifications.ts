@@ -10,7 +10,7 @@ import {getSessionManager} from "@/shared/services/PrivateChats"
 import {NDKTag, NDKEvent} from "@/lib/ndk"
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
-import IrisAPI from "./IrisAPI"
+import IrisAPI, {NotificationSubscription, PushNotifications} from "./IrisAPI"
 import {
   KIND_TEXT_NOTE,
   KIND_REPOST,
@@ -21,6 +21,12 @@ import {
 import {createDebugLogger} from "@/utils/createDebugLogger"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+const MANAGED_NOTIFICATION_KINDS = [
+  KIND_TEXT_NOTE,
+  KIND_REPOST,
+  KIND_REACTION,
+  KIND_ZAP_RECEIPT,
+]
 
 interface ReactedTime {
   time: number
@@ -305,6 +311,7 @@ export const subscribeToNotifications = debounce(async () => {
 
     const store = useSettingsStore.getState()
     const api = new IrisAPI(store.notifications.server)
+    const socialGraphFilter = store.notifications.socialGraphFilter
 
     // Build notification filter based on user preferences
     const prefs = store.notifications.preferences || {
@@ -331,57 +338,64 @@ export const subscribeToNotifications = debounce(async () => {
     }
 
     if (kinds.length === 0) {
-      log("No notification types enabled, skipping subscription")
-      return
+      log("No notification types enabled, removing managed push subscription if present")
     }
 
     const notificationFilter = {
       "#p": [myPubKey],
       kinds,
     }
+    const webPushData = buildWebPushData(pushSubscription)
 
     // Check for existing subscription on notification server
     const currentSubscriptions = await api.getNotificationSubscriptions()
 
-    // Find and delete any existing subscription with kinds [1,6,7]. remove at some point
-    const oldSub = Object.entries(currentSubscriptions).find(
-      ([, sub]) =>
-        sub.filter["#p"]?.includes(myPubKey) &&
-        sub.filter.kinds?.length === 3 &&
-        sub.filter.kinds.includes(1) &&
-        sub.filter.kinds.includes(6) &&
-        sub.filter.kinds.includes(7) &&
-        (sub.web_push_subscriptions || []).some(
-          (s) => s.endpoint === pushSubscription.endpoint
-        )
+    const managedSubscriptions = Object.entries(currentSubscriptions).filter(([, sub]) =>
+      isManagedNotificationSubscription(sub, myPubKey, webPushData.endpoint)
     )
+    const [existingSub, ...duplicateSubs] = managedSubscriptions
 
-    if (oldSub) {
-      await api.deleteNotificationSubscription(oldSub[0])
+    if (duplicateSubs.length > 0) {
+      await Promise.all(
+        duplicateSubs.map(([id]) => api.deleteNotificationSubscription(id))
+      )
     }
 
-    // Check for existing subscription with new filter
-    const existingSub = Object.entries(currentSubscriptions).find(
-      ([, sub]) =>
-        sub.filter["#p"]?.includes(myPubKey) &&
-        sub.filter.kinds?.length === notificationFilter.kinds.length &&
-        sub.filter.kinds.every((k) => notificationFilter.kinds.includes(k)) &&
-        (sub.web_push_subscriptions || []).some(
-          (s) => s.endpoint === pushSubscription.endpoint
-        )
-    )
+    if (kinds.length === 0) {
+      if (existingSub) {
+        await api.deleteNotificationSubscription(existingSub[0])
+      }
+      return
+    }
 
-    // If no matching subscription exists, create new one
-    if (!existingSub) {
+    if (existingSub) {
+      const [id, sub] = existingSub
+      const currentWebPushSubscription = (sub.web_push_subscriptions || []).find(
+        (subscription) => subscription.endpoint === webPushData.endpoint
+      )
+      const needsUpdate =
+        !arrayEqual(sub.filter["#p"] || [], notificationFilter["#p"]) ||
+        !sameNumberSet(sub.filter.kinds || [], notificationFilter.kinds) ||
+        !sameWebPushSubscription(currentWebPushSubscription, webPushData) ||
+        !!sub.social_graph_filter !== socialGraphFilter
+
+      if (needsUpdate) {
+        await api.updateNotificationSubscription(id, {
+          filter: notificationFilter,
+          web_push_subscriptions: [webPushData],
+          webhooks: [],
+          fcm_tokens: sub.fcm_tokens || [],
+          apns_tokens: sub.apns_tokens || [],
+          subscriber: sub.subscriber,
+          social_graph_filter: socialGraphFilter,
+        })
+      }
+    } else {
       await api.registerPushNotifications(
-        [
-          {
-            endpoint: pushSubscription.endpoint,
-            p256dh: base64.encode(new Uint8Array(pushSubscription.getKey("p256dh")!)),
-            auth: base64.encode(new Uint8Array(pushSubscription.getKey("auth")!)),
-          },
-        ],
-        notificationFilter
+        [webPushData],
+        notificationFilter,
+        undefined,
+        socialGraphFilter
       )
     }
   } catch (e) {
@@ -436,4 +450,38 @@ export const unsubscribeAll = async () => {
 function arrayBufferEqual(a: ArrayBuffer, b: Uint8Array): boolean {
   const view1 = new Uint8Array(a)
   return view1.length === b.length && view1.every((val, i) => val === b[i])
+}
+
+function buildWebPushData(pushSubscription: PushSubscription): PushNotifications {
+  return {
+    endpoint: pushSubscription.endpoint,
+    p256dh: base64.encode(new Uint8Array(pushSubscription.getKey("p256dh")!)),
+    auth: base64.encode(new Uint8Array(pushSubscription.getKey("auth")!)),
+  }
+}
+
+function isManagedNotificationSubscription(
+  subscription: NotificationSubscription,
+  myPubKey: string,
+  endpoint: string
+) {
+  return (
+    !subscription.filter.authors &&
+    subscription.filter["#p"]?.length === 1 &&
+    subscription.filter["#p"][0] === myPubKey &&
+    (subscription.filter.kinds || []).every((kind) =>
+      MANAGED_NOTIFICATION_KINDS.includes(kind)
+    ) &&
+    (subscription.web_push_subscriptions || []).some(
+      (subscription) => subscription.endpoint === endpoint
+    )
+  )
+}
+
+function sameNumberSet(a: number[], b: number[]) {
+  return a.length === b.length && a.every((value) => b.includes(value))
+}
+
+function sameWebPushSubscription(a: PushNotifications | undefined, b: PushNotifications) {
+  return !!a && a.endpoint === b.endpoint && a.p256dh === b.p256dh && a.auth === b.auth
 }

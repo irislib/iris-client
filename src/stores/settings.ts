@@ -39,6 +39,7 @@ export interface SettingsState {
   // Notification settings
   notifications: {
     server: string
+    socialGraphFilter: boolean
     preferences: {
       mentions: boolean
       replies: boolean
@@ -111,6 +112,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
       notifications: {
         server: CONFIG.defaultSettings.notificationServer,
+        socialGraphFilter: false,
         preferences: {
           mentions: true,
           replies: true,
@@ -185,6 +187,9 @@ export const useSettingsStore = create<SettingsState>()(
             zaps: true,
             dms: true,
           }
+        }
+        if (state?.notifications && state.notifications.socialGraphFilter === undefined) {
+          state.notifications.socialGraphFilter = false
         }
         // Migrate old settings without network config
         if (state && !state.network) {
