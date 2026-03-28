@@ -10,11 +10,15 @@ const workspaceDir = path.resolve(appDir, "..")
 const manifestPath = path.join(workspaceDir, "hashtree", "rust", "Cargo.toml")
 const distDir = path.join(appDir, "dist")
 const defaultWorkerCompatibilityDate = "2026-03-26"
+export const defaultSiteTreeName = "iris-client-site"
 
 const profile = {
   appName: "Iris",
   distDir: "dist",
-  treeName: "iris-client",
+  // Keep the site tree separate from the htree git remote name.
+  // Publishing both to the same mutable ref causes the next `git push origin master`
+  // to replace the site with the raw repository contents.
+  treeName: defaultSiteTreeName,
   defaultWorkerName: "iris-client",
   defaultDomains: ["iris.to"],
 }

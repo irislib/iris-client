@@ -1,7 +1,7 @@
 import path from "node:path"
 import {fileURLToPath} from "node:url"
 import {spawnSync} from "node:child_process"
-import {parsePublishOutput} from "./release-site.mjs"
+import {defaultSiteTreeName, parsePublishOutput} from "./release-site.mjs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -25,7 +25,7 @@ function main() {
       "add",
       ".",
       "--publish",
-      "iris-client",
+      defaultSiteTreeName,
     ],
     {
       cwd: distDir,

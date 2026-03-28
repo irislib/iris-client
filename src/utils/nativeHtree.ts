@@ -6,6 +6,7 @@ declare global {
 }
 
 const INTERNAL_HTREE_QUERY_PARAMS = new Set([
+  "htree_c",
   "iris_htree_server",
   "iris_htree_canonical",
   "iris_htree_root",
@@ -189,8 +190,10 @@ export function isInjectedHtreeChildRuntime(): boolean {
 
   const protocol = window.location.protocol?.toLowerCase() || ""
   const hostname = window.location.hostname?.toLowerCase() || ""
+  const actualHtreePath = parseActualLoopbackAppPath(window.location.pathname || "/")
 
   if (hasCanonicalHtreeIdentity()) return true
+  if (actualHtreePath && (protocol === "http:" || protocol === "https:")) return true
 
   if (getInjectedHtreeServerUrl()) {
     if (protocol === "htree:") return true

@@ -166,6 +166,34 @@ describe("native htree runtime helpers", () => {
     )
   })
 
+  it("treats public /htree child paths as embedded runtimes even without injected globals", async () => {
+    installWindow({
+      protocol: "https:",
+      hostname: "site-example.hashtree.cc",
+      pathname: "/htree/npub1example/iris-client-site/index.html",
+      search: "?htree_c=1234abcd",
+    })
+
+    const {
+      getInjectedHtreeRuntimeLocation,
+      isInjectedHtreeChildRuntime,
+      toInjectedHtreeBrowserPath,
+    } = await import("./nativeHtree")
+
+    expect(isInjectedHtreeChildRuntime()).toBe(true)
+    expect(getInjectedHtreeRuntimeLocation()).toEqual({
+      appPath: "/",
+      browserPath: "/htree/npub1example/iris-client-site/index.html",
+      historyRootPath: "/htree/npub1example/iris-client-site",
+    })
+    expect(
+      toInjectedHtreeBrowserPath(
+        "/settings?tab=network",
+        "/htree/npub1example/iris-client-site"
+      )
+    ).toBe("/htree/npub1example/iris-client-site/settings?tab=network")
+  })
+
   it("uses the canonical htree path for nested in-app routes", async () => {
     installWindow({
       protocol: "http:",
