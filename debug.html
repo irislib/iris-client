@@ -1,8 +1,19 @@
 <!doctype html>
 <html lang="en" class="bg-base-200">
   <head>
+    <script>
+      if (
+        window.location.protocol.startsWith("http") &&
+        ["iris.to", "beta.iris.to", "iris-client.irisapp.workers.dev"].includes(
+          window.location.hostname
+        )
+      ) {
+        document.write('<base href="/">')
+      }
+    </script>
+
     <title>Iris Debug Tool</title>
-    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.png" />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Debug tool for Iris" />
@@ -15,6 +26,6 @@
   </head>
   <body>
     <div id="debug-root" class="flex justify-center bg-base-300"></div>
-    <script type="module" src="/src/debug/main.tsx"></script>
+    <script type="module" src="./src/debug/main.tsx"></script>
   </body>
 </html>

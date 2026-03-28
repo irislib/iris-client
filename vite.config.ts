@@ -9,6 +9,7 @@ const isVitest = !!process.env.VITEST
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: "./",
   plugins: [
     ...(isVitest ? [] : [nodePolyfills()]),
     react({

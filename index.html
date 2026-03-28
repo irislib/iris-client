@@ -1,11 +1,22 @@
 <!doctype html>
 <html lang="en" class="bg-base-200 overscroll-none">
   <head>
+    <script>
+      if (
+        window.location.protocol.startsWith("http") &&
+        ["iris.to", "beta.iris.to", "iris-client.irisapp.workers.dev"].includes(
+          window.location.hostname
+        )
+      ) {
+        document.write('<base href="/">')
+      }
+    </script>
+
     <!-- Title -->
     <title></title>
 
     <!-- Links -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.png" />
     <link rel="canonical" href="" />
 
     <meta charset="UTF-8" />
@@ -17,7 +28,7 @@
     <meta name="keywords" content="" />
     <meta name="theme-color" content="" />
 
-    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="./img/apple-touch-icon.png" />
 
     <!-- Opengraph -->
     <meta property="og:type" content="website" />
@@ -47,10 +58,10 @@
     <meta name="googlebot" content="index, follow" />
 
     <!-- Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="./manifest.json" />
   </head>
   <body>
     <div id="root" class="flex justify-center h-full bg-base-200"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>
