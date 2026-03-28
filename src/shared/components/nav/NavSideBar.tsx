@@ -19,6 +19,7 @@ import {ndk} from "@/utils/ndk"
 import {RelayConnectivityIndicator, OfflineIndicator} from "../RelayConnectivityIndicator"
 import {hasWriteAccess} from "@/utils/auth"
 import {ColumnLayoutToggle} from "./ColumnLayoutToggle"
+import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 const NavSideBar = () => {
   const ref = useRef<HTMLDivElement>(null)
@@ -41,7 +42,7 @@ const NavSideBar = () => {
     })
   }, [myPubKey, hasSigner])
 
-  const logoUrl = CONFIG.navLogo
+  const logoUrl = resolveAppAssetUrl(CONFIG.navLogo)
 
   return (
     <ErrorBoundary>
@@ -54,7 +55,7 @@ const NavSideBar = () => {
             className="md:mb-2 xl:mb-0 mt-4 ml-4 md:ml-0 xl:ml-5 flex flex-row gap-2 items-center md:justify-center font-bold font-bold text-3xl"
             to="/"
           >
-            <img className="w-8 h-8" src={logoUrl} />
+            <img className="w-8 h-8" src={logoUrl} alt={CONFIG.appName} />
             <span className="inline md:hidden xl:inline">{CONFIG.appName}</span>
           </NavLink>
           {myPubKey && !ndk().signer && (

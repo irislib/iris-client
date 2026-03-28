@@ -1,5 +1,6 @@
 import {useState} from "react"
 import TermsContent from "@/shared/components/TermsContent"
+import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 interface TermsOfServiceProps {
   onAccept: () => void
@@ -7,6 +8,7 @@ interface TermsOfServiceProps {
 
 export default function TermsOfService({onAccept}: TermsOfServiceProps) {
   const [accepted, setAccepted] = useState(false)
+  const iconUrl = resolveAppAssetUrl("/img/icon128.png")
 
   const handleAccept = () => {
     if (accepted) {
@@ -19,11 +21,7 @@ export default function TermsOfService({onAccept}: TermsOfServiceProps) {
       <div className="w-full h-full md:h-auto md:max-w-2xl md:max-h-[90vh] bg-neutral-900 md:rounded-lg shadow-xl flex flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <div className="p-6 text-center flex-shrink-0">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <img
-              src={`${import.meta.env.BASE_URL}img/icon128.png`}
-              alt="Iris"
-              className="w-10 h-10"
-            />
+            <img src={iconUrl} alt="Iris" className="w-10 h-10" />
             <h2 className="text-2xl font-bold">Iris Terms of Service</h2>
           </div>
         </div>

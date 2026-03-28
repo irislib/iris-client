@@ -242,6 +242,25 @@ export function getInjectedHtreeRuntimeLocation(): {
   }
 }
 
+export function resolveAppAssetUrl(assetPath: string): string {
+  if (!assetPath) return assetPath
+
+  if (/^(?:[a-z]+:)?\/\//i.test(assetPath) || !assetPath.startsWith("/")) {
+    return assetPath
+  }
+
+  const historyRootPath = getInjectedHtreeRuntimeLocation()?.historyRootPath
+  if (!historyRootPath) {
+    return assetPath
+  }
+
+  if (assetPath === historyRootPath || assetPath.startsWith(`${historyRootPath}/`)) {
+    return assetPath
+  }
+
+  return `${historyRootPath}${assetPath}`
+}
+
 export function toInjectedHtreeBrowserPath(
   appPath: string,
   historyRootPath: string = ""

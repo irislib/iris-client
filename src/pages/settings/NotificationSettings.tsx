@@ -19,6 +19,7 @@ import debounce from "lodash/debounce"
 import {confirm, alert, isMobileUA} from "@/utils/utils"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -161,9 +162,10 @@ const NotificationSettings = () => {
   const fireTestNotification = async () => {
     if (notificationsAllowed) {
       const title = "Test notification"
+      const iconUrl = resolveAppAssetUrl("/favicon.png")
       const options = {
         body: "Seems like it's working!",
-        icon: "/favicon.png",
+        icon: iconUrl,
         requireInteraction: false,
         image:
           "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Orange_tabby_cat_sitting_on_fallen_leaves-Hisashi-01A.jpg/1920px-Orange_tabby_cat_sitting_on_fallen_leaves-Hisashi-01A.jpg",

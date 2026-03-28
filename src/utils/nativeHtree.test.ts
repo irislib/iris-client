@@ -177,6 +177,7 @@ describe("native htree runtime helpers", () => {
     const {
       getInjectedHtreeRuntimeLocation,
       isInjectedHtreeChildRuntime,
+      resolveAppAssetUrl,
       toInjectedHtreeBrowserPath,
     } = await import("./nativeHtree")
 
@@ -186,6 +187,9 @@ describe("native htree runtime helpers", () => {
       browserPath: "/htree/npub1example/iris-client-site/index.html",
       historyRootPath: "/htree/npub1example/iris-client-site",
     })
+    expect(resolveAppAssetUrl("/img/icon128.png")).toBe(
+      "/htree/npub1example/iris-client-site/img/icon128.png"
+    )
     expect(
       toInjectedHtreeBrowserPath(
         "/settings?tab=network",
@@ -210,5 +214,16 @@ describe("native htree runtime helpers", () => {
       browserPath: "/settings?tab=wrong",
       historyRootPath: "",
     })
+  })
+
+  it("leaves regular and external asset urls unchanged", async () => {
+    installWindow()
+
+    const {resolveAppAssetUrl} = await import("./nativeHtree")
+
+    expect(resolveAppAssetUrl("/img/icon128.png")).toBe("/img/icon128.png")
+    expect(resolveAppAssetUrl("https://example.com/logo.png")).toBe(
+      "https://example.com/logo.png"
+    )
   })
 })

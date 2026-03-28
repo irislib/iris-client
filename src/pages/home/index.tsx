@@ -18,6 +18,7 @@ import Header from "@/shared/components/header/Header"
 import {useMemo} from "react"
 import useFollows from "@/shared/hooks/useFollows"
 import {usePublicKey} from "@/stores/user"
+import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 function Index() {
   const {appearance} = useSettingsStore()
@@ -49,6 +50,7 @@ function Index() {
     () => loadFeedConfig(activeFeed),
     [loadFeedConfig, activeFeed, feedConfigs]
   )
+  const navLogoUrl = resolveAppAssetUrl(CONFIG.navLogo)
 
   const feedName =
     follows.length <= 1
@@ -75,7 +77,7 @@ function Index() {
               className="flex items-center gap-2 transition-opacity duration-200 md:hidden ml-2 absolute inset-0 opacity-100"
               data-header-logo
             >
-              <img className="w-7 h-7" src={CONFIG.navLogo} alt={CONFIG.appName} />
+              <img className="w-7 h-7" src={navLogoUrl} alt={CONFIG.appName} />
               <span className="font-bold text-3xl">{CONFIG.appName}</span>
             </div>
           </div>
