@@ -5,6 +5,7 @@ import {useSettingsStore} from "@/stores/settings"
 import classNames from "classnames"
 import {EmbedEvent} from "../index"
 import {parseImetaTag} from "@/shared/utils/imetaUtils"
+import {usePauseMediaWhenHidden} from "@/shared/hooks/usePauseMediaWhenHidden"
 
 interface HlsVideoComponentProps {
   match: string
@@ -28,6 +29,7 @@ function HlsVideoComponent({
 }: HlsVideoComponentProps) {
   const {content, imgproxy} = useSettingsStore()
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  usePauseMediaWhenHidden(videoRef)
   const [hasVideoTrack, setHasVideoTrack] = useState(true)
   const [blur, setBlur] = useState(
     content.blurNSFW &&

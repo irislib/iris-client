@@ -1,9 +1,10 @@
 import {formatSize} from "@/shared/utils/formatSize"
-import {useEffect, useState, useMemo} from "react"
+import {useEffect, useState, useMemo, useRef} from "react"
 import {RiDownload2Line} from "@remixicon/react"
 import {EmbedEvent} from "../index"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
+import {usePauseMediaWhenHidden} from "@/shared/hooks/usePauseMediaWhenHidden"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -171,6 +172,8 @@ function isChunked(meta: unknown): boolean {
 }
 
 function EncryptedUrlEmbed({url, event}: EncryptedUrlEmbedProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  usePauseMediaWhenHidden(videoRef)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -350,6 +353,7 @@ function EncryptedUrlEmbed({url, event}: EncryptedUrlEmbedProps) {
     if (blobUrl) {
       return (
         <video
+          ref={videoRef}
           src={blobUrl}
           controls
           style={{maxWidth: "100%", maxHeight: 400, borderRadius: 8}}

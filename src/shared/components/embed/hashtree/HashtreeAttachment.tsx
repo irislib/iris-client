@@ -12,6 +12,7 @@ import {
 import {useSettingsStore} from "@/stores/settings"
 import Embed from "../index.ts"
 import MediaModal from "../../media/MediaModal"
+import {usePauseMediaWhenHidden} from "@/shared/hooks/usePauseMediaWhenHidden"
 
 const HASHTREE_EMBED_REGEX = /(?:htree:\/\/)?(nhash1[a-z0-9]+\/[^\s]+)/gi
 
@@ -33,6 +34,9 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
   const shouldAutoLoad = isImage
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  usePauseMediaWhenHidden(videoRef)
+  usePauseMediaWhenHidden(audioRef)
   const [isMuted, setIsMuted] = useState(content.autoplayVideos)
 
   const [mediaUrl, setMediaUrl] = useState<string | null>(null)
@@ -177,7 +181,12 @@ const HashtreeAttachmentEmbed = ({match}: HashtreeAttachmentEmbedProps) => {
       )}
 
       {!loading && !error && isAudio && mediaUrl && (
-        <audio src={mediaUrl} controls={true} className="w-full max-w-xs" />
+        <audio
+          ref={audioRef}
+          src={mediaUrl}
+          controls={true}
+          className="w-full max-w-xs"
+        />
       )}
 
       {!loading && !error && isMedia && !mediaUrl && (
