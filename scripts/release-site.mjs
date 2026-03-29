@@ -1,6 +1,6 @@
 import path from "node:path"
 import {fileURLToPath} from "node:url"
-import {spawnSync} from "node:child_process"
+import {spawn} from "node:child_process"
 import {existsSync} from "node:fs"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -209,28 +209,44 @@ function defaultRunner(step) {
   const [command, ...args] = step.command
   console.log(`\n==> ${step.label}`)
   console.log(`$ ${[command, ...args].join(" ")}`)
-  const result = spawnSync(command, args, {
-    cwd: step.cwd,
-    encoding: "utf8",
-    stdio: "pipe",
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: step.cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout?.setEncoding("utf8")
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk
+      process.stdout.write(chunk)
+    })
+
+    child.stderr?.setEncoding("utf8")
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk
+      process.stderr.write(chunk)
+    })
+
+    child.on("error", reject)
+    child.on("close", (code, signal) => {
+      if (signal) {
+        const signalMessage = `Process exited with signal ${signal}\n`
+        stderr += signalMessage
+        process.stderr.write(signalMessage)
+      }
+      resolve({
+        status: code ?? 1,
+        stdout,
+        stderr,
+      })
+    })
   })
-
-  if (result.stdout) {
-    process.stdout.write(result.stdout)
-  }
-  if (result.stderr) {
-    process.stderr.write(result.stderr)
-  }
-
-  return {
-    status: result.status ?? 1,
-    stdout: result.stdout ?? "",
-    stderr: result.stderr ?? "",
-  }
 }
 
-function ensureDistExists() {
-  if (!existsSync(distDir)) {
+function ensureDistExists(buildOutputExists = existsSync) {
+  if (!buildOutputExists(distDir)) {
     throw new Error(`Build output directory not found: ${distDir}`)
   }
 }
@@ -257,8 +273,19 @@ function parsePagesOutput(output) {
   return pagesUrlMatch ? pagesUrlMatch[0] : null
 }
 
-export function runRelease(options, runner = defaultRunner) {
+function isReleaseStep(step) {
+  return step.id === "publish" || step.id === "deploy"
+}
+
+function assertStepSucceeded(step, result) {
+  if (result.status !== 0) {
+    throw new Error(`${step.label} failed with exit code ${result.status}`)
+  }
+}
+
+export async function runRelease(options, runner = defaultRunner, hooks = {}) {
   const plan = createReleasePlan(options)
+  const buildOutputExists = hooks.buildOutputExists ?? existsSync
 
   if (options.dryRun) {
     return {dryRun: true, steps: plan.steps}
@@ -266,14 +293,28 @@ export function runRelease(options, runner = defaultRunner) {
 
   let publishOutput = ""
   let deployOutput = ""
-  for (const step of plan.steps) {
-    const result = runner(step)
-    if (result.status !== 0) {
-      throw new Error(`${step.label} failed with exit code ${result.status}`)
-    }
+  const prereleaseSteps = plan.steps.filter((step) => !isReleaseStep(step))
+  const releaseSteps = plan.steps.filter(isReleaseStep)
+
+  for (const step of prereleaseSteps) {
+    const result = await runner(step)
+    assertStepSucceeded(step, result)
     if (step.id === "build") {
-      ensureDistExists()
+      ensureDistExists(buildOutputExists)
     }
+  }
+
+  const releaseResults = await Promise.allSettled(
+    releaseSteps.map((step) => Promise.resolve().then(() => runner(step))),
+  )
+
+  for (const [index, execution] of releaseResults.entries()) {
+    const step = releaseSteps[index]
+    if (execution.status === "rejected") {
+      throw execution.reason
+    }
+    const result = execution.value
+    assertStepSucceeded(step, result)
     if (step.id === "publish") {
       publishOutput = `${result.stdout}\n${result.stderr}`
     }
@@ -296,8 +337,8 @@ export function runRelease(options, runner = defaultRunner) {
 export function usage() {
   return `Usage: node ./scripts/release-site.mjs [options]
 
-Build once, test the built output, publish to hashtree, then deploy that same
-directory to Cloudflare Workers Static Assets or Cloudflare Pages.
+Build once, test the built output, then publish to hashtree and deploy that same
+directory to Cloudflare Workers Static Assets or Cloudflare Pages in parallel.
 
 Options:
   --worker-name <name>    Cloudflare Worker service name for static assets
@@ -344,20 +385,22 @@ function isMainModule() {
   return path.resolve(process.argv[1]) === __filename
 }
 
-if (isMainModule()) {
-  try {
-    const parsed = parseArgs(process.argv.slice(2))
-    const result = runRelease(parsed)
-    if (result.dryRun) {
-      console.log(usage())
-      for (const step of result.steps) {
-        console.log(`${step.label}: ${step.command.join(" ")} (cwd: ${step.cwd})`)
-      }
-    } else {
-      printSummary(result)
+async function main() {
+  const parsed = parseArgs(process.argv.slice(2))
+  const result = await runRelease(parsed)
+  if (result.dryRun) {
+    console.log(usage())
+    for (const step of result.steps) {
+      console.log(`${step.label}: ${step.command.join(" ")} (cwd: ${step.cwd})`)
     }
-  } catch (error) {
+  } else {
+    printSummary(result)
+  }
+}
+
+if (isMainModule()) {
+  main().catch((error) => {
     console.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
-  }
+  })
 }
