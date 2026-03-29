@@ -9,11 +9,14 @@ export type {SearchResult} from "@/utils/profileSearchData"
 export function handleProfile(pubKey: string, profile: NDKUserProfile) {}
 
 export function search(
-  query: string
-): Promise<Array<{item: SearchResult; score?: number}>> {
+  query: string,
+  onUpdate?: (
+    results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+  ) => void
+): Promise<Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>> {
   const transport = getWorkerTransport()
   if (!transport) {
     return Promise.resolve([])
   }
-  return transport.search(query)
+  return transport.search(query, onUpdate)
 }

@@ -187,7 +187,11 @@ const MultiUserSelector = ({
                     onClick={() => handleAddUser(result.pubKey)}
                     className="cursor-pointer hover:bg-base-300 rounded p-1"
                   >
-                    <UserRow pubKey={result.pubKey} linkToProfile={false} />
+                    <UserRow
+                      pubKey={result.pubKey}
+                      linkToProfile={false}
+                      fallbackProfile={result}
+                    />
                   </div>
                 ))}
               </div>

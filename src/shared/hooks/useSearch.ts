@@ -2,7 +2,11 @@ import {useState, useEffect, useRef} from "react"
 import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {isOvermuted} from "@/utils/visibility"
 import {search} from "@/utils/profileSearch"
-import {hasProfileSearchPrefixMatch} from "@/utils/profileSearchData"
+import {
+  hasProfileSearchExactMatch,
+  hasProfileSearchPrefixMatch,
+  hasProfileSearchTextMatch,
+} from "@/utils/profileSearchData"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
 import {nip19} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
@@ -13,6 +17,7 @@ const DISTANCE_PENALTY = 0.01
 const FRIEND_BOOST = 0.005
 const FUSE_MULTIPLIER = 5
 const PREFIX_MATCH_BOOST = 1
+const EXACT_MATCH_BOOST = 3
 const SELF_PENALTY = 100
 
 export interface UseSearchOptions {
@@ -77,14 +82,21 @@ export function useSearch({
     const query = v.toLowerCase()
     const searchId = ++latestSearchRef.current
 
-    search(query).then((results) => {
+    const applyResults = (results: Awaited<ReturnType<typeof search>>) => {
       // Ignore stale results
       if (searchId !== latestSearchRef.current) return
 
-      const resultsWithAdjustedScores = results
+        const resultsWithAdjustedScores = results
         .filter((result) => !isOvermuted(result.item.pubKey))
+        .filter(
+          (result) =>
+            result.source === "local" || hasProfileSearchTextMatch(result.item, query)
+        )
         .map((result) => {
-          const fuseScore = 1 - (result.score ?? 1)
+          const textScore =
+            result.source === "local"
+              ? 1 - (result.score ?? 1)
+              : (result.score ?? 0)
           const followDistance = isSocialGraphLoaded
             ? (socialGraph.getFollowDistance(result.item.pubKey) ?? DEFAULT_DISTANCE)
             : DEFAULT_DISTANCE
@@ -93,6 +105,7 @@ export function useSearch({
             : 0
 
           const prefixMatch = hasProfileSearchPrefixMatch(result.item, query)
+          const exactMatch = hasProfileSearchExactMatch(result.item, query)
 
           if (isSingleChar) {
             // For single-character queries, exclude non-prefix matches entirely
@@ -112,9 +125,10 @@ export function useSearch({
               : DISTANCE_PENALTY * (followDistance - 1)
 
           const adjustedScore =
-            fuseScore * FUSE_MULTIPLIER -
+            textScore * FUSE_MULTIPLIER -
             distancePenalty +
             FRIEND_BOOST * friendsFollowing +
+            (exactMatch ? EXACT_MATCH_BOOST : 0) +
             (prefixMatch ? PREFIX_MATCH_BOOST : 0)
 
           return {...result, adjustedScore}
@@ -129,7 +143,9 @@ export function useSearch({
           : []),
         ...resultsWithAdjustedScores.map((result) => result.item),
       ])
-    })
+    }
+
+    void search(query, applyResults).then(applyResults)
   }, [value, isSocialGraphLoaded, searchNotes, maxResults, socialGraph])
 
   const addToRecentSearches = (result: CustomSearchResult) => {

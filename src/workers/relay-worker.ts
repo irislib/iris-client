@@ -23,13 +23,24 @@ self.onunhandledrejection = (event: PromiseRejectionEvent) => {
   event.preventDefault()
 }
 
-import NDK from "../lib/ndk"
-import {initSearchIndex, searchProfiles, updateSearchIndex} from "./profile-search"
+import NDK, {nip19} from "../lib/ndk"
+import {
+  getRemoteProfileSearchDebounceMs,
+  initSearchIndex,
+  mergeSearchProfiles,
+  searchLocalProfiles,
+  searchRemoteProfiles,
+  searchProfilesWithProgress,
+  setRemoteProfileSearchTreeResolver,
+  shouldSkipRemoteProfileSearch,
+  updateSearchIndex,
+} from "./profile-search"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 import {NDKEvent} from "../lib/ndk/events"
 import {NDKSubscriptionCacheUsage, type NDKFilter} from "../lib/ndk/subscription"
 import {NDKRelay} from "../lib/ndk/relay"
 import NDKCacheAdapterDexie, {db} from "../lib/ndk-cache"
+import {fromHex, type CID} from "@hashtree/core"
 import type {
   WorkerMessage,
   WorkerResponse,
@@ -66,6 +77,7 @@ let cache: NDKCacheAdapterDexie
 const subscriptions = new Map<string, any>()
 const connectedRelays = new Set<string>() // Track relays that were connected before offline
 let settings: SettingsState | undefined
+let latestSearchToken = 0
 
 async function initSearchFromDexie() {
   try {
@@ -93,13 +105,67 @@ async function initSearchFromDexie() {
   }
 }
 
-function handleSearch(requestId: number, query: string) {
-  const results = searchProfiles(query)
-  self.postMessage({
-    type: "searchResult",
-    searchRequestId: requestId,
-    searchResults: results,
-  } as WorkerResponse)
+async function handleSearch(requestId: number, query: string) {
+  const searchToken = ++latestSearchToken
+  const emittedSignatures = new Set<string>()
+  const emitSearchResults = (
+    results: Awaited<ReturnType<typeof searchProfilesWithProgress>>,
+    searchComplete: boolean
+  ) => {
+    const signature = JSON.stringify(
+      results.map((result) => [
+        result.item.pubKey,
+        result.score ?? null,
+        result.item.name,
+        result.item.nip05 ?? null,
+        result.item.picture ?? null,
+        result.item.created_at ?? null,
+        result.item.aliases ?? [],
+      ])
+    )
+    if (!searchComplete && emittedSignatures.has(signature)) {
+      return
+    }
+    emittedSignatures.add(signature)
+    self.postMessage({
+      type: "searchResult",
+      searchRequestId: requestId,
+      searchResults: results,
+      searchComplete,
+    } as WorkerResponse)
+  }
+
+  const trimmed = query.trim()
+  const localResults = trimmed ? searchLocalProfiles(trimmed) : []
+  emitSearchResults(localResults, shouldSkipRemoteProfileSearch(trimmed))
+
+  if (!trimmed || shouldSkipRemoteProfileSearch(trimmed)) {
+    return
+  }
+
+  const debounceMs = getRemoteProfileSearchDebounceMs(trimmed)
+  if (debounceMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, debounceMs))
+  }
+
+  if (searchToken !== latestSearchToken) {
+    emitSearchResults(localResults, true)
+    return
+  }
+
+  const remoteResults = await searchRemoteProfiles(trimmed, (partialRemoteResults) => {
+    if (searchToken !== latestSearchToken) {
+      return
+    }
+    emitSearchResults(mergeSearchProfiles(localResults, partialRemoteResults), false)
+  })
+
+  if (searchToken !== latestSearchToken) {
+    emitSearchResults(localResults, true)
+    return
+  }
+
+  emitSearchResults(mergeSearchProfiles(localResults, remoteResults), true)
 }
 
 // Attach status change listeners to a relay
@@ -124,6 +190,105 @@ const DEFAULT_RELAYS = [
   "wss://relay.snort.social",
 ]
 
+function parseExtraRelayUrls(raw?: string): string[] {
+  if (!raw) {
+    return []
+  }
+
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+}
+
+type TreeRootEventSnapshot = {
+  root: CID
+  eventId: string
+  createdAt: number
+}
+
+function parseTreeRootEvent(rawEvent: {
+  id?: string
+  kind?: number
+  created_at?: number
+  tags?: string[][]
+}): TreeRootEventSnapshot | null {
+  if (rawEvent.kind !== 30078 || !Array.isArray(rawEvent.tags)) {
+    return null
+  }
+
+  const hasHashtreeLabel = rawEvent.tags.some((tag) => tag[0] === "l" && tag[1] === "hashtree")
+  const hasAnyLabel = rawEvent.tags.some((tag) => tag[0] === "l")
+  if (hasAnyLabel && !hasHashtreeLabel) {
+    return null
+  }
+
+  const hashHex = rawEvent.tags.find((tag) => tag[0] === "hash")?.[1]
+  if (
+    typeof hashHex !== "string" ||
+    !/^[0-9a-f]{64}$/i.test(hashHex) ||
+    typeof rawEvent.id !== "string" ||
+    typeof rawEvent.created_at !== "number"
+  ) {
+    return null
+  }
+
+  const keyHex = rawEvent.tags.find((tag) => tag[0] === "key")?.[1]
+
+  try {
+    return {
+      root: {
+        hash: fromHex(hashHex),
+        key: keyHex ? fromHex(keyHex) : undefined,
+      },
+      eventId: rawEvent.id,
+      createdAt: rawEvent.created_at,
+    }
+  } catch {
+    return null
+  }
+}
+
+function compareTreeRootEvents(left: TreeRootEventSnapshot, right: TreeRootEventSnapshot): number {
+  if (left.createdAt !== right.createdAt) {
+    return left.createdAt - right.createdAt
+  }
+  return left.eventId.localeCompare(right.eventId)
+}
+
+async function resolveLatestProfileSearchTreeRoot(
+  npub: string,
+  treeName: string
+): Promise<TreeRootEventSnapshot | null> {
+  try {
+    const decoded = nip19.decode(npub)
+    if (decoded.type !== "npub" || typeof decoded.data !== "string") {
+      return null
+    }
+
+    const ndkEvents = await ndk.fetchEvents({
+      kinds: [30078],
+      authors: [decoded.data],
+      "#d": [treeName],
+      limit: 20,
+    })
+
+    const candidates: TreeRootEventSnapshot[] = []
+    for (const event of ndkEvents ?? []) {
+      const parsed = parseTreeRootEvent(event.rawEvent() as any)
+      if (parsed) {
+        candidates.push(parsed)
+      }
+    }
+
+    candidates.sort(compareTreeRootEvents)
+    return candidates[candidates.length - 1] ?? null
+  } catch (err) {
+    warn("[Relay Worker] Failed to resolve latest profile search tree root:", err)
+    return null
+  }
+}
+
 async function initialize(relayUrls?: string[], initialSettings?: SettingsState) {
   try {
     log("[Relay Worker] Starting initialization with relays:", relayUrls)
@@ -144,7 +309,12 @@ async function initialize(relayUrls?: string[], initialSettings?: SettingsState)
     log("[Relay Worker] Cache adapter ready (write-only, main thread queries)")
 
     // Initialize NDK with relay connections
-    const relaysToUse = relayUrls && relayUrls.length > 0 ? relayUrls : DEFAULT_RELAYS
+    const relaysToUse = Array.from(
+      new Set([
+        ...((relayUrls && relayUrls.length > 0 ? relayUrls : DEFAULT_RELAYS) || []),
+        ...parseExtraRelayUrls(import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS),
+      ])
+    )
     log("[Relay Worker] Creating NDK with relays:", relaysToUse)
 
     ndk = new NDK({
@@ -178,6 +348,10 @@ async function initialize(relayUrls?: string[], initialSettings?: SettingsState)
 
     // Lazy load wasm in background
     loadWasm()
+
+    setRemoteProfileSearchTreeResolver(async (npub, treeName) =>
+      resolveLatestProfileSearchTreeRoot(npub, treeName)
+    )
 
     // Initialize search index from Dexie in background
     initSearchFromDexie()
@@ -694,7 +868,15 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
       case "search":
         if (data.searchQuery !== undefined && data.searchRequestId !== undefined) {
-          handleSearch(data.searchRequestId, data.searchQuery)
+          void handleSearch(data.searchRequestId, data.searchQuery).catch((err) => {
+            error("[Relay Worker] Search failed:", err)
+            self.postMessage({
+              type: "searchResult",
+              searchRequestId: data.searchRequestId,
+              searchResults: [],
+              searchComplete: true,
+            } as WorkerResponse)
+          })
         }
         break
 

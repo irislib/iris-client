@@ -10,7 +10,11 @@ import {
 import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {useKeyboardNavigation} from "@/shared/hooks/useKeyboardNavigation"
 import {UserRow} from "@/shared/components/user/UserRow"
-import {hasProfileSearchPrefixMatch} from "@/utils/profileSearchData"
+import {
+  hasProfileSearchExactMatch,
+  hasProfileSearchPrefixMatch,
+  hasProfileSearchTextMatch,
+} from "@/utils/profileSearchData"
 import {isOvermuted} from "@/utils/visibility"
 import {search} from "@/utils/profileSearch"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
@@ -30,6 +34,7 @@ const FRIEND_BOOST = 0.005 // Boost per friend following the result
 const DEFAULT_DISTANCE = 999 // Default distance for users not in social graph
 const FUSE_MULTIPLIER = 5 // Multiplier to emphasize text match
 const PREFIX_MATCH_BOOST = 1
+const EXACT_MATCH_BOOST = 3
 const SELF_PENALTY = 100 // Penalty for self in search results
 
 // this component is used for global search in the Header.tsx
@@ -145,14 +150,27 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
       const query = v.toLowerCase()
       const searchId = ++latestSearchRef.current
 
-      search(query).then((results) => {
+      if (searchNotes) {
+        setSearchResults([{pubKey: "search-notes", name: `search notes: ${v}`, query: v}])
+      } else {
+        setSearchResults([])
+      }
+
+      const applyResults = (results: Awaited<ReturnType<typeof search>>) => {
         // Ignore stale results
         if (searchId !== latestSearchRef.current) return
 
         const resultsWithAdjustedScores = results
           .filter((result) => !isOvermuted(result.item.pubKey))
+          .filter(
+            (result) =>
+              result.source === "local" || hasProfileSearchTextMatch(result.item, query)
+          )
           .map((result) => {
-            const fuseScore = 1 - (result.score ?? 1)
+            const textScore =
+              result.source === "local"
+                ? 1 - (result.score ?? 1)
+                : (result.score ?? 0)
             const followDistance = isSocialGraphLoaded
               ? (socialGraph.getFollowDistance(result.item.pubKey) ?? DEFAULT_DISTANCE)
               : DEFAULT_DISTANCE
@@ -161,6 +179,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
               : 0
 
             const prefixMatch = hasProfileSearchPrefixMatch(result.item, query)
+            const exactMatch = hasProfileSearchExactMatch(result.item, query)
 
             if (isSingleChar) {
               // For single-character queries, exclude non-prefix matches entirely
@@ -180,9 +199,10 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
                 : DISTANCE_PENALTY * (followDistance - 1)
 
             const adjustedScore =
-              fuseScore * FUSE_MULTIPLIER -
+              textScore * FUSE_MULTIPLIER -
               distancePenalty +
               FRIEND_BOOST * friendsFollowing +
+              (exactMatch ? EXACT_MATCH_BOOST : 0) +
               (prefixMatch ? PREFIX_MATCH_BOOST : 0)
 
             return {...result, adjustedScore}
@@ -197,7 +217,9 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
             : []),
           ...resultsWithAdjustedScores.map((result) => result.item),
         ])
-      })
+      }
+
+      void search(query, applyResults).then(applyResults)
     }, [value, navigate, searchNotes, isSocialGraphLoaded])
 
     // Determine which list is currently being displayed
@@ -356,7 +378,11 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
                     </div>
                   ) : (
                     <div className="flex gap-1">
-                      <UserRow pubKey={result.pubKey} linkToProfile={redirect} />
+                      <UserRow
+                        pubKey={result.pubKey}
+                        linkToProfile={redirect}
+                        fallbackProfile={result}
+                      />
                     </div>
                   )}
                 </li>
@@ -374,7 +400,11 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
                     onClick={() => handleSearchResultClick(result.pubKey, result.query)}
                   >
                     <div className="flex gap-1 justify-between items-center w-full">
-                      <UserRow pubKey={result.pubKey} linkToProfile={redirect} />
+                      <UserRow
+                        pubKey={result.pubKey}
+                        linkToProfile={redirect}
+                        fallbackProfile={result}
+                      />
                       <div
                         className="p-4 cursor-pointer"
                         onClick={(e) => removeFromRecentSearches(result.pubKey, e)}

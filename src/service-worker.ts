@@ -19,6 +19,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import NDKCacheAdapterDexie from "@/lib/ndk-cache"
 import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
+import {isHashtreeBlobRequest} from "./serviceWorkerRoutes"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -142,6 +143,22 @@ registerRoute(
       new ExpirationPlugin({maxEntries: 1000}),
       new CacheableResponsePlugin({
         statuses: [0, 200, 204],
+      }),
+    ],
+  })
+)
+
+registerRoute(
+  isHashtreeBlobRequest,
+  new CacheFirst({
+    cacheName: "hashtree-blob-cache",
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 4000,
+        maxAgeSeconds: 90 * 24 * 60 * 60,
+      }),
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
       }),
     ],
   })

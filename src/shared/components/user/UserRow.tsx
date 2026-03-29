@@ -1,4 +1,5 @@
 import {ReactNode} from "react"
+import type {SearchResult} from "@/utils/profileSearchData"
 
 import {useHoverCard} from "@/shared/components/user/useHoverCard"
 import {Avatar} from "@/shared/components/user/Avatar"
@@ -15,6 +16,7 @@ export function UserRow({
   showBadge = true,
   showHoverCard = false,
   showAvatar = true,
+  fallbackProfile,
 }: {
   pubKey: string
   description?: ReactNode
@@ -24,6 +26,7 @@ export function UserRow({
   showBadge?: boolean
   showHoverCard?: boolean
   showAvatar?: boolean
+  fallbackProfile?: Pick<SearchResult, "name" | "nip05" | "picture">
 }) {
   const {hoverProps, showCard, cardRef} = useHoverCard(showHoverCard)
 
@@ -33,12 +36,13 @@ export function UserRow({
         {showAvatar && (
           <Avatar
             pubKey={pubKey}
+            fallbackProfile={fallbackProfile}
             showTooltip={false}
             showBadge={showBadge}
             width={avatarWidth}
           />
         )}
-        <Name pubKey={pubKey} className={textClassName} />
+        <Name pubKey={pubKey} className={textClassName} fallbackProfile={fallbackProfile} />
       </div>
       <span className="text-base-content">{description}</span>
     </div>

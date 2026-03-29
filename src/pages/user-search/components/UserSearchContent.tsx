@@ -12,6 +12,7 @@ import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import classNames from "classnames"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
+import {useStableSearchResults} from "../stableSearchResults"
 
 export default function UserSearchContent() {
   const socialGraph = useSocialGraph()
@@ -41,13 +42,17 @@ export default function UserSearchContent() {
     peopleSearch.setValue(searchValue)
   }, [searchValue])
 
+  const stableSearch = useStableSearchResults(
+    searchValue,
+    peopleSearch.searchResults
+  )
+
   const rootUser = socialGraph.getRoot()
   const follows = socialGraph.getFollowedByUser(rootUser)
 
   const displayUsers = useMemo(() => {
     if (searchValue.trim()) {
-      // Show search results if we have any, otherwise show empty for search mode
-      return peopleSearch.searchResults.map((result) => ({
+      return stableSearch.visibleResults.map((result) => ({
         pubkey: result.pubKey,
         followedByCount: socialGraph.followedByFriends(result.pubKey).size,
       }))
@@ -62,7 +67,7 @@ export default function UserSearchContent() {
         followedByCount: socialGraph.followedByFriends(pubkey).size,
       }))
       .sort((a, b) => b.followedByCount - a.followedByCount)
-  }, [follows, socialGraph, rootUser, searchValue, peopleSearch.searchResults])
+  }, [follows, socialGraph, rootUser, searchValue, stableSearch.visibleResults])
 
   const handleSelectUser = (index: number) => {
     const user = displayUsers[index]
@@ -136,6 +141,18 @@ export default function UserSearchContent() {
                 <Icon name="search-outline" className="text-neutral-content/60" />
               </label>
             </form>
+          </div>
+
+          <div className="px-2 min-h-9 flex items-center justify-end">
+            {searchValue.trim() && stableSearch.hasPendingResults ? (
+              <button
+                type="button"
+                className="btn btn-xs btn-outline"
+                onClick={stableSearch.applyPendingResults}
+              >
+                Update results
+              </button>
+            ) : null}
           </div>
 
           {!searchValue.trim() && <SocialGraphWidget background={false} />}

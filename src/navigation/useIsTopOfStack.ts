@@ -1,4 +1,6 @@
-import {useNavigation, useLocation} from "./hooks"
+import {useContext} from "react"
+import {RouteContext} from "./routeContexts"
+import {useNavigation} from "./hooks"
 
 /**
  * Hook to determine if current view is both visible and at top of navigation stack
@@ -6,7 +8,7 @@ import {useNavigation, useLocation} from "./hooks"
  */
 export function useIsTopOfStack(): boolean {
   const {currentPath} = useNavigation()
-  const location = useLocation()
+  const routeContext = useContext(RouteContext)
 
-  return currentPath === location.pathname
+  return currentPath === (routeContext?.url || currentPath)
 }

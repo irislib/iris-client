@@ -7,7 +7,7 @@
   "navLogo": "/img/icon128.png",
   "defaultTheme": "dark",
   "aboutText": "Iris - Connecting People",
-  "repository": "https://files.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client",
+  "repository": "https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client",
   "features": {
     "analytics": false,
     "showSubscriptionSettings": true

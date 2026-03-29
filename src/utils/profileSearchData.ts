@@ -3,6 +3,7 @@ export type SearchResult = {
   pubKey: string
   nip05?: string
   aliases?: string[]
+  picture?: string
   created_at?: number
 }
 
@@ -19,6 +20,15 @@ function normalizeNameValue(value: unknown): string | undefined {
   }
 
   return trimmed.slice(0, PROFILE_NAME_MAX_LENGTH)
+}
+
+function normalizePictureValue(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined
+  }
+
+  const trimmed = value.trim()
+  return trimmed || undefined
 }
 
 export function extractProfileSearchNames(profile: Record<string, unknown>): string[] {
@@ -106,6 +116,7 @@ export function buildProfileSearchResult(
     name,
     aliases: aliases.length > 0 ? aliases : undefined,
     nip05: normalizeProfileSearchNip05(profile.nip05, name),
+    picture: normalizePictureValue(profile.picture),
     created_at: resolvedCreatedAt,
   }
 }
@@ -128,4 +139,49 @@ export function hasProfileSearchPrefixMatch(
     result.aliases?.some((alias) => alias.toLowerCase().startsWith(normalizedQuery)) ??
     false
   )
+}
+
+export function hasProfileSearchExactMatch(
+  result: Pick<SearchResult, "name" | "nip05" | "aliases">,
+  query: string
+): boolean {
+  const normalizedQuery = query.toLowerCase()
+
+  if (result.name.toLowerCase() === normalizedQuery) {
+    return true
+  }
+
+  if (result.nip05?.toLowerCase() === normalizedQuery) {
+    return true
+  }
+
+  return (
+    result.aliases?.some((alias) => alias.toLowerCase() === normalizedQuery) ?? false
+  )
+}
+
+export function hasProfileSearchTextMatch(
+  result: Pick<SearchResult, "name" | "nip05" | "aliases" | "pubKey">,
+  query: string
+): boolean {
+  const tokens = query
+    .toLowerCase()
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (tokens.length === 0) {
+    return false
+  }
+
+  const fields = [
+    result.name,
+    result.nip05,
+    result.pubKey,
+    ...(result.aliases ?? []),
+  ]
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .map((value) => value.toLowerCase())
+
+  return tokens.every((token) => fields.some((field) => field.includes(token)))
 }

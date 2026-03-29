@@ -17,6 +17,7 @@ import {HomeRightColumn} from "@/pages/home/components/HomeRightColumn"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
 import classNames from "classnames"
+import {useStableSearchResults} from "./stableSearchResults"
 
 export default function UserSearchPage() {
   const socialGraph = useSocialGraph()
@@ -52,13 +53,17 @@ export default function UserSearchPage() {
     peopleSearch.setValue(searchValue)
   }, [searchValue])
 
+  const stableSearch = useStableSearchResults(
+    searchValue,
+    peopleSearch.searchResults
+  )
+
   const rootUser = socialGraph.getRoot()
   const follows = socialGraph.getFollowedByUser(rootUser)
 
   const displayUsers = useMemo(() => {
     if (searchValue.trim()) {
-      // Show search results if we have any, otherwise show empty for search mode
-      return peopleSearch.searchResults.map((result) => ({
+      return stableSearch.visibleResults.map((result) => ({
         pubkey: result.pubKey,
         followedByCount: socialGraph.followedByFriends(result.pubKey).size,
       }))
@@ -81,7 +86,7 @@ export default function UserSearchPage() {
     socialGraph,
     rootUser,
     searchValue,
-    peopleSearch.searchResults,
+    stableSearch.visibleResults,
     peopleSearch.recentSearches,
   ])
 
@@ -170,6 +175,18 @@ export default function UserSearchPage() {
                     <Icon name="search-outline" className="text-neutral-content/60" />
                   </label>
                 </form>
+              </div>
+
+              <div className="px-2 min-h-9 flex items-center justify-end">
+                {searchValue.trim() && stableSearch.hasPendingResults ? (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    onClick={stableSearch.applyPendingResults}
+                  >
+                    Update results
+                  </button>
+                ) : null}
               </div>
 
               {!searchValue.trim() && <SocialGraphWidget background={false} />}

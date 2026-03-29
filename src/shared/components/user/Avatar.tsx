@@ -7,6 +7,7 @@ import ProxyImg from "@/shared/components/ProxyImg.tsx"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import {Badge} from "@/shared/components/user/Badge"
 import {PublicKey} from "@/shared/utils/PublicKey"
+import type {SearchResult} from "@/utils/profileSearchData"
 import AnimalName from "@/utils/AnimalName.ts"
 import {AVATAR_DEFAULT_WIDTH} from "./const"
 
@@ -17,12 +18,14 @@ export const Avatar = ({
   showTooltip = true,
   showHoverCard = false,
   cornerBadge,
+  fallbackProfile,
 }: {
   width?: number
   pubKey: string
   showBadge?: boolean
   showTooltip?: boolean
   showHoverCard?: boolean
+  fallbackProfile?: Pick<SearchResult, "name" | "nip05" | "picture">
   cornerBadge?: {
     content: ReactNode
     position?: "top-right" | "bottom-right"
@@ -44,11 +47,14 @@ export const Avatar = ({
   }, [pubKey])
 
   const profile = useProfile(pubKeyHex, true)
-  const [image, setImage] = useState(String(profile?.picture || ""))
+  const [image, setImage] = useState(
+    String(profile?.picture || fallbackProfile?.picture || "")
+  )
 
   useEffect(() => {
-    setImage(profile?.picture ? String(profile.picture) : "")
-  }, [profile])
+    const nextImage = profile?.picture || fallbackProfile?.picture
+    setImage(nextImage ? String(nextImage) : "")
+  }, [profile, fallbackProfile?.picture])
 
   const handleImageError = () => {
     setImage("")
@@ -88,6 +94,8 @@ export const Avatar = ({
                   profile?.display_name ||
                   profile?.username ||
                   profile?.nip05?.split("@")[0] ||
+                  fallbackProfile?.name ||
+                  fallbackProfile?.nip05?.split("@")[0] ||
                   (pubKeyHex && AnimalName(pubKeyHex))
               )
             : ""

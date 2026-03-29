@@ -1,6 +1,7 @@
 import type {NDKFilter} from "./ndk/subscription"
 import type {SettingsState} from "../stores/settings"
 import type {SearchResult} from "../utils/profileSearchData"
+import type {SearchHitSource} from "../workers/profile-search"
 
 export type {SearchResult} from "../utils/profileSearchData"
 
@@ -89,5 +90,6 @@ export interface WorkerResponse {
   }>
   stats?: LocalDataStats
   searchRequestId?: number
-  searchResults?: Array<{item: SearchResult; score?: number}>
+  searchResults?: Array<{item: SearchResult; score?: number; source?: SearchHitSource}>
+  searchComplete?: boolean
 }

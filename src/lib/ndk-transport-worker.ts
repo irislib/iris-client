@@ -45,9 +45,17 @@ export class NDKWorkerTransport {
   private messageQueue: WorkerMessage[] = []
   private searchCallbacks = new Map<
     number,
-    (results: Array<{item: SearchResult; score?: number}>) => void
+    {
+      resolve: (
+        results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+      ) => void
+      onUpdate?: (
+        results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+      ) => void
+    }
   >()
   private searchReady = false
+  private readonly SEARCH_TIMEOUT_MS = 10_000
 
   // Heartbeat monitoring - detects unresponsive workers (infinite loops, deadlocks)
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
@@ -591,8 +599,12 @@ export class NDKWorkerTransport {
           if (e.data.searchRequestId !== undefined) {
             const callback = this.searchCallbacks.get(e.data.searchRequestId)
             if (callback) {
-              callback(e.data.searchResults || [])
-              this.searchCallbacks.delete(e.data.searchRequestId)
+              const results = e.data.searchResults || []
+              callback.onUpdate?.(results)
+              if (e.data.searchComplete !== false) {
+                callback.resolve(results)
+                this.searchCallbacks.delete(e.data.searchRequestId)
+              }
             }
           }
           break
@@ -627,10 +639,15 @@ export class NDKWorkerTransport {
 
   private searchRequestId = 0
 
-  search(query: string): Promise<Array<{item: SearchResult; score?: number}>> {
+  search(
+    query: string,
+    onUpdate?: (
+      results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+    ) => void
+  ): Promise<Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>> {
     return new Promise((resolve) => {
       const id = ++this.searchRequestId
-      this.searchCallbacks.set(id, resolve)
+      this.searchCallbacks.set(id, {resolve, onUpdate})
       this.postMessage({
         type: "search",
         searchQuery: query,
@@ -641,7 +658,7 @@ export class NDKWorkerTransport {
           this.searchCallbacks.delete(id)
           resolve([])
         }
-      }, 1000)
+      }, this.SEARCH_TIMEOUT_MS)
     })
   }
 

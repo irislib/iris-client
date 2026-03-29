@@ -1,7 +1,7 @@
 import {RiErrorWarningLine, RiGithubFill} from "@remixicon/react"
 import {ElementType, ReactNode, useEffect, useMemo, useRef, useState} from "react"
 import {NDKUserProfile} from "@/lib/ndk"
-import {useNavigate} from "@/navigation"
+import {useLocation, useNavigate} from "@/navigation"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {nip05, nip19} from "nostr-tools"
 
@@ -11,6 +11,7 @@ import Icon from "@/shared/components/Icons/Icon"
 import {unmuteUser} from "@/shared/services/Mute"
 import useMutes from "@/shared/hooks/useMutes"
 import {Page404} from "@/pages/Page404"
+import {buildIrisUsernameRedirectPath} from "./profileRoute"
 
 const Bolt = () => <Icon name="zap-solid" className="text-accent" />
 const Link = () => <Icon name="link-02" className="text-info" />
@@ -31,6 +32,7 @@ function ProfileDetails({
   pubKey,
 }: ProfileDetailsProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const isTopOfStack = useIsTopOfStack()
   const [isValidPubkey, setIsValidPubkey] = useState(true)
   const hasRedirectedRef = useRef(false)
@@ -71,28 +73,28 @@ function ProfileDetails({
     if (!isTopOfStack) return
     if (hasRedirectedRef.current) return
 
-    if (
-      displayProfile?.nip05?.endsWith("@iris.to") &&
-      displayProfile.nip05 !== "_@iris.to"
-    ) {
-      const currentPath = window.location.pathname.split("/").slice(2).join("/")
-      const basePath = displayProfile.nip05.replace("@iris.to", "")
-      const newPath = currentPath ? `/${basePath}/${currentPath}` : `/${basePath}`
+    const redirectPath = buildIrisUsernameRedirectPath(
+      location.pathname,
+      displayProfile?.nip05
+    )
+    if (!redirectPath || !displayProfile?.nip05) return
+    let cancelled = false
 
-      if (window.location.pathname !== newPath) {
-        // Verify NIP-05 resolves before redirecting to username URL
-        nip05
-          .queryProfile(displayProfile.nip05)
-          .then((resolved) => {
-            if (resolved && !hasRedirectedRef.current) {
-              hasRedirectedRef.current = true
-              navigate(newPath, {replace: true})
-            }
-          })
-          .catch(() => {})
-      }
+    // Verify NIP-05 resolves before redirecting to username URL
+    nip05
+      .queryProfile(displayProfile.nip05)
+      .then((resolved) => {
+        if (resolved && !cancelled && !hasRedirectedRef.current) {
+          hasRedirectedRef.current = true
+          navigate(redirectPath, {replace: true})
+        }
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
     }
-  }, [isTopOfStack, displayProfile?.nip05, navigate, pubKey])
+  }, [displayProfile?.nip05, isTopOfStack, location.pathname, navigate, pubKey])
 
   const renderProfileField = (
     IconComponent: ElementType,
