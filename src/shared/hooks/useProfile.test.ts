@@ -53,6 +53,16 @@ function ProfileName({pubKey}: {pubKey: string}) {
   return React.createElement("span", {"data-pubkey": pubKey}, profile?.name || "")
 }
 
+function ProfileJson({pubKey}: {pubKey: string}) {
+  const profile = useProfile(pubKey, false)
+
+  return React.createElement(
+    "pre",
+    {"data-testid": "profile-json"},
+    JSON.stringify(profile || {})
+  )
+}
+
 function Profiles({pubKeys, tick}: {pubKeys: string[]; tick: number}) {
   return React.createElement(
     "div",
@@ -107,5 +117,33 @@ describe("useProfile", () => {
     expect(container.querySelector(`[data-pubkey="${firstPubKey}"]`)?.textContent).toBe(
       `User ${firstPubKey.slice(-4)}`
     )
+  })
+
+  it("keeps only the UI-relevant profile fields in memory", async () => {
+    const pubKey = makePubKey(999)
+    mocks.getProfile.mockResolvedValueOnce({
+      pubkey: pubKey,
+      name: "Large Profile",
+      displayName: "Large Profile Display",
+      profileEvent: '{"kind":0,"content":"...huge raw event..."}',
+      customBlob: "x".repeat(1024),
+    })
+
+    await act(async () => {
+      root.render(React.createElement(ProfileJson, {pubKey}))
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const json =
+      container.querySelector('[data-testid="profile-json"]')?.textContent || ""
+
+    expect(json).toContain('"name":"Large Profile"')
+    expect(json).toContain('"displayName":"Large Profile Display"')
+    expect(json).not.toContain("profileEvent")
+    expect(json).not.toContain("customBlob")
   })
 })

@@ -13,14 +13,10 @@ import {ndk} from "@/utils/ndk"
 import {KIND_METADATA} from "@/utils/constants"
 import {getMainThreadDb} from "@/lib/ndk-cache/db"
 import {updateNameCache} from "@/utils/profileName"
-import {LRUCache} from "typescript-lru-cache"
 
-const PROFILE_CACHE_SIZE = 5000
-
-// Shared LRU cache for profiles - hot cache for active profiles
-const profileCache = new LRUCache<string, NDKUserProfile>({
-  maxSize: PROFILE_CACHE_SIZE,
-})
+// In-memory store for profiles that are actively being rendered on screen.
+const profileStore = new Map<string, NDKUserProfile>()
+const pendingProfileLoads = new Map<string, Promise<void>>()
 
 // Subscribers per pubkey
 const subscribers = new Map<string, Set<() => void>>()
@@ -30,6 +26,63 @@ function notifySubscribers(pubKeyHex: string) {
   if (subs) {
     subs.forEach((cb) => cb())
   }
+}
+
+function sanitizeProfileForUi(profile?: NDKUserProfile | null): NDKUserProfile | null {
+  if (!profile) return null
+
+  const displayName =
+    profile.displayName ||
+    (typeof profile.display_name === "string" ? profile.display_name : undefined)
+  const picture = profile.picture || profile.image
+
+  return {
+    created_at: profile.created_at,
+    name: profile.name,
+    username: profile.username,
+    displayName,
+    display_name: displayName,
+    picture,
+    image: picture,
+    banner: profile.banner,
+    bio: profile.bio,
+    nip05: profile.nip05,
+    lud06: profile.lud06,
+    lud16: profile.lud16,
+    about: profile.about,
+    website: profile.website,
+  }
+}
+
+function cleanupProfile(pubKeyHex: string) {
+  if (subscribers.has(pubKeyHex)) return
+  if (activeSubscriptions.has(pubKeyHex)) return
+  profileStore.delete(pubKeyHex)
+}
+
+function loadProfileFromDb(pubKeyHex: string) {
+  const existingLoad = pendingProfileLoads.get(pubKeyHex)
+  if (existingLoad) {
+    return existingLoad
+  }
+
+  const db = getMainThreadDb()
+  const load = db.profiles
+    .get(pubKeyHex)
+    .then((dexieProfile) => {
+      const profile = sanitizeProfileForUi(dexieProfile)
+      if (!profile) return
+      profileStore.set(pubKeyHex, profile)
+      updateNameCache(pubKeyHex, profile)
+      notifySubscribers(pubKeyHex)
+    })
+    .finally(() => {
+      pendingProfileLoads.delete(pubKeyHex)
+      cleanupProfile(pubKeyHex)
+    })
+
+  pendingProfileLoads.set(pubKeyHex, load)
+  return load
 }
 
 // Subscription manager - one subscription per pubkey
@@ -52,18 +105,19 @@ function subscribeToProfile(pubKeyHex: string) {
 
   activeSubscriptions.set(pubKeyHex, {sub, refCount: 1})
 
-  let latest = profileCache.get(pubKeyHex)?.created_at || 0
+  let latest = profileStore.get(pubKeyHex)?.created_at || 0
   sub.on("event", (event: NDKEvent) => {
     if (event.pubkey === pubKeyHex && event.kind === KIND_METADATA) {
       if (!event.created_at || event.created_at <= latest) return
 
       latest = event.created_at
       try {
-        const newProfile = profileFromEvent(event)
+        const newProfile = sanitizeProfileForUi(profileFromEvent(event))
+        if (!newProfile) return
         if (newProfile.nip05) {
           addUsernameToCache(pubKeyHex, newProfile.nip05, true)
         }
-        profileCache.set(pubKeyHex, newProfile)
+        profileStore.set(pubKeyHex, newProfile)
         updateNameCache(pubKeyHex, newProfile)
         handleProfile(pubKeyHex, newProfile)
         notifySubscribers(pubKeyHex)
@@ -85,6 +139,7 @@ function unsubscribeFromProfile(pubKeyHex: string) {
     existing.sub.stop()
     activeSubscriptions.delete(pubKeyHex)
   }
+  cleanupProfile(pubKeyHex)
 }
 
 export default function useProfile(pubKey?: string, subscribe = true) {
@@ -102,18 +157,8 @@ export default function useProfile(pubKey?: string, subscribe = true) {
   useEffect(() => {
     if (!pubKeyHex) return
 
-    const cached = profileCache.get(pubKeyHex)
-    if (cached) return
-
-    // Fetch from Dexie in background
-    const db = getMainThreadDb()
-    db.profiles.get(pubKeyHex).then((dexieProfile) => {
-      if (dexieProfile) {
-        profileCache.set(pubKeyHex, dexieProfile)
-        updateNameCache(pubKeyHex, dexieProfile)
-        notifySubscribers(pubKeyHex)
-      }
-    })
+    if (profileStore.has(pubKeyHex)) return
+    void loadProfileFromDb(pubKeyHex)
   }, [pubKeyHex])
 
   // Subscribe to NDK updates
@@ -139,13 +184,14 @@ export default function useProfile(pubKey?: string, subscribe = true) {
         if (subs?.size === 0) {
           subscribers.delete(pubKeyHex)
         }
+        cleanupProfile(pubKeyHex)
       }
     },
     [pubKeyHex]
   )
 
   const getSnapshot = useCallback(() => {
-    return pubKeyHex ? profileCache.get(pubKeyHex) || null : null
+    return pubKeyHex ? profileStore.get(pubKeyHex) || null : null
   }, [pubKeyHex])
 
   // Use external store pattern
