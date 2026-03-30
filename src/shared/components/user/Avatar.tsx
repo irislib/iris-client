@@ -48,11 +48,11 @@ export const Avatar = ({
 
   const profile = useProfile(pubKeyHex, true)
   const [image, setImage] = useState(
-    String(profile?.picture || fallbackProfile?.picture || "")
+    String(profile?.picture || profile?.image || fallbackProfile?.picture || "")
   )
 
   useEffect(() => {
-    const nextImage = profile?.picture || fallbackProfile?.picture
+    const nextImage = profile?.picture || profile?.image || fallbackProfile?.picture
     setImage(nextImage ? String(nextImage) : "")
   }, [profile, fallbackProfile?.picture])
 
@@ -91,6 +91,7 @@ export const Avatar = ({
           showTooltip
             ? String(
                 profile?.name ||
+                  profile?.displayName ||
                   profile?.display_name ||
                   profile?.username ||
                   profile?.nip05?.split("@")[0] ||

@@ -3,6 +3,7 @@ import {
   NDKUserProfile,
   NDKSubscription,
   NDKSubscriptionCacheUsage,
+  profileFromEvent,
 } from "@/lib/ndk"
 import {handleProfile} from "@/utils/profileSearch"
 import {PublicKey} from "@/shared/utils/PublicKey"
@@ -14,9 +15,11 @@ import {getMainThreadDb} from "@/lib/ndk-cache/db"
 import {updateNameCache} from "@/utils/profileName"
 import {LRUCache} from "typescript-lru-cache"
 
+const PROFILE_CACHE_SIZE = 5000
+
 // Shared LRU cache for profiles - hot cache for active profiles
 const profileCache = new LRUCache<string, NDKUserProfile>({
-  maxSize: 100,
+  maxSize: PROFILE_CACHE_SIZE,
 })
 
 // Subscribers per pubkey
@@ -56,8 +59,7 @@ function subscribeToProfile(pubKeyHex: string) {
 
       latest = event.created_at
       try {
-        const newProfile = JSON.parse(event.content)
-        newProfile.created_at = event.created_at
+        const newProfile = profileFromEvent(event)
         if (newProfile.nip05) {
           addUsernameToCache(pubKeyHex, newProfile.nip05, true)
         }
@@ -66,7 +68,7 @@ function subscribeToProfile(pubKeyHex: string) {
         handleProfile(pubKeyHex, newProfile)
         notifySubscribers(pubKeyHex)
       } catch {
-        // Invalid JSON
+        // Invalid profile event
       }
     }
   })

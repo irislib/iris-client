@@ -31,6 +31,7 @@ export function Name({
 
   const name =
     profile?.display_name ||
+    profile?.displayName ||
     profile?.name ||
     profile?.username ||
     profile?.nip05?.split("@")[0] ||
