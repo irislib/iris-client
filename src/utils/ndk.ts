@@ -13,6 +13,7 @@ import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
+import {resolveRelayRuntimeConfig, type RelayRuntimeConfig} from "@/utils/relayRuntime"
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.NDK_RELAY)
 
 let ndkInstance: NDK | null = null
@@ -67,8 +68,25 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
     return ndkInstance!
   }
 
+  const store = useUserStore.getState()
+  const enabledRelays =
+    store.relayConfigs?.filter((config) => !config.disabled).map((config) => config.url) || []
+  const relayRuntime = resolveRelayRuntimeConfig({
+    enabledRelayUrls: enabledRelays,
+    explicitRelayUrls: opts?.explicitRelayUrls,
+    injectedHtreeRelayUrl: getInjectedHtreeRelayUrl(),
+    forceLocalRelayEnv: import.meta.env.VITE_USE_LOCAL_RELAY,
+    storeNdkOutboxModel: store.ndkOutboxModel,
+    storeAutoConnectUserRelays: store.autoConnectUserRelays,
+  })
+
   // Create instance immediately so ndk() returns it synchronously
-  ndkInstance = new NDK({explicitRelayUrls: []})
+  ndkInstance = new NDK({
+    ...opts,
+    explicitRelayUrls: relayRuntime.explicitRelayUrls,
+    enableOutboxModel: relayRuntime.enableOutboxModel,
+    autoConnectUserRelays: relayRuntime.autoConnectUserRelays,
+  })
 
   // Create worker transport - it owns relay connectivity and search indexing.
   const workerFactory = () =>
@@ -78,24 +96,21 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
   workerTransport = new NDKWorkerTransport(workerFactory)
 
   // Start configuration asynchronously (but don't block return)
-  initPromise = performInit(opts)
+  initPromise = performInit(relayRuntime)
   await initPromise
   return ndkInstance!
 }
 
-async function performInit(opts?: NDKConstructorParams) {
+async function performInit(relayRuntime: RelayRuntimeConfig) {
   const store = useUserStore.getState()
-
-  // Only include enabled relays
-  const enabledRelays =
-    store.relayConfigs?.filter((c) => !c.disabled).map((c) => c.url) || []
-  const configuredRelays = opts?.explicitRelayUrls || enabledRelays
-  const injectedHtreeRelayUrl = getInjectedHtreeRelayUrl()
-  const relays = injectedHtreeRelayUrl ? [injectedHtreeRelayUrl] : configuredRelays
+  const relays = relayRuntime.relayUrls
 
   log("Initializing NDK with enabled relays:", relays)
-  if (injectedHtreeRelayUrl) {
-    log("Routing NDK through injected htree daemon relay:", injectedHtreeRelayUrl)
+  if (relayRuntime.pinnedRelayUrls?.[0]) {
+    log(
+      "Routing NDK through injected htree daemon relay:",
+      relayRuntime.pinnedRelayUrls[0]
+    )
   }
 
   // Log when using test relay
@@ -103,11 +118,8 @@ async function performInit(opts?: NDKConstructorParams) {
     log("🧪 Using test relay only: wss://temp.iris.to/")
   }
 
-  const enableOutbox = import.meta.env.VITE_USE_LOCAL_RELAY ? false : store.ndkOutboxModel
-
-  const autoConnectUserRelays = import.meta.env.VITE_USE_LOCAL_RELAY
-    ? false
-    : store.autoConnectUserRelays
+  const enableOutbox = relayRuntime.enableOutboxModel
+  const autoConnectUserRelays = relayRuntime.autoConnectUserRelays
 
   log(
     "Initializing NDK with outbox model:",
@@ -117,7 +129,9 @@ async function performInit(opts?: NDKConstructorParams) {
   )
 
   // Connect transport (registers as plugin and sends init).
-  workerTransport!.connect(ndkInstance!, relays)
+  workerTransport!.connect(ndkInstance!, relays, {
+    disableExtraRelayUrls: relayRuntime.disableExtraRelayUrls,
+  })
 
   const ndk = ndkInstance!
 
@@ -145,7 +159,7 @@ async function performInit(opts?: NDKConstructorParams) {
     log("Set initial activeUser:", store.publicKey.slice(0, 16) + "...")
   }
 
-  watchLocalSettings(ndk)
+  watchLocalSettings(ndk, relayRuntime)
   ndk.relayAuthDefaultPolicy = NDKRelayAuthPolicies.signIn({ndk})
 
   // Setup visibility reconnection (forwards to worker)
@@ -199,7 +213,7 @@ function setupVisibilityReconnection() {
   }
 }
 
-function watchLocalSettings(instance: NDK) {
+function watchLocalSettings(instance: NDK, relayRuntime: RelayRuntimeConfig) {
   useUserStore.subscribe((state, prevState) => {
     // Outbox model changes are handled by page reload in Network.tsx
     // No need to recreate NDK instance here
@@ -246,6 +260,10 @@ function watchLocalSettings(instance: NDK) {
       state.relays !== prevState.relays || state.relayConfigs !== prevState.relayConfigs
 
     if (shouldUpdateRelays) {
+      if (relayRuntime.pinnedRelayUrls) {
+        return
+      }
+
       // Use relayConfigs if available, otherwise fall back to relays array
       const relayList =
         state.relayConfigs && state.relayConfigs.length > 0

@@ -31,6 +31,7 @@ export class NDKWorkerTransport {
   private workerFactory?: () => Worker
   private ndk?: NDK
   private relayUrls: string[] = []
+  private disableExtraRelayUrls = false
   private subscriptions = new Map<string, Set<(event: NDKEvent) => void>>()
   private eoseHandlers = new Map<string, Set<() => void>>()
   private publishResolvers = new Map<
@@ -177,7 +178,9 @@ export class NDKWorkerTransport {
     // Reinitialize with same config
     if (this.ndk && this.relayUrls.length > 0) {
       try {
-        await this.connect(this.ndk, this.relayUrls)
+        await this.connect(this.ndk, this.relayUrls, {
+          disableExtraRelayUrls: this.disableExtraRelayUrls,
+        })
         log(`Worker restarted successfully after ${this.restartAttempts} attempts`)
       } catch (error) {
         console.error("[Worker Transport] Failed to reconnect after restart:", error)
@@ -186,9 +189,14 @@ export class NDKWorkerTransport {
     }
   }
 
-  async connect(ndk: NDK, relayUrls?: string[]): Promise<void> {
+  async connect(
+    ndk: NDK,
+    relayUrls?: string[],
+    options?: {disableExtraRelayUrls?: boolean}
+  ): Promise<void> {
     this.ndk = ndk
     this.relayUrls = relayUrls || []
+    this.disableExtraRelayUrls = !!options?.disableExtraRelayUrls
 
     // Register as transport plugin for publish and subscription interception
     if (!ndk.transportPlugins) {
@@ -212,6 +220,7 @@ export class NDKWorkerTransport {
       type: "init",
       relays: relayUrls || [],
       settings,
+      disableExtraRelayUrls: this.disableExtraRelayUrls,
     } as WorkerMessage)
 
     // Forward browser online/offline events to worker

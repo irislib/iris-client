@@ -36,6 +36,7 @@ import {
   updateSearchIndex,
 } from "./profile-search"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
+import {buildWorkerRelayUrls} from "../utils/relayRuntime"
 import {NDKEvent} from "../lib/ndk/events"
 import {NDKSubscriptionCacheUsage, type NDKFilter} from "../lib/ndk/subscription"
 import {NDKRelay} from "../lib/ndk/relay"
@@ -289,7 +290,11 @@ async function resolveLatestProfileSearchTreeRoot(
   }
 }
 
-async function initialize(relayUrls?: string[], initialSettings?: SettingsState) {
+async function initialize(
+  relayUrls?: string[],
+  initialSettings?: SettingsState,
+  disableExtraRelayUrls: boolean = false
+) {
   try {
     log("[Relay Worker] Starting initialization with relays:", relayUrls)
 
@@ -309,12 +314,12 @@ async function initialize(relayUrls?: string[], initialSettings?: SettingsState)
     log("[Relay Worker] Cache adapter ready (write-only, main thread queries)")
 
     // Initialize NDK with relay connections
-    const relaysToUse = Array.from(
-      new Set([
-        ...((relayUrls && relayUrls.length > 0 ? relayUrls : DEFAULT_RELAYS) || []),
-        ...parseExtraRelayUrls(import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS),
-      ])
-    )
+    const relaysToUse = buildWorkerRelayUrls({
+      relayUrls,
+      defaultRelayUrls: DEFAULT_RELAYS,
+      extraRelayUrls: parseExtraRelayUrls(import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS),
+      disableExtraRelayUrls,
+    })
     log("[Relay Worker] Creating NDK with relays:", relaysToUse)
 
     ndk = new NDK({
@@ -787,7 +792,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
     switch (type) {
       case "init":
-        await initialize(relays, data.settings)
+        await initialize(relays, data.settings, data.disableExtraRelayUrls)
         break
 
       case "subscribe":

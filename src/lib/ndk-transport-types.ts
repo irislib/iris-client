@@ -54,6 +54,7 @@ export interface WorkerMessage {
   settings?: SettingsState
   searchQuery?: string
   searchRequestId?: number
+  disableExtraRelayUrls?: boolean
 }
 
 export interface WorkerResponse {
