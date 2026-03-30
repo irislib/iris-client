@@ -25,10 +25,10 @@ function FollowList({
     throw new Error("FollowList needs follows or pubKey param")
   }
 
-  const localFollows = follows || f
+  const localFollows = follows && follows.length > 0 ? follows : f
 
-  // Filter out hidden users
-  const visibleFollows = localFollows.filter((pubkey) => !shouldHideUser(pubkey))
+  // Explicit people lists should still show unknown users; only mute-based hiding applies.
+  const visibleFollows = localFollows.filter((pubkey) => !shouldHideUser(pubkey, 1, true))
 
   const loadMoreFollows = () => {
     if (displayCount < visibleFollows.length) {

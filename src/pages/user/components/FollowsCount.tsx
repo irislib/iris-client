@@ -43,7 +43,7 @@ function FollowsCount({pubKey}: FollowsCountProps) {
               </div>
             </div>
             <div className="overflow-y-auto flex-1">
-              <FollowsList follows={follows} />
+              <FollowsList follows={follows} pubKey={pubKey} />
             </div>
           </div>
         </Modal>
