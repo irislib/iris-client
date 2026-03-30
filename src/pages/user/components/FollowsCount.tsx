@@ -1,10 +1,9 @@
 import useFollows from "@/shared/hooks/useFollows.ts"
 import Modal from "@/shared/components/ui/Modal"
-import {useSocialGraph} from "@/utils/socialGraph"
 import {formatAmount} from "@/utils/utils.ts"
 import FollowsList from "./FollowList.tsx"
 import {usePublicKey} from "@/stores/user"
-import {useState, useMemo} from "react"
+import {useState} from "react"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {Name} from "@/shared/components/user/Name"
 
@@ -13,12 +12,7 @@ interface FollowsCountProps {
 }
 
 function FollowsCount({pubKey}: FollowsCountProps) {
-  const socialGraph = useSocialGraph()
-  const f = useFollows(pubKey) // to query from relays and trigger update
-  const follows = useMemo(
-    () => Array.from(socialGraph.getFollowedByUser(pubKey)),
-    [pubKey, f, socialGraph]
-  )
+  const follows = useFollows(pubKey)
   const myPubKey = usePublicKey()
   const [showFollowsList, setShowFollowsList] = useState<boolean>(false)
 
