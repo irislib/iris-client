@@ -1,6 +1,16 @@
+export const LEGACY_IRIS_BLOSSOM_URL = "https://blossom.iris.to"
+
 export const MEDIASERVERS = {
   iris: {
-    url: "https://blossom.iris.to",
+    url: "https://upload.iris.to",
+    protocol: "blossom" as const,
+  },
+  blossom_band: {
+    url: "https://blossom.band",
+    protocol: "blossom" as const,
+  },
+  primal: {
+    url: "https://blossom.primal.net",
     protocol: "blossom" as const,
   },
   nostr_build: {
@@ -15,8 +25,19 @@ export const MEDIASERVERS = {
 
 export function getDefaultServers(isSubscriber: boolean) {
   return isSubscriber
-    ? [MEDIASERVERS.iris, MEDIASERVERS.nostr_build, MEDIASERVERS.nostr_check]
-    : [MEDIASERVERS.nostr_build, MEDIASERVERS.nostr_check]
+    ? [
+        MEDIASERVERS.iris,
+        MEDIASERVERS.blossom_band,
+        MEDIASERVERS.primal,
+        MEDIASERVERS.nostr_build,
+        MEDIASERVERS.nostr_check,
+      ]
+    : [
+        MEDIASERVERS.blossom_band,
+        MEDIASERVERS.primal,
+        MEDIASERVERS.nostr_build,
+        MEDIASERVERS.nostr_check,
+      ]
 }
 
 export function stripHttps(url: string) {

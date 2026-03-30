@@ -109,15 +109,37 @@ async function uploadToNip96(
 
 // --- Shared file processing logic ---
 
-function getDefaultMediaServer(isSubscriber: boolean): MediaServer {
-  const userStore = useUserStore.getState()
-  let server = userStore.defaultMediaserver
-  if (!server) {
-    userStore.ensureDefaultMediaserver(isSubscriber)
-    server = useUserStore.getState().defaultMediaserver
+export function getUploadServerAttemptOrder(
+  defaultMediaserver: MediaServer | null,
+  mediaservers: MediaServer[]
+): MediaServer[] {
+  const ordered: MediaServer[] = []
+  const seen = new Set<string>()
+
+  const addServer = (server?: MediaServer | null) => {
+    if (!server) return
+    const key = `${server.protocol}:${server.url}`
+    if (seen.has(key)) return
+    seen.add(key)
+    ordered.push(server)
   }
-  if (!server) throw new Error("No default media server configured")
-  return server
+
+  addServer(defaultMediaserver)
+  mediaservers.forEach(addServer)
+
+  return ordered
+}
+
+function getMediaServerAttemptOrder(isSubscriber: boolean): MediaServer[] {
+  const userStore = useUserStore.getState()
+  if (!userStore.defaultMediaserver && userStore.mediaservers.length === 0) {
+    userStore.ensureDefaultMediaserver(isSubscriber)
+  }
+
+  const {defaultMediaserver, mediaservers} = useUserStore.getState()
+  const ordered = getUploadServerAttemptOrder(defaultMediaserver, mediaservers)
+  if (ordered.length === 0) throw new Error("No media server configured")
+  return ordered
 }
 
 async function uploadSingleFile(
@@ -194,10 +216,21 @@ export async function uploadFile(
   chunkSize?: number
   imetaTag: string[]
 }> {
-  const server = getDefaultMediaServer(isSubscriber)
-  // Always use single file upload regardless of size
-  // other clients dont support chunking yet
-  return uploadSingleFile(file, server, onProgress, width, height, blurhash)
+  const servers = getMediaServerAttemptOrder(isSubscriber)
+  const errors: string[] = []
+
+  // Always use single file upload regardless of size.
+  // Other clients dont support chunking yet.
+  for (const server of servers) {
+    try {
+      return await uploadSingleFile(file, server, onProgress, width, height, blurhash)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      errors.push(`${server.url}: ${message}`)
+    }
+  }
+
+  throw new Error(`Upload failed on all configured media servers: ${errors.join(" | ")}`)
 }
 
 export const hasExifData = async (file: File): Promise<boolean> => {

@@ -1,4 +1,4 @@
-import {getDefaultServers} from "@/pages/settings/mediaservers-utils"
+import {LEGACY_IRIS_BLOSSOM_URL, getDefaultServers} from "@/pages/settings/mediaservers-utils"
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
@@ -237,7 +237,7 @@ export const useUserStore = create<UserState>()(
     },
     {
       name: "user-storage",
-      version: 2, // Bump version to trigger migration
+      version: 3, // Bump version to trigger media server migration
       onRehydrateStorage: () => (state) => {
         if (state) {
           // Migration: Initialize relayConfigs with DEFAULT_RELAYS if empty
@@ -265,6 +265,33 @@ export const useUserStore = create<UserState>()(
             state.relays = DEFAULT_RELAYS
           }
         }
+
+        if (version <= 2) {
+          const defaultFallbacks = getDefaultServers(false)
+          const persistedMediaServers = Array.isArray(state.mediaservers)
+            ? (state.mediaservers as MediaServer[]).filter(
+                (server) => server?.url && server.url !== LEGACY_IRIS_BLOSSOM_URL
+              )
+            : []
+
+          const seen = new Set(persistedMediaServers.map((server) => server.url))
+          const mediaservers = [...persistedMediaServers]
+          for (const server of defaultFallbacks) {
+            if (!seen.has(server.url)) {
+              mediaservers.push(server)
+              seen.add(server.url)
+            }
+          }
+
+          state.mediaservers = mediaservers
+
+          const persistedDefault = state.defaultMediaserver as MediaServer | null | undefined
+          state.defaultMediaserver =
+            persistedDefault && persistedDefault.url !== LEGACY_IRIS_BLOSSOM_URL
+              ? persistedDefault
+              : mediaservers[0] || defaultFallbacks[0]
+        }
+
         return state
       },
     }
