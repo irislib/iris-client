@@ -5,10 +5,14 @@ const PRODUCTION_RELAYS = [
   "wss://vault.iris.to/",
   "wss://relay.damus.io/",
   "wss://relay.snort.social/",
-  "wss://nos.lol/",
+  "wss://relay.primal.net/",
 ]
 
 const TEST_RELAY = ["wss://temp.iris.to/"]
+
+function stripTrailingSlash(url: string) {
+  return url.replace(/\/$/, "")
+}
 
 function getDefaultRelays() {
   if (import.meta.env.VITE_USE_TEST_RELAY) {
@@ -21,3 +25,4 @@ function getDefaultRelays() {
 }
 
 export const DEFAULT_RELAYS = getDefaultRelays()
+export const DEFAULT_WORKER_RELAYS = DEFAULT_RELAYS.map(stripTrailingSlash)

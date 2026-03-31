@@ -49,6 +49,7 @@ import type {
   WorkerPublishOpts,
 } from "../lib/ndk-transport-types"
 import type {SettingsState} from "../stores/settings"
+import {DEFAULT_WORKER_RELAYS} from "../shared/constants/relays"
 
 // WASM sig verification - nostr-wasm Nostr interface
 interface WasmVerifier {
@@ -184,13 +185,6 @@ function attachRelayListeners(relay: NDKRelay) {
   relay.on("authed", () => handler("authed"))
 }
 
-// Default relays if none provided
-const DEFAULT_RELAYS = [
-  "wss://relay.damus.io",
-  "wss://nos.lol",
-  "wss://relay.snort.social",
-]
-
 function parseExtraRelayUrls(raw?: string): string[] {
   if (!raw) {
     return []
@@ -316,7 +310,7 @@ async function initialize(
     // Initialize NDK with relay connections
     const relaysToUse = buildWorkerRelayUrls({
       relayUrls,
-      defaultRelayUrls: DEFAULT_RELAYS,
+      defaultRelayUrls: DEFAULT_WORKER_RELAYS,
       extraRelayUrls: parseExtraRelayUrls(import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS),
       disableExtraRelayUrls,
     })

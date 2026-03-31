@@ -8,7 +8,7 @@ import {
 describe("relay runtime selection", () => {
   it("pins Iris shell runtimes to the injected local relay", () => {
     const config = resolveRelayRuntimeConfig({
-      enabledRelayUrls: ["wss://relay.damus.io/", "wss://nos.lol/"],
+      enabledRelayUrls: ["wss://relay.damus.io/", "wss://relay.snort.social/"],
       explicitRelayUrls: undefined,
       injectedHtreeRelayUrl: "ws://127.0.0.1:21417/ws",
       forceLocalRelayEnv: false,
@@ -44,7 +44,7 @@ describe("relay runtime selection", () => {
 
   it("preserves configured relay behavior outside local relay runtimes", () => {
     const config = resolveRelayRuntimeConfig({
-      enabledRelayUrls: ["wss://relay.damus.io/", "wss://nos.lol/"],
+      enabledRelayUrls: ["wss://relay.damus.io/", "wss://relay.snort.social/"],
       explicitRelayUrls: undefined,
       injectedHtreeRelayUrl: null,
       forceLocalRelayEnv: false,
@@ -52,8 +52,8 @@ describe("relay runtime selection", () => {
       storeAutoConnectUserRelays: false,
     })
 
-    expect(config.relayUrls).toEqual(["wss://relay.damus.io/", "wss://nos.lol/"])
-    expect(config.explicitRelayUrls).toEqual(["wss://relay.damus.io/", "wss://nos.lol/"])
+    expect(config.relayUrls).toEqual(["wss://relay.damus.io/", "wss://relay.snort.social/"])
+    expect(config.explicitRelayUrls).toEqual(["wss://relay.damus.io/", "wss://relay.snort.social/"])
     expect(config.pinnedRelayUrls).toBeNull()
     expect(config.enableOutboxModel).toBe(true)
     expect(config.autoConnectUserRelays).toBe(false)
@@ -64,7 +64,7 @@ describe("relay runtime selection", () => {
     expect(
       buildWorkerRelayUrls({
         relayUrls: ["ws://127.0.0.1:21417/ws"],
-        defaultRelayUrls: ["wss://relay.damus.io", "wss://nos.lol"],
+        defaultRelayUrls: ["wss://relay.damus.io", "wss://relay.snort.social"],
         extraRelayUrls: ["wss://search.example"],
         disableExtraRelayUrls: true,
       })
@@ -75,7 +75,7 @@ describe("relay runtime selection", () => {
     expect(
       buildWorkerRelayUrls({
         relayUrls: ["wss://relay.damus.io"],
-        defaultRelayUrls: ["wss://nos.lol"],
+        defaultRelayUrls: ["wss://relay.snort.social"],
         extraRelayUrls: ["wss://search.example"],
         disableExtraRelayUrls: false,
       })

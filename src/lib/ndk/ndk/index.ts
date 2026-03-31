@@ -272,7 +272,7 @@ export interface GetUserParams extends NDKUserParams {
   hexpubkey?: string
 }
 
-export const DEFAULT_OUTBOX_RELAYS = ["wss://purplepag.es/", "wss://nos.lol/"]
+export const DEFAULT_OUTBOX_RELAYS = ["wss://purplepag.es/", "wss://relay.snort.social/"]
 
 /**
  * Defines handlers that can be passed to `ndk.subscribe` via the `autoStart` parameter
