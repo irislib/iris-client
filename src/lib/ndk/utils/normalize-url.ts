@@ -24,9 +24,26 @@ export function normalizeRelayUrl(url: string): string {
         stripHash: true,
     });
 
-    // if it doesn't end with a slash, add it
-    if (!r.endsWith("/")) {
-        r += "/";
+    try {
+        const parsed = new URL(r);
+
+        // Authenticated local relay URLs use a query-string session token.
+        // Appending a slash after the serialized URL would corrupt them into
+        // `...?sessionToken=.../`, which then fails to publish.
+        if (parsed.search || parsed.hash) {
+            return parsed.toString();
+        }
+
+        if (!parsed.pathname.endsWith("/")) {
+            parsed.pathname = `${parsed.pathname}/`;
+        }
+
+        return parsed.toString();
+    } catch {
+        // if it doesn't end with a slash, add it
+        if (!r.endsWith("/")) {
+            r += "/";
+        }
     }
 
     return r;

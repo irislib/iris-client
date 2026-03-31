@@ -2,6 +2,7 @@ declare global {
   interface Window {
     __HTREE_SERVER_URL__?: string
     __HTREE_CANONICAL_URL__?: string | null
+    __HTREE_SESSION_TOKEN__?: string
   }
 }
 
@@ -9,8 +10,11 @@ const INTERNAL_HTREE_QUERY_PARAMS = new Set([
   "htree_c",
   "iris_htree_server",
   "iris_htree_canonical",
+  "iris_htree_session",
   "iris_htree_root",
 ])
+
+let cachedInjectedHtreeHistoryRootPath = ""
 
 function getQueryParam(name: string): string | null {
   if (typeof window === "undefined") return null
@@ -36,6 +40,17 @@ export function getInjectedHtreeServerUrl(): string | null {
 
 function trimToNull(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null
+}
+
+function getInjectedHtreeSessionToken(): string | null {
+  if (typeof window === "undefined") return null
+
+  const injected = trimToNull(window.__HTREE_SESSION_TOKEN__)
+  if (injected) {
+    return injected
+  }
+
+  return getQueryParam("iris_htree_session")
 }
 
 function decodePathSegment(value: string): string {
@@ -177,6 +192,15 @@ function hasCanonicalHtreeIdentity(): boolean {
   return typeof canonical === "string" && canonical.toLowerCase().startsWith("htree://")
 }
 
+function rememberInjectedHtreeHistoryRootPath(historyRootPath: string | null | undefined): string {
+  const normalized = typeof historyRootPath === "string" ? historyRootPath.trim() : ""
+  if (normalized) {
+    cachedInjectedHtreeHistoryRootPath = normalized
+  }
+
+  return cachedInjectedHtreeHistoryRootPath
+}
+
 function isLoopbackHost(hostname: string): boolean {
   return (
     hostname === "127.0.0.1" ||
@@ -229,6 +253,9 @@ export function getInjectedHtreeRuntimeLocation(): {
   )
   const actualLoopbackPath = parseActualLoopbackAppPath(window.location.pathname || "/")
   const canonicalPath = parseCanonicalHtreeAppPath(getInjectedHtreeCanonicalUrl() || "")
+  const historyRootPath = rememberInjectedHtreeHistoryRootPath(
+    actualLoopbackPath?.historyRootPath
+  )
 
   return {
     appPath:
@@ -238,7 +265,7 @@ export function getInjectedHtreeRuntimeLocation(): {
         strippedSearch
       ),
     browserPath: actualBrowserPath,
-    historyRootPath: actualLoopbackPath?.historyRootPath || "",
+    historyRootPath,
   }
 }
 
@@ -259,6 +286,21 @@ export function resolveAppAssetUrl(assetPath: string): string {
   }
 
   return `${historyRootPath}${assetPath}`
+}
+
+export function syncInjectedHtreeHeadAssetUrls(doc: Document = document): void {
+  const headAssets = [
+    ['link[rel="icon"]', "/favicon.png"],
+    ['link[rel="apple-touch-icon"]', "/img/apple-touch-icon.png"],
+    ['link[rel="manifest"]', "/manifest.json"],
+  ] as const
+
+  headAssets.forEach(([selector, assetPath]) => {
+    const link = doc.querySelector<HTMLLinkElement>(selector)
+    if (link) {
+      link.href = resolveAppAssetUrl(assetPath)
+    }
+  })
 }
 
 export function toInjectedHtreeBrowserPath(
@@ -283,6 +325,7 @@ export function toInjectedHtreeBrowserPath(
 export function getInjectedHtreeRelayUrl(): string | null {
   const serverUrl = getInjectedHtreeServerUrl()
   if (!serverUrl) return null
+  const sessionToken = getInjectedHtreeSessionToken()
 
   try {
     const url = new URL(serverUrl)
@@ -293,8 +336,13 @@ export function getInjectedHtreeRelayUrl(): string | null {
     } else {
       return null
     }
-    url.pathname = "/ws"
-    url.search = ""
+    if (sessionToken) {
+      url.pathname = "/__iris_relay"
+      url.search = new URLSearchParams({sessionToken}).toString()
+    } else {
+      url.pathname = "/ws"
+      url.search = ""
+    }
     url.hash = ""
     return url.toString().replace(/\/$/, "")
   } catch {

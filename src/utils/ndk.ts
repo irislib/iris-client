@@ -7,6 +7,7 @@ import NDK, {
   NDKUser,
 } from "@/lib/ndk"
 import {NDKWorkerTransport} from "@/lib/ndk-transport-worker"
+import {normalizeRelayUrl} from "@/lib/ndk/utils/normalize-url"
 import {useUserStore} from "@/stores/user"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
@@ -21,11 +22,6 @@ let privateKeySigner: NDKPrivateKeySigner | undefined
 let nip07Signer: NDKNip07Signer | undefined
 let initPromise: Promise<void> | null = null
 let workerTransport: NDKWorkerTransport | undefined
-
-function normalizeRelayUrl(url: string): string {
-  // Ensure URL ends with / to match NDK's internal normalization
-  return url.endsWith("/") ? url : url + "/"
-}
 
 export {DEFAULT_RELAYS}
 

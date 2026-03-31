@@ -19,6 +19,7 @@ const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 import {cleanupSessionEventListener} from "./utils/dmEventHandler"
 import {cleanupGroupMessageListener} from "./utils/groupMessageHandler"
 import {hasWriteAccess, shouldStartPrivateMessagingOnAuthChange} from "./utils/auth"
+import {maybeAutoEnableInjectedNip07Login} from "./utils/injectedNip07"
 import {
   initAppKeysManager,
   initDelegateManager,
@@ -29,6 +30,7 @@ import {
 } from "@/shared/services/PrivateChats"
 import {useDevicesStore} from "./stores/devices"
 import {autoRegisterDevice} from "./utils/autoRegisterDevice"
+import {syncInjectedHtreeHeadAssetUrls} from "./utils/nativeHtree"
 
 // Auto-update and auto-reload the PWA when a new service worker version is available.
 initServiceWorkerAutoReload()
@@ -63,6 +65,7 @@ const initializeApp = async () => {
 
   // Wait for settings to hydrate from localStorage before initializing NDK
   await useUserStore.getState().awaitHydration()
+  await maybeAutoEnableInjectedNip07Login()
 
   // Start NDK initialization in background (non-blocking)
   import("@/utils/ndk").then(async ({initNDK}) => {
@@ -119,6 +122,7 @@ const initializeApp = async () => {
   }
 
   document.title = CONFIG.appName
+  syncInjectedHtreeHeadAssetUrls()
 
   // Initialize theme from settings store
   const {appearance} = useSettingsStore.getState()
