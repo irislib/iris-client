@@ -4,6 +4,28 @@ import {NDKEvent} from "@/lib/ndk"
 import {nip19} from "nostr-tools"
 import {NoteCreatorState, NoteCreatorAction} from "./useNoteCreatorState"
 
+type DraftLoadPayload = Partial<NoteCreatorState>
+
+export function noteCreatorDraftPayload(draft: {
+  content?: string
+  imeta?: NoteCreatorState["imeta"]
+  expirationDelta?: NoteCreatorState["expirationDelta"]
+  eventKind?: NoteCreatorState["eventKind"]
+  price?: NoteCreatorState["price"]
+  title?: NoteCreatorState["title"]
+}): DraftLoadPayload {
+  const payload: DraftLoadPayload = {}
+
+  if (draft.content !== undefined) payload.text = draft.content
+  if (draft.imeta !== undefined) payload.imeta = draft.imeta
+  if (draft.expirationDelta !== undefined) payload.expirationDelta = draft.expirationDelta
+  if (draft.eventKind !== undefined) payload.eventKind = draft.eventKind
+  if (draft.price !== undefined) payload.price = draft.price
+  if (draft.title !== undefined) payload.title = draft.title
+
+  return payload
+}
+
 export function useNoteDraft(
   draftKey: string,
   state: NoteCreatorState,
@@ -20,14 +42,7 @@ export function useNoteDraft(
     if (draft) {
       dispatch({
         type: "LOAD_DRAFT",
-        payload: {
-          text: draft.content,
-          imeta: draft.imeta,
-          expirationDelta: draft.expirationDelta,
-          eventKind: draft.eventKind,
-          price: draft.price,
-          title: draft.title,
-        },
+        payload: noteCreatorDraftPayload(draft),
       })
     } else if (quotedEvent && !state.text) {
       // Set quote link if no existing draft
