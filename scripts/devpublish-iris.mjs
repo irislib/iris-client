@@ -2,13 +2,12 @@ import path from "node:path"
 import {fileURLToPath} from "node:url"
 import {spawnSync} from "node:child_process"
 import {existsSync} from "node:fs"
+import {resolveHtreeCommand} from "./hashtreePaths.mjs"
 import {parsePublishOutput} from "./release-site.mjs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const appDir = path.resolve(__dirname, "..")
-const workspaceDir = path.resolve(appDir, "..")
-const manifestPath = path.join(workspaceDir, "hashtree", "rust", "Cargo.toml")
 const distDir = path.join(appDir, "dist")
 const defaultTreeName = "iris-client-dev"
 
@@ -65,21 +64,7 @@ export function createDevPublishPlan(options) {
   steps.push({
     id: "publish",
     label: `Publish Iris dev tree to hashtree (${options.treeName})`,
-    command: [
-      "cargo",
-      "run",
-      "--manifest-path",
-      manifestPath,
-      "-p",
-      "hashtree-cli",
-      "--bin",
-      "htree",
-      "--",
-      "add",
-      ".",
-      "--publish",
-      options.treeName,
-    ],
+    command: resolveHtreeCommand("add", ".", "--publish", options.treeName),
     cwd: distDir,
   })
 

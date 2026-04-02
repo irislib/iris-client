@@ -162,10 +162,10 @@ export const AboutPage = () => {
               </p>
               <p>
                 <a
-                  href="https://github.com/irislib/iris-client/releases"
+                  href="https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client?tab=releases"
                   onClick={(e) => {
                     e.preventDefault()
-                    openExternalLink("https://github.com/irislib/iris-client/releases")
+                    openExternalLink("https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client?tab=releases")
                   }}
                   className="flex items-center gap-1 w-fit"
                 >

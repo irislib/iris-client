@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import path from "node:path"
 import {describe, expect, it} from "vitest"
 
 type ReleaseSiteOptions = {
@@ -63,6 +65,17 @@ async function importReleaseSiteModule(): Promise<{
   }
 }
 
+const distDir = path.resolve(__dirname, "../dist")
+
+async function withDistFixture<T>(run: () => Promise<T>): Promise<T> {
+  fs.mkdirSync(distDir, {recursive: true})
+  try {
+    return await run()
+  } finally {
+    fs.rmSync(distDir, {recursive: true, force: true})
+  }
+}
+
 describe("release site config", () => {
   it("uses a site tree name that does not collide with the git remote name", async () => {
     const {defaultSiteTreeName, parseArgs} = await importReleaseSiteModule()
@@ -80,6 +93,8 @@ describe("release site config", () => {
 
     expect(publishStep).toBeDefined()
     expect(publishStep?.cwd.endsWith("/dist")).toBe(true)
+    expect(publishStep?.command[0]).toBe("htree")
+    expect(publishStep?.command).not.toContain("--manifest-path")
     expect(publishStep?.command).toContain("iris-client-site")
   })
 
@@ -96,37 +111,39 @@ describe("release site config", () => {
     let maxActiveReleaseSteps = 0
     const calls: string[] = []
 
-    await runRelease(
-      {
-        dryRun: false,
-        skipCloudflare: false,
-        pagesOnly: false,
-        treeName: "iris-client-site",
-        branch: undefined,
-        pagesProject: undefined,
-        workerName: "iris-client",
-        routes: [],
-        domains: ["iris.to"],
-        workerCompatibilityDate: "2026-03-26",
-      },
-      async (step) => {
-        calls.push(step.id)
-        if (step.id === "publish" || step.id === "deploy") {
-          activeReleaseSteps += 1
-          maxActiveReleaseSteps = Math.max(maxActiveReleaseSteps, activeReleaseSteps)
-          await new Promise((resolve) => setTimeout(resolve, 10))
-          activeReleaseSteps -= 1
-          if (step.id === "publish") {
-            return {
-              status: 0,
-              stdout: "published: npub1example/iris-client-site\nnhash1ace",
-              stderr: "",
+    await withDistFixture(async () => {
+      await runRelease(
+        {
+          dryRun: false,
+          skipCloudflare: false,
+          pagesOnly: false,
+          treeName: "iris-client-site",
+          branch: undefined,
+          pagesProject: undefined,
+          workerName: "iris-client",
+          routes: [],
+          domains: ["iris.to"],
+          workerCompatibilityDate: "2026-03-26",
+        },
+        async (step) => {
+          calls.push(step.id)
+          if (step.id === "publish" || step.id === "deploy") {
+            activeReleaseSteps += 1
+            maxActiveReleaseSteps = Math.max(maxActiveReleaseSteps, activeReleaseSteps)
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            activeReleaseSteps -= 1
+            if (step.id === "publish") {
+              return {
+                status: 0,
+                stdout: "published: npub1example/iris-client-site\nnhash1ace",
+                stderr: "",
+              }
             }
           }
-        }
-        return {status: 0, stdout: "", stderr: ""}
-      },
-    )
+          return {status: 0, stdout: "", stderr: ""}
+        },
+      )
+    })
 
     expect(calls).toEqual(["build", "test-portable", "test-smoke", "publish", "deploy"])
     expect(maxActiveReleaseSteps).toBe(2)

@@ -2,12 +2,11 @@ import path from "node:path"
 import {fileURLToPath} from "node:url"
 import {spawn} from "node:child_process"
 import {existsSync} from "node:fs"
+import {resolveHtreeCommand} from "./hashtreePaths.mjs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const appDir = path.resolve(__dirname, "..")
-const workspaceDir = path.resolve(appDir, "..")
-const manifestPath = path.join(workspaceDir, "hashtree", "rust", "Cargo.toml")
 const distDir = path.join(appDir, "dist")
 const defaultWorkerCompatibilityDate = "2026-03-26"
 export const defaultSiteTreeName = "iris-client-site"
@@ -144,21 +143,7 @@ export function createReleasePlan(options) {
     {
       id: "publish",
       label: `Publish ${profile.appName} to hashtree`,
-      command: [
-        "cargo",
-        "run",
-        "--manifest-path",
-        manifestPath,
-        "-p",
-        "hashtree-cli",
-        "--bin",
-        "htree",
-        "--",
-        "add",
-        ".",
-        "--publish",
-        options.treeName,
-      ],
+      command: resolveHtreeCommand("add", ".", "--publish", options.treeName),
       cwd: distDir,
     },
   ]
