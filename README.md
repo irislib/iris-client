@@ -6,9 +6,7 @@ Highly performant and normie-friendly offline-first Nostr web client that is not
 
 Source code for [iris.to](https://iris.to)
 
-[![Checks](https://github.com/irislib/iris-client/actions/workflows/checks.yml/badge.svg)](https://github.com/irislib/iris-client/actions/workflows/checks.yml)
-[![Tests](https://github.com/irislib/iris-client/actions/workflows/tests.yml/badge.svg)](https://github.com/irislib/iris-client/actions/workflows/tests.yml)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/irislib/iris-client)
+CI results are shown in the `git.iris.to` commit history for this repo.
 
 ## Development
 

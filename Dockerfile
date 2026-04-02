@@ -94,8 +94,9 @@ RUN echo 'alias claude="claude --dangerously-skip-permissions"' >> /root/.bashrc
     echo 'alias claude="claude --dangerously-skip-permissions"' >> /home/developer/.bashrc && \
     echo 'alias claude="claude --dangerously-skip-permissions"' >> /home/developer/.zshrc
 
-# Clone the repository as developer user
-RUN git clone https://github.com/irislib/iris-client.git /home/developer/iris-client && \
+# Install hashtree git support and clone the repository as developer user
+RUN curl -fsSL https://upload.iris.to/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/releases%2Fhashtree/latest/install.sh | sh -s -- /usr/local/bin && \
+    git clone htree://npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client /home/developer/iris-client && \
     chown -R developer:developer /home/developer/iris-client
 
 # Install dependencies as developer user

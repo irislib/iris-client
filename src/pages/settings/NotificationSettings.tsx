@@ -488,7 +488,7 @@ const NotificationSettings = () => {
                       Self-host notification server?{" "}
                       <a
                         className="link"
-                        href="https://github.com/mmalmi/nostr-notification-server"
+                        href="https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/nostr-notification-server"
                       >
                         Source code
                       </a>
