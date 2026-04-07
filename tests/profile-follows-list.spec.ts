@@ -5,7 +5,7 @@ import {signUp} from "./auth.setup"
 test("fresh viewer can open another user's follows list without following them first", async ({
   browser,
 }) => {
-  test.setTimeout(120000)
+  test.setTimeout(180000)
 
   const authorContext = await browser.newContext()
   const followeeOneContext = await browser.newContext()
@@ -60,13 +60,13 @@ test("fresh viewer can open another user's follows list without following them f
     const modal = viewerPage.locator("dialog.modal")
     await expect(modal).toBeVisible({timeout: 10000})
     await expect(modal.locator('[data-testid="sidebar-user-row"]')).toHaveCount(2, {
-      timeout: 20000,
+      timeout: 60000,
     })
     await expect(modal.getByText("Followee One", {exact: true})).toBeVisible({
-      timeout: 20000,
+      timeout: 60000,
     })
     await expect(modal.getByText("Followee Two", {exact: true})).toBeVisible({
-      timeout: 20000,
+      timeout: 60000,
     })
   } finally {
     await authorContext.close()

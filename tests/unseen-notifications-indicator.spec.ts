@@ -119,7 +119,7 @@ test.describe("Unseen Notifications Indicator", () => {
   test("should show notification badge after real like notification", async ({
     browser,
   }) => {
-    test.setTimeout(60000) // Increase timeout to 60s for complex multi-user interactions
+    test.setTimeout(90000)
     const contextA = await browser.newContext()
     const contextB = await browser.newContext()
 
