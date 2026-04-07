@@ -212,7 +212,9 @@ function parseTreeRootEvent(rawEvent: {
     return null
   }
 
-  const hasHashtreeLabel = rawEvent.tags.some((tag) => tag[0] === "l" && tag[1] === "hashtree")
+  const hasHashtreeLabel = rawEvent.tags.some(
+    (tag) => tag[0] === "l" && tag[1] === "hashtree"
+  )
   const hasAnyLabel = rawEvent.tags.some((tag) => tag[0] === "l")
   if (hasAnyLabel && !hasHashtreeLabel) {
     return null
@@ -244,7 +246,10 @@ function parseTreeRootEvent(rawEvent: {
   }
 }
 
-function compareTreeRootEvents(left: TreeRootEventSnapshot, right: TreeRootEventSnapshot): number {
+function compareTreeRootEvents(
+  left: TreeRootEventSnapshot,
+  right: TreeRootEventSnapshot
+): number {
   if (left.createdAt !== right.createdAt) {
     return left.createdAt - right.createdAt
   }
@@ -311,7 +316,9 @@ async function initialize(
     const relaysToUse = buildWorkerRelayUrls({
       relayUrls,
       defaultRelayUrls: DEFAULT_WORKER_RELAYS,
-      extraRelayUrls: parseExtraRelayUrls(import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS),
+      extraRelayUrls: parseExtraRelayUrls(
+        import.meta.env.VITE_PROFILE_SEARCH_TREE_RELAYS
+      ),
       disableExtraRelayUrls,
     })
     log("[Relay Worker] Creating NDK with relays:", relaysToUse)

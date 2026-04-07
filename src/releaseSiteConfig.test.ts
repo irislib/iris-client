@@ -34,7 +34,7 @@ async function importReleaseSiteModule(): Promise<{
   createReleasePlan: (options: ReleaseSiteOptions) => {steps: ReleaseSiteStep[]}
   runRelease: (
     options: ReleaseSiteOptions,
-    runner?: (step: ReleaseSiteStep) => StepResult | Promise<StepResult>,
+    runner?: (step: ReleaseSiteStep) => StepResult | Promise<StepResult>
   ) => Promise<{
     publish: {nhash: string; publishedRef: string}
     pagesUrl: string | null
@@ -52,7 +52,7 @@ async function importReleaseSiteModule(): Promise<{
     createReleasePlan: (options: ReleaseSiteOptions) => {steps: ReleaseSiteStep[]}
     runRelease: (
       options: ReleaseSiteOptions,
-      runner?: (step: ReleaseSiteStep) => StepResult | Promise<StepResult>,
+      runner?: (step: ReleaseSiteStep) => StepResult | Promise<StepResult>
     ) => Promise<{
       publish: {nhash: string; publishedRef: string}
       pagesUrl: string | null
@@ -141,7 +141,7 @@ describe("release site config", () => {
             }
           }
           return {status: 0, stdout: "", stderr: ""}
-        },
+        }
       )
     })
 

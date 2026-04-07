@@ -22,17 +22,25 @@ type MaybeAutoEnableInjectedNip07LoginOptions = {
   getPublicKey?: () => Promise<string | null | undefined>
 }
 
-function hasAuthState(state: Pick<InjectedNip07State, "publicKey" | "privateKey" | "nip07Login" | "linkedDevice">): boolean {
+function hasAuthState(
+  state: Pick<
+    InjectedNip07State,
+    "publicKey" | "privateKey" | "nip07Login" | "linkedDevice"
+  >
+): boolean {
   return Boolean(
     state.publicKey?.trim() ||
-      state.privateKey?.trim() ||
-      state.nip07Login ||
-      state.linkedDevice
+    state.privateKey?.trim() ||
+    state.nip07Login ||
+    state.linkedDevice
   )
 }
 
 export function shouldAutoEnableInjectedNip07Login(
-  state: Pick<InjectedNip07State, "publicKey" | "privateKey" | "nip07Login" | "linkedDevice">,
+  state: Pick<
+    InjectedNip07State,
+    "publicKey" | "privateKey" | "nip07Login" | "linkedDevice"
+  >,
   runtime: InjectedNip07Runtime
 ): boolean {
   return runtime.injectedChildRuntime && runtime.hasNostr && !hasAuthState(state)

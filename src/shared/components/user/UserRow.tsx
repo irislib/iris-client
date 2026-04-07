@@ -42,7 +42,11 @@ export function UserRow({
             width={avatarWidth}
           />
         )}
-        <Name pubKey={pubKey} className={textClassName} fallbackProfile={fallbackProfile} />
+        <Name
+          pubKey={pubKey}
+          className={textClassName}
+          fallbackProfile={fallbackProfile}
+        />
       </div>
       <span className="text-base-content">{description}</span>
     </div>

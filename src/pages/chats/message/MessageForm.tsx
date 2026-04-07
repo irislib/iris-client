@@ -112,7 +112,9 @@ const MessageForm = ({
     () =>
       createTypingThrottle(() => {
         if (!isDM) return
-        getNdrRuntime().sendTyping(dmRecipientPubkey).catch(() => {})
+        getNdrRuntime()
+          .sendTyping(dmRecipientPubkey)
+          .catch(() => {})
       }, 3000),
     [dmRecipientPubkey, isDM]
   )

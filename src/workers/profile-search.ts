@@ -14,10 +14,7 @@ import {SearchIndex} from "@hashtree/index"
 import Fuse from "fuse.js"
 
 import {db} from "../lib/ndk-cache"
-import {
-  buildProfileSearchResult,
-  type SearchResult,
-} from "../utils/profileSearchData"
+import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 
 const FUSE_KEYS = ["name", "aliases", "nip05", "pubKey"]
 const PROFILE_SEARCH_PREFIX = "p:"
@@ -143,8 +140,7 @@ function inferBlossomRole(url: string): Pick<BlossomServer, "read" | "write"> {
 
 function resolveIndexRef(): string | null {
   const raw =
-    import.meta.env.VITE_PROFILE_SEARCH_INDEX ??
-    import.meta.env.VITE_PROFILE_SEARCH_NHASH
+    import.meta.env.VITE_PROFILE_SEARCH_INDEX ?? import.meta.env.VITE_PROFILE_SEARCH_NHASH
 
   if (!raw || typeof raw !== "string") {
     return null
@@ -257,22 +253,17 @@ export function initSearchIndex(profiles: SearchResult[]) {
 }
 
 export function searchLocalProfiles(query: string): SearchHit[] {
-  return searchIndex
-    .search(query)
-    .map((result) => ({
-      item: result.item,
-      score: result.score,
-      source: "local" as const,
-    }))
+  return searchIndex.search(query).map((result) => ({
+    item: result.item,
+    score: result.score,
+    source: "local" as const,
+  }))
 }
 
 function queryShape(query: string): {compactLength: number; keywordCount: number} {
   return {
     compactLength: query.replace(/\s+/g, "").length,
-    keywordCount: query
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length,
+    keywordCount: query.trim().split(/\s+/).filter(Boolean).length,
   }
 }
 
@@ -336,15 +327,9 @@ function resolveSeededTreeRoot():
 }
 
 function selectStartupTreeRoot(
-  cached:
-    | (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord)
-    | null,
-  seeded:
-    | (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord)
-    | null
-):
-  | (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord)
-  | null {
+  cached: (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord) | null,
+  seeded: (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord) | null
+): (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord) | null {
   if (seeded) {
     return seeded
   }
@@ -450,7 +435,8 @@ async function cacheRemoteProfile(
           ? rawProfile.name
           : searchProfile.name,
       display_name:
-        typeof rawProfile?.display_name === "string" && rawProfile.display_name.trim().length > 0
+        typeof rawProfile?.display_name === "string" &&
+        rawProfile.display_name.trim().length > 0
           ? rawProfile.display_name
           : typeof rawProfile?.displayName === "string" &&
               rawProfile.displayName.trim().length > 0
@@ -470,27 +456,34 @@ async function cacheRemoteProfile(
 
 type ImmediateRemoteSearchHit = SearchHit & {eventNhash?: string}
 
-function parseStoredRemoteSearchHit(
-  result: {id: string; value: string; score: number}
-): ImmediateRemoteSearchHit | null {
+function parseStoredRemoteSearchHit(result: {
+  id: string
+  value: string
+  score: number
+}): ImmediateRemoteSearchHit | null {
   try {
     const parsed = JSON.parse(result.value) as StoredRemoteProfileSearchEntry
     const pubKey = parsed.pubkey || result.id
-    const name = typeof parsed.name === "string" && parsed.name.trim() ? parsed.name : pubKey
+    const name =
+      typeof parsed.name === "string" && parsed.name.trim() ? parsed.name : pubKey
     const aliases = Array.isArray(parsed.aliases)
-      ? parsed.aliases.filter((alias): alias is string => typeof alias === "string" && alias.length > 0)
+      ? parsed.aliases.filter(
+          (alias): alias is string => typeof alias === "string" && alias.length > 0
+        )
       : undefined
     const searchResult: SearchResult = {
       pubKey,
       name,
       aliases: aliases && aliases.length > 0 ? aliases : undefined,
-      nip05: typeof parsed.nip05 === "string" && parsed.nip05.length > 0 ? parsed.nip05 : undefined,
+      nip05:
+        typeof parsed.nip05 === "string" && parsed.nip05.length > 0
+          ? parsed.nip05
+          : undefined,
       picture:
         typeof parsed.picture === "string" && parsed.picture.length > 0
           ? parsed.picture
           : undefined,
-      created_at:
-        typeof parsed.created_at === "number" ? parsed.created_at : undefined,
+      created_at: typeof parsed.created_at === "number" ? parsed.created_at : undefined,
     }
     updateSearchIndex(searchResult)
     return {
@@ -503,7 +496,10 @@ function parseStoredRemoteSearchHit(
           : undefined,
     }
   } catch (error) {
-    console.warn("[Relay Worker] Failed to decode stored remote profile search result:", error)
+    console.warn(
+      "[Relay Worker] Failed to decode stored remote profile search result:",
+      error
+    )
     return null
   }
 }
@@ -667,7 +663,9 @@ async function searchRemoteRoot(
       }
       progressiveHydrated[index] = hit
       onProgress?.(
-        progressiveHydrated.filter((candidate): candidate is SearchHit => Boolean(candidate))
+        progressiveHydrated.filter((candidate): candidate is SearchHit =>
+          Boolean(candidate)
+        )
       )
       return hit
     })
@@ -769,15 +767,15 @@ async function searchRemoteRootByKeys(
     }))
 }
 
-async function *prefixTreeKeys(
+async function* prefixTreeKeys(
   tree: HashTree,
   node: CID,
   prefix: string
 ): AsyncGenerator<string> {
-  yield *rangeTreeKeys(tree, node, prefix, incrementPrefix(prefix))
+  yield* rangeTreeKeys(tree, node, prefix, incrementPrefix(prefix))
 }
 
-async function *rangeTreeKeys(
+async function* rangeTreeKeys(
   tree: HashTree,
   node: CID,
   start?: string,
@@ -810,18 +808,14 @@ async function *rangeTreeKeys(
     const childMaxKey =
       index < entries.length - 1 ? unescapeSearchKey(entries[index + 1].name) : undefined
 
-    if (
-      start !== undefined &&
-      childMaxKey !== undefined &&
-      childMaxKey <= start
-    ) {
+    if (start !== undefined && childMaxKey !== undefined && childMaxKey <= start) {
       continue
     }
     if (end !== undefined && childMinKey >= end) {
       return
     }
 
-    yield *rangeTreeKeys(tree, child.cid, start, end)
+    yield* rangeTreeKeys(tree, child.cid, start, end)
   }
 }
 
@@ -836,10 +830,7 @@ function isLeafNode(entries: TreeEntry[]): boolean {
 }
 
 function unescapeSearchKey(name: string): string {
-  return name
-    .replace(/%2F/gi, "/")
-    .replace(/%00/gi, "\0")
-    .replace(/%25/g, "%")
+  return name.replace(/%2F/gi, "/").replace(/%00/gi, "\0").replace(/%25/g, "%")
 }
 
 function incrementPrefix(value: string): string {
@@ -977,12 +968,7 @@ export async function searchRemoteProfiles(
   const seeded = resolveSeededTreeRoot()
   const current = selectStartupTreeRoot(cached, seeded)
   if (current) {
-    const cachedResults = await searchRemoteRoot(
-      remote,
-      current.root,
-      query,
-      onProgress
-    )
+    const cachedResults = await searchRemoteRoot(remote, current.root, query, onProgress)
     const refresh = getOrStartTreeRootRefresh(npub, treeName, current)
     if (cachedResults.length > 0) {
       void refresh

@@ -168,9 +168,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
           )
           .map((result) => {
             const textScore =
-              result.source === "local"
-                ? 1 - (result.score ?? 1)
-                : (result.score ?? 0)
+              result.source === "local" ? 1 - (result.score ?? 1) : (result.score ?? 0)
             const followDistance = isSocialGraphLoaded
               ? (socialGraph.getFollowDistance(result.item.pubKey) ?? DEFAULT_DISTANCE)
               : DEFAULT_DISTANCE

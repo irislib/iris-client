@@ -42,10 +42,7 @@ export default function UserSearchContent() {
     peopleSearch.setValue(searchValue)
   }, [searchValue])
 
-  const stableSearch = useStableSearchResults(
-    searchValue,
-    peopleSearch.searchResults
-  )
+  const stableSearch = useStableSearchResults(searchValue, peopleSearch.searchResults)
 
   const rootUser = socialGraph.getRoot()
   const follows = socialGraph.getFollowedByUser(rootUser)

@@ -5,7 +5,9 @@ import {
   shouldAutoEnableInjectedNip07Login,
 } from "./injectedNip07"
 
-function createState(overrides: Partial<Parameters<typeof shouldAutoEnableInjectedNip07Login>[0]> = {}) {
+function createState(
+  overrides: Partial<Parameters<typeof shouldAutoEnableInjectedNip07Login>[0]> = {}
+) {
   return {
     publicKey: "",
     privateKey: "",

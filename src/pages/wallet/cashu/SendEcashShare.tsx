@@ -85,10 +85,7 @@ export default function SendEcashShare({
         log("✓ User logged in:", myPubKey)
 
         log("📨 Sending message...")
-        const sentMessage = await runtime.sendMessage(
-          selectedUserPubkey,
-          generatedToken
-        )
+        const sentMessage = await runtime.sendMessage(selectedUserPubkey, generatedToken)
         log("✓ Message sent:", sentMessage.id)
 
         // Update local store

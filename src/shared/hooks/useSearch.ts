@@ -86,7 +86,7 @@ export function useSearch({
       // Ignore stale results
       if (searchId !== latestSearchRef.current) return
 
-        const resultsWithAdjustedScores = results
+      const resultsWithAdjustedScores = results
         .filter((result) => !isOvermuted(result.item.pubKey))
         .filter(
           (result) =>
@@ -94,9 +94,7 @@ export function useSearch({
         )
         .map((result) => {
           const textScore =
-            result.source === "local"
-              ? 1 - (result.score ?? 1)
-              : (result.score ?? 0)
+            result.source === "local" ? 1 - (result.score ?? 1) : (result.score ?? 0)
           const followDistance = isSocialGraphLoaded
             ? (socialGraph.getFollowDistance(result.item.pubKey) ?? DEFAULT_DISTANCE)
             : DEFAULT_DISTANCE

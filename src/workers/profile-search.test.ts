@@ -28,7 +28,9 @@ vi.mock("@hashtree/index", () => ({
 vi.mock("@hashtree/core", () => ({
   BlossomStore: vi.fn().mockImplementation(() => ({})),
   MemoryStore: vi.fn().mockImplementation(() => ({})),
-  FallbackStore: vi.fn().mockImplementation(({fallbacks}: {fallbacks: unknown[]}) => fallbacks[0] ?? {}),
+  FallbackStore: vi
+    .fn()
+    .mockImplementation(({fallbacks}: {fallbacks: unknown[]}) => fallbacks[0] ?? {}),
   LinkType: {
     Blob: "blob",
     File: "file",
@@ -339,11 +341,8 @@ describe("profile search index", () => {
       )
     )
 
-    const {
-      initSearchIndex,
-      searchProfiles,
-      setRemoteProfileSearchTreeResolver,
-    } = await loadProfileSearchModule()
+    const {initSearchIndex, searchProfiles, setRemoteProfileSearchTreeResolver} =
+      await loadProfileSearchModule()
 
     setRemoteProfileSearchTreeResolver(async () => ({
       root: {hash: new Uint8Array([9]), key: new Uint8Array([8])},
@@ -402,11 +401,8 @@ describe("profile search index", () => {
       )
     )
 
-    const {
-      initSearchIndex,
-      searchProfiles,
-      setRemoteProfileSearchTreeResolver,
-    } = await loadProfileSearchModule()
+    const {initSearchIndex, searchProfiles, setRemoteProfileSearchTreeResolver} =
+      await loadProfileSearchModule()
 
     setRemoteProfileSearchTreeResolver(async () => null)
     initSearchIndex([])
@@ -485,11 +481,8 @@ describe("profile search index", () => {
       )
     )
 
-    const {
-      initSearchIndex,
-      searchProfiles,
-      setRemoteProfileSearchTreeResolver,
-    } = await loadProfileSearchModule()
+    const {initSearchIndex, searchProfiles, setRemoteProfileSearchTreeResolver} =
+      await loadProfileSearchModule()
 
     setRemoteProfileSearchTreeResolver(async () => null)
     initSearchIndex([])
@@ -512,8 +505,7 @@ describe("profile search index", () => {
     vi.stubEnv("VITE_PROFILE_SEARCH_INDEX", "nhash1testprofileindex")
 
     const jackPubKey = String(
-      nip19.decode("npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m")
-        .data
+      nip19.decode("npub1sg6plzptd64u62a878hep2kev88swjh3tw00gjsfl8f237lmu63q0uf63m").data
     )
 
     searchLinksMock.mockImplementation(async (_root, _prefix, _query, options) => {
@@ -620,8 +612,7 @@ describe("profile search index", () => {
         })
     )
 
-    const {initSearchIndex, searchProfilesWithProgress} =
-      await loadProfileSearchModule()
+    const {initSearchIndex, searchProfilesWithProgress} = await loadProfileSearchModule()
     initSearchIndex([
       {
         pubKey: "pubkey-local",
@@ -708,8 +699,7 @@ describe("profile search index", () => {
         })
     )
 
-    const {initSearchIndex, searchProfilesWithProgress} =
-      await loadProfileSearchModule()
+    const {initSearchIndex, searchProfilesWithProgress} = await loadProfileSearchModule()
     initSearchIndex([])
 
     const updates: Array<

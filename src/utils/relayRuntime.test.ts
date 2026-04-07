@@ -1,9 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {
-  buildWorkerRelayUrls,
-  resolveRelayRuntimeConfig,
-} from "./relayRuntime"
+import {buildWorkerRelayUrls, resolveRelayRuntimeConfig} from "./relayRuntime"
 
 describe("relay runtime selection", () => {
   it("pins Iris shell runtimes to the injected local relay", () => {
@@ -52,8 +49,14 @@ describe("relay runtime selection", () => {
       storeAutoConnectUserRelays: false,
     })
 
-    expect(config.relayUrls).toEqual(["wss://relay.damus.io/", "wss://relay.snort.social/"])
-    expect(config.explicitRelayUrls).toEqual(["wss://relay.damus.io/", "wss://relay.snort.social/"])
+    expect(config.relayUrls).toEqual([
+      "wss://relay.damus.io/",
+      "wss://relay.snort.social/",
+    ])
+    expect(config.explicitRelayUrls).toEqual([
+      "wss://relay.damus.io/",
+      "wss://relay.snort.social/",
+    ])
     expect(config.pinnedRelayUrls).toBeNull()
     expect(config.enableOutboxModel).toBe(true)
     expect(config.autoConnectUserRelays).toBe(false)

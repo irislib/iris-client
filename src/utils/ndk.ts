@@ -66,7 +66,9 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
 
   const store = useUserStore.getState()
   const enabledRelays =
-    store.relayConfigs?.filter((config) => !config.disabled).map((config) => config.url) || []
+    store.relayConfigs
+      ?.filter((config) => !config.disabled)
+      .map((config) => config.url) || []
   const relayRuntime = resolveRelayRuntimeConfig({
     enabledRelayUrls: enabledRelays,
     explicitRelayUrls: opts?.explicitRelayUrls,

@@ -192,7 +192,9 @@ function hasCanonicalHtreeIdentity(): boolean {
   return typeof canonical === "string" && canonical.toLowerCase().startsWith("htree://")
 }
 
-function rememberInjectedHtreeHistoryRootPath(historyRootPath: string | null | undefined): string {
+function rememberInjectedHtreeHistoryRootPath(
+  historyRootPath: string | null | undefined
+): string {
   const normalized = typeof historyRootPath === "string" ? historyRootPath.trim() : ""
   if (normalized) {
     cachedInjectedHtreeHistoryRootPath = normalized

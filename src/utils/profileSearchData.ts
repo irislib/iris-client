@@ -155,31 +155,20 @@ export function hasProfileSearchExactMatch(
     return true
   }
 
-  return (
-    result.aliases?.some((alias) => alias.toLowerCase() === normalizedQuery) ?? false
-  )
+  return result.aliases?.some((alias) => alias.toLowerCase() === normalizedQuery) ?? false
 }
 
 export function hasProfileSearchTextMatch(
   result: Pick<SearchResult, "name" | "nip05" | "aliases" | "pubKey">,
   query: string
 ): boolean {
-  const tokens = query
-    .toLowerCase()
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
+  const tokens = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
 
   if (tokens.length === 0) {
     return false
   }
 
-  const fields = [
-    result.name,
-    result.nip05,
-    result.pubKey,
-    ...(result.aliases ?? []),
-  ]
+  const fields = [result.name, result.nip05, result.pubKey, ...(result.aliases ?? [])]
     .filter((value): value is string => typeof value === "string" && value.length > 0)
     .map((value) => value.toLowerCase())
 

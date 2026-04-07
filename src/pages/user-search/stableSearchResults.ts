@@ -96,10 +96,7 @@ export function stableSearchResultsReducer(
   }
 }
 
-export function useStableSearchResults(
-  query: string,
-  liveResults: CustomSearchResult[]
-) {
+export function useStableSearchResults(query: string, liveResults: CustomSearchResult[]) {
   const [state, dispatch] = useReducer(
     stableSearchResultsReducer,
     initialStableSearchResultsState

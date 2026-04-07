@@ -1,4 +1,7 @@
-import {LEGACY_IRIS_BLOSSOM_URL, getDefaultServers} from "@/pages/settings/mediaservers-utils"
+import {
+  LEGACY_IRIS_BLOSSOM_URL,
+  getDefaultServers,
+} from "@/pages/settings/mediaservers-utils"
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
 import {DEFAULT_RELAYS} from "@/shared/constants/relays"
@@ -285,7 +288,10 @@ export const useUserStore = create<UserState>()(
 
           state.mediaservers = mediaservers
 
-          const persistedDefault = state.defaultMediaserver as MediaServer | null | undefined
+          const persistedDefault = state.defaultMediaserver as
+            | MediaServer
+            | null
+            | undefined
           state.defaultMediaserver =
             persistedDefault && persistedDefault.url !== LEGACY_IRIS_BLOSSOM_URL
               ? persistedDefault

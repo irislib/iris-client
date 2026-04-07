@@ -6,10 +6,16 @@ import type {WorkerMessage, WorkerResponse} from "./ndk-transport-types"
 class FakeWorker {
   onerror: ((error: ErrorEvent) => void) | null = null
   onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null
-  private listeners = new Map<string, Set<(event: MessageEvent<WorkerResponse>) => void>>()
+  private listeners = new Map<
+    string,
+    Set<(event: MessageEvent<WorkerResponse>) => void>
+  >()
   postedMessages: WorkerMessage[] = []
 
-  addEventListener(type: string, listener: (event: MessageEvent<WorkerResponse>) => void) {
+  addEventListener(
+    type: string,
+    listener: (event: MessageEvent<WorkerResponse>) => void
+  ) {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set())
     }
@@ -43,7 +49,8 @@ describe("NDKWorkerTransport search", () => {
 
     worker.dispatchMessage({type: "ready"})
 
-    const updates: Array<Array<{item: {pubKey: string; name: string}; score?: number}>> = []
+    const updates: Array<Array<{item: {pubKey: string; name: string}; score?: number}>> =
+      []
     const pending = transport.search("jack", (results) => {
       updates.push(
         results as Array<{item: {pubKey: string; name: string}; score?: number}>

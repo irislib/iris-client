@@ -269,7 +269,9 @@ describe("native htree runtime helpers", () => {
       browserPath: "/htree/nhash1example/index.html",
       historyRootPath: "/htree/nhash1example",
     })
-    expect(resolveAppAssetUrl("/img/icon128.png")).toBe("/htree/nhash1example/img/icon128.png")
+    expect(resolveAppAssetUrl("/img/icon128.png")).toBe(
+      "/htree/nhash1example/img/icon128.png"
+    )
 
     window.location.pathname = "/npub1publisher"
     window.location.search = "?iris_htree_server=http%3A%2F%2F127.0.0.1%3A21417"
@@ -279,7 +281,9 @@ describe("native htree runtime helpers", () => {
       browserPath: "/npub1publisher",
       historyRootPath: "/htree/nhash1example",
     })
-    expect(resolveAppAssetUrl("/img/icon128.png")).toBe("/htree/nhash1example/img/icon128.png")
+    expect(resolveAppAssetUrl("/img/icon128.png")).toBe(
+      "/htree/nhash1example/img/icon128.png"
+    )
   })
 
   it("rewrites head asset links to the remembered tree root", async () => {
