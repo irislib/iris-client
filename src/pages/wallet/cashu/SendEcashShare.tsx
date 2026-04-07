@@ -16,7 +16,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {useAnimatedQR} from "@/hooks/useAnimatedQR"
 import CopyButton from "@/shared/components/button/CopyButton"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {savePaymentMetadata} from "@/stores/paymentMetadata"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -75,11 +75,8 @@ export default function SendEcashShare({
       setError("")
 
       try {
-        const sessionManager = getSessionManager()
-        if (!sessionManager) {
-          throw new Error("Session manager not available")
-        }
-        log("✓ Session manager available")
+        const runtime = getNdrRuntime()
+        log("✓ Runtime available")
 
         const myPubKey = useUserStore.getState().publicKey
         if (!myPubKey) {
@@ -88,7 +85,7 @@ export default function SendEcashShare({
         log("✓ User logged in:", myPubKey)
 
         log("📨 Sending message...")
-        const sentMessage = await sessionManager.sendMessage(
+        const sentMessage = await runtime.sendMessage(
           selectedUserPubkey,
           generatedToken
         )
@@ -238,11 +235,8 @@ export default function SendEcashShare({
     setSendingDm(true)
     setError("")
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        throw new Error("Session manager not available")
-      }
-      log("✓ Session manager available")
+      const runtime = getNdrRuntime()
+      log("✓ Runtime available")
 
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) {
@@ -253,7 +247,7 @@ export default function SendEcashShare({
       // Send the message (dmMessage not implemented yet, just send token)
       const messageContent = generatedToken
       log("📨 Sending message...")
-      const sentMessage = await sessionManager.sendMessage(user.pubkey, messageContent)
+      const sentMessage = await runtime.sendMessage(user.pubkey, messageContent)
       log("✓ Message sent:", sentMessage.id)
 
       // Update local store

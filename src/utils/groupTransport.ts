@@ -98,13 +98,13 @@ export async function rotateGroupSenderKey(options: {
   senderPubKey: string
 }): Promise<void> {
   const {groupId, groupMembers, senderPubKey} = options
-  const sessionManager = await ensureSessionManager(senderPubKey)
+  await ensureSessionManager(senderPubKey)
   await upsertGroupIntoRuntime(groupId, groupMembers, senderPubKey)
 
   const groupManager = await getNdrRuntime().waitForGroupManager(senderPubKey)
   await groupManager.rotateSenderKey(groupId, {
     sendPairwise: async (recipientOwnerPubkey: string, rumor: Rumor) => {
-      await sessionManager.sendEvent(recipientOwnerPubkey, rumor)
+      await getNdrRuntime().sendEvent(recipientOwnerPubkey, rumor, senderPubKey)
     },
   })
 }

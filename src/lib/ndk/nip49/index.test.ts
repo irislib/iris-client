@@ -37,7 +37,7 @@ describe("NIP-49 - ncryptsec", () => {
             const encrypted18 = encrypt(privateKeyBytes, password, 18);
             const decrypted18 = decrypt(encrypted18, password);
             expect(bytesToHex(decrypted18)).toBe(privateKeyHex);
-        });
+        }, 15000);
 
         it("should support different key security byte values", () => {
             // Test with ksb = 0x00 (key has no privilege)

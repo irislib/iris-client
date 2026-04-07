@@ -25,6 +25,9 @@ vi.mock("@/utils/groupTransport", async (importOriginal) => {
 
 vi.mock("@/shared/services/PrivateChats", () => ({
   ensureSessionManager,
+  getNdrRuntime: () => ({
+    sendEvent,
+  }),
 }))
 
 import {sendGroupEvent} from "./groupMessaging"

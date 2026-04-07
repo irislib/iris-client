@@ -21,7 +21,7 @@ import Icon from "@/shared/components/Icons/Icon"
 import {Link} from "@/navigation"
 import EmojiType from "@/types/emoji"
 import {MessageType} from "./Message"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
@@ -112,9 +112,7 @@ const MessageForm = ({
     () =>
       createTypingThrottle(() => {
         if (!isDM) return
-        const sessionManager = getSessionManager()
-        if (!sessionManager) return
-        sessionManager.sendTyping(dmRecipientPubkey).catch(() => {})
+        getNdrRuntime().sendTyping(dmRecipientPubkey).catch(() => {})
       }, 3000),
     [dmRecipientPubkey, isDM]
   )
@@ -159,11 +157,7 @@ const MessageForm = ({
     }
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const runtime = getNdrRuntime()
 
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
@@ -200,11 +194,11 @@ const MessageForm = ({
 
       const sentMessage =
         extraTags.length > 0
-          ? await sessionManager.sendMessage(dmRecipientPubkey, text, {
+          ? await runtime.sendMessage(dmRecipientPubkey, text, {
               tags: extraTags,
               ...expirationOptions,
             })
-          : await sessionManager.sendMessage(dmRecipientPubkey, text, expirationOptions)
+          : await runtime.sendMessage(dmRecipientPubkey, text, expirationOptions)
 
       await usePrivateMessagesStore
         .getState()
@@ -312,11 +306,7 @@ const MessageForm = ({
 
   const handleCashuSendMessage = async (token: string) => {
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const runtime = getNdrRuntime()
 
       const myPubKey = useUserStore.getState().publicKey
       if (!myPubKey) return
@@ -336,7 +326,7 @@ const MessageForm = ({
       // DM messages
       const expirationOptions = resolveDmExpirationOptions(dmRecipientPubkey)
 
-      const sentMessage = await sessionManager.sendMessage(
+      const sentMessage = await runtime.sendMessage(
         dmRecipientPubkey,
         token,
         expirationOptions

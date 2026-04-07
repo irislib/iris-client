@@ -9,7 +9,7 @@ import {MessageType} from "../message/Message"
 import {useEffect, useState, useCallback} from "react"
 import {useUserStore} from "@/stores/user"
 import {KIND_REACTION} from "@/utils/constants"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime, getSessionManager} from "@/shared/services/PrivateChats"
 import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
@@ -72,8 +72,7 @@ const Chat = ({id}: {id: string}) => {
 
     if (!myPubKey) return
 
-    const sessionManager = getSessionManager()
-    if (!sessionManager) return
+    const runtime = getNdrRuntime()
 
     const messageMap = usePrivateMessagesStore.getState().events.get(id)
     if (!messageMap) return
@@ -84,7 +83,7 @@ const Chat = ({id}: {id: string}) => {
       messages: messageMap.values(),
       myPubKey,
       updateMessage: store.updateMessage,
-      sessionManager,
+      sessionManager: runtime,
       sendDeliveryReceipts,
       isChatAccepted: true,
     })
@@ -107,8 +106,7 @@ const Chat = ({id}: {id: string}) => {
 
   const sendSeenReceipts = useCallback(() => {
     if (!id || !isTopOfStack) return
-    const sessionManager = getSessionManager()
-    if (!sessionManager) return
+    const runtime = getNdrRuntime()
     if (!myPubKey) return
 
     const messageMap = usePrivateMessagesStore.getState().events.get(id)
@@ -120,7 +118,7 @@ const Chat = ({id}: {id: string}) => {
       messages: messageMap.values(),
       myPubKey,
       updateMessage: store.updateMessage,
-      sessionManager,
+      sessionManager: runtime,
       sendReadReceipts,
       isChatAccepted,
     })
@@ -173,11 +171,7 @@ const Chat = ({id}: {id: string}) => {
     if (!myPubKey || !emoji.trim()) return
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
+      const runtime = getNdrRuntime()
       const now = Date.now()
       const reactionEvent = {
         content: emoji,
@@ -198,7 +192,7 @@ const Chat = ({id}: {id: string}) => {
       await usePrivateMessagesStore.getState().upsert(id, myPubKey, reactionEvent)
 
       // Send in background
-      await sessionManager.sendEvent(id, reactionEvent)
+      await runtime.sendEvent(id, reactionEvent)
     } catch (error) {
       console.error("Failed to send reaction:", error)
     }
