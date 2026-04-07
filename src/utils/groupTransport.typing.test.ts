@@ -14,96 +14,34 @@ const TYPING_KIND = 25
 const CHAT_MESSAGE_KIND = 14
 
 const hoisted = vi.hoisted(() => ({
-  onDecryptedEvent: null as ((event: any) => void) | null,
+  onGroupEvent: null as ((event: any) => void) | null,
+  syncGroups: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock("nostr-double-ratchet", () => {
-  class MockGroupManager {
-    constructor(options: {onDecryptedEvent: (event: any) => void}) {
-      hoisted.onDecryptedEvent = options.onDecryptedEvent
-    }
-
-    async upsertGroup(): Promise<void> {
-      return
-    }
-
-    removeGroup(): void {
-      return
-    }
-
-    destroy(): void {
-      return
-    }
-
-    async handleIncomingSessionEvent(): Promise<void> {
-      return
-    }
-
-    async sendEvent(): Promise<{
-      inner: {
-        id: string
-        kind: number
-        content: string
-        tags: string[][]
-        created_at: number
-        pubkey: string
+vi.mock("@/shared/services/PrivateChats", () => ({
+  getNdrRuntime: () => ({
+    onGroupEvent: (cb: (event: any) => void) => {
+      hoisted.onGroupEvent = cb
+      return () => {
+        hoisted.onGroupEvent = null
       }
-    }> {
-      return {
-        inner: {
-          id: "mock-inner",
-          kind: CHAT_MESSAGE_KIND,
-          content: "",
-          tags: [],
-          created_at: Math.floor(Date.now() / 1000),
-          pubkey: MY_DEVICE_PUBKEY,
-        },
-      }
-    }
-
-    async rotateSenderKey(): Promise<void> {
-      return
-    }
-  }
-
-  return {
-    GroupManager: MockGroupManager,
-    GROUP_SENDER_KEY_DISTRIBUTION_KIND: 10411,
-    MESSAGE_EVENT_KIND: 1060,
-    isTyping: (rumor: {kind?: number}) => rumor.kind === TYPING_KIND,
-    isExpired: () => false,
-    getMillisecondTimestamp: (event: {created_at?: number; tags?: string[][]}) => {
-      const msTag = event.tags?.find(([key]) => key === "ms")
-      if (msTag?.[1]) {
-        const parsed = Number(msTag[1])
-        if (Number.isFinite(parsed)) return parsed
-      }
-      return (event.created_at ?? 0) * 1000
     },
-  }
-})
-
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({
-    subscribe: () => ({
-      on: () => {},
-      start: () => {},
-      stop: () => {},
-    }),
+    syncGroups: hoisted.syncGroups,
   }),
 }))
 
 import {
-  attachGroupTransportListener,
-  cleanupGroupTransportListener,
-} from "./groupTransport"
+  attachGroupMessageListener,
+  cleanupGroupMessageListener,
+} from "./groupMessageHandler"
 
 const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve))
 
-describe("groupTransport typing handling", () => {
+describe("groupMessageHandler", () => {
   beforeEach(async () => {
-    cleanupGroupTransportListener()
-    hoisted.onDecryptedEvent = null
+    cleanupGroupMessageListener()
+    hoisted.onGroupEvent = null
+    hoisted.syncGroups.mockClear()
 
     useUserStore.setState({publicKey: MY_OWNER_PUBKEY})
     useDevicesStore.setState({identityPubkey: MY_DEVICE_PUBKEY})
@@ -113,14 +51,14 @@ describe("groupTransport typing handling", () => {
   })
 
   afterEach(() => {
-    cleanupGroupTransportListener()
+    cleanupGroupMessageListener()
   })
 
   it("keeps group typing events ephemeral and clears them on real messages", async () => {
-    attachGroupTransportListener()
-    expect(hoisted.onDecryptedEvent).toBeTruthy()
+    attachGroupMessageListener()
+    expect(hoisted.onGroupEvent).toBeTruthy()
 
-    hoisted.onDecryptedEvent?.({
+    hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,
@@ -144,7 +82,7 @@ describe("groupTransport typing handling", () => {
       usePrivateMessagesStore.getState().events.get(GROUP_ID)?.get("typing-1")
     ).toBeUndefined()
 
-    hoisted.onDecryptedEvent?.({
+    hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,
@@ -167,5 +105,25 @@ describe("groupTransport typing handling", () => {
     expect(
       usePrivateMessagesStore.getState().events.get(GROUP_ID)?.get("msg-1")
     ).toBeTruthy()
+  })
+
+  it("syncs current groups into the runtime when attached", async () => {
+    const group = {
+      id: GROUP_ID,
+      name: "Group",
+      description: "",
+      picture: "",
+      members: [MY_OWNER_PUBKEY],
+      admins: [MY_OWNER_PUBKEY],
+      createdAt: Date.now(),
+      accepted: true,
+    }
+    useGroupsStore.setState({groups: {[GROUP_ID]: group}} as any)
+
+    attachGroupMessageListener()
+
+    await flushPromises()
+
+    expect(hoisted.syncGroups).toHaveBeenCalledWith([group])
   })
 })

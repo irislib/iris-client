@@ -9,12 +9,14 @@ import {
   SessionManager,
   decryptInviteResponse,
   type NdrRuntimeState,
+  type NostrFetch,
   type NostrPublish,
   type NostrSubscribe,
   type PreparedRegistration,
   type PreparedRevocation,
 } from "nostr-double-ratchet"
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
+import type {VerifiedEvent} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
 import {useUserStore} from "../../stores/user"
 import {useDevicesStore} from "../../stores/devices"
@@ -55,6 +57,13 @@ const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
 
 export const getNostrSubscribe = (): NostrSubscribe => {
   return createSubscribe(ndk())
+}
+
+const createFetch = (ndkInstance: NDK): NostrFetch => {
+  return async (filter) => {
+    const events = await ndkInstance.fetchEvents(filter)
+    return Array.from(events).map((event) => event.rawEvent() as VerifiedEvent)
+  }
 }
 
 const createPublish = (ndkInstance: NDK): NostrPublish => {
@@ -111,6 +120,7 @@ const getRuntime = (): NdrRuntime => {
   runtime = new NdrRuntime({
     nostrSubscribe: createSubscribe(ndk()),
     nostrPublish: createPublish(ndk()),
+    nostrFetch: createFetch(ndk()),
     storage: new LocalForageStorageAdapter(),
     appKeysFetchTimeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
     appKeysFastTimeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
@@ -123,6 +133,10 @@ const getRuntime = (): NdrRuntime => {
   })
 
   return runtime
+}
+
+export const getNdrRuntime = (): NdrRuntime => {
+  return getRuntime()
 }
 
 const ensureNdkConnected = async (): Promise<void> => {

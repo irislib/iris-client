@@ -20,7 +20,6 @@ import {
 import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
-import {ingestGroupSessionEvent} from "@/utils/groupTransport"
 import {
   applyMetadataUpdate,
   getMillisecondTimestamp,
@@ -307,13 +306,6 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
             log("Created placeholder group from sender-key distribution:", rawGroupId)
           }
 
-          void ingestGroupSessionEvent(
-            event as Rumor,
-            effectiveOwner,
-            event.pubkey
-          ).catch((e) => {
-            error("Failed to ingest sender-key distribution:", e)
-          })
           return
         }
 
