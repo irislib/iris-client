@@ -78,7 +78,9 @@ async function startServer(rootDir, entryHtml = "index.html") {
 
   return {
     server,
-    url: `http://127.0.0.1:${address.port}/${entryHtml}`,
+    url: entryHtml === "index.html"
+      ? `http://127.0.0.1:${address.port}/`
+      : `http://127.0.0.1:${address.port}/${entryHtml}`,
   }
 }
 
