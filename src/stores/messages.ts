@@ -49,9 +49,13 @@ export const useMessagesStore = create<MessagesState>()(
         sendReadReceipts: state.sendReadReceipts,
         receiveMessageRequests: state.receiveMessageRequests,
       }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return
-        state.hasHydrated = true
+      onRehydrateStorage: () => (state, error) => {
+        if (state) {
+          state.hasHydrated = true
+        }
+        if (error) {
+          console.warn("[Iris] messages store rehydrate failed:", error)
+        }
         if (resolveHydration) {
           resolveHydration()
           resolveHydration = null

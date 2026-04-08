@@ -241,7 +241,7 @@ export const useUserStore = create<UserState>()(
     {
       name: "user-storage",
       version: 3, // Bump version to trigger media server migration
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, error) => {
         if (state) {
           // Migration: Initialize relayConfigs with DEFAULT_RELAYS if empty
           if (!state.relayConfigs || state.relayConfigs.length === 0) {
@@ -251,11 +251,16 @@ export const useUserStore = create<UserState>()(
           }
 
           state.hasHydrated = true
-          if (resolveHydration) {
-            resolveHydration()
-            resolveHydration = null
-            hydrationPromise = null
-          }
+        }
+
+        if (error) {
+          console.warn("[Iris] user store rehydrate failed:", error)
+        }
+
+        if (resolveHydration) {
+          resolveHydration()
+          resolveHydration = null
+          hydrationPromise = null
         }
       },
       migrate: (persistedState: unknown, version: number) => {

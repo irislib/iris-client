@@ -77,4 +77,20 @@ describe("maybeAutoEnableInjectedNip07Login", () => {
     expect(getPublicKey).not.toHaveBeenCalled()
     expect(state.setPublicKey).not.toHaveBeenCalled()
   })
+
+  it("falls back cleanly when the injected signer rejects", async () => {
+    const state = createState()
+
+    await expect(
+      maybeAutoEnableInjectedNip07Login({
+        getState: () => state,
+        injectedChildRuntime: true,
+        getPublicKey: vi.fn().mockRejectedValue(new Error("denied")),
+      })
+    ).resolves.toBe(false)
+
+    expect(state.setPublicKey).not.toHaveBeenCalled()
+    expect(state.setNip07Login).not.toHaveBeenCalled()
+    expect(state.setLinkedDevice).not.toHaveBeenCalled()
+  })
 })

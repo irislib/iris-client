@@ -65,7 +65,7 @@ const initializeApp = async () => {
 
   // Wait for settings to hydrate from localStorage before initializing NDK
   await useUserStore.getState().awaitHydration()
-  await maybeAutoEnableInjectedNip07Login()
+  void maybeAutoEnableInjectedNip07Login()
 
   // Start NDK initialization in background (non-blocking)
   import("@/utils/ndk").then(async ({initNDK}) => {

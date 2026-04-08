@@ -69,7 +69,13 @@ export async function maybeAutoEnableInjectedNip07Login(
     return false
   }
 
-  const publicKey = (await getPublicKey())?.trim()
+  let publicKey: string | null = null
+  try {
+    publicKey = (await getPublicKey())?.trim() ?? null
+  } catch (error) {
+    console.warn("[Iris] injected account bootstrap failed:", error)
+    return false
+  }
   if (!publicKey) return false
 
   const latestState = getState()
