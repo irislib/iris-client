@@ -42,7 +42,8 @@ export function parseArgs(argv, env = process.env) {
   let pagesOnly = false
   const routes = []
   const domains = []
-  let workerCompatibilityDate = env.CF_WORKER_COMPATIBILITY_DATE ?? defaultWorkerCompatibilityDate
+  let workerCompatibilityDate =
+    env.CF_WORKER_COMPATIBILITY_DATE ?? defaultWorkerCompatibilityDate
 
   while (args.length > 0) {
     const arg = args.shift()
@@ -101,14 +102,16 @@ export function parseArgs(argv, env = process.env) {
     pagesProject: pagesProject ?? env.CF_PAGES_PROJECT ?? undefined,
     workerName: pagesOnly ? undefined : workerName,
     routes,
-    domains: pagesOnly ? [] : (domains.length > 0 ? domains : profile.defaultDomains),
+    domains: pagesOnly ? [] : domains.length > 0 ? domains : profile.defaultDomains,
     workerCompatibilityDate,
   }
 }
 
 export function createReleasePlan(options) {
   if (!options.skipCloudflare && !options.workerName && !options.pagesProject) {
-    throw new Error("Missing Cloudflare target. Pass --worker-name, --pages-project, or set CF_WORKER_NAME / CF_PAGES_PROJECT.")
+    throw new Error(
+      "Missing Cloudflare target. Pass --worker-name, --pages-project, or set CF_WORKER_NAME / CF_PAGES_PROJECT."
+    )
   }
   if (options.workerName && options.branch) {
     throw new Error("--branch is only supported for Pages deployments")
@@ -141,6 +144,15 @@ export function createReleasePlan(options) {
       cwd: appDir,
     },
     {
+      id: "test-e2e",
+      label: `Run ${profile.appName} Playwright e2e tests against built output`,
+      command: ["pnpm", "exec", "playwright", "test", "--reporter=list"],
+      cwd: appDir,
+      env: {
+        IRIS_E2E_BUILT_DIST: "true",
+      },
+    },
+    {
       id: "publish",
       label: `Publish ${profile.appName} to hashtree`,
       command: resolveHtreeCommand("add", ".", "--publish", options.treeName),
@@ -155,14 +167,14 @@ export function createReleasePlan(options) {
           "--name",
           options.workerName,
           "--compatibility-date",
-          options.workerCompatibilityDate,
+          options.workerCompatibilityDate
         )
       : wranglerPagesCommand(
           "pages",
           "deploy",
           profile.distDir,
           "--project-name",
-          options.pagesProject,
+          options.pagesProject
         )
 
     if (options.workerName) {
@@ -193,10 +205,19 @@ export function createReleasePlan(options) {
 function defaultRunner(step) {
   const [command, ...args] = step.command
   console.log(`\n==> ${step.label}`)
-  console.log(`$ ${[command, ...args].join(" ")}`)
+  const envPrefix = step.env
+    ? `${Object.entries(step.env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join(" ")} `
+    : ""
+  console.log(`$ ${envPrefix}${[command, ...args].join(" ")}`)
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: step.cwd,
+      env: {
+        ...process.env,
+        ...step.env,
+      },
       stdio: ["ignore", "pipe", "pipe"],
     })
     let stdout = ""
@@ -290,7 +311,7 @@ export async function runRelease(options, runner = defaultRunner, hooks = {}) {
   }
 
   const releaseResults = await Promise.allSettled(
-    releaseSteps.map((step) => Promise.resolve().then(() => runner(step))),
+    releaseSteps.map((step) => Promise.resolve().then(() => runner(step)))
   )
 
   for (const [index, execution] of releaseResults.entries()) {
@@ -311,8 +332,11 @@ export async function runRelease(options, runner = defaultRunner, hooks = {}) {
   return {
     publish: parsePublishOutput(publishOutput),
     pagesUrl: deployOutput ? parsePagesOutput(deployOutput) : null,
-    pagesProject: options.skipCloudflare || options.workerName ? null : options.pagesProject ?? null,
-    workerName: options.skipCloudflare ? null : options.workerName ?? null,
+    pagesProject:
+      options.skipCloudflare || options.workerName
+        ? null
+        : (options.pagesProject ?? null),
+    workerName: options.skipCloudflare ? null : (options.workerName ?? null),
     routes: options.skipCloudflare || !options.workerName ? [] : options.routes,
     domains: options.skipCloudflare || !options.workerName ? [] : options.domains,
     treeName: options.treeName,
@@ -376,7 +400,14 @@ async function main() {
   if (result.dryRun) {
     console.log(usage())
     for (const step of result.steps) {
-      console.log(`${step.label}: ${step.command.join(" ")} (cwd: ${step.cwd})`)
+      const envPrefix = step.env
+        ? `${Object.entries(step.env)
+            .map(([key, value]) => `${key}=${value}`)
+            .join(" ")} `
+        : ""
+      console.log(
+        `${step.label}: ${envPrefix}${step.command.join(" ")} (cwd: ${step.cwd})`
+      )
     }
   } else {
     printSummary(result)

@@ -20,6 +20,7 @@ type ReleaseSiteStep = {
   label: string
   command: string[]
   cwd: string
+  env?: Record<string, string>
 }
 
 type StepResult = {
@@ -68,11 +69,16 @@ async function importReleaseSiteModule(): Promise<{
 const distDir = path.resolve(__dirname, "../dist")
 
 async function withDistFixture<T>(run: () => Promise<T>): Promise<T> {
-  fs.mkdirSync(distDir, {recursive: true})
+  const distExisted = fs.existsSync(distDir)
+  if (!distExisted) {
+    fs.mkdirSync(distDir, {recursive: true})
+  }
   try {
     return await run()
   } finally {
-    fs.rmSync(distDir, {recursive: true, force: true})
+    if (!distExisted) {
+      fs.rmSync(distDir, {recursive: true, force: true})
+    }
   }
 }
 
@@ -96,6 +102,27 @@ describe("release site config", () => {
     expect(publishStep?.command[0]).toBe("htree")
     expect(publishStep?.command).not.toContain("--manifest-path")
     expect(publishStep?.command).toContain("iris-client-site")
+  })
+
+  it("runs Playwright e2e against the built dist artifact before publishing", async () => {
+    const {createReleasePlan, parseArgs} = await importReleaseSiteModule()
+    const plan = createReleasePlan(parseArgs([]))
+    const e2eStepIndex = plan.steps.findIndex((step) => step.id === "test-e2e")
+    const publishStepIndex = plan.steps.findIndex((step) => step.id === "publish")
+    const deployStepIndex = plan.steps.findIndex((step) => step.id === "deploy")
+    const e2eStep = plan.steps[e2eStepIndex]
+
+    expect(e2eStepIndex).toBeGreaterThan(-1)
+    expect(e2eStepIndex).toBeLessThan(publishStepIndex)
+    expect(e2eStepIndex).toBeLessThan(deployStepIndex)
+    expect(e2eStep.command).toEqual([
+      "pnpm",
+      "exec",
+      "playwright",
+      "test",
+      "--reporter=list",
+    ])
+    expect(e2eStep.env).toEqual({IRIS_E2E_BUILT_DIST: "true"})
   })
 
   it("supports tree overrides", async () => {
@@ -145,7 +172,14 @@ describe("release site config", () => {
       )
     })
 
-    expect(calls).toEqual(["build", "test-portable", "test-smoke", "publish", "deploy"])
+    expect(calls).toEqual([
+      "build",
+      "test-portable",
+      "test-smoke",
+      "test-e2e",
+      "publish",
+      "deploy",
+    ])
     expect(maxActiveReleaseSteps).toBe(2)
   })
 })

@@ -2,9 +2,14 @@ import {defineConfig, devices} from "@playwright/test"
 
 const usingTestRelay =
   process.env.VITE_USE_TEST_RELAY === "true" || process.env.VITE_USE_TEST_RELAY === "1"
+const usingBuiltDist =
+  process.env.IRIS_E2E_BUILT_DIST === "true" ||
+  process.env.IRIS_E2E_BUILT_DIST === "1" ||
+  process.env.IRIS_E2E_BUILT === "true" ||
+  process.env.IRIS_E2E_BUILT === "1"
 
 // Default to local relay for E2E runs unless explicitly told to use the test relay.
-const usingLocalRelay = !usingTestRelay
+const usingLocalRelay = !usingBuiltDist && !usingTestRelay
 
 const vitePort = (() => {
   const raw = process.env.IRIS_E2E_PORT
@@ -68,14 +73,17 @@ export default defineConfig({
         ]
       : []),
     {
-      // Force a dedicated dev server for E2E (avoid reusing an unrelated local dev server).
-      command: `pnpm exec vite --host 127.0.0.1 --port ${vitePort} --strictPort`,
+      // Force a dedicated server for E2E (avoid reusing an unrelated local server).
+      // Release E2E runs use the already-built dist artifact that will be published.
+      command: usingBuiltDist
+        ? `pnpm exec vite preview --host 127.0.0.1 --port ${vitePort} --strictPort`
+        : `pnpm exec vite --host 127.0.0.1 --port ${vitePort} --strictPort`,
       url: baseURL,
       reuseExistingServer: false,
       env: {
         ...webServerEnv,
         // Used in the app for small test-only layout affordances.
-        VITE_E2E: "true",
+        ...(usingBuiltDist ? {} : {VITE_E2E: "true"}),
         ...(usingLocalRelay ? {VITE_USE_LOCAL_RELAY: "true"} : {}),
         ...(usingTestRelay ? {VITE_USE_TEST_RELAY: "true"} : {}),
       },
