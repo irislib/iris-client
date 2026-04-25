@@ -21,10 +21,14 @@ function contentTypeFor(filePath) {
 }
 
 function shouldIgnoreConsoleError(text) {
-  if (/^Failed to load resource: the server responded with a status of 404\b/.test(text)) {
+  if (
+    /^Failed to load resource: the server responded with a status of 404\b/.test(text)
+  ) {
     return true
   }
-  if (/^Failed to load resource: the server responded with a status of 418\b/.test(text)) {
+  if (
+    /^Failed to load resource: the server responded with a status of 418\b/.test(text)
+  ) {
     return true
   }
   if (/^Failed to load resource: net::ERR_NAME_NOT_RESOLVED\b/.test(text)) {
@@ -39,10 +43,24 @@ function shouldIgnoreConsoleError(text) {
   return false
 }
 
+export function shouldIgnorePageError(text) {
+  if (
+    /The play\(\) request was interrupted by a call to pause\(\)\. https:\/\/goo\.gl\/LdLk22/.test(
+      text
+    )
+  ) {
+    return true
+  }
+  return false
+}
+
 function safeJoin(rootDir, requestPath, entryHtml) {
   const normalized = requestPath === "/" ? `/${entryHtml}` : requestPath
   const fullPath = path.resolve(rootDir, `.${normalized}`)
-  if (!fullPath.startsWith(rootDir + path.sep) && fullPath !== path.join(rootDir, entryHtml)) {
+  if (
+    !fullPath.startsWith(rootDir + path.sep) &&
+    fullPath !== path.join(rootDir, entryHtml)
+  ) {
     throw new Error(`Refusing to serve path outside root: ${requestPath}`)
   }
   return fullPath
@@ -52,7 +70,11 @@ async function startServer(rootDir, entryHtml = "index.html") {
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1")
-      const filePath = safeJoin(rootDir, decodeURIComponent(requestUrl.pathname), entryHtml)
+      const filePath = safeJoin(
+        rootDir,
+        decodeURIComponent(requestUrl.pathname),
+        entryHtml
+      )
       const body = await readFile(filePath)
       res.writeHead(200, {
         "content-type": contentTypeFor(filePath),
@@ -78,13 +100,20 @@ async function startServer(rootDir, entryHtml = "index.html") {
 
   return {
     server,
-    url: entryHtml === "index.html"
-      ? `http://127.0.0.1:${address.port}/`
-      : `http://127.0.0.1:${address.port}/${entryHtml}`,
+    url:
+      entryHtml === "index.html"
+        ? `http://127.0.0.1:${address.port}/`
+        : `http://127.0.0.1:${address.port}/${entryHtml}`,
   }
 }
 
-export async function runPortableSmoke({distDir, title, screenshotPath, validatePage, entryHtml = "index.html"}) {
+export async function runPortableSmoke({
+  distDir,
+  title,
+  screenshotPath,
+  validatePage,
+  entryHtml = "index.html",
+}) {
   const {server, url} = await startServer(distDir, entryHtml)
   const browser = await chromium.launch({headless: true})
   const page = await browser.newPage()
@@ -113,10 +142,16 @@ export async function runPortableSmoke({distDir, title, screenshotPath, validate
     if (responseUrl.pathname.startsWith("/htree/")) {
       return
     }
-    localResponseFailures.push(`${response.status()} ${response.request().resourceType()} ${response.url()}`)
+    localResponseFailures.push(
+      `${response.status()} ${response.request().resourceType()} ${response.url()}`
+    )
   })
   page.on("pageerror", (error) => {
-    pageErrors.push(error.stack || error.message)
+    const text = error.stack || error.message
+    if (shouldIgnorePageError(text)) {
+      return
+    }
+    pageErrors.push(text)
   })
   page.on("console", (message) => {
     if (message.type() === "error") {
@@ -131,7 +166,9 @@ export async function runPortableSmoke({distDir, title, screenshotPath, validate
   try {
     const response = await page.goto(url, {waitUntil: "load", timeout: 60000})
     if (!response || response.status() !== 200) {
-      throw new Error(`Portable build returned ${response?.status() ?? "no response"} for ${url}`)
+      throw new Error(
+        `Portable build returned ${response?.status() ?? "no response"} for ${url}`
+      )
     }
 
     await page.waitForTimeout(3000)
@@ -145,11 +182,15 @@ export async function runPortableSmoke({distDir, title, screenshotPath, validate
     }
 
     if (documentResponses.length > 2) {
-      throw new Error(`Portable build reloaded unexpectedly (${documentResponses.length} document responses)`)
+      throw new Error(
+        `Portable build reloaded unexpectedly (${documentResponses.length} document responses)`
+      )
     }
 
     if (localResponseFailures.length > 0) {
-      throw new Error(`Portable build hit local asset failures:\n${localResponseFailures.join("\n")}`)
+      throw new Error(
+        `Portable build hit local asset failures:\n${localResponseFailures.join("\n")}`
+      )
     }
 
     if (typeof validatePage === "function") {
@@ -161,7 +202,9 @@ export async function runPortableSmoke({distDir, title, screenshotPath, validate
     }
 
     if (consoleErrors.length > 0) {
-      throw new Error(`Portable build logged console errors:\n${consoleErrors.join("\n")}`)
+      throw new Error(
+        `Portable build logged console errors:\n${consoleErrors.join("\n")}`
+      )
     }
 
     console.log(`Portable smoke passed: ${url}`)
