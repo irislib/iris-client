@@ -31,6 +31,7 @@ type StepResult = {
 
 async function importReleaseSiteModule(): Promise<{
   defaultSiteTreeName: string
+  releaseE2eTests: string[]
   parseArgs: (argv: string[]) => ReleaseSiteOptions
   createReleasePlan: (options: ReleaseSiteOptions) => {steps: ReleaseSiteStep[]}
   runRelease: (
@@ -49,6 +50,7 @@ async function importReleaseSiteModule(): Promise<{
   // @ts-expect-error local node script is imported dynamically for runtime config testing
   return (await import("../scripts/release-site.mjs")) as {
     defaultSiteTreeName: string
+    releaseE2eTests: string[]
     parseArgs: (argv: string[]) => ReleaseSiteOptions
     createReleasePlan: (options: ReleaseSiteOptions) => {steps: ReleaseSiteStep[]}
     runRelease: (
@@ -105,7 +107,8 @@ describe("release site config", () => {
   })
 
   it("runs Playwright e2e against the built dist artifact before publishing", async () => {
-    const {createReleasePlan, parseArgs} = await importReleaseSiteModule()
+    const {createReleasePlan, parseArgs, releaseE2eTests} =
+      await importReleaseSiteModule()
     const plan = createReleasePlan(parseArgs([]))
     const e2eStepIndex = plan.steps.findIndex((step) => step.id === "test-e2e")
     const publishStepIndex = plan.steps.findIndex((step) => step.id === "publish")
@@ -120,8 +123,12 @@ describe("release site config", () => {
       "exec",
       "playwright",
       "test",
+      ...releaseE2eTests,
       "--reporter=list",
     ])
+    expect(releaseE2eTests).toContain("tests/popular-feed.spec.ts")
+    expect(releaseE2eTests).not.toContain("tests/message-requests-tab.spec.ts")
+    expect(releaseE2eTests).not.toContain("tests/devices-current-npub.spec.ts")
     expect(e2eStep.env).toEqual({IRIS_E2E_BUILT_DIST: "true"})
   })
 

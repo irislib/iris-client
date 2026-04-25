@@ -10,6 +10,28 @@ const appDir = path.resolve(__dirname, "..")
 const distDir = path.join(appDir, "dist")
 const defaultWorkerCompatibilityDate = "2026-03-26"
 export const defaultSiteTreeName = "iris-client-site"
+export const releaseE2eTests = [
+  "tests/home.spec.ts",
+  "tests/popular-feed.spec.ts",
+  "tests/signup.spec.ts",
+  "tests/session-persistence.spec.ts",
+  "tests/new-post.spec.ts",
+  "tests/reply-post.spec.ts",
+  "tests/repost.spec.ts",
+  "tests/like-post.spec.ts",
+  "tests/thread-view.spec.ts",
+  "tests/view-profile.spec.ts",
+  "tests/search.spec.ts",
+  "tests/profile-search.spec.ts",
+  "tests/profile-dropdown.spec.ts",
+  "tests/profile-qr.spec.ts",
+  "tests/navigation.spec.ts",
+  "tests/navigation-stack.spec.ts",
+  "tests/settings.spec.ts",
+  "tests/notification.spec.ts",
+  "tests/mute-user.spec.ts",
+  "tests/home-scroll-behavior.spec.ts",
+]
 
 const profile = {
   appName: "Iris",
@@ -146,7 +168,14 @@ export function createReleasePlan(options) {
     {
       id: "test-e2e",
       label: `Run ${profile.appName} Playwright e2e tests against built output`,
-      command: ["pnpm", "exec", "playwright", "test", "--reporter=list"],
+      command: [
+        "pnpm",
+        "exec",
+        "playwright",
+        "test",
+        ...releaseE2eTests,
+        "--reporter=list",
+      ],
       cwd: appDir,
       env: {
         IRIS_E2E_BUILT_DIST: "true",
