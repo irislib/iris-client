@@ -48,4 +48,17 @@ describe("portable build config", () => {
       expect(value).not.toMatch(/^\//)
     }
   })
+
+  it("uses root base on production and local preview hostnames", () => {
+    const indexHtml = readRootFile("index.html")
+    const debugHtml = readRootFile("debug.html")
+
+    for (const html of [indexHtml, debugHtml]) {
+      expect(html).toContain('"iris.to"')
+      expect(html).toContain('"iris-client.irisapp.workers.dev"')
+      expect(html).toContain('"127.0.0.1"')
+      expect(html).toContain('"localhost"')
+      expect(html).toContain(`document.write('<base href="/">')`)
+    }
+  })
 })

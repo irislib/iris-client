@@ -17,9 +17,6 @@ test.describe("Reply draft persistence", () => {
     // Wait for navigation to post detail page
     await page.waitForURL(/\/note/, {timeout: 10000})
 
-    // Wait for FeedItem to render
-    await page.waitForLoadState("networkidle")
-
     // Wait for feed-item to appear
     const feedItem = page
       .getByTestId("feed-item")
@@ -36,7 +33,7 @@ test.describe("Reply draft persistence", () => {
 
     // Reload the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
 
     // Wait for the feed item to load first (ensures draft store is hydrated)
     await expect(
@@ -107,7 +104,7 @@ test.describe("Reply draft persistence", () => {
 
     // Reload the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
 
     // Wait for draft store to hydrate from localforage
     await page.waitForTimeout(2000)
@@ -150,7 +147,6 @@ test.describe("Reply draft persistence", () => {
 
     // Wait for navigation to post detail page - already there after publish
     await page.waitForURL(/\/note/, {timeout: 10000})
-    await page.waitForLoadState("networkidle")
 
     // Wait for feed-item to render with reply input
     const feedItem = page

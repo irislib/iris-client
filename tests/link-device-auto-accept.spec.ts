@@ -2,6 +2,9 @@ import {test, expect} from "@playwright/test"
 import {generateSecretKey, getPublicKey} from "nostr-tools"
 import {bytesToHex} from "@noble/hashes/utils"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay private messaging device setup")
 
 test("link device invite auto-accepts on paste", async ({page}) => {
   const {publicKey} = await signUp(page)

@@ -1,5 +1,8 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "uses a dev-only window store hook to seed message requests")
 
 test.describe("Message Requests Tab", () => {
   test("stays on Requests tab after opening a request chat", async ({page}) => {

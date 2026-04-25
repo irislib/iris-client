@@ -1,5 +1,8 @@
 import {test, expect, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
 
 async function openLoginDialog(page: Page) {
   await page.goto("/")

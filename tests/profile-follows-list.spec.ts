@@ -1,6 +1,9 @@
 import {expect, test} from "@playwright/test"
 import {nip19} from "nostr-tools"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires deterministic local-relay follow-list propagation")
 
 test("fresh viewer can open another user's follows list without following them first", async ({
   browser,

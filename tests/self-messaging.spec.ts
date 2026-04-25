@@ -2,6 +2,9 @@ import {test, expect} from "@playwright/test"
 import {bytesToHex} from "@noble/hashes/utils"
 import {generateSecretKey} from "nostr-tools"
 import {signIn} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires deterministic local-relay same-key private messaging")
 
 async function waitForNextCreatedAtSecond() {
   const currentSecond = Math.floor(Date.now() / 1000)

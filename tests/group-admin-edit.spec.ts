@@ -5,6 +5,9 @@ import {
   ensureCurrentDeviceRegistered,
   expectDmMessageInputEnabled,
 } from "./private-messaging-helpers"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay private messaging group setup")
 
 async function openChatFromProfile(page: Page, targetPubkeyHex: string) {
   const targetNpub = nip19.npubEncode(targetPubkeyHex)

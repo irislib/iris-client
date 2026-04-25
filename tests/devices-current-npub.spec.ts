@@ -1,6 +1,9 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay private messaging device setup")
 
 test("shows the current device key as npub in the devices list", async ({page}) => {
   test.setTimeout(60000)

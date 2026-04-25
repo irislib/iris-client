@@ -4,9 +4,13 @@
     <script>
       if (
         window.location.protocol.startsWith("http") &&
-        ["iris.to", "beta.iris.to", "iris-client.irisapp.workers.dev"].includes(
-          window.location.hostname
-        )
+        [
+          "iris.to",
+          "beta.iris.to",
+          "iris-client.irisapp.workers.dev",
+          "127.0.0.1",
+          "localhost",
+        ].includes(window.location.hostname)
       ) {
         document.write('<base href="/">')
       }
@@ -18,7 +22,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Debug tool for Iris" />
     <style>
-      html, body {
+      html,
+      body {
         overflow: auto !important;
         height: auto !important;
       }

@@ -8,7 +8,7 @@ test.describe("Session persistence", () => {
 
     // Refresh the page
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
 
     // Verify user is still logged in by checking for the new post button (more reliable)
     await expect(
@@ -61,7 +61,6 @@ test.describe("Session persistence", () => {
 
     // After posting, we're navigated to the post detail page
     await page.waitForURL(/\/note/, {timeout: 10000})
-    await page.waitForLoadState("networkidle")
 
     // Post should be visible on detail page with feed-item
     // Use locator that matches only visible elements to avoid background stack views
@@ -73,7 +72,7 @@ test.describe("Session persistence", () => {
 
     // Refresh the page to test session persistence
     await page.reload()
-    await page.waitForLoadState("networkidle")
+    await page.waitForLoadState("domcontentloaded")
 
     // Post should still be visible after refresh
     // Use locator that matches only visible elements to avoid background stack views

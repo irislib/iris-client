@@ -6,6 +6,9 @@ import {
   ensureCurrentDeviceRegistered,
   expectDmMessageInputEnabled,
 } from "./private-messaging-helpers"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay private messaging attachment setup")
 
 async function setupChatWithSelf(page) {
   await ensureCurrentDeviceRegistered(page)
