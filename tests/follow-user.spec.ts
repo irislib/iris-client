@@ -13,8 +13,10 @@ test("can follow user by npub", async ({page}) => {
   await searchInput.fill(targetNpub)
   await searchInput.press("Enter")
 
-  // Wait for navigation away from root
-  await expect(page).toHaveURL(new RegExp(`${targetNpub}/?$`))
+  // The profile route may canonicalize the npub to a username.
+  await expect(page.getByTestId("profile-header-actions")).toBeVisible({
+    timeout: 15000,
+  })
 
   // Find and click the Follow button in profile header actions
   const headerActions = page.getByTestId("profile-header-actions")
