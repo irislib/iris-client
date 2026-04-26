@@ -93,8 +93,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: ^0.0.97
-        version: 0.0.97(typescript@5.9.3)
+        specifier: ^0.0.100
+        version: 0.0.100(typescript@5.9.3)
       nostr-social-graph:
         specifier: ^1.0.33
         version: 1.0.33
@@ -2062,7 +2062,7 @@ packages:
   basic-ftp@5.1.0:
     resolution: {integrity: sha512-RkaJzeJKDbaDWTIPiJwubyljaEPwpVWkm9Rt5h9Nd6h7tEXTJ3VB4qxdZBioV7JO5yLUaOKwz7vDOzlncUsegw==}
     engines: {node: '>=10.0.0'}
-    deprecated: Security vulnerability fixed in 5.2.0, please upgrade
+    deprecated: Security vulnerability fixed in 5.2.1, please upgrade
 
   bignumber.js@9.3.1:
     resolution: {integrity: sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==}
@@ -3424,8 +3424,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.97:
-    resolution: {integrity: sha512-tn4QlBniOXHzc70Rcv1SgntwTQqXZk6LoIPV8yjL+uGzaFkTkq8WulULVZ8A44kwjif1APbsrRwK/dfKiYOl7Q==}
+  nostr-double-ratchet@0.0.100:
+    resolution: {integrity: sha512-TpfQHIVLte84R04Neag6usAo496uMJxPt/NknicJwcAB2mNdwj/3zfOd7Aeq+lmymZdlWTvJY1AQ6P75g4Db/A==}
 
   nostr-social-graph@1.0.33:
     resolution: {integrity: sha512-wZyQYy3QaBrYWyO2tWzMt2f+sGvM811SVJ/IE7+8/KyuYZzlgOa9XYBqu6eKX+r8fcNVzHqbGe7In1ME2to6Dw==}
@@ -8341,7 +8341,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.97(typescript@5.9.3):
+  nostr-double-ratchet@0.0.100(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.23.1(typescript@5.9.3)
     transitivePeerDependencies:
