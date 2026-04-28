@@ -9,7 +9,7 @@ import {MessageType} from "../message/Message"
 import {useEffect, useState, useCallback} from "react"
 import {useUserStore} from "@/stores/user"
 import {KIND_REACTION} from "@/utils/constants"
-import {getNdrRuntime, getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import {getEventHash} from "nostr-tools"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
@@ -44,7 +44,7 @@ const Chat = ({id}: {id: string}) => {
   const messages = eventsMap.get(id) ?? new SortedMap<string, MessageType>([], comparator)
   let sessionUserRecords: SessionUserRecordsLike | undefined
   try {
-    sessionUserRecords = getSessionManager()?.getUserRecords() as
+    sessionUserRecords = getNdrRuntime().getSessionUserRecords() as
       | SessionUserRecordsLike
       | undefined
   } catch {
@@ -94,10 +94,10 @@ const Chat = ({id}: {id: string}) => {
 
     rejectChat(id)
 
-    const sessionManager = getSessionManager()
+    const runtime = getNdrRuntime()
     const store = usePrivateMessagesStore.getState()
     void Promise.all([
-      sessionManager ? deletePrivateChat(sessionManager, id).catch(() => {}) : undefined,
+      deletePrivateChat(runtime, id).catch(() => {}),
       store.removeSession(id).catch(() => {}),
     ]).finally(() => {
       navigate("/chats")

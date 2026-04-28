@@ -1,4 +1,4 @@
-import {ensureSessionManager, getNdrRuntime} from "@/shared/services/PrivateChats"
+import {ensureNdrRuntime, getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useGroupsStore, type Group} from "@/stores/groups"
 import {type GroupData, type Rumor} from "nostr-double-ratchet"
 
@@ -55,7 +55,7 @@ export async function sendGroupEventViaTransport(options: {
   tags?: string[][]
 }): Promise<{inner: Rumor; outerEventId?: string}> {
   const {groupId, groupMembers, senderPubKey, kind, content, tags} = options
-  await ensureSessionManager(senderPubKey)
+  await ensureNdrRuntime(senderPubKey)
   await upsertGroupIntoRuntime(groupId, groupMembers, senderPubKey)
 
   const sent = await getNdrRuntime().sendGroupEvent(
@@ -82,7 +82,7 @@ export async function createGroupViaTransport(options: {
   nowMs?: number
 }): Promise<GroupData> {
   const {name, memberOwnerPubkeys, senderPubKey, fanoutMetadata, nowMs} = options
-  await ensureSessionManager(senderPubKey)
+  await ensureNdrRuntime(senderPubKey)
 
   const created = await getNdrRuntime().createGroup(name, memberOwnerPubkeys, {
     fanoutMetadata: fanoutMetadata ?? true,
@@ -98,7 +98,7 @@ export async function rotateGroupSenderKey(options: {
   senderPubKey: string
 }): Promise<void> {
   const {groupId, groupMembers, senderPubKey} = options
-  await ensureSessionManager(senderPubKey)
+  await ensureNdrRuntime(senderPubKey)
   await upsertGroupIntoRuntime(groupId, groupMembers, senderPubKey)
 
   const groupManager = await getNdrRuntime().waitForGroupManager(senderPubKey)

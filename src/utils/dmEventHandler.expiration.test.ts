@@ -19,11 +19,12 @@ let capturedCallback: SessionEventCallback | null = null
 
 const sessionManager = {
   init: vi.fn().mockResolvedValue(undefined),
-  onEvent: vi.fn((cb: SessionEventCallback) => {
+  onSessionEvent: vi.fn((cb: SessionEventCallback) => {
     capturedCallback = cb
     return () => {}
   }),
   sendReceipt: vi.fn().mockResolvedValue(undefined),
+  getSessionUserRecords: vi.fn(() => new Map()),
   setExpirationForPeer: vi.fn().mockResolvedValue(undefined),
   setExpirationForGroup: vi.fn().mockResolvedValue(undefined),
 }
@@ -39,17 +40,18 @@ vi.mock("./socialGraph", () => ({
 
 vi.mock("@/shared/services/PrivateChats", () => ({}))
 
-import {attachSessionEventListener, cleanupSessionEventListener} from "./dmEventHandler"
+import {attachNdrRuntimeEventListener, cleanupNdrRuntimeEventListener} from "./dmEventHandler"
 
 const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 describe("dmEventHandler expiration settings", () => {
   beforeEach(async () => {
-    cleanupSessionEventListener()
+    cleanupNdrRuntimeEventListener()
     capturedCallback = null
     sessionManager.init.mockClear()
-    sessionManager.onEvent.mockClear()
+    sessionManager.onSessionEvent.mockClear()
     sessionManager.sendReceipt.mockClear()
+    sessionManager.getSessionUserRecords.mockClear()
     sessionManager.setExpirationForPeer.mockClear()
     sessionManager.setExpirationForGroup.mockClear()
     isFollowing.mockReset()
@@ -70,10 +72,10 @@ describe("dmEventHandler expiration settings", () => {
   })
 
   it("applies disappearing message TTL from incoming settings messages (and persists it per chat)", async () => {
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     capturedCallback?.(
@@ -99,10 +101,10 @@ describe("dmEventHandler expiration settings", () => {
   it("applies group disappearing message TTL from group metadata updates", async () => {
     const groupId = "group-1"
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     capturedCallback?.(
@@ -136,7 +138,7 @@ describe("dmEventHandler expiration settings", () => {
   it("treats legacy group typing events as ephemeral", async () => {
     const groupId = "group-typing"
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     expect(capturedCallback).toBeTruthy()

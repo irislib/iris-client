@@ -1,6 +1,6 @@
 import {getEventHash} from "nostr-tools"
 
-import {ensureSessionManager, getNdrRuntime} from "@/shared/services/PrivateChats"
+import {ensureNdrRuntime, getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -72,7 +72,7 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
       .getState()
       .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
 
-    await ensureSessionManager(senderPubKey)
+    await ensureNdrRuntime(senderPubKey)
     await Promise.all(
       groupMembers.map((memberPubKey) =>
         getNdrRuntime().sendEvent(memberPubKey, event, senderPubKey)

@@ -133,6 +133,10 @@ export default defineConfig({
             return "main"
           }
 
+          if (id.includes("node_modules/nostr-double-ratchet")) {
+            return "nostr-double-ratchet"
+          }
+
           const vendorLibs = [
             "react",
             "react-dom/client",
@@ -161,7 +165,6 @@ export default defineConfig({
             "blurhash",
             "debug",
             "@cashu/cashu-ts",
-            "nostr-double-ratchet",
           ]
           if (vendorLibs.some((lib) => id.includes(`node_modules/${lib}`))) {
             return "vendor"

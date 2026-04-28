@@ -17,7 +17,7 @@ import {useUserStore} from "@/stores/user"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import {useUIStore} from "@/stores/ui"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {type SessionUserRecordsLike} from "@/utils/sessionRouting"
 import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 
@@ -74,7 +74,7 @@ const ChatList = ({className}: ChatListProps) => {
     const all: Array<{id: string; type: "private"}> = []
     const requests: Array<{id: string; type: "private"}> = []
     const sessionUserRecords =
-      (getSessionManager()?.getUserRecords() as SessionUserRecordsLike | undefined) ??
+      (getNdrRuntime().getSessionUserRecords() as SessionUserRecordsLike | undefined) ??
       null
 
     // "Accepted" = followed, explicitly accepted, locally sent, or backed by outgoing session activity.

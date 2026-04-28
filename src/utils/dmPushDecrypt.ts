@@ -134,29 +134,21 @@ export async function tryDecryptDmPushEvent(
     for (const entry of matchingSessions) {
       const state = deserializeSessionState(entry.serializedState)
 
-      let deliverToSession: ((event: VerifiedEvent) => void) | undefined
-      const session = new Session((_, onEvent) => {
-        deliverToSession = onEvent
-        return () => {
-          deliverToSession = undefined
-        }
-      }, state)
-
       let unsubscribe: (() => void) | undefined
       const innerEvent = await new Promise<Rumor | null>((resolve) => {
+        const session = new Session(state)
         const timeout = setTimeout(() => resolve(null), timeoutMs)
         unsubscribe = session.onEvent((event) => {
           clearTimeout(timeout)
           resolve(event)
         })
-        if (deliverToSession) {
-          try {
-            deliverToSession(eventForSession)
-          } catch {
+        try {
+          const received = session.receiveEvent(eventForSession)
+          if (!received) {
             clearTimeout(timeout)
             resolve(null)
           }
-        } else {
+        } catch {
           clearTimeout(timeout)
           resolve(null)
         }

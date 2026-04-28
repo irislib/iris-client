@@ -29,7 +29,7 @@ const mocks = vi.hoisted(() => {
     getState: vi.fn(() => runtimeState),
     getDelegateManager: vi.fn(() => null),
     getAppKeysManager: vi.fn(() => null),
-    getSessionManager: vi.fn(() => null),
+    getSessionUserRecords: vi.fn(() => new Map()),
     initDelegateManager: vi.fn().mockResolvedValue(undefined),
     initForOwner: vi.fn().mockResolvedValue({}),
     createLinkInvite: vi.fn().mockImplementation(async (ownerPublicKey?: string) => ({
@@ -104,8 +104,8 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
       return mocks.runtime.getAppKeysManager()
     }
 
-    getSessionManager() {
-      return mocks.runtime.getSessionManager()
+    getSessionUserRecords() {
+      return mocks.runtime.getSessionUserRecords()
     }
 
     initDelegateManager() {
@@ -167,7 +167,7 @@ vi.mock("@/utils/ndk", () => ({
 }))
 
 vi.mock("@/utils/dmEventHandler", () => ({
-  attachSessionEventListener: vi.fn(),
+  attachNdrRuntimeEventListener: vi.fn(),
 }))
 
 vi.mock("@/utils/groupMessageHandler", () => ({
@@ -206,7 +206,7 @@ describe("PrivateChats invite acceptance", () => {
     mocks.runtime.getState.mockClear()
     mocks.runtime.getDelegateManager.mockClear()
     mocks.runtime.getAppKeysManager.mockClear()
-    mocks.runtime.getSessionManager.mockClear()
+    mocks.runtime.getSessionUserRecords.mockClear()
     mocks.runtime.initDelegateManager.mockClear()
     mocks.runtime.initForOwner.mockClear()
     mocks.runtime.createLinkInvite.mockClear()

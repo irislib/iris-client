@@ -11,8 +11,6 @@ import {
 import {tryDecryptDmPushEvent} from "./dmPushDecrypt"
 
 const createSessionPair = () => {
-  const nostrSubscribe = () => () => {}
-
   const initiatorPriv = generateSecretKey()
   const responderPriv = generateSecretKey()
   const initiatorPub = getPublicKey(initiatorPriv)
@@ -20,7 +18,6 @@ const createSessionPair = () => {
   const sharedSecret = generateSecretKey()
 
   const sender = Session.init(
-    nostrSubscribe,
     responderPub,
     initiatorPriv,
     true,
@@ -28,7 +25,6 @@ const createSessionPair = () => {
   )
 
   const receiver = Session.init(
-    nostrSubscribe,
     initiatorPub,
     responderPriv,
     false,

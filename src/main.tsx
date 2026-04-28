@@ -13,10 +13,10 @@ import {initializeDebugLogging, createDebugLogger} from "./utils/createDebugLogg
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {initServiceWorkerAutoReload} from "@/swInit"
 import {startMessageExpirationCleanup} from "@/utils/messageExpirationCleanup"
-import {syncDisappearingMessagesToSessionManager} from "@/utils/disappearingMessages"
+import {syncDisappearingMessagesToNdrRuntime} from "@/utils/disappearingMessages"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
-import {cleanupSessionEventListener} from "./utils/dmEventHandler"
+import {cleanupNdrRuntimeEventListener} from "./utils/dmEventHandler"
 import {cleanupGroupMessageListener} from "./utils/groupMessageHandler"
 import {hasWriteAccess, shouldStartPrivateMessagingOnAuthChange} from "./utils/auth"
 import {maybeAutoEnableInjectedNip07Login} from "./utils/injectedNip07"
@@ -50,7 +50,7 @@ const startPrivateMessaging = (ownerPubkey: string) => {
       useDevicesStore.getState().setSessionManagerReady(true)
       const dm = getDelegateManager()
       useDevicesStore.getState().setIdentityPubkey(dm.getIdentityPublicKey())
-      syncDisappearingMessagesToSessionManager().catch(error)
+      syncDisappearingMessagesToNdrRuntime().catch(error)
       subscribeToDMNotifications()
       void autoRegisterDevice()
       log("Device activated and session listener attached")
@@ -192,7 +192,7 @@ if (import.meta.hot) {
     // Clean up subscriptions on hot reload
     unsubscribeUser()
     unsubscribeTheme()
-    cleanupSessionEventListener()
+    cleanupNdrRuntimeEventListener()
     cleanupGroupMessageListener()
   })
 }

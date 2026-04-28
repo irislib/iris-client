@@ -1,6 +1,6 @@
 type ChatDeletionManager = {
   deleteChat?: (userPubkey: string) => Promise<void>
-  deleteUser: (userPubkey: string) => Promise<void>
+  deleteUser?: (userPubkey: string) => Promise<void>
 }
 
 const normalizeChatId = (chatId: string): string => {
@@ -19,5 +19,10 @@ export const deletePrivateChat = async (
     return
   }
 
-  await manager.deleteUser(peerPubkey)
+  if (typeof manager.deleteUser === "function") {
+    await manager.deleteUser(peerPubkey)
+    return
+  }
+
+  throw new Error("Chat deletion is not available")
 }

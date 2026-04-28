@@ -6,7 +6,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {MessageType} from "../message/Message"
 import {useNavigate} from "@/navigation"
 import {useState} from "react"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {confirm} from "@/utils/utils"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
@@ -32,12 +32,7 @@ const PrivateChatHeader = ({id}: PrivateChatHeaderProps) => {
     if (!(await confirm("Delete this chat?"))) return
 
     try {
-      const sessionManager = getSessionManager()
-      if (!sessionManager) {
-        console.error("Session manager not available")
-        return
-      }
-      await deletePrivateChat(sessionManager, id)
+      await deletePrivateChat(getNdrRuntime(), id)
       await usePrivateMessagesStore.getState().removeSession(id)
       navigate("/chats")
     } catch (error) {

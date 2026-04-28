@@ -6,7 +6,6 @@ import {
   Invite,
   INVITE_RESPONSE_KIND,
   NdrRuntime,
-  SessionManager,
   decryptInviteResponse,
   type NdrRuntimeState,
   type NostrFetch,
@@ -23,7 +22,7 @@ import {useDevicesStore} from "../../stores/devices"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {attachSessionEventListener} from "@/utils/dmEventHandler"
+import {attachNdrRuntimeEventListener} from "@/utils/dmEventHandler"
 import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
 import {
   getCurrentDeviceRegistrationLabels,
@@ -35,10 +34,18 @@ const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const APP_KEYS_FETCH_TIMEOUT_MS = 10000
 const APP_KEYS_FAST_TIMEOUT_MS = 2000
+const RUNTIME_USER_SETUP_SYNC_MS = 500
 
 let runtime: NdrRuntime | null = null
 let runtimeCleanup: (() => void) | null = null
 let runtimeOwnerIdentityKeyHex: string | null = null
+let runtimeUserSetupPoller: ReturnType<typeof setInterval> | null = null
+const runtimeUserSetupInFlight = new Set<string>()
+
+type RuntimeUserRecord =
+  ReturnType<NdrRuntime["getSessionUserRecords"]> extends Map<string, infer Record>
+    ? Record
+    : never
 
 const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
   const store = useDevicesStore.getState()
@@ -101,6 +108,11 @@ const getOwnerIdentityKeyHex = (): string | null => {
 }
 
 const closeRuntime = (): void => {
+  if (runtimeUserSetupPoller) {
+    clearInterval(runtimeUserSetupPoller)
+    runtimeUserSetupPoller = null
+  }
+  runtimeUserSetupInFlight.clear()
   runtimeCleanup?.()
   runtimeCleanup = null
   runtime?.close()
@@ -133,6 +145,65 @@ const getRuntime = (): NdrRuntime => {
   })
 
   return runtime
+}
+
+const needsRuntimeUserSetup = (record: RuntimeUserRecord): boolean => {
+  const devicesMap = record.devices ?? new Map()
+  const knownDeviceCount = devicesMap.size
+  const appKeysDeviceCount = record.appKeys?.getAllDevices?.().length ?? 0
+
+  if (appKeysDeviceCount > knownDeviceCount) {
+    return true
+  }
+
+  return Array.from(devicesMap.values()).some(
+    (device) => !device.activeSession && (device.inactiveSessions?.length ?? 0) === 0
+  )
+}
+
+const queueRuntimeUserSetup = (currentRuntime: NdrRuntime, pubkey: string): void => {
+  if (!pubkey || runtimeUserSetupInFlight.has(pubkey)) return
+
+  runtimeUserSetupInFlight.add(pubkey)
+  void currentRuntime
+    .setupUser(pubkey)
+    .catch((error) => {
+      log("Failed to reconcile runtime user:", pubkey, error)
+    })
+    .finally(() => {
+      runtimeUserSetupInFlight.delete(pubkey)
+    })
+}
+
+const syncRuntimeUsers = (currentRuntime: NdrRuntime): void => {
+  const state = currentRuntime.getState()
+  if (!state.sessionManagerReady) return
+
+  const records = currentRuntime.getSessionUserRecords()
+  const ownerPubkey = state.ownerPubkey || useUserStore.getState().publicKey
+  const ownerRecord = ownerPubkey ? records.get(ownerPubkey) : undefined
+  if (ownerPubkey && (!ownerRecord || needsRuntimeUserSetup(ownerRecord))) {
+    queueRuntimeUserSetup(currentRuntime, ownerPubkey)
+  }
+
+  for (const [pubkey, record] of records) {
+    if (pubkey === ownerPubkey) continue
+    if (needsRuntimeUserSetup(record)) {
+      queueRuntimeUserSetup(currentRuntime, pubkey)
+    }
+  }
+}
+
+const startRuntimeUserSetupSync = (currentRuntime: NdrRuntime): void => {
+  syncRuntimeUsers(currentRuntime)
+  if (runtimeUserSetupPoller) return
+
+  runtimeUserSetupPoller = setInterval(() => {
+    const activeRuntime = runtime
+    if (activeRuntime) {
+      syncRuntimeUsers(activeRuntime)
+    }
+  }, RUNTIME_USER_SETUP_SYNC_MS)
 }
 
 export const getNdrRuntime = (): NdrRuntime => {
@@ -172,36 +243,44 @@ export const initDelegateManager = async (): Promise<void> => {
   log("DelegateManager initialized")
 }
 
-export const initPrivateMessaging = async (
-  ownerPubkey: string
-): Promise<SessionManager> => {
+export const ensureNdrRuntime = async (ownerPubkey: string): Promise<NdrRuntime> => {
   if (!ownerPubkey) throw new Error("Owner pubkey required")
 
   await ensureNdkConnected()
   const currentRuntime = getRuntime()
-  const sessionManager = await currentRuntime.initForOwner(ownerPubkey)
+  await currentRuntime.initForOwner(ownerPubkey)
+  return currentRuntime
+}
 
-  attachSessionEventListener(sessionManager)
+export const initPrivateMessaging = async (
+  ownerPubkey: string
+): Promise<NdrRuntime> => {
+  const currentRuntime = await ensureNdrRuntime(ownerPubkey)
+
+  attachNdrRuntimeEventListener(currentRuntime)
   attachGroupMessageListener()
+  startRuntimeUserSetupSync(currentRuntime)
 
   await currentRuntime.republishInvite().catch((error) => {
     log("Failed to publish invite after private messaging init:", error)
   })
   log("Device activated for owner:", ownerPubkey)
-  return sessionManager
+  return currentRuntime
 }
 
-export const getSessionManager = (): SessionManager | null => {
-  return runtime?.getSessionManager() || null
-}
-
-export const ensureSessionManager = async (
-  ownerPubkey: string
-): Promise<SessionManager> => {
-  if (!ownerPubkey) {
-    throw new Error("Owner pubkey required to initialize SessionManager")
+export const waitForNdrRuntime = async (ownerPubkey?: string): Promise<NdrRuntime> => {
+  const currentRuntime = getRuntime()
+  if (currentRuntime.getState().sessionManagerReady) {
+    return currentRuntime
   }
-  return initPrivateMessaging(ownerPubkey)
+
+  const resolvedOwnerPubkey =
+    ownerPubkey || currentRuntime.getState().ownerPubkey || useUserStore.getState().publicKey
+  if (!resolvedOwnerPubkey) {
+    throw new Error("Owner pubkey required to initialize NdrRuntime")
+  }
+
+  return ensureNdrRuntime(resolvedOwnerPubkey)
 }
 
 export const waitForAppKeysManager = async (): Promise<AppKeysManager> => {
@@ -356,14 +435,14 @@ export const deleteDeviceInvite = async (deviceId: string) => {
 }
 
 export const deleteCurrentDeviceInvite = async () => {
-  const manager = getSessionManager()
-  if (!manager) {
-    log("No session manager, skipping invite tombstone")
+  await getRuntime().initDelegateManager()
+  const deviceId = getRuntime().getState().currentDevicePubkey
+  if (!deviceId) {
+    log("No device identity, skipping invite tombstone")
     return
   }
 
-  await manager.init()
-  await deleteDeviceInvite(manager.getDeviceId())
+  await deleteDeviceInvite(deviceId)
 }
 
 export const startAppKeysSubscription = (ownerPubkey: string): void => {
@@ -504,7 +583,7 @@ export const listenForLinkInviteAcceptance = (
   )
 }
 
-const acceptInviteViaSessionManager = async (
+const acceptInviteViaNdrRuntime = async (
   invite: Invite,
   ownerPublicKey: string
 ): Promise<string> => {
@@ -513,8 +592,7 @@ const acceptInviteViaSessionManager = async (
     throw new Error("No public key - user must be logged in")
   }
 
-  await ensureNdkConnected()
-  await getRuntime().initForOwner(publicKey)
+  await ensureNdrRuntime(publicKey)
   const {ownerPublicKey: acceptedOwnerPublicKey} = await getRuntime().acceptInvite(
     invite,
     {
@@ -536,9 +614,9 @@ export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
     throw new Error("Link invite is for a different account")
   }
 
-  await acceptInviteViaSessionManager(invite, publicKey)
+  await acceptInviteViaNdrRuntime(invite, publicKey)
 }
 
 export const acceptChatInvite = async (invite: Invite): Promise<string> => {
-  return acceptInviteViaSessionManager(invite, invite.ownerPubkey || invite.inviter)
+  return acceptInviteViaNdrRuntime(invite, invite.ownerPubkey || invite.inviter)
 }

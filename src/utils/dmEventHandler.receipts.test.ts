@@ -29,12 +29,12 @@ let capturedCallback: CapturedSessionEventCallback | null = null
 
 const sessionManager = {
   init: vi.fn().mockResolvedValue(undefined),
-  onEvent: vi.fn((cb: CapturedSessionEventCallback) => {
+  onSessionEvent: vi.fn((cb: CapturedSessionEventCallback) => {
     capturedCallback = cb
     return () => {}
   }),
   sendReceipt: vi.fn().mockResolvedValue(undefined),
-  getUserRecords: vi.fn(() => new Map()),
+  getSessionUserRecords: vi.fn(() => new Map()),
 }
 
 const isFollowing = vi.fn((..._args: unknown[]) => false)
@@ -48,19 +48,22 @@ vi.mock("./socialGraph", () => ({
 
 vi.mock("@/shared/services/PrivateChats", () => ({}))
 
-import {attachSessionEventListener, cleanupSessionEventListener} from "./dmEventHandler"
+import {
+  attachNdrRuntimeEventListener,
+  cleanupNdrRuntimeEventListener,
+} from "./dmEventHandler"
 
 const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve))
 
 describe("dmEventHandler receipts", () => {
   beforeEach(async () => {
-    cleanupSessionEventListener()
+    cleanupNdrRuntimeEventListener()
     capturedCallback = null
     sessionManager.init.mockClear()
-    sessionManager.onEvent.mockClear()
+    sessionManager.onSessionEvent.mockClear()
     sessionManager.sendReceipt.mockClear()
-    sessionManager.getUserRecords.mockReset()
-    sessionManager.getUserRecords.mockReturnValue(new Map())
+    sessionManager.getSessionUserRecords.mockReset()
+    sessionManager.getSessionUserRecords.mockReturnValue(new Map())
     isFollowing.mockReset()
     isFollowing.mockReturnValue(false)
 
@@ -89,10 +92,10 @@ describe("dmEventHandler receipts", () => {
   it("does not send delivery receipts when disabled", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: false})
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     capturedCallback?.(
@@ -114,10 +117,10 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
     isFollowing.mockReturnValue(false)
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     capturedCallback?.(
@@ -147,10 +150,10 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
     isFollowing.mockReturnValue(true)
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     capturedCallback?.(
@@ -172,7 +175,7 @@ describe("dmEventHandler receipts", () => {
 
   it("keeps receive-only session-backed first-contact DMs as requests", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
-    sessionManager.getUserRecords.mockReturnValue(
+    sessionManager.getSessionUserRecords.mockReturnValue(
       new Map([
         [
           THEIR_PUBKEY,
@@ -199,7 +202,7 @@ describe("dmEventHandler receipts", () => {
       ])
     )
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(
@@ -226,7 +229,7 @@ describe("dmEventHandler receipts", () => {
 
   it("treats session-backed chats with outgoing activity as accepted", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: true})
-    sessionManager.getUserRecords.mockReturnValue(
+    sessionManager.getSessionUserRecords.mockReturnValue(
       new Map([
         [
           THEIR_PUBKEY,
@@ -252,7 +255,7 @@ describe("dmEventHandler receipts", () => {
       ])
     )
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(
@@ -279,10 +282,10 @@ describe("dmEventHandler receipts", () => {
   })
 
   it("stores delivered/seen timestamps from receipt events for our messages", async () => {
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     const messageId = "out-1"
@@ -368,10 +371,10 @@ describe("dmEventHandler receipts", () => {
   })
 
   it("marks incoming messages seen and updates lastSeen when seen receipt comes from own session", async () => {
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
-    expect(sessionManager.onEvent).toHaveBeenCalledTimes(1)
+    expect(sessionManager.onSessionEvent).toHaveBeenCalledTimes(1)
     expect(capturedCallback).toBeTruthy()
 
     const messageId = "in-1"
@@ -423,7 +426,7 @@ describe("dmEventHandler receipts", () => {
     useMessagesStore.setState({receiveMessageRequests: false})
     isFollowing.mockReturnValue(false)
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(
@@ -447,7 +450,7 @@ describe("dmEventHandler receipts", () => {
     isFollowing.mockReturnValue(false)
     useMessageRequestsStore.getState().acceptChat(THEIR_PUBKEY)
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(
@@ -471,7 +474,7 @@ describe("dmEventHandler receipts", () => {
   })
 
   it("normalizes self-chat events to the owner pubkey when p-tag targets our current device", async () => {
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     expect(capturedCallback).toBeTruthy()
@@ -500,7 +503,7 @@ describe("dmEventHandler receipts", () => {
 
   it("routes cross-device self copies to the peer owner when the p-tag is a linked device", async () => {
     const THEIR_LINKED_DEVICE_PUBKEY = "e".repeat(64)
-    sessionManager.getUserRecords.mockReturnValue(
+    sessionManager.getSessionUserRecords.mockReturnValue(
       new Map([
         [
           THEIR_PUBKEY,
@@ -522,7 +525,7 @@ describe("dmEventHandler receipts", () => {
       ])
     )
 
-    attachSessionEventListener(sessionManager as any)
+    attachNdrRuntimeEventListener(sessionManager as any)
     await flushPromises()
 
     capturedCallback?.(

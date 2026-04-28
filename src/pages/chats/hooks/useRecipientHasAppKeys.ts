@@ -1,9 +1,9 @@
 import {useEffect, useState} from "react"
 import {AppKeys} from "nostr-double-ratchet"
 import {
-  ensureSessionManager,
+  ensureNdrRuntime,
   getNostrSubscribe,
-  getSessionManager,
+  getNdrRuntime,
 } from "@/shared/services/PrivateChats"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
@@ -58,10 +58,10 @@ export const useRecipientHasAppKeys = (
     let hasExistingSession = false
 
     try {
-      const sessionManager = getSessionManager()
-      if (sessionManager) {
+      const runtime = getNdrRuntime()
+      if (runtime.getState().sessionManagerReady) {
         hasExistingSession = hasExistingSessionWithRecipient(
-          sessionManager.getUserRecords() as SessionUserRecordsLike,
+          runtime.getSessionUserRecords() as SessionUserRecordsLike,
           recipientPubkey
         )
       }
@@ -76,11 +76,11 @@ export const useRecipientHasAppKeys = (
       if (!myPubkey) return
 
       try {
-        const sessionManager = await ensureSessionManager(myPubkey)
+        const runtime = await ensureNdrRuntime(myPubkey)
         if (disposed) return
 
         hasExistingSession = hasExistingSessionWithRecipient(
-          sessionManager.getUserRecords() as SessionUserRecordsLike,
+          runtime.getSessionUserRecords() as SessionUserRecordsLike,
           recipientPubkey
         )
         setHasAppKeys((current) =>

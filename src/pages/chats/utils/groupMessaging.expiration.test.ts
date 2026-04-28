@@ -9,9 +9,9 @@ import {useUserStore} from "@/stores/user"
 const MY_PUBKEY = "a".repeat(64)
 const GROUP_ID = "group-1"
 
-const {sendGroupEventViaTransport, ensureSessionManager, sendEvent} = vi.hoisted(() => ({
+const {sendGroupEventViaTransport, ensureNdrRuntime, sendEvent} = vi.hoisted(() => ({
   sendGroupEventViaTransport: vi.fn(),
-  ensureSessionManager: vi.fn(),
+  ensureNdrRuntime: vi.fn(),
   sendEvent: vi.fn(),
 }))
 
@@ -24,7 +24,7 @@ vi.mock("@/utils/groupTransport", async (importOriginal) => {
 })
 
 vi.mock("@/shared/services/PrivateChats", () => ({
-  ensureSessionManager,
+  ensureNdrRuntime,
   getNdrRuntime: () => ({
     sendEvent,
   }),
@@ -47,7 +47,7 @@ const makeGroup = (messageTtlSeconds: number | null) => ({
 describe("sendGroupEvent expiration", () => {
   beforeEach(async () => {
     sendGroupEventViaTransport.mockReset()
-    ensureSessionManager.mockReset()
+    ensureNdrRuntime.mockReset()
     sendEvent.mockReset()
     useUserStore.setState({publicKey: MY_PUBKEY})
     useChatExpirationStore.setState({expirations: {}})
@@ -56,7 +56,7 @@ describe("sendGroupEvent expiration", () => {
 
     let counter = 0
     sendEvent.mockResolvedValue(undefined)
-    ensureSessionManager.mockResolvedValue({
+    ensureNdrRuntime.mockResolvedValue({
       sendEvent,
     })
     sendGroupEventViaTransport.mockImplementation(

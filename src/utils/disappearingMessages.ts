@@ -1,6 +1,6 @@
 import {buildGroupMetadataContent, GROUP_METADATA_KIND} from "nostr-double-ratchet"
 
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -24,13 +24,11 @@ export async function setDmDisappearingMessages(
 
   useChatExpirationStore.getState().setExpiration(peerPubkey, normalizedTtl)
 
-  const sessionManager = getSessionManager()
   const myPubKey = useUserStore.getState().publicKey
   if (!myPubKey) return
-  if (!sessionManager) return
 
   // Use the library helper so the payload/kind/expiration rules stay in sync.
-  const sent = await sessionManager.setChatSettingsForPeer(peerPubkey, normalizedTtl)
+  const sent = await getNdrRuntime().setChatSettingsForPeer(peerPubkey, normalizedTtl)
 
   await usePrivateMessagesStore
     .getState()
@@ -55,12 +53,9 @@ export async function setGroupDisappearingMessages(
   useGroupsStore.getState().updateGroup(groupId, {messageTtlSeconds: normalizedTtl})
   useChatExpirationStore.getState().setExpiration(groupId, normalizedTtl)
 
-  const sessionManager = getSessionManager()
-  if (sessionManager) {
-    await sessionManager
-      .setExpirationForGroup(groupId, normalizedTtl ? {ttlSeconds: normalizedTtl} : null)
-      .catch(() => {})
-  }
+  await getNdrRuntime()
+    .setExpirationForGroup(groupId, normalizedTtl ? {ttlSeconds: normalizedTtl} : null)
+    .catch(() => {})
 
   // Publish group metadata update so all members converge on the same setting.
   const base = JSON.parse(buildGroupMetadataContent(group)) as Record<string, unknown>
@@ -75,9 +70,9 @@ export async function setGroupDisappearingMessages(
   })
 }
 
-export async function syncDisappearingMessagesToSessionManager(): Promise<void> {
-  const sessionManager = getSessionManager()
-  if (!sessionManager) return
+export async function syncDisappearingMessagesToNdrRuntime(): Promise<void> {
+  const runtime = getNdrRuntime()
+  if (!runtime.getState().sessionManagerReady) return
 
   const expirations = useChatExpirationStore.getState().expirations
   const entries = Object.entries(expirations).filter(([, ttl]) => ttl !== undefined)
@@ -87,9 +82,9 @@ export async function syncDisappearingMessagesToSessionManager(): Promise<void> 
       const isPubkey = /^[0-9a-f]{64}$/i.test(chatId)
       const options = ttl ? {ttlSeconds: ttl} : null
       if (isPubkey) {
-        await sessionManager.setExpirationForPeer(chatId, options).catch(() => {})
+        await runtime.setExpirationForPeer(chatId, options).catch(() => {})
       } else {
-        await sessionManager.setExpirationForGroup(chatId, options).catch(() => {})
+        await runtime.setExpirationForGroup(chatId, options).catch(() => {})
       }
     })
   )

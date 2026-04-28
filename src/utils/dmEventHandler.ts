@@ -29,14 +29,23 @@ import {
   parseGroupMetadata,
   shouldAdvanceReceiptStatus,
   type Rumor,
-  type SessionManager,
+  type NdrRuntime,
   validateMetadataCreation,
   validateMetadataUpdate,
 } from "nostr-double-ratchet"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
-let unsubscribeSessionEvents: (() => void) | null = null
+type SessionEventRuntime = Pick<
+  NdrRuntime,
+  | "onSessionEvent"
+  | "getSessionUserRecords"
+  | "setExpirationForPeer"
+  | "setExpirationForGroup"
+  | "sendReceipt"
+>
+
+let unsubscribeRuntimeEvents: (() => void) | null = null
 
 const upsertReceiptRecipient = (
   existing:
@@ -68,14 +77,15 @@ const upsertReceiptRecipient = (
   return next
 }
 
-export const cleanupSessionEventListener = () => {
-  unsubscribeSessionEvents?.()
+export const cleanupNdrRuntimeEventListener = () => {
+  unsubscribeRuntimeEvents?.()
+  unsubscribeRuntimeEvents = null
 }
 
-export const attachSessionEventListener = (sessionManager: SessionManager) => {
+export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
   try {
-    unsubscribeSessionEvents?.()
-    unsubscribeSessionEvents = sessionManager.onEvent((event, pubKey, meta) => {
+    unsubscribeRuntimeEvents?.()
+    unsubscribeRuntimeEvents = runtime.onSessionEvent((event, pubKey, meta) => {
       const {publicKey} = useUserStore.getState()
       if (!publicKey) return
 
@@ -90,11 +100,7 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
           registeredDevices
         )
       const effectiveOwner = isOwnDevice ? publicKey : meta?.senderOwnerPubkey || pubKey
-      const sessionUserRecords =
-        typeof (sessionManager as {getUserRecords?: () => unknown}).getUserRecords ===
-        "function"
-          ? (sessionManager.getUserRecords() as SessionUserRecordsLike)
-          : undefined
+      const sessionUserRecords = runtime.getSessionUserRecords()
 
       // Block events from muted users
       const mutedUsers = getSocialGraph().getMutedByUser(publicKey)
@@ -204,7 +210,7 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
 
               if (hasTtl && nextTtl !== undefined) {
                 useChatExpirationStore.getState().setExpiration(metadata.id, nextTtl)
-                sessionManager
+                runtime
                   .setExpirationForGroup(
                     metadata.id,
                     nextTtl ? {ttlSeconds: nextTtl} : null
@@ -473,7 +479,7 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
             .getState()
             .setExpiration(chatId, settings.messageTtlSeconds)
 
-          sessionManager
+          runtime
             .setExpirationForPeer(
               chatId,
               settings.messageTtlSeconds ? {ttlSeconds: settings.messageTtlSeconds} : null
@@ -516,10 +522,10 @@ export const attachSessionEventListener = (sessionManager: SessionManager) => {
 
       const {sendDeliveryReceipts} = useMessagesStore.getState()
       if (!isMine && !isReaction && sendDeliveryReceipts && isChatAccepted) {
-        sessionManager.sendReceipt(from, "delivered", [event.id]).catch(() => {})
+        runtime.sendReceipt(from, "delivered", [event.id]).catch(() => {})
       }
     })
   } catch (err) {
-    error("Failed to attach session event listener", err)
+    error("Failed to attach NdrRuntime event listener", err)
   }
 }

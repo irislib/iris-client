@@ -17,7 +17,7 @@ const sentSettingsRumor = {
   tags: [["p", THEIR_PUBKEY]],
 }
 
-const sessionManager = {
+const runtime = {
   // Legacy/custom impl used sendMessage(kind=KIND_CHAT_SETTINGS); keep stub so the test can fail by assertion.
   sendMessage: vi.fn().mockResolvedValue(sentSettingsRumor),
   setExpirationForPeer: vi.fn().mockResolvedValue(undefined),
@@ -27,7 +27,7 @@ const sessionManager = {
 }
 
 vi.mock("@/shared/services/PrivateChats", () => ({
-  getSessionManager: () => sessionManager,
+  getNdrRuntime: () => runtime,
 }))
 
 vi.mock("@/pages/chats/utils/groupMessaging", () => ({
@@ -54,10 +54,10 @@ const mockedSendGroupEvent = vi.mocked(sendGroupEvent)
 
 describe("disappearingMessages", () => {
   beforeEach(async () => {
-    sessionManager.sendMessage.mockClear()
-    sessionManager.setExpirationForPeer.mockClear()
-    sessionManager.setExpirationForGroup.mockClear()
-    sessionManager.setChatSettingsForPeer.mockClear()
+    runtime.sendMessage.mockClear()
+    runtime.setExpirationForPeer.mockClear()
+    runtime.setExpirationForGroup.mockClear()
+    runtime.setChatSettingsForPeer.mockClear()
     mockedSendGroupEvent.mockClear()
 
     useUserStore.setState({publicKey: MY_PUBKEY})
@@ -68,22 +68,22 @@ describe("disappearingMessages", () => {
 
   it("normalizes TTL for DM disappearing messages", async () => {
     await setDmDisappearingMessages(THEIR_PUBKEY, 3600.7)
-    expect(sessionManager.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, 3600)
+    expect(runtime.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, 3600)
     expect(useChatExpirationStore.getState().expirations[THEIR_PUBKEY]).toBe(3600)
   })
 
   it("normalizes negative TTL to null for DMs", async () => {
     await setDmDisappearingMessages(THEIR_PUBKEY, -1)
-    expect(sessionManager.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, null)
+    expect(runtime.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, null)
     expect(useChatExpirationStore.getState().expirations[THEIR_PUBKEY]).toBeNull()
   })
 
   it("uses nostr-double-ratchet chat-settings helper for request sending", async () => {
     await setDmDisappearingMessages(THEIR_PUBKEY, 3600)
 
-    expect(sessionManager.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, 3600)
-    expect(sessionManager.sendMessage).not.toHaveBeenCalled()
-    expect(sessionManager.setExpirationForPeer).not.toHaveBeenCalled()
+    expect(runtime.setChatSettingsForPeer).toHaveBeenCalledWith(THEIR_PUBKEY, 3600)
+    expect(runtime.sendMessage).not.toHaveBeenCalled()
+    expect(runtime.setExpirationForPeer).not.toHaveBeenCalled()
 
     expect(useChatExpirationStore.getState().expirations[THEIR_PUBKEY]).toBe(3600)
 
@@ -151,7 +151,7 @@ describe("disappearingMessages", () => {
 
       expect(useGroupsStore.getState().groups[GROUP_ID].messageTtlSeconds).toBeNull()
       expect(useChatExpirationStore.getState().expirations[GROUP_ID]).toBeUndefined()
-      expect(sessionManager.setExpirationForGroup).not.toHaveBeenCalled()
+      expect(runtime.setExpirationForGroup).not.toHaveBeenCalled()
       expect(mockedSendGroupEvent).not.toHaveBeenCalled()
     })
   })

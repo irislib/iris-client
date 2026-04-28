@@ -1,12 +1,12 @@
 import {
   INVITE_RESPONSE_KIND,
   MESSAGE_EVENT_KIND,
-  SessionManager,
+  type SessionUserRecordsLike,
 } from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
-import {getSessionManager} from "@/shared/services/PrivateChats"
+import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {NDKTag, NDKEvent} from "@/lib/ndk"
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
@@ -174,11 +174,12 @@ export const subscribeToDMNotifications = debounce(async () => {
 
   let sessionAuthors: string[] = []
   try {
-    const sessionManager = getSessionManager()
-    if (sessionManager) {
-      await sessionManager.init()
-      const userRecords = sessionManager.getUserRecords()
-      sessionAuthors = extractSessionPubkeysFromUserRecords(userRecords, publicKey)
+    const runtime = getNdrRuntime()
+    if (runtime.getState().sessionManagerReady) {
+      sessionAuthors = extractSessionPubkeysFromUserRecords(
+        runtime.getSessionUserRecords(),
+        publicKey
+      )
     }
   } catch (err) {
     error("Failed to load session data for DM push subscription:", err)
@@ -267,17 +268,15 @@ function arrayEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((val, idx) => b[idx] === val)
 }
 
-type SessionUserRecords = ReturnType<SessionManager["getUserRecords"]>
-
 export function extractSessionPubkeysFromUserRecords(
-  userRecords: SessionUserRecords,
+  userRecords: SessionUserRecordsLike,
   ourPublicKey?: string
 ): string[] {
   return Array.from(userRecords.entries())
     .filter(([publicKey]) => !ourPublicKey || publicKey !== ourPublicKey)
     .flatMap(([, {devices}]) =>
-      Array.from(devices.values()).flatMap((device) => {
-        const sessions = [device.activeSession, ...device.inactiveSessions]
+      Array.from(devices?.values() ?? []).flatMap((device) => {
+        const sessions = [device.activeSession, ...(device.inactiveSessions ?? [])]
         return sessions.filter(Boolean)
       })
     )
