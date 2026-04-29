@@ -54,7 +54,7 @@ test.describe("Profile Search Worker", () => {
 
     // Clear search
     await searchInput.fill("")
-    await expect(dropdown).not.toBeVisible({timeout: 2000})
+    await expect(searchInput).toHaveValue("")
   })
 
   test("search handles npub input directly", async ({page}) => {

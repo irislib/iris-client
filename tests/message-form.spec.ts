@@ -1,5 +1,8 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
+
+test.skip(usingBuiltDist, "requires local-relay private messaging setup")
 
 async function setupChatWithSelf(page) {
   // Go to own profile via the sidebar user row

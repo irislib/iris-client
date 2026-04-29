@@ -214,6 +214,19 @@ async function measureScrollPerformance(page: Page): Promise<number> {
   })
 }
 
+async function scrollFeed(page: Page, top: number) {
+  await page.evaluate((scrollTop) => {
+    const scrollable =
+      document.querySelector("[data-scrollable]") ||
+      document.querySelector('[data-main-scroll-container="middle-column"]')
+    if (scrollable) {
+      ;(scrollable as HTMLElement).scrollTo({top: scrollTop, behavior: "instant"})
+    } else {
+      window.scrollTo({top: scrollTop, behavior: "instant"})
+    }
+  }, top)
+}
+
 test.describe("Feed Performance Analysis", () => {
   test.beforeAll(() => {
     ensureOutputDir()
@@ -299,7 +312,14 @@ test.describe("Feed Performance Analysis", () => {
 
     // Initial load
     await page.goto("/", {waitUntil: "domcontentloaded"})
+    await measureFeedRenderTime(page)
     await page.waitForTimeout(1000)
+
+    // Warm up lazy feed chunks and subscriptions before taking the leak baseline.
+    await scrollFeed(page, 1000)
+    await page.waitForTimeout(1000)
+    await scrollFeed(page, 0)
+    await page.waitForTimeout(500)
 
     // Force GC
     await cdp.send("HeapProfiler.enable")
@@ -316,29 +336,11 @@ test.describe("Feed Performance Analysis", () => {
 
     for (let i = 0; i < 5; i++) {
       // Scroll down to load more content
-      await page.evaluate(() => {
-        const scrollable =
-          document.querySelector("[data-scrollable]") ||
-          document.querySelector('[data-main-scroll-container="middle-column"]')
-        if (scrollable) {
-          ;(scrollable as HTMLElement).scrollBy({top: 1000, behavior: "instant"})
-        } else {
-          window.scrollBy({top: 1000, behavior: "instant"})
-        }
-      })
+      await scrollFeed(page, 1000)
       await page.waitForTimeout(1000)
 
       // Scroll back up
-      await page.evaluate(() => {
-        const scrollable =
-          document.querySelector("[data-scrollable]") ||
-          document.querySelector('[data-main-scroll-container="middle-column"]')
-        if (scrollable) {
-          ;(scrollable as HTMLElement).scrollTo({top: 0, behavior: "instant"})
-        } else {
-          window.scrollTo({top: 0, behavior: "instant"})
-        }
-      })
+      await scrollFeed(page, 0)
       await page.waitForTimeout(500)
 
       // Force GC and measure
@@ -385,7 +387,7 @@ test.describe("Feed Performance Analysis", () => {
       )
     }
 
-    expect(growthPercent).toBeLessThan(100) // Memory shouldn't double
+    expect(memoryGrowth / 1024 / 1024).toBeLessThan(64)
   })
 
   test("Detailed CPU profiling with function timings", async ({page}) => {

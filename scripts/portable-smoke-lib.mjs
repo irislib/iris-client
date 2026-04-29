@@ -20,7 +20,7 @@ function contentTypeFor(filePath) {
   return MIME_TYPES.get(path.extname(filePath)) ?? "application/octet-stream"
 }
 
-function shouldIgnoreConsoleError(text) {
+export function shouldIgnoreConsoleError(text) {
   if (
     /^Failed to load resource: the server responded with a status of 404\b/.test(text)
   ) {
@@ -40,6 +40,13 @@ function shouldIgnoreConsoleError(text) {
   if (/^WebSocket is already in CLOSING or CLOSED state\.?$/.test(text)) {
     return true
   }
+  if (
+    /^Permissions policy violation: picture-in-picture is not allowed in this document\.?$/.test(
+      text
+    )
+  ) {
+    return true
+  }
   return false
 }
 
@@ -52,6 +59,13 @@ export function shouldIgnorePageError(text) {
     return true
   }
   return false
+}
+
+export function isTopLevelDocumentResponse(page, response) {
+  if (response.request().resourceType() !== "document") {
+    return false
+  }
+  return response.request().frame() === page.mainFrame()
 }
 
 function safeJoin(rootDir, requestPath, entryHtml) {
@@ -124,7 +138,7 @@ export async function runPortableSmoke({
   const smokeOrigin = new URL(url).origin
 
   page.on("response", (response) => {
-    if (response.request().resourceType() === "document") {
+    if (isTopLevelDocumentResponse(page, response)) {
       documentResponses.push(response.url())
     }
     if (response.status() < 400) {
