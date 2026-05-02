@@ -3,6 +3,8 @@ import localforage from "localforage"
 import {generateSecretKey, getPublicKey} from "nostr-tools"
 import {
   CHAT_MESSAGE_KIND,
+  buildRumorEvent,
+  buildTextRumor,
   deserializeSessionState,
   serializeSessionState,
   Session,
@@ -47,7 +49,7 @@ describe("dmPushDecrypt", () => {
   it("tries multiple sessions when the first matching one can't decrypt", async () => {
     const {sender, receiver} = createSessionPair()
 
-    const {event: outer} = sender.send("hello")
+    const {event: outer} = sender.sendEvent(buildTextRumor("hello"))
 
     const correctState = serializeSessionState(receiver.state)
     const corrupted = deserializeSessionState(correctState)
@@ -81,7 +83,9 @@ describe("dmPushDecrypt", () => {
   it("marks typing events as silent (no notification)", async () => {
     const {sender, receiver} = createSessionPair()
 
-    const {event: outer} = sender.sendTyping()
+    const {event: outer} = sender.sendEvent(
+      buildRumorEvent({kind: TYPING_KIND, content: ""})
+    )
 
     const state = serializeSessionState(receiver.state)
     const peerOwnerPubkey = "2".repeat(64)
