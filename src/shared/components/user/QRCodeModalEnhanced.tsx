@@ -98,15 +98,16 @@ function QRCodeModalEnhanced({onClose, data, pubKey}: QRCodeModalEnhancedProps) 
     generateQR()
   }, [data, profile?.lud16])
 
-  const gradientColors = [
-    "from-orange-400 via-pink-500 to-purple-600",
-    "from-blue-400 via-purple-500 to-pink-500",
-    "from-green-400 via-blue-500 to-purple-600",
-    "from-yellow-400 via-red-500 to-pink-500",
-    "from-indigo-400 via-purple-500 to-pink-500",
-  ]
-
-  const randomGradient = gradientColors[Math.floor(Math.random() * gradientColors.length)]
+  const [randomGradient] = useState(() => {
+    const gradientColors = [
+      "from-orange-400 via-pink-500 to-purple-600",
+      "from-blue-400 via-purple-500 to-pink-500",
+      "from-green-400 via-blue-500 to-purple-600",
+      "from-yellow-400 via-red-500 to-pink-500",
+      "from-indigo-400 via-purple-500 to-pink-500",
+    ]
+    return gradientColors[Math.floor(Math.random() * gradientColors.length)]
+  })
 
   const handleCopy = () => {
     const textToCopy = activeTab === "npub" ? npub : profile?.lud16 || ""
