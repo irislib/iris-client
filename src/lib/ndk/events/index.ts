@@ -1024,9 +1024,28 @@ export class NDKEvent extends EventEmitter {
       const opHasETag = this.hasTag("e")
 
       if (opHasETag) {
+        // Inherit only the parent's thread root, not its "reply"/"mention"
+        // markers — those describe the parent's relationships, not ours.
+        // Carrying them over produces multiple "reply" markers in the new
+        // event, which causes clients to thread it under the wrong note.
+        const parentETags = this.getMatchingTags("e")
+        let inheritedRoot = parentETags.find((t) => t[3] === "root")
+        if (!inheritedRoot) {
+          // NIP-10 deprecated positional style: when no markers are present,
+          // the first e-tag is the root. Re-emit it with an explicit marker.
+          const anyMarked = parentETags.some(
+            (t) => t[3] === "root" || t[3] === "reply" || t[3] === "mention"
+          )
+          if (!anyMarked && parentETags[0]) {
+            const first = parentETags[0]
+            inheritedRoot = ["e", first[1], first[2] ?? "", "root"]
+            if (first[4]) inheritedRoot.push(first[4])
+          }
+        }
+
         reply.tags = [
           ...reply.tags,
-          ...this.getMatchingTags("e"),
+          ...(inheritedRoot ? [inheritedRoot] : []),
           ...this.getMatchingTags("p"),
           ...this.getMatchingTags("a"),
           ...this.referenceTags("reply", false, undefined, opts),
