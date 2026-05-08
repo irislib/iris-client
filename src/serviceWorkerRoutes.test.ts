@@ -1,5 +1,5 @@
 import {describe, expect, it} from "vitest"
-import {isHashtreeBlobRequest} from "./serviceWorkerRoutes"
+import {isHashtreeBlobRequest, resolveNotificationClickUrl} from "./serviceWorkerRoutes"
 
 function match(url: string, method = "GET") {
   return isHashtreeBlobRequest({
@@ -40,5 +40,34 @@ describe("isHashtreeBlobRequest", () => {
         "PUT"
       )
     ).toBe(false)
+  })
+})
+
+describe("resolveNotificationClickUrl", () => {
+  const origin = "https://iris.to"
+
+  it("resolves direct and nested notification URLs against the app origin", () => {
+    expect(resolveNotificationClickUrl({url: "/chats"}, origin)).toBe(
+      "https://iris.to/chats"
+    )
+    expect(resolveNotificationClickUrl({event: {url: "notifications"}}, origin)).toBe(
+      "https://iris.to/notifications"
+    )
+  })
+
+  it("preserves search and hash while keeping full URLs on the app origin", () => {
+    expect(
+      resolveNotificationClickUrl(
+        {url: "https://example.com/chats?tab=requests#latest"},
+        origin
+      )
+    ).toBe("https://iris.to/chats?tab=requests#latest")
+  })
+
+  it("falls back to the app root for missing or non-web notification URLs", () => {
+    expect(resolveNotificationClickUrl({}, origin)).toBe("https://iris.to/")
+    expect(resolveNotificationClickUrl({url: "mailto:test@example.com"}, origin)).toBe(
+      "https://iris.to/"
+    )
   })
 })

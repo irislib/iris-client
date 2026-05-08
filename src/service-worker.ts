@@ -11,7 +11,8 @@ import {precacheAndRoute, PrecacheEntry} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {registerRoute} from "workbox-routing"
-import {clientsClaim, RouteMatchCallbackOptions} from "workbox-core"
+import {clientsClaim} from "workbox-core"
+import type {RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 import {KIND_CHANNEL_CREATE} from "./utils/constants"
@@ -19,7 +20,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import NDKCacheAdapterDexie from "@/lib/ndk-cache"
 import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
-import {isHashtreeBlobRequest} from "./serviceWorkerRoutes"
+import {isHashtreeBlobRequest, resolveNotificationClickUrl} from "./serviceWorkerRoutes"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -199,6 +200,54 @@ interface PushData {
   url: string
 }
 
+function sameOriginClient(client: WindowClient): boolean {
+  try {
+    return new URL(client.url).origin === self.location.origin
+  } catch {
+    return false
+  }
+}
+
+function selectNotificationClient(clients: readonly WindowClient[], targetUrl: string) {
+  const sameOriginClients = clients.filter(sameOriginClient)
+  const targetHref = new URL(targetUrl).href
+
+  return (
+    sameOriginClients.find((client) => new URL(client.url).href === targetHref) ||
+    sameOriginClients.find((client) => client.visibilityState === "visible") ||
+    sameOriginClients[0]
+  )
+}
+
+async function navigateNotificationClient(
+  client: WindowClient,
+  targetUrl: string
+): Promise<boolean> {
+  if (typeof client.navigate === "function") {
+    try {
+      const navigatedClient = await client.navigate(targetUrl)
+      await (navigatedClient || client).focus()
+      log("Client navigated and focused")
+      return true
+    } catch (err) {
+      error("Failed to navigate notification client:", err)
+    }
+  }
+
+  try {
+    await client.focus()
+    client.postMessage({
+      type: "NAVIGATE_REACT_ROUTER",
+      url: targetUrl,
+    })
+    log("Navigation message sent to focused client")
+    return true
+  } catch (err) {
+    error("Failed to focus client or send navigation message:", err)
+    return false
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   const notificationData = event.notification.data
   event.notification.close()
@@ -206,16 +255,7 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     (async function () {
-      // Handle both direct URL and nested event data structure
-      const path = notificationData?.url || notificationData?.event?.url
-      if (!path) {
-        log("No URL in notification data")
-        return
-      }
-
-      // If it's already a full URL, use URL constructor, otherwise just use the path
-      const pathname = path.startsWith("http") ? new URL(path).pathname : path
-      const fullUrl = `${self.location.origin}${pathname}`
+      const fullUrl = resolveNotificationClickUrl(notificationData, self.location.origin)
       log("Navigating to:", fullUrl)
 
       const allClients = await self.clients.matchAll({
@@ -224,27 +264,11 @@ self.addEventListener("notificationclick", (event) => {
       })
       log("Found clients:", allClients.length)
 
-      if (allClients.length > 0) {
-        // Try to find a visible client first, otherwise use the first one
-        let client = allClients.find((c) => c.visibilityState === "visible")
-        if (!client) {
-          client = allClients[0]
-        }
-
-        try {
-          await client.focus()
-          log("Client focused, sending navigation message")
-          // Add a small delay to ensure focus completes before navigation
-          await new Promise((resolve) => setTimeout(resolve, 100))
-          await client.postMessage({
-            type: "NAVIGATE_REACT_ROUTER",
-            url: fullUrl,
-          })
-          log("Navigation message sent successfully")
+      const client = selectNotificationClient(allClients, fullUrl)
+      if (client) {
+        const handled = await navigateNotificationClient(client, fullUrl)
+        if (handled) {
           return
-        } catch (err) {
-          error("Failed to focus client or send navigation message:", err)
-          // Fall through to opening new window
         }
       }
 

@@ -98,7 +98,15 @@ export const showNotification = async (
 
   if (window.Notification?.permission === "granted") {
     navigator.serviceWorker.ready.then(async function (serviceWorker) {
-      await serviceWorker.showNotification(title, options)
+      const clickUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`
+      const data =
+        options?.data && typeof options.data === "object"
+          ? {url: clickUrl, ...options.data}
+          : (options?.data ?? {url: clickUrl})
+      await serviceWorker.showNotification(title, {
+        ...options,
+        data,
+      })
     })
   } else if (nag) {
     const {alert} = await import("@/utils/utils")
