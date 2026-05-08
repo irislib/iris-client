@@ -65,4 +65,10 @@ describe("resolveNotificationClickUrl", () => {
       "https://iris.to/"
     )
   })
+
+  it("uses a caller-provided fallback route when the payload lacks a usable URL", () => {
+    expect(
+      resolveNotificationClickUrl({event: {kind: 1}}, origin, "/notifications")
+    ).toBe("https://iris.to/notifications")
+  })
 })

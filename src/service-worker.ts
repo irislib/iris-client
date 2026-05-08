@@ -174,14 +174,19 @@ self.addEventListener("message", (event) => {
 self.addEventListener("install", (event) => {
   // delete all cache on install
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          log("Deleting cache: ", cacheName)
-          return caches.delete(cacheName)
-        })
-      )
-    })
+    caches
+      .keys()
+      .then((cacheNames) => {
+        return Promise.all(
+          cacheNames.map((cacheName) => {
+            log("Deleting cache: ", cacheName)
+            return caches.delete(cacheName)
+          })
+        )
+      })
+      .then(() => {
+        return self.skipWaiting()
+      })
   )
 })
 
@@ -199,6 +204,24 @@ interface PushData {
   body: string
   icon: string
   url: string
+}
+
+function getNotificationEventKind(notificationData: unknown): number | undefined {
+  if (!notificationData || typeof notificationData !== "object") {
+    return undefined
+  }
+
+  const event = (notificationData as {event?: {kind?: unknown}}).event
+  return typeof event?.kind === "number" ? event.kind : undefined
+}
+
+function getNotificationFallbackPath(notificationData: unknown): string {
+  const kind = getNotificationEventKind(notificationData)
+  if (kind === undefined) {
+    return "/"
+  }
+
+  return NOTIFICATION_CONFIGS[kind]?.url || "/notifications"
 }
 
 function sameOriginClient(client: WindowClient): boolean {
@@ -224,10 +247,16 @@ async function navigateNotificationClient(
   client: WindowClient,
   targetUrl: string
 ): Promise<boolean> {
+  const focusedClient = await client.focus().catch((err) => {
+    error("Failed to focus notification client:", err)
+    return null
+  })
+  const activeClient = focusedClient || client
+
   if (typeof client.navigate === "function") {
     try {
-      const navigatedClient = await client.navigate(targetUrl)
-      await (navigatedClient || client).focus()
+      const navigatedClient = await activeClient.navigate(targetUrl)
+      await (navigatedClient || activeClient).focus()
       log("Client navigated and focused")
       return true
     } catch (err) {
@@ -236,8 +265,7 @@ async function navigateNotificationClient(
   }
 
   try {
-    await client.focus()
-    client.postMessage({
+    activeClient.postMessage({
       type: "NAVIGATE_REACT_ROUTER",
       url: targetUrl,
     })
@@ -256,7 +284,11 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     (async function () {
-      const fullUrl = resolveNotificationClickUrl(notificationData, self.location.origin)
+      const fullUrl = resolveNotificationClickUrl(
+        notificationData,
+        self.location.origin,
+        getNotificationFallbackPath(notificationData)
+      )
       log("Navigating to:", fullUrl)
 
       const allClients = await self.clients.matchAll({
