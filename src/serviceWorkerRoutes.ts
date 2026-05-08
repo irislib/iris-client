@@ -45,23 +45,28 @@ function getNotificationTargetUrl(data: unknown): string | undefined {
 
 export function resolveNotificationClickUrl(
   notificationData: unknown,
-  appOrigin: string
+  appOrigin: string,
+  fallbackPath = "/"
 ): string {
   const origin = new URL(appOrigin).origin
-  const fallbackUrl = `${origin}/`
+  const fallbackUrl = resolveSameOriginHttpUrl(fallbackPath, origin) || `${origin}/`
   const rawUrl = getNotificationTargetUrl(notificationData)
   if (!rawUrl) {
     return fallbackUrl
   }
 
+  return resolveSameOriginHttpUrl(rawUrl, origin) || fallbackUrl
+}
+
+function resolveSameOriginHttpUrl(rawUrl: string, origin: string): string | null {
   try {
     const targetUrl = new URL(rawUrl, `${origin}/`)
     if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
-      return fallbackUrl
+      return null
     }
 
     return `${origin}${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`
   } catch {
-    return fallbackUrl
+    return null
   }
 }
