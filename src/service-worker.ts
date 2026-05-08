@@ -19,6 +19,7 @@ import {KIND_CHANNEL_CREATE} from "./utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import NDKCacheAdapterDexie from "@/lib/ndk-cache"
+import {NDKEvent} from "@/lib/ndk"
 import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
 import {isHashtreeBlobRequest, resolveNotificationClickUrl} from "./serviceWorkerRoutes"
 
@@ -412,6 +413,16 @@ self.addEventListener("push", (event) => {
       const icon = data.icon?.startsWith("http")
         ? generateProxyUrl(data.icon, {width: 128, square: true}, proxyConfig)
         : data.icon || "/favicon.png"
+
+      // Cache the pushed event so the page renders instantly when clicked. The
+      // notification server sees events on relays the client may not connect to,
+      // so without this the destination /note1<id> would never resolve.
+      try {
+        const ndkEvent = new NDKEvent(undefined, data.event)
+        await getCacheAdapter().setEvent(ndkEvent, [])
+      } catch (err) {
+        error("Failed to cache pushed event:", err)
+      }
 
       await self.registration.showNotification(data.title || "New notification", {
         body: data.body,

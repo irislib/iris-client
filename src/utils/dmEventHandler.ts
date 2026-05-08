@@ -15,7 +15,6 @@ import {
   isOwnDeviceEvent,
   isOwnDevicePubkey,
   resolveSessionPubkeyToOwner,
-  type SessionUserRecordsLike,
 } from "@/utils/sessionRouting"
 import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 import {useChatExpirationStore} from "@/stores/chatExpiration"

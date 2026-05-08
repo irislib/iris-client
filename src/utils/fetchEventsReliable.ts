@@ -2,7 +2,7 @@ import {ndk} from "./ndk"
 import type {NDKEvent, NDKFilter, NDKSubscription} from "@/lib/ndk"
 import {createDebugLogger} from "./createDebugLogger"
 import {DEBUG_NAMESPACES} from "./constants"
-import {getEventSync, cacheEvent} from "./eventCache"
+import {getEvent, getEventSync, cacheEvent} from "./eventCache"
 
 const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -77,15 +77,38 @@ export function fetchEventsReliable(
       )
     }
 
-    // If we already have all events from cache, resolve immediately
-    if (requestedIds.size > 0 && events.size === requestedIds.size) {
-      log(
-        `[fetchEventsReliable] All ${requestedIds.size} events found in cache, resolving`
-      )
-      resolve(Array.from(events.values()))
+    const continueAfterIdbCheck = () => {
+      // If we already have all events from cache, resolve immediately
+      if (requestedIds.size > 0 && events.size === requestedIds.size) {
+        log(
+          `[fetchEventsReliable] All ${requestedIds.size} events found in cache, resolving`
+        )
+        resolve(Array.from(events.values()))
+        return
+      }
+      startSubscription(resolve)
+    }
+
+    // For ID queries, also try the persistent IDB cache for any not in the LRU.
+    // The service worker writes pushed events here, so this is what makes a
+    // notification click resolve immediately when the client never had the event.
+    if (requestedIds.size > 0 && events.size < requestedIds.size) {
+      const missing = Array.from(requestedIds).filter((id) => !events.has(id))
+      Promise.all(missing.map((id) => getEvent(id)))
+        .then((fromIdb) => {
+          fromIdb.forEach((evt) => {
+            if (evt) events.set(evt.id, evt)
+          })
+        })
+        .catch((err) => warn("[fetchEventsReliable] IDB lookup failed:", err))
+        .finally(continueAfterIdbCheck)
       return
     }
 
+    continueAfterIdbCheck()
+  })
+
+  function startSubscription(resolve: (value: NDKEvent[]) => void) {
     // Use groupable subscriptions for ID queries to batch them together
     const isIdQuery = requestedIds.size > 0
     sub = ndk().subscribe(filterArray, {
@@ -154,7 +177,7 @@ export function fetchEventsReliable(
       })
     }
     // ID query with no timeout: subscription stays open until all IDs found or manually unsubscribed
-  })
+  }
 
   return {
     promise,

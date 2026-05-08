@@ -252,9 +252,7 @@ export const ensureNdrRuntime = async (ownerPubkey: string): Promise<NdrRuntime>
   return currentRuntime
 }
 
-export const initPrivateMessaging = async (
-  ownerPubkey: string
-): Promise<NdrRuntime> => {
+export const initPrivateMessaging = async (ownerPubkey: string): Promise<NdrRuntime> => {
   const currentRuntime = await ensureNdrRuntime(ownerPubkey)
 
   attachNdrRuntimeEventListener(currentRuntime)
@@ -275,7 +273,9 @@ export const waitForNdrRuntime = async (ownerPubkey?: string): Promise<NdrRuntim
   }
 
   const resolvedOwnerPubkey =
-    ownerPubkey || currentRuntime.getState().ownerPubkey || useUserStore.getState().publicKey
+    ownerPubkey ||
+    currentRuntime.getState().ownerPubkey ||
+    useUserStore.getState().publicKey
   if (!resolvedOwnerPubkey) {
     throw new Error("Owner pubkey required to initialize NdrRuntime")
   }

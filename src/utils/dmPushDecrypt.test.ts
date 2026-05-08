@@ -19,19 +19,9 @@ const createSessionPair = () => {
   const responderPub = getPublicKey(responderPriv)
   const sharedSecret = generateSecretKey()
 
-  const sender = Session.init(
-    responderPub,
-    initiatorPriv,
-    true,
-    sharedSecret
-  )
+  const sender = Session.init(responderPub, initiatorPriv, true, sharedSecret)
 
-  const receiver = Session.init(
-    initiatorPub,
-    responderPriv,
-    false,
-    sharedSecret
-  )
+  const receiver = Session.init(initiatorPub, responderPriv, false, sharedSecret)
 
   return {sender, receiver}
 }

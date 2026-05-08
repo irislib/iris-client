@@ -9,6 +9,7 @@ import {MouseEvent, useEffect, useState} from "react"
 import {Notification} from "@/utils/notifications"
 import {useNavigate, Link} from "@/navigation"
 import {getTag} from "@/utils/nostr"
+import {cacheEvent} from "@/utils/eventCache"
 import {formatAmount} from "@/utils/utils.ts"
 import classNames from "classnames"
 import {nip19} from "nostr-tools"
@@ -104,12 +105,15 @@ function NotificationsFeedItem({notification, highlight}: NotificationsFeedItemP
       return
     }
     try {
-      const noteAddr = nip19.noteEncode(
+      const targetId =
         notification.kind === KIND_TEXT_NOTE
           ? notification.id
           : notification.originalEventId
-      )
-      navigate(`/${noteAddr}`)
+      const targetEvent = notification.events.find(
+        (ev) => ev.event.id === targetId
+      )?.event
+      if (targetEvent) cacheEvent(targetEvent)
+      navigate(`/${nip19.noteEncode(targetId)}`)
     } catch (error) {
       console.warn(error)
     }

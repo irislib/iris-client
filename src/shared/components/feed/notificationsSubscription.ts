@@ -6,6 +6,7 @@ import {getTag, getZappingUser, getZapAmount} from "@/utils/nostr.ts"
 import {notifications, Notification as IrisNotification} from "@/utils/notifications"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useNotificationsStore} from "@/stores/notifications"
+import {cacheEvent} from "@/utils/eventCache"
 import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
 import {NDKEvent, NDKSubscription} from "@/lib/ndk"
@@ -144,6 +145,9 @@ export const startNotificationsSubscription = debounce(async (myPubKey?: string)
       const zappingUser = getZappingUser(event)
       if (zappingUser && shouldHideUser(zappingUser)) return
     }
+    // Cache the event so clicking the notification renders instantly
+    cacheEvent(event)
+
     const eTag = getTag("e", event.tags)
     if (eTag && event.created_at) {
       const key = `${eTag}-${event.kind}`

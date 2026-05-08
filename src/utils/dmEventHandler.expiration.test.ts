@@ -40,7 +40,10 @@ vi.mock("./socialGraph", () => ({
 
 vi.mock("@/shared/services/PrivateChats", () => ({}))
 
-import {attachNdrRuntimeEventListener, cleanupNdrRuntimeEventListener} from "./dmEventHandler"
+import {
+  attachNdrRuntimeEventListener,
+  cleanupNdrRuntimeEventListener,
+} from "./dmEventHandler"
 
 const flushPromises = () => new Promise<void>((resolve) => setImmediate(resolve))
 
