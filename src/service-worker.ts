@@ -264,8 +264,12 @@ async function navigateNotificationClient(
     }
   }
 
+  if (!focusedClient) {
+    return false
+  }
+
   try {
-    activeClient.postMessage({
+    focusedClient.postMessage({
       type: "NAVIGATE_REACT_ROUTER",
       url: targetUrl,
     })
