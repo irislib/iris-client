@@ -25,8 +25,10 @@ describe("NDKEvent.reply()", () => {
     // new one (pointing at the parent). Clients picking the first reply
     // marker rendered the new event as a reply to X instead of the parent.
     const rootId = "00002ce0d113d8aaa88d05db89df616cec6ce3995b5a65eefebb41a7c8ed8624"
-    const grandparentId = "9e2da5f7122ac08361001bdc886335fac5378cb4b227babc122c382a88451999"
-    const grandparentAuthor = "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
+    const grandparentId =
+      "9e2da5f7122ac08361001bdc886335fac5378cb4b227babc122c382a88451999"
+    const grandparentAuthor =
+      "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
 
     const parent = await makeSignedEvent([
       ["e", rootId, "wss://nostr21.com", "root"],
@@ -95,5 +97,31 @@ describe("NDKEvent.reply()", () => {
     expect(replyMarkers).toHaveLength(1)
     expect(replyMarkers[0][1]).toBe(parent.id)
     expect(eTags.some((t) => t[1] === middleId)).toBe(false)
+  })
+
+  it("creates replies from detached cached events", () => {
+    const rootId = "a".repeat(64)
+    const rootAuthor = "b".repeat(64)
+    const parentId = "c".repeat(64)
+    const parentAuthor = "d".repeat(64)
+    const parent = new NDKEvent(undefined, {
+      kind: 1,
+      created_at: 1700000000,
+      id: parentId,
+      pubkey: parentAuthor,
+      sig: "e".repeat(128),
+      content: "cached reply",
+      tags: [
+        ["e", rootId, "", "root", rootAuthor],
+        ["p", rootAuthor],
+      ],
+    })
+
+    const reply = parent.reply()
+
+    expect(reply.kind).toBe(1)
+    expect(reply.tags).toContainEqual(["e", rootId, "", "root", rootAuthor])
+    expect(reply.tags).toContainEqual(["e", parentId, "", "reply", parentAuthor])
+    expect(reply.tags).toContainEqual(["p", parentAuthor])
   })
 })

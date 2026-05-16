@@ -839,7 +839,15 @@ export class NDKEvent extends EventEmitter {
     // NIP-29 h-tags
     tags = [...tags, ...this.getMatchingTags("h")]
 
-    if (!skipAuthorTag && opts?.pTags !== false) tags.push(...this.author.referenceTags())
+    if (!skipAuthorTag && opts?.pTags !== false) {
+      if (this._author) {
+        tags.push(...this._author.referenceTags())
+      } else if (this.pubkey) {
+        tags.push(["p", this.pubkey])
+      } else if (this.ndk) {
+        tags.push(...this.author.referenceTags())
+      }
+    }
 
     return tags
   }

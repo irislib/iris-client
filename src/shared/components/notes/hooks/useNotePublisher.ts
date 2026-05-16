@@ -18,17 +18,21 @@ export function useNotePublisher(params: UseNotePublisherParams) {
   const [publishing, setPublishing] = useState(false)
 
   const publish = async (state: NoteCreatorState) => {
-    if (!params.myPubKey || !params.ndkInstance || !state.text.trim() || publishing) {
+    const {myPubKey, ndkInstance} = params
+
+    if (!myPubKey || !ndkInstance || !state.text.trim() || publishing) {
       return false
     }
 
     setPublishing(true)
     try {
       const effectiveEventKind = params.replyingTo ? NDKKind.Text : state.eventKind
-      const event = params.replyingTo
-        ? params.replyingTo.reply()
-        : new NDKEvent(params.ndkInstance)
-      event.ndk ??= params.ndkInstance
+      const replyingTo = params.replyingTo
+      if (replyingTo) {
+        replyingTo.ndk ??= ndkInstance
+      }
+      const event = replyingTo ? replyingTo.reply() : new NDKEvent(ndkInstance)
+      event.ndk ??= ndkInstance
 
       if (!params.replyingTo) {
         event.kind = effectiveEventKind as NDKKind
@@ -47,7 +51,7 @@ export function useNotePublisher(params: UseNotePublisherParams) {
         eventKind: effectiveEventKind,
         title: state.title,
         price: state.price,
-        myPubKey: params.myPubKey,
+        myPubKey,
       })
 
       // Validate tags are all valid arrays
