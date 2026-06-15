@@ -34,7 +34,7 @@ export const useUIStore = create<UIState>()(
         goToNotifications: 0,
         hidePWAPrompt: false,
         isMediaModalSidebarVisible: true,
-        showRelayIndicator: true,
+        showRelayIndicator: false,
         navItemClicked: {signal: 0, path: ""},
         chatsListActiveTab: "all" as "all" | "requests",
         marketDisplayAs: "list" as "list" | "grid",

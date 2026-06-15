@@ -30,7 +30,7 @@ export const RelayConnectivityIndicator = ({
   const targetPath =
     normalizedPath === "/settings/network" ? "/settings" : "/settings/network"
 
-  if (!showRelayIndicator) return null
+  if (!showRelayIndicator && relayCount > 0) return null
 
   return (
     <Link
