@@ -9,6 +9,11 @@ interface RelayConnectivityIndicatorProps {
   showCount?: boolean
 }
 
+const getNetworkSettingsPath = (pathname: string) => {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/"
+  return normalizedPath === "/settings/network" ? "/settings" : "/settings/network"
+}
+
 export const RelayConnectivityIndicator = ({
   className = "",
   showCount = true,
@@ -26,11 +31,9 @@ export const RelayConnectivityIndicator = ({
     return "text-neutral-500"
   }
 
-  const normalizedPath = location.pathname.replace(/\/+$/, "") || "/"
-  const targetPath =
-    normalizedPath === "/settings/network" ? "/settings" : "/settings/network"
+  const targetPath = getNetworkSettingsPath(location.pathname)
 
-  if (!showRelayIndicator && relayCount > 0) return null
+  if (!showRelayIndicator) return null
 
   return (
     <Link
@@ -46,7 +49,23 @@ export const RelayConnectivityIndicator = ({
 
 // Separate component for use in sidebar with offline label
 export const OfflineIndicator = ({className = ""}: {className?: string}) => {
+  const {showRelayIndicator} = useUIStore()
   const isOnline = useOnlineStatus()
-  if (isOnline) return null
-  return <span className={`badge badge-error badge-sm ${className}`}>offline</span>
+  const workerRelays = useWorkerRelayStatus()
+  const location = useLocation()
+  const relayCount = workerRelays.relays.filter((r) => r.status >= 5).length
+  const targetPath = getNetworkSettingsPath(location.pathname)
+
+  if (showRelayIndicator || (isOnline && relayCount > 0)) return null
+
+  return (
+    <Link
+      to={targetPath}
+      className={`badge badge-error badge-sm ${className} hover:opacity-75 transition-opacity`}
+      title="Offline"
+      aria-label="Offline"
+    >
+      offline
+    </Link>
+  )
 }

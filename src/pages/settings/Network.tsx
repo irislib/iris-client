@@ -69,7 +69,7 @@ export function Network() {
           <SettingsGroup title="Connection">
             <SettingsGroupItem>
               <div className="flex justify-between items-center">
-                <span>Show Relay Indicator</span>
+                <span>Show connectivity in header</span>
                 <input
                   type="checkbox"
                   checked={showRelayIndicator}
