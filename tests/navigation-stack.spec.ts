@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {enableHeaderConnectivity} from "./ui-settings"
 
 test.describe("Stack Navigation", () => {
   test("back/forward navigation should work correctly", async ({page}) => {
@@ -79,6 +80,7 @@ test.describe("Stack Navigation", () => {
   test("connectivity indicator returns to settings root when already on network settings", async ({
     page,
   }) => {
+    await enableHeaderConnectivity(page)
     await signUp(page)
 
     const relayIndicator = page.locator('[title*="relays connected"]').first()

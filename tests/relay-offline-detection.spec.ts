@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {enableHeaderConnectivity} from "./ui-settings"
 
 test("relay status updates when going offline and back online", async ({
   page,
@@ -16,6 +17,7 @@ test("relay status updates when going offline and back online", async ({
   await page.addInitScript(() => {
     localStorage.setItem("debug", "iris:ndk-worker,iris:ndk-relay")
   })
+  await enableHeaderConnectivity(page)
 
   // Sign up to see relay indicator
   await signUp(page, "Offline Test User")

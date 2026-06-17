@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {enableHeaderConnectivity} from "./ui-settings"
 
 test("manually added relay connects and shows in count", async ({page}) => {
   test.setTimeout(60000)
@@ -20,6 +21,7 @@ test("manually added relay connects and shows in count", async ({page}) => {
   await page.addInitScript(() => {
     localStorage.setItem("debug", "iris:ndk-worker,iris:ndk-relay")
   })
+  await enableHeaderConnectivity(page)
 
   // Sign up to see relay indicator
   await signUp(page, "Manual Add Test User")
