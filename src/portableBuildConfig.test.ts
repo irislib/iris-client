@@ -24,11 +24,10 @@ describe("portable build config", () => {
     expect(viteConfig).toContain('base: "./"')
   })
 
-  it("keeps worker-first routing limited to .well-known requests", () => {
+  it("runs the worker before assets so HTTP redirects and .well-known proxying both work", () => {
     const wranglerConfig = readRootFile("wrangler.jsonc")
 
-    expect(wranglerConfig).toContain('"run_worker_first": ["/.well-known/*"]')
-    expect(wranglerConfig).not.toContain('"run_worker_first": ["/**"]')
+    expect(wranglerConfig).toContain('"run_worker_first": ["/**"]')
   })
 
   it("keeps entry html free of root-absolute asset refs", () => {

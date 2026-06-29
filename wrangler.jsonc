@@ -9,6 +9,6 @@
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/.well-known/*"]
+    "run_worker_first": ["/**"]
   }
 }

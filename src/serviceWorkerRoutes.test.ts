@@ -9,23 +9,18 @@ function match(url: string, method = "GET") {
 }
 
 describe("isHashtreeBlobRequest", () => {
-  it("matches immutable hashtree blobs on the public read origins", () => {
+  it("matches immutable hashtree blobs on the public read origin", () => {
     expect(
       match(
         "https://cdn.iris.to/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.bin"
-      )
-    ).toBe(true)
-    expect(
-      match(
-        "https://hashtree.iris.to/abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd.bin"
       )
     ).toBe(true)
   })
 
   it("rejects non-blob paths and mutable endpoints", () => {
     expect(match("https://cdn.iris.to/index.html")).toBe(false)
-    expect(match("https://hashtree.iris.to/upload")).toBe(false)
-    expect(match("https://hashtree.iris.to/not-a-hash.bin")).toBe(false)
+    expect(match("https://cdn.iris.to/upload")).toBe(false)
+    expect(match("https://cdn.iris.to/not-a-hash.bin")).toBe(false)
   })
 
   it("rejects other origins and non-GET methods", () => {

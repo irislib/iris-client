@@ -28,7 +28,6 @@ const PROFILE_SEARCH_ROOT_CACHE_PREFIX = "profile-search-root"
 const DEFAULT_BLOSSOM_SERVERS: BlossomServer[] = [
   {url: "https://upload.iris.to", read: false, write: true},
   {url: "https://cdn.iris.to", read: true, write: false},
-  {url: "https://hashtree.iris.to", read: true, write: false},
 ]
 
 export type SearchHitSource = "local" | "remote"
@@ -128,7 +127,7 @@ function inferBlossomRole(url: string): Pick<BlossomServer, "read" | "write"> {
     if (host.startsWith("upload.")) {
       return {read: false, write: true}
     }
-    if (host.startsWith("cdn.") || host.startsWith("hashtree.")) {
+    if (host.startsWith("cdn.")) {
       return {read: true, write: false}
     }
   } catch {

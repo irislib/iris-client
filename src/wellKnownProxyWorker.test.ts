@@ -4,6 +4,20 @@ import {describe, expect, it, vi} from "vitest"
 import worker from "../scripts/well-known-proxy-worker.mjs"
 
 describe("static assets worker", () => {
+  it("redirects plain HTTP requests to HTTPS before assets", async () => {
+    const assetsFetch = vi.fn(async () => new Response("unexpected", {status: 500}))
+
+    const response = await worker.fetch(new Request("http://iris.to/#/npub1demo"), {
+      ASSETS: {
+        fetch: assetsFetch,
+      },
+    })
+
+    expect(response.status).toBe(308)
+    expect(response.headers.get("location")).toBe("https://iris.to/#/npub1demo")
+    expect(assetsFetch).not.toHaveBeenCalled()
+  })
+
   it("proxies .well-known requests to the iris API", async () => {
     const upstreamFetch = vi.fn(async (request: Request) => {
       expect(request).toBeInstanceOf(Request)
