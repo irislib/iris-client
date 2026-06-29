@@ -98,7 +98,7 @@ export const DoubleRatchetUserSearch = ({
         />
         {showCount && (
           <p className="text-sm text-base-content/70 mt-2">
-            {count} followed or messaged users have enabled secure messaging
+            {count} followed or messaged {count === 1 ? "user" : "users"} available
           </p>
         )}
       </div>

@@ -28,6 +28,65 @@ const notifySubscribers = () => {
   subscribers.forEach((callback) => callback())
 }
 
+export interface ReconcileDoubleRatchetUserPubkeysOptions {
+  currentPubkeys: Iterable<string>
+  candidatePubkeys: Iterable<string>
+  ownPubkey?: string
+}
+
+export const reconcileDoubleRatchetUserPubkeys = ({
+  candidatePubkeys,
+  ownPubkey,
+}: ReconcileDoubleRatchetUserPubkeysOptions): string[] => {
+  const own = ownPubkey?.trim()
+  const seen = new Set<string>()
+  const next: string[] = []
+
+  for (const pubkey of candidatePubkeys) {
+    const normalized = pubkey.trim()
+    if (!normalized || normalized === own || seen.has(normalized)) {
+      continue
+    }
+    seen.add(normalized)
+    next.push(normalized)
+  }
+
+  return next
+}
+
+export const replaceDoubleRatchetUserCandidates = (
+  candidatePubkeys: Iterable<string>,
+  ownPubkey?: string
+) => {
+  const nextPubkeys = new Set(
+    reconcileDoubleRatchetUserPubkeys({
+      currentPubkeys: doubleRatchetUsers,
+      candidatePubkeys,
+      ownPubkey,
+    })
+  )
+  let changed = false
+
+  for (const pubkey of Array.from(doubleRatchetUsers)) {
+    if (nextPubkeys.has(pubkey)) continue
+    doubleRatchetUsers.delete(pubkey)
+    userData.delete(pubkey)
+    changed = true
+  }
+
+  for (const pubkey of nextPubkeys) {
+    if (doubleRatchetUsers.has(pubkey)) continue
+    doubleRatchetUsers.add(pubkey)
+    changed = true
+  }
+
+  if (changed) {
+    updateDoubleRatchetSearchIndex()
+  }
+
+  return doubleRatchetUsers.size
+}
+
 // Subscribe to doubleRatchetUsers changes
 export const subscribeToDoubleRatchetUsersChanges = (callback: () => void) => {
   subscribers.add(callback)
