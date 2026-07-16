@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+/* global WindowClient */
 import {
   INVITE_EVENT_KIND,
   INVITE_RESPONSE_KIND,
@@ -11,8 +12,7 @@ import {precacheAndRoute, PrecacheEntry} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {registerRoute} from "workbox-routing"
-import {clientsClaim} from "workbox-core"
-import type {RouteMatchCallbackOptions} from "workbox-core"
+import {clientsClaim, type RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 import {KIND_CHANNEL_CREATE} from "./utils/constants"
