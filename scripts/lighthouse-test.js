@@ -15,7 +15,7 @@ const jsonOnly = args.includes("--json")
 
 // Start preview server
 console.log("Starting preview server...")
-const server = spawn("npx", ["vite", "preview", "--port", PORT], {
+const server = spawn("pnpm", ["exec", "vite", "preview", "--port", PORT], {
   stdio: jsonOnly ? "ignore" : "inherit",
 })
 
@@ -27,7 +27,8 @@ try {
   if (!jsonOnly) console.log("\nRunning Lighthouse audit...\n")
 
   const lhArgs = [
-    "lighthouse",
+    "dlx",
+    "lighthouse@13.4.0",
     URL,
     "--only-categories=performance",
     "--output=json",
@@ -39,7 +40,7 @@ try {
   if (openReport) lhArgs.push("--view")
 
   await new Promise((resolve, reject) => {
-    const lh = spawn("npx", lhArgs, {
+    const lh = spawn("pnpm", lhArgs, {
       stdio: jsonOnly ? "pipe" : "inherit",
     })
     lh.on("close", (code) => (code === 0 ? resolve() : reject(new Error(`Exit ${code}`))))

@@ -1,6 +1,7 @@
 import {test, expect, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {waitForConnectedRelays} from "./utils/relay-status"
 
 test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
 
@@ -22,20 +23,6 @@ async function openLoginDialog(page: Page) {
   const signUpButton = page.locator("button:visible", {hasText: "Sign up"}).first()
   await expect(signUpButton).toBeVisible({timeout: 10000})
   await signUpButton.click()
-}
-
-async function waitForConnectedRelays(page: Page) {
-  const relayIndicator = page.locator('[title*="relays connected"]').first()
-  await expect(relayIndicator).toBeVisible({timeout: 10000})
-  await expect
-    .poll(
-      async () => {
-        const text = await relayIndicator.textContent()
-        return parseInt(text?.match(/\d+/)?.[0] || "0", 10)
-      },
-      {timeout: 10000}
-    )
-    .toBeGreaterThan(0)
 }
 
 async function openSelfChat(page: Page) {

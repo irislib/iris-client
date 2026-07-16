@@ -3,6 +3,7 @@ import {bytesToHex} from "@noble/hashes/utils"
 import {generateSecretKey} from "nostr-tools"
 import {signIn} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {waitForConnectedRelays} from "./utils/relay-status"
 
 test.skip(usingBuiltDist, "requires deterministic local-relay same-key private messaging")
 
@@ -11,20 +12,6 @@ async function waitForNextCreatedAtSecond() {
   while (Math.floor(Date.now() / 1000) === currentSecond) {
     await new Promise((resolve) => setTimeout(resolve, 25))
   }
-}
-
-async function waitForConnectedRelays(page) {
-  const relayIndicator = page.locator('[title*="relays connected"]').first()
-  await expect(relayIndicator).toBeVisible({timeout: 10000})
-  await expect
-    .poll(
-      async () => {
-        const text = await relayIndicator.textContent()
-        return parseInt(text?.match(/\d+/)?.[0] || "0", 10)
-      },
-      {timeout: 10000}
-    )
-    .toBeGreaterThan(0)
 }
 
 function registeredDeviceEntries(page) {

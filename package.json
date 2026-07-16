@@ -143,7 +143,6 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.1.0",
     "knip": "^5.88.1",
-    "lighthouse": "^12.8.2",
     "node-fetch": "^3.3.2",
     "postcss": "^8.5.19",
     "prettier": "^3.9.5",
