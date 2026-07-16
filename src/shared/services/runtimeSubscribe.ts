@@ -1,11 +1,10 @@
 import {NDKEvent, NDKFilter, NDKSubscriptionCacheUsage} from "@/lib/ndk"
 import {
-  buildDirectMessageBackfillFilter,
-  DirectMessageSubscriptionTracker,
+  buildRuntimeBackfillFilters,
+  RuntimeSubscriptionTracker,
   type NostrSubscribe,
 } from "nostr-double-ratchet"
 
-const DIRECT_MESSAGE_BACKFILL_LOOKBACK_SECONDS = 15
 const DIRECT_MESSAGE_BACKFILL_LIMIT = 200
 
 interface RuntimeSubscribeNdk {
@@ -30,7 +29,7 @@ export const createRuntimeSubscribe = (
   ndkInstance: RuntimeSubscribeNdk,
   cacheUsage: NDKSubscriptionCacheUsage = NDKSubscriptionCacheUsage.PARALLEL
 ): NostrSubscribe => {
-  const tracker = new DirectMessageSubscriptionTracker()
+  const tracker = new RuntimeSubscriptionTracker()
 
   return (filter, onEvent) => {
     const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
@@ -43,7 +42,7 @@ export const createRuntimeSubscribe = (
       onEvent(rawEvent as unknown as Parameters<typeof onEvent>[0])
     }
 
-    const {token, addedAuthors} = tracker.registerFilter(filter)
+    const registered = tracker.registerFilter(filter)
 
     const liveSubscription = ndkInstance.subscribe(filter as NDKFilter, {
       closeOnEose: false,
@@ -53,27 +52,27 @@ export const createRuntimeSubscribe = (
     liveSubscription.on("event", forwardEvent)
     liveSubscription.start()
 
-    const backfillSubscription = addedAuthors.length
-      ? ndkInstance.subscribe(
-          buildDirectMessageBackfillFilter(
-            addedAuthors,
-            Math.floor(Date.now() / 1000) - DIRECT_MESSAGE_BACKFILL_LOOKBACK_SECONDS,
-            DIRECT_MESSAGE_BACKFILL_LIMIT
-          ) as NDKFilter,
-          {
-            closeOnEose: true,
-            cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
-            ...relayOptions,
-          }
-        )
-      : null
+    const backfillSubscriptions = buildRuntimeBackfillFilters(
+      registered,
+      DIRECT_MESSAGE_BACKFILL_LIMIT
+    ).map((backfillFilter) =>
+      ndkInstance.subscribe(backfillFilter as NDKFilter, {
+        closeOnEose: true,
+        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+        ...relayOptions,
+      })
+    )
 
-    backfillSubscription?.on("event", forwardEvent)
-    backfillSubscription?.start()
+    for (const backfillSubscription of backfillSubscriptions) {
+      backfillSubscription.on("event", forwardEvent)
+      backfillSubscription.start()
+    }
 
     return () => {
-      tracker.unregister(token)
-      backfillSubscription?.stop()
+      tracker.unregister(registered.token)
+      for (const backfillSubscription of backfillSubscriptions) {
+        backfillSubscription.stop()
+      }
       liveSubscription.stop()
     }
   }

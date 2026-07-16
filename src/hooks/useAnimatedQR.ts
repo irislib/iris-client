@@ -1,5 +1,6 @@
 import {useState, useEffect, useRef, useCallback} from "react"
 import {UR, UREncoder} from "@gandlaf21/bc-ur"
+import {Buffer} from "buffer"
 
 type Speed = "slow" | "medium" | "fast"
 type Size = "small" | "medium" | "large"

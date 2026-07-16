@@ -1,6 +1,7 @@
 import {ensureNdrRuntime, getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useGroupsStore, type Group} from "@/stores/groups"
-import {type GroupData, type Rumor} from "nostr-double-ratchet"
+import {buildGroupRosterFactEvent, type GroupData, type Rumor} from "nostr-double-ratchet"
+import {getEventHash} from "nostr-tools"
 
 function toGroupData(group: Group): GroupData {
   return {
@@ -90,6 +91,48 @@ export async function createGroupViaTransport(options: {
   })
 
   return created.group
+}
+
+export async function publishGroupRosterViaTransport(options: {
+  group: Group
+  senderPubKey: string
+  recipients?: string[]
+}): Promise<Rumor> {
+  const {group, senderPubKey} = options
+  const recipients = Array.from(new Set(options.recipients ?? group.members))
+  await ensureNdrRuntime(senderPubKey)
+
+  const runtime = getNdrRuntime()
+  await runtime.upsertGroup(toGroupData(group))
+
+  const nowSeconds = Math.floor(Date.now() / 1000)
+  const revision = Math.max((group.rosterRevision ?? 0) + 1, Date.now())
+  const roster: Rumor = {
+    ...buildGroupRosterFactEvent(group, {
+      signerPubkey: senderPubKey,
+      revision,
+      createdBy: group.admins[0] ?? senderPubKey,
+      updatedAt: nowSeconds,
+      eventCreatedAt: nowSeconds,
+      protocol: "sender_key_v1",
+    }),
+    id: "",
+  }
+  roster.id = getEventHash(roster)
+
+  await Promise.all(
+    recipients.map((recipient) => {
+      const recipientRoster = {
+        ...roster,
+        tags: [...roster.tags, ["p", recipient]],
+      }
+      recipientRoster.id = getEventHash(recipientRoster)
+      return runtime.sendEvent(recipient, recipientRoster, senderPubKey)
+    })
+  )
+
+  useGroupsStore.getState().updateGroup(group.id, {rosterRevision: revision})
+  return roster
 }
 
 export async function rotateGroupSenderKey(options: {

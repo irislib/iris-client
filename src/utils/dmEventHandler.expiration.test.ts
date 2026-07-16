@@ -101,7 +101,7 @@ describe("dmEventHandler expiration settings", () => {
     })
   })
 
-  it("applies group disappearing message TTL from group metadata updates", async () => {
+  it("ignores the retired pairwise group-metadata carrier", async () => {
     const groupId = "group-1"
 
     attachNdrRuntimeEventListener(sessionManager as any)
@@ -131,14 +131,12 @@ describe("dmEventHandler expiration settings", () => {
 
     await flushPromises()
 
-    expect(useGroupsStore.getState().groups[groupId]?.messageTtlSeconds).toBe(3600)
-    expect(useChatExpirationStore.getState().expirations[groupId]).toBe(3600)
-    expect(sessionManager.setExpirationForGroup).toHaveBeenCalledWith(groupId, {
-      ttlSeconds: 3600,
-    })
+    expect(useGroupsStore.getState().groups[groupId]).toBeUndefined()
+    expect(useChatExpirationStore.getState().expirations[groupId]).toBeUndefined()
+    expect(sessionManager.setExpirationForGroup).not.toHaveBeenCalled()
   })
 
-  it("treats legacy group typing events as ephemeral", async () => {
+  it("leaves group typing to the runtime group controller", async () => {
     const groupId = "group-typing"
 
     attachNdrRuntimeEventListener(sessionManager as any)
@@ -160,7 +158,7 @@ describe("dmEventHandler expiration settings", () => {
 
     await flushPromises()
 
-    expect(useTypingStore.getState().isTyping.get(groupId)).toBe(true)
+    expect(useTypingStore.getState().isTyping.get(groupId)).toBeUndefined()
     expect(
       usePrivateMessagesStore.getState().events.get(groupId)?.get("typing-1")
     ).toBeUndefined()

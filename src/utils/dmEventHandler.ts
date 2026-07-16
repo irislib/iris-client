@@ -1,13 +1,12 @@
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
-import {useGroupsStore} from "@/stores/groups"
 import {useDevicesStore} from "@/stores/devices"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
-import {KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS, KIND_REACTION} from "./constants"
+import {KIND_CHAT_SETTINGS, KIND_REACTION} from "./constants"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -20,20 +19,15 @@ import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {parseChatSettingsMessage} from "@/utils/chatSettings"
 import {
-  applyMetadataUpdate,
   getMillisecondTimestamp,
-  GROUP_SENDER_KEY_DISTRIBUTION_KIND,
   isTyping,
   parseReceipt,
-  parseGroupMetadata,
   shouldAdvanceReceiptStatus,
   type Rumor,
   type NdrRuntime,
-  validateMetadataCreation,
-  validateMetadataUpdate,
 } from "nostr-double-ratchet"
 
-const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
+const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 type SessionEventRuntime = Pick<
   NdrRuntime,
@@ -107,249 +101,8 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
 
       const lTag = getTag("l", event.tags)
       if (lTag) {
-        // Group metadata (kind 40): add/update group and store the invite message.
-        if (event.kind === KIND_CHANNEL_CREATE) {
-          const {groups, addGroup, removeGroup} = useGroupsStore.getState()
-
-          try {
-            const metadata = parseGroupMetadata(event.content)
-            if (metadata) {
-              const existing = groups[metadata.id]
-              const metadataSenderPubkey = metadata.admins.includes(event.pubkey)
-                ? event.pubkey
-                : effectiveOwner
-
-              const hasTtl = Object.prototype.hasOwnProperty.call(
-                metadata as unknown as Record<string, unknown>,
-                "messageTtlSeconds"
-              )
-              const rawTtl = (metadata as unknown as Record<string, unknown>)
-                .messageTtlSeconds
-              let nextTtl: number | null | undefined
-              if (rawTtl === null) {
-                nextTtl = null
-              } else if (typeof rawTtl === "number" && Number.isFinite(rawTtl)) {
-                const floored = Math.floor(rawTtl)
-                nextTtl = floored > 0 ? floored : null
-              } else {
-                nextTtl = undefined
-              }
-
-              if (existing) {
-                const isPlaceholderGroup =
-                  !existing.secret &&
-                  existing.members.length === 1 &&
-                  existing.members[0] === publicKey &&
-                  existing.admins.length === 1 &&
-                  existing.admins[0] === publicKey &&
-                  typeof existing.name === "string" &&
-                  existing.name.startsWith("Group ")
-
-                // Placeholder groups are created from sender-key distribution or legacy group
-                // messages before metadata arrives. In that case, accept the first metadata
-                // message as a "creation" (validate against the metadata itself).
-                if (isPlaceholderGroup) {
-                  if (
-                    !validateMetadataCreation(metadata, metadataSenderPubkey, publicKey)
-                  ) {
-                    return
-                  }
-                  addGroup(applyMetadataUpdate(existing, metadata))
-                } else {
-                  const verdict = validateMetadataUpdate(
-                    existing,
-                    metadata,
-                    metadataSenderPubkey,
-                    publicKey
-                  )
-                  if (verdict === "reject") {
-                    return
-                  }
-
-                  if (verdict === "removed") {
-                    removeGroup(metadata.id)
-                    useChatExpirationStore.getState().clearExpiration(metadata.id)
-                    void usePrivateMessagesStore.getState().removeSession(metadata.id)
-                    log("Removed from group:", metadata.id)
-                    return
-                  }
-
-                  addGroup(applyMetadataUpdate(existing, metadata))
-                }
-              } else {
-                if (
-                  !validateMetadataCreation(metadata, metadataSenderPubkey, publicKey)
-                ) {
-                  return
-                }
-
-                const createdAt = getMillisecondTimestamp(event as Rumor) || Date.now()
-                addGroup({
-                  id: metadata.id,
-                  name: metadata.name,
-                  description: metadata.description,
-                  picture: metadata.picture,
-                  members: metadata.members,
-                  admins: metadata.admins,
-                  createdAt,
-                  secret: metadata.secret,
-                  accepted: true,
-                })
-              }
-
-              if (existing && hasTtl && nextTtl !== undefined) {
-                useGroupsStore.getState().updateGroup(metadata.id, {
-                  messageTtlSeconds: nextTtl,
-                })
-              } else if (!existing) {
-                useGroupsStore.getState().updateGroup(metadata.id, {
-                  messageTtlSeconds: nextTtl ?? null,
-                })
-              }
-
-              if (hasTtl && nextTtl !== undefined) {
-                useChatExpirationStore.getState().setExpiration(metadata.id, nextTtl)
-                runtime
-                  .setExpirationForGroup(
-                    metadata.id,
-                    nextTtl ? {ttlSeconds: nextTtl} : null
-                  )
-                  .catch(() => {})
-              }
-
-              log("Received group metadata:", metadata.name, metadata.id)
-
-              void usePrivateMessagesStore.getState().upsert(metadata.id, publicKey, {
-                ...event,
-                ownerPubkey: metadataSenderPubkey,
-              })
-              return
-            }
-          } catch (e) {
-            error("Failed to parse group metadata:", e)
-          }
-
-          // Legacy fallback: old clients sent a full Group object as JSON.
-          try {
-            const legacy = JSON.parse(event.content) as unknown
-            if (!legacy || typeof legacy !== "object") return
-
-            const obj = legacy as Record<string, unknown>
-            if (typeof obj.id === "string") {
-              const createdAt =
-                typeof obj.createdAt === "number"
-                  ? obj.createdAt
-                  : getMillisecondTimestamp(event as Rumor) || Date.now()
-              const legacyId = obj.id
-              const legacyName = typeof obj.name === "string" ? obj.name : ""
-              const legacyDescription =
-                typeof obj.description === "string" ? obj.description : ""
-              const legacyPicture = typeof obj.picture === "string" ? obj.picture : ""
-              const legacyMembers = Array.isArray(obj.members)
-                ? obj.members.filter((m): m is string => typeof m === "string")
-                : [publicKey]
-              const legacyAdmins =
-                Array.isArray(obj.admins) && obj.admins.length > 0
-                  ? obj.admins.filter((a): a is string => typeof a === "string")
-                  : [effectiveOwner]
-
-              addGroup({
-                id: legacyId,
-                name: legacyName || `Group ${legacyId.slice(0, 8)}`,
-                description: legacyDescription,
-                picture: legacyPicture,
-                members: legacyMembers.length > 0 ? legacyMembers : [publicKey],
-                admins: legacyAdmins.length > 0 ? legacyAdmins : [effectiveOwner],
-                createdAt,
-                secret: typeof obj.secret === "string" ? obj.secret : undefined,
-                accepted: true,
-              })
-              log("Received legacy group creation:", legacyName, legacyId)
-              void usePrivateMessagesStore.getState().upsert(legacyId, publicKey, {
-                ...event,
-                ownerPubkey: effectiveOwner,
-              })
-              return
-            }
-          } catch (e) {
-            error("Failed to parse legacy group creation event:", e)
-          }
-
-          return
-        }
-
-        // Sender-key distribution: store keys but do not show as a message.
-        if (event.kind === GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
-          const rawGroupId =
-            (() => {
-              try {
-                const parsed = JSON.parse(event.content) as {groupId?: unknown}
-                return typeof parsed.groupId === "string" ? parsed.groupId : undefined
-              } catch {
-                return undefined
-              }
-            })() || lTag
-
-          if (!rawGroupId) return
-
-          const {groups, addGroup} = useGroupsStore.getState()
-          if (!groups[rawGroupId]) {
-            const members = [publicKey]
-            if (effectiveOwner !== publicKey) {
-              members.push(effectiveOwner)
-            }
-            addGroup({
-              id: rawGroupId,
-              name: `Group ${rawGroupId.slice(0, 8)}`,
-              description: "",
-              picture: "",
-              members,
-              admins: [publicKey],
-              createdAt: Date.now(),
-              accepted: true,
-            })
-            log("Created placeholder group from sender-key distribution:", rawGroupId)
-          }
-
-          return
-        }
-
-        // Legacy group typing events are ephemeral and should not be persisted.
-        if (isTyping(event)) {
-          if (!isOwnDevice) {
-            useTypingStore
-              .getState()
-              .setRemoteTyping(lTag, getMillisecondTimestamp(event))
-          }
-          return
-        }
-
-        // Legacy group message (double-ratchet fan-out): store under group ID.
-        const {groups, addGroup} = useGroupsStore.getState()
-        if (!groups[lTag]) {
-          addGroup({
-            id: lTag,
-            name: `Group ${lTag.slice(0, 8)}`,
-            description: "",
-            picture: "",
-            members: [publicKey],
-            admins: [publicKey],
-            createdAt: Date.now(),
-            accepted: true,
-          })
-          log("Created placeholder group:", lTag)
-        }
-
-        if (event.kind !== KIND_REACTION) {
-          useTypingStore
-            .getState()
-            .clearRemoteTyping(lTag, getMillisecondTimestamp(event))
-        }
-
-        log("Received group message for group:", lTag)
-        void usePrivateMessagesStore
-          .getState()
-          .upsert(lTag, publicKey, {...event, ownerPubkey: effectiveOwner})
+        // The runtime's authenticated group controller exclusively owns l-tagged
+        // traffic, including sender-key control records and pairwise group events.
         return
       }
 

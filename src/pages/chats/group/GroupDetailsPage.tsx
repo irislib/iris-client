@@ -1,12 +1,6 @@
 import {useState} from "react"
 import {nip19} from "nostr-tools"
-import {
-  addGroupMember,
-  buildGroupMetadataContent,
-  GROUP_METADATA_KIND,
-  removeGroupMember,
-  updateGroupData,
-} from "nostr-double-ratchet"
+import {addGroupMember, removeGroupMember, updateGroupData} from "nostr-double-ratchet"
 
 import {UserRow} from "@/shared/components/user/UserRow"
 import {useLocation} from "@/navigation"
@@ -18,8 +12,10 @@ import {getExpirationLabel} from "@/utils/expiration"
 import {DisappearingMessagesModal} from "../components/DisappearingMessagesModal"
 import {setGroupDisappearingMessages} from "@/utils/disappearingMessages"
 import {MemberChip, GroupAvatar} from "./components"
-import {sendGroupEvent} from "@/pages/chats/utils/groupMessaging"
-import {rotateGroupSenderKey} from "@/utils/groupTransport"
+import {
+  publishGroupRosterViaTransport,
+  rotateGroupSenderKey,
+} from "@/utils/groupTransport"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import {processHashtreeFile} from "@/shared/upload/hashtree"
 import {useGroupPictureUrl} from "./components/useGroupPictureUrl"
@@ -175,38 +171,13 @@ const GroupDetailsPage = () => {
 
       updateGroup(id, nextGroup)
 
-      const base = JSON.parse(buildGroupMetadataContent(nextGroup)) as Record<
-        string,
-        unknown
-      >
-      base.messageTtlSeconds = nextGroup.messageTtlSeconds ?? null
-      base.__irisGroupMetaOp = "edit"
-
-      await sendGroupEvent({
-        groupId: id,
-        groupMembers: nextGroup.members,
+      await publishGroupRosterViaTransport({
+        group: nextGroup,
         senderPubKey: myPubKey,
-        content: JSON.stringify(base),
-        kind: GROUP_METADATA_KIND,
+        recipients: Array.from(new Set([...group.members, ...nextGroup.members])),
       })
 
-      if (removedMembers.length > 0) {
-        const removed = JSON.parse(
-          buildGroupMetadataContent(nextGroup, {excludeSecret: true})
-        ) as Record<string, unknown>
-        removed.messageTtlSeconds = nextGroup.messageTtlSeconds ?? null
-        removed.__irisGroupMetaOp = "edit"
-
-        await sendGroupEvent({
-          groupId: id,
-          groupMembers: removedMembers,
-          senderPubKey: myPubKey,
-          content: JSON.stringify(removed),
-          kind: GROUP_METADATA_KIND,
-        })
-      }
-
-      if (addedMembers.length > 0) {
+      if (addedMembers.length > 0 || removedMembers.length > 0) {
         await rotateGroupSenderKey({
           groupId: id,
           groupMembers: nextGroup.members,

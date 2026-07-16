@@ -1,5 +1,5 @@
 import {useSettingsStore} from "@/stores/settings"
-import {SocialGraphUtils} from "nostr-social-graph/src/SocialGraphUtils"
+import type {SocialGraph} from "nostr-social-graph"
 import {LRUCache} from "typescript-lru-cache"
 import {getSocialGraph} from "./socialGraph"
 
@@ -7,6 +7,27 @@ const cache = new LRUCache<string, boolean>({maxSize: 100})
 
 export const clearVisibilityCache = () => {
   cache.clear()
+}
+
+export const graphConsidersUserOvermuted = (
+  graph: SocialGraph,
+  pubKey: string,
+  threshold = 1
+): boolean => {
+  if (pubKey === graph.getRoot()) return false
+
+  const muters = graph.getUserMutedBy(pubKey)
+  if (muters.size === 0) return false
+  if (muters.has(graph.getRoot())) return true
+
+  const nearestOpinion = Object.entries(graph.stats(pubKey))
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, counts]) => counts)
+    .find(({followers, muters}) => followers + muters > 0)
+
+  return nearestOpinion
+    ? nearestOpinion.muters * threshold > nearestOpinion.followers
+    : false
 }
 
 export const shouldHideUser = (
@@ -34,8 +55,7 @@ export const shouldHideUser = (
     return true
   }
 
-  // SocialGraphUtils.isOvermuted already checks if root user (current user) has muted
-  if (SocialGraphUtils.isOvermuted(instance, pubKey, threshold)) {
+  if (graphConsidersUserOvermuted(instance, pubKey, threshold)) {
     cache.set(cacheKey, true)
     return true
   }
@@ -46,8 +66,7 @@ export const shouldHideUser = (
 
 export const isOvermuted = (pubKey: string, threshold = 1): boolean => {
   const instance = getSocialGraph()
-  // SocialGraphUtils.isOvermuted already checks if root user (current user) has muted
-  return SocialGraphUtils.isOvermuted(instance, pubKey, threshold)
+  return graphConsidersUserOvermuted(instance, pubKey, threshold)
 }
 
 export const shouldHideEvent = (

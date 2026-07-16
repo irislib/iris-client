@@ -19,7 +19,9 @@ const createSignedAppKeysEvent = (
       createdAt,
     }))
   )
-  const unsignedEvent = appKeys.getEvent()
+  const unsignedEvent = appKeys.getEvent({
+    ownerPubkey: getPublicKey(ownerSecretKey),
+  })
   unsignedEvent.created_at = createdAt
   return finalizeEvent(unsignedEvent, ownerSecretKey) as VerifiedEvent
 }
@@ -55,7 +57,7 @@ describe("waitForLatestAppKeysSnapshot", () => {
     expect(snapshot?.createdAt).toBe(101)
     expect(
       snapshot?.appKeys.getAllDevices().map((device) => device.identityPubkey)
-    ).toEqual([device1, device2])
+    ).toEqual([device1, device2].sort())
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

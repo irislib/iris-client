@@ -52,8 +52,6 @@ afterEach(() => {
 
 describe("createRuntimeSubscribe", () => {
   it("starts a relay-only backfill for newly added DM authors", () => {
-    vi.spyOn(Date, "now").mockReturnValue(20_000)
-
     const {ndk, calls} = createNdk()
     const subscribe = createRuntimeSubscribe(ndk as never)
     const onEvent = vi.fn()
@@ -74,7 +72,6 @@ describe("createRuntimeSubscribe", () => {
     expect(calls[1]?.filter).toEqual({
       kinds: [1060],
       authors: ["a".repeat(64)],
-      since: 5,
       limit: 200,
     })
     expect(calls[1]?.opts).toMatchObject({
@@ -102,13 +99,11 @@ describe("createRuntimeSubscribe", () => {
     expect(calls[1]?.filter).toEqual({
       kinds: [1060],
       authors: ["a".repeat(64), BOB],
-      since: expect.any(Number),
       limit: 200,
     })
     expect(calls[3]?.filter).toEqual({
       kinds: [1060],
       authors: [CAROL],
-      since: expect.any(Number),
       limit: 200,
     })
   })
@@ -125,7 +120,6 @@ describe("createRuntimeSubscribe", () => {
     expect(calls[3]?.filter).toEqual({
       kinds: [1060],
       authors: ["a".repeat(64)],
-      since: expect.any(Number),
       limit: 200,
     })
   })

@@ -1,12 +1,8 @@
-import {getEventHash} from "nostr-tools"
-
-import {ensureNdrRuntime, getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {sendGroupEventViaTransport} from "@/utils/groupTransport"
 import {
-  GROUP_METADATA_KIND,
   GROUP_SENDER_KEY_DISTRIBUTION_KIND,
   resolveExpirationSeconds,
   upsertExpirationTag,
@@ -56,32 +52,6 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
   const createdAt = Math.floor(nowMs / 1000)
   const tags: string[][] = [["l", groupId], ["ms", String(nowMs)], ...extraTags]
 
-  // Group metadata/control stays on pairwise 1:1 transport.
-  if (kind === GROUP_METADATA_KIND) {
-    const event: Rumor = {
-      content,
-      kind,
-      created_at: createdAt,
-      tags,
-      pubkey: senderPubKey,
-      id: "",
-    }
-    event.id = getEventHash(event)
-
-    await usePrivateMessagesStore
-      .getState()
-      .upsert(groupId, senderPubKey, {...event, ownerPubkey: senderPubKey})
-
-    await ensureNdrRuntime(senderPubKey)
-    await Promise.all(
-      groupMembers.map((memberPubKey) =>
-        getNdrRuntime().sendEvent(memberPubKey, event, senderPubKey)
-      )
-    )
-
-    return event
-  }
-
   // Apply group disappearing-messages expiration to normal chat events.
   if (kind !== GROUP_SENDER_KEY_DISTRIBUTION_KIND) {
     const ttlSeconds = resolveGroupMessageTtlSeconds(groupId)
@@ -112,10 +82,6 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
 }
 
 export function sendGroupEvent(options: SendGroupEventOptions): Promise<Rumor> {
-  if (options.kind === GROUP_METADATA_KIND) {
-    return sendGroupEventImpl(options)
-  }
-
   // Serialize sender-key sends per group to avoid chain-state races.
   const key = options.groupId
   const prev = senderKeySendQueue.get(key) ?? Promise.resolve()

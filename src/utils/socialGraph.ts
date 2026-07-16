@@ -1,4 +1,4 @@
-import {SocialGraph, NostrEvent} from "nostr-social-graph/src"
+import {SocialGraph, type NostrEvent} from "nostr-social-graph"
 import {NDKSubscription} from "@/lib/ndk"
 import {useUserStore} from "@/stores/user"
 import {useSocialGraphStore} from "@/stores/socialGraph"

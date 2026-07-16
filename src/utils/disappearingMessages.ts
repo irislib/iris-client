@@ -1,4 +1,4 @@
-import {buildGroupMetadataContent, GROUP_METADATA_KIND} from "nostr-double-ratchet"
+import {CHAT_SETTINGS_KIND} from "nostr-double-ratchet"
 
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
@@ -57,16 +57,16 @@ export async function setGroupDisappearingMessages(
     .setExpirationForGroup(groupId, normalizedTtl ? {ttlSeconds: normalizedTtl} : null)
     .catch(() => {})
 
-  // Publish group metadata update so all members converge on the same setting.
-  const base = JSON.parse(buildGroupMetadataContent(group)) as Record<string, unknown>
-  base.messageTtlSeconds = normalizedTtl
-
   await sendGroupEvent({
     groupId,
     groupMembers: group.members,
     senderPubKey: myPubKey,
-    content: JSON.stringify(base),
-    kind: GROUP_METADATA_KIND,
+    content: JSON.stringify({
+      type: "chat-settings",
+      v: 1,
+      messageTtlSeconds: normalizedTtl,
+    }),
+    kind: CHAT_SETTINGS_KIND,
   })
 }
 

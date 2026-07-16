@@ -60,6 +60,23 @@ describe("portable smoke page errors", () => {
 })
 
 describe("portable smoke console errors", () => {
+  it("ignores status-only noise while URL-aware response checks remain authoritative", async () => {
+    const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
+
+    for (const status of [403, 404, 418, 429]) {
+      expect(
+        shouldIgnoreConsoleError(
+          `Failed to load resource: the server responded with a status of ${status} ()`
+        )
+      ).toBe(true)
+    }
+    expect(
+      shouldIgnoreConsoleError(
+        "Failed to load resource: the server responded with a status of 500 ()"
+      )
+    ).toBe(false)
+  })
+
   it("ignores browser permission-policy noise from embedded media", async () => {
     const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
 

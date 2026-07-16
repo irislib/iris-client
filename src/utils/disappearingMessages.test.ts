@@ -34,15 +34,6 @@ vi.mock("@/pages/chats/utils/groupMessaging", () => ({
   sendGroupEvent: vi.fn().mockResolvedValue({id: "group-event-1"}),
 }))
 
-vi.mock("nostr-double-ratchet", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("nostr-double-ratchet")>()
-  return {
-    ...actual,
-    buildGroupMetadataContent: (group: Record<string, unknown>) =>
-      JSON.stringify({name: group.name}),
-  }
-})
-
 import {
   setDmDisappearingMessages,
   setGroupDisappearingMessages,
@@ -128,11 +119,13 @@ describe("disappearingMessages", () => {
       expect(useGroupsStore.getState().groups[GROUP_ID].messageTtlSeconds).toBeNull()
     })
 
-    it("publishes group metadata with normalized TTL", async () => {
+    it("publishes canonical group chat settings with normalized TTL", async () => {
       await setGroupDisappearingMessages(GROUP_ID, 7200)
 
       const call = mockedSendGroupEvent.mock.calls[0][0]
       const content = JSON.parse(call.content)
+      expect(call.kind).toBe(KIND_CHAT_SETTINGS)
+      expect(content).toMatchObject({type: "chat-settings", v: 1})
       expect(content.messageTtlSeconds).toBe(7200)
     })
 

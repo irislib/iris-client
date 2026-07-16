@@ -4,6 +4,8 @@ import {create} from "zustand"
 import type {GroupData} from "nostr-double-ratchet"
 
 export type Group = GroupData & {
+  /** Last applied canonical GroupRoster revision. */
+  rosterRevision?: number
   /**
    * Disappearing messages timer for the group, in seconds.
    * `null` means explicitly "off".

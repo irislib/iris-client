@@ -1,14 +1,20 @@
 import {useDevicesStore} from "@/stores/devices"
 import {useGroupsStore} from "@/stores/groups"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useUserStore} from "@/stores/user"
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {
+  CHAT_SETTINGS_KIND,
   getMillisecondTimestamp,
+  isGroupRosterFactEvent,
   isTyping,
+  parseGroupRosterFactRumor,
   type GroupDecryptedEvent,
+  type GroupRosterFactRumor,
 } from "nostr-double-ratchet"
+import {parseChatSettingsMessage} from "./chatSettings"
 
 let unsubscribeGroupEvents: (() => void) | null = null
 let unsubscribeGroupsStore: (() => void) | null = null
@@ -78,7 +84,48 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
   const devicePubkey = identityPubkey?.trim() || publicKey
   const senderOwnerPubkey = resolveSenderOwnerPubkey(event, publicKey, devicePubkey)
 
+  if (isGroupRosterFactEvent(event.inner)) {
+    const fact = parseGroupRosterFactRumor(event.inner as GroupRosterFactRumor)
+    const {groups, addGroup, removeGroup} = useGroupsStore.getState()
+    const existing = groups[fact.groupId]
+
+    if (!fact.group.members.includes(publicKey)) {
+      removeGroup(fact.groupId)
+      useChatExpirationStore.getState().clearExpiration(fact.groupId)
+      await usePrivateMessagesStore.getState().removeSession(fact.groupId)
+      return
+    }
+
+    addGroup({
+      ...fact.group,
+      createdAt: fact.group.createdAt * 1000,
+      ...(existing?.secret ? {secret: existing.secret} : {}),
+      accepted: existing?.accepted ?? fact.signerPubkey === publicKey,
+      messageTtlSeconds: existing?.messageTtlSeconds ?? null,
+      rosterRevision: fact.revision,
+    })
+    return
+  }
+
   ensurePlaceholderGroup(event.groupId, publicKey, senderOwnerPubkey)
+
+  if (event.inner.kind === CHAT_SETTINGS_KIND) {
+    const group = useGroupsStore.getState().groups[event.groupId]
+    const settings = parseChatSettingsMessage(event.inner.content)
+    if (!group?.admins.includes(senderOwnerPubkey) || !settings) return
+
+    useGroupsStore.getState().updateGroup(event.groupId, {
+      messageTtlSeconds: settings.messageTtlSeconds,
+    })
+    useChatExpirationStore
+      .getState()
+      .setExpiration(event.groupId, settings.messageTtlSeconds)
+    await getNdrRuntime().setExpirationForGroup(
+      event.groupId,
+      settings.messageTtlSeconds ? {ttlSeconds: settings.messageTtlSeconds} : null
+    )
+    return
+  }
 
   if (isTyping(event.inner)) {
     if (senderOwnerPubkey !== publicKey) {

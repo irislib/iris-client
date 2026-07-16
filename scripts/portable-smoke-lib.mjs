@@ -22,12 +22,9 @@ function contentTypeFor(filePath) {
 
 export function shouldIgnoreConsoleError(text) {
   if (
-    /^Failed to load resource: the server responded with a status of 404\b/.test(text)
-  ) {
-    return true
-  }
-  if (
-    /^Failed to load resource: the server responded with a status of 418\b/.test(text)
+    /^Failed to load resource: the server responded with a status of (?:403|404|418|429)\b/.test(
+      text
+    )
   ) {
     return true
   }

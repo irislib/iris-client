@@ -1,5 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
-import {GROUP_METADATA_KIND, GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
+import {CHAT_MESSAGE_KIND} from "nostr-double-ratchet"
 
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {useGroupsStore} from "@/stores/groups"
@@ -97,7 +97,7 @@ describe("sendGroupEvent expiration", () => {
         groupMembers: [MY_PUBKEY],
         senderPubKey: MY_PUBKEY,
         content: "hello",
-        kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+        kind: CHAT_MESSAGE_KIND,
       })
     } finally {
       nowSpy.mockRestore()
@@ -123,7 +123,7 @@ describe("sendGroupEvent expiration", () => {
         groupMembers: [MY_PUBKEY],
         senderPubKey: MY_PUBKEY,
         content: "hello",
-        kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+        kind: CHAT_MESSAGE_KIND,
       })
     } finally {
       nowSpy.mockRestore()
@@ -147,42 +147,11 @@ describe("sendGroupEvent expiration", () => {
       groupMembers: [MY_PUBKEY],
       senderPubKey: MY_PUBKEY,
       content: "hello",
-      kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+      kind: CHAT_MESSAGE_KIND,
     })
 
     const sentTags = sendGroupEventViaTransport.mock.calls[0][0].tags as string[][]
     const expirationTag = sentTags.find(([key]) => key === "expiration")
     expect(expirationTag).toBeUndefined()
-  })
-
-  it("awaits metadata fanout to all group members before resolving", async () => {
-    let resolveSecondSend: (() => void) | undefined
-    sendEvent.mockResolvedValueOnce(undefined).mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          resolveSecondSend = () => resolve()
-        })
-    )
-
-    let settled = false
-    const sendPromise = sendGroupEvent({
-      groupId: GROUP_ID,
-      groupMembers: [MY_PUBKEY, "b".repeat(64)],
-      senderPubKey: MY_PUBKEY,
-      content: JSON.stringify({id: GROUP_ID, name: "Renamed Group"}),
-      kind: GROUP_METADATA_KIND,
-    }).then(() => {
-      settled = true
-    })
-
-    await vi.waitFor(() => {
-      expect(sendEvent).toHaveBeenCalledTimes(2)
-    })
-    expect(settled).toBe(false)
-
-    expect(resolveSecondSend).toBeDefined()
-    resolveSecondSend!()
-    await sendPromise
-    expect(settled).toBe(true)
   })
 })

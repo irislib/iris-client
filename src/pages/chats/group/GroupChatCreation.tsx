@@ -7,10 +7,10 @@ import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {GroupDetails} from "./types"
-import {KIND_CHANNEL_CREATE} from "@/utils/constants"
-import {sendGroupEvent} from "../utils/groupMessaging"
-import {createGroupViaTransport} from "@/utils/groupTransport"
-import {buildGroupMetadataContent} from "nostr-double-ratchet"
+import {
+  createGroupViaTransport,
+  publishGroupRosterViaTransport,
+} from "@/utils/groupTransport"
 
 const GroupChatCreation = () => {
   const navigate = useNavigate()
@@ -107,12 +107,9 @@ const GroupChatCreation = () => {
 
       // If optional fields were set, publish a metadata update with full payload.
       if (description || picture) {
-        await sendGroupEvent({
-          groupId: group.id,
-          groupMembers: group.members,
+        await publishGroupRosterViaTransport({
+          group,
           senderPubKey: myPubKey,
-          content: buildGroupMetadataContent(group),
-          kind: KIND_CHANNEL_CREATE,
         })
       }
 
