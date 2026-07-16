@@ -9,6 +9,8 @@ import {
 } from "@iris/release-tools"
 import {resolveHtreeCommand} from "./hashtreePaths.mjs"
 
+export {parsePublishOutput} from "@iris/release-tools"
+
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const appDir = path.resolve(__dirname, "..")
