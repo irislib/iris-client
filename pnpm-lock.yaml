@@ -87,8 +87,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.164/nostr-double-ratchet-0.0.164.tgz
-        version: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.164/nostr-double-ratchet-0.0.164.tgz(typescript@5.9.3)
+        specifier: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz
+        version: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz(typescript@5.9.3)
       nostr-social-graph:
         specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz
         version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz(typescript@5.9.3)
@@ -3281,9 +3281,9 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.164/nostr-double-ratchet-0.0.164.tgz:
-    resolution: {integrity: sha256-XTo4sjJBYUCQtjT1Rcb7KDTi+7N9TD1SOzt4tA0F60Q=, tarball: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.164/nostr-double-ratchet-0.0.164.tgz}
-    version: 0.0.164
+  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz:
+    resolution: {integrity: sha256-5vwY+wdlWoPfnyViBgHEoc4UFUechvthHuJ6MoYRBXU=, tarball: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz}
+    version: 0.0.165
 
   nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz:
     resolution: {integrity: sha512-DLe0wbmkfuXl9PoF67aJsyq9nsBX2TV/YXDKJSG8WHcAIgHWQiGcSmN/ogT5XhTejw8o8rcywfgtfSDcv6Cf8w==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz}
@@ -7833,7 +7833,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.164/nostr-double-ratchet-0.0.164.tgz(typescript@5.9.3):
+  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz(typescript@5.9.3):
     dependencies:
       nostr-tools: 2.23.12(typescript@5.9.3)
     transitivePeerDependencies:
