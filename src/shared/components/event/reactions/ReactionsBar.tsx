@@ -4,7 +4,8 @@ import ProxyImg from "@/shared/components/ProxyImg"
 import {Name} from "@/shared/components/user/Name"
 import {useUserStore} from "@/stores/user"
 import {useReactions, ReactionInfo} from "@/shared/hooks/useReactions"
-import {reactWithExpiration} from "@/utils/reaction"
+import {getReactionPublishErrorMessage, reactWithExpiration} from "@/utils/reaction"
+import {useToastStore} from "@/stores/toast"
 
 interface ReactionsBarProps {
   event: NDKEvent
@@ -129,6 +130,8 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
       await reactWithExpiration(event, emojiToSend)
     } catch (error) {
       console.warn(`Could not publish reaction: ${error}`)
+      const message = getReactionPublishErrorMessage(error)
+      if (message) useToastStore.getState().addToast(message, "error")
     }
   }
 

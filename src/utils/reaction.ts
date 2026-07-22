@@ -1,5 +1,26 @@
-import {NDKEvent, NostrEvent} from "@/lib/ndk"
+import {NDKEvent, NDKPublishError, NostrEvent} from "@/lib/ndk"
+import {ndk} from "@/utils/ndk"
 import {KIND_REACTION, KIND_TEXT_NOTE} from "./constants"
+
+export function isRelayPublishFailure(error: unknown): boolean {
+  if (error instanceof NDKPublishError) return true
+
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    /^Not enough relays received the event\b/i.test(message) ||
+    /^Publish timeout(?: after \d+ms)?$/i.test(message) ||
+    /^Timeout: \d+ms$/i.test(message)
+  )
+}
+
+export function getReactionPublishErrorMessage(error: unknown): string | null {
+  if (isRelayPublishFailure(error)) return null
+
+  const detail = error instanceof Error ? error.message : String(error)
+  return detail
+    ? `Could not publish reaction: ${detail}`
+    : "Could not publish reaction. Please try again."
+}
 
 /**
  * React to an event with expiration inheritance
@@ -9,11 +30,11 @@ export async function reactWithExpiration(
   event: NDKEvent,
   content: string
 ): Promise<NDKEvent> {
-  if (!event.ndk) throw new Error("No NDK instance found")
-  event.ndk.assertSigner()
+  const eventNdk = event.ndk ?? ndk()
+  eventNdk.assertSigner()
 
   // Create reaction event
-  const reactionEvent = new NDKEvent(event.ndk, {
+  const reactionEvent = new NDKEvent(eventNdk, {
     kind: KIND_REACTION,
     content,
   } as NostrEvent)

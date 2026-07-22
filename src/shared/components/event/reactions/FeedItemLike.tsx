@@ -12,7 +12,8 @@ import {useScrollAwareLongPress} from "@/shared/hooks/useScrollAwareLongPress"
 import EmojiType from "@/types/emoji"
 import Icon from "../../Icons/Icon"
 import {useReactionsByAuthor} from "@/shared/hooks/useReactions"
-import {reactWithExpiration} from "@/utils/reaction"
+import {getReactionPublishErrorMessage, reactWithExpiration} from "@/utils/reaction"
+import {useToastStore} from "@/stores/toast"
 
 export const FeedItemLike = ({
   event,
@@ -24,6 +25,15 @@ export const FeedItemLike = ({
   const myPubKey = useUserStore((state) => state.publicKey)
   const reactionsByAuthor = useReactionsByAuthor(event.id)
   const [optimisticLike, setOptimisticLike] = useState<string | null>(null)
+
+  const handlePublishFailure = (error: unknown) => {
+    console.warn(`Could not publish reaction: ${error}`)
+    const message = getReactionPublishErrorMessage(error)
+    if (!message) return
+
+    setOptimisticLike(null)
+    useToastStore.getState().addToast(message, "error")
+  }
 
   const likesByAuthor = useMemo(() => {
     if (!showReactionCounts) return new Set<string>()
@@ -75,8 +85,7 @@ export const FeedItemLike = ({
     try {
       await reactWithExpiration(event, "+")
     } catch (error) {
-      console.warn(`Could not publish reaction: ${error}`)
-      setOptimisticLike(null)
+      handlePublishFailure(error)
     }
   }
 
@@ -87,8 +96,7 @@ export const FeedItemLike = ({
     try {
       await reactWithExpiration(event, emoji.native)
     } catch (error) {
-      console.warn(`Could not publish reaction: ${error}`)
-      setOptimisticLike(null)
+      handlePublishFailure(error)
     }
   }
 
