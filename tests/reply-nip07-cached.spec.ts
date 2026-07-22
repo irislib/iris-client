@@ -142,6 +142,72 @@ test("NIP-07 login can reply to a cached post detail event", async ({page}) => {
   ).toEqual([])
 })
 
+test("important NIP-07 reply failures keep the draft and show a toast", async ({
+  page,
+}) => {
+  const myPubkey = "1".repeat(64)
+  const parentAuthor = "3".repeat(64)
+  const parentId = "8".repeat(64)
+  const parentContent = "Cached parent with rejected NIP-07 reply signing"
+  const replyDraft = "Reply draft should survive signing rejection"
+
+  await page.addInitScript((pubkey) => {
+    localStorage.setItem(
+      "user-storage",
+      JSON.stringify({
+        state: {
+          publicKey: pubkey,
+          privateKey: "",
+          nip07Login: true,
+          linkedDevice: false,
+          relayConfigs: [],
+          relays: [],
+        },
+        version: 3,
+      })
+    )
+
+    window.nostr = {
+      getPublicKey: async () => pubkey,
+      signEvent: async () => {
+        throw new Error("User rejected signing")
+      },
+      getRelays: async () => ({}),
+    }
+  }, myPubkey)
+
+  await page.goto("/")
+  await seedCachedEvent(page, {
+    id: parentId,
+    pubkey: parentAuthor,
+    kind: 1,
+    createdAt: 1_700_000_000,
+    sig: "6".repeat(128),
+    serialized: JSON.stringify([
+      0,
+      parentAuthor,
+      1_700_000_000,
+      1,
+      [],
+      parentContent,
+      "6".repeat(128),
+      parentId,
+    ]),
+  })
+
+  await page.goto(`/${nip19.noteEncode(parentId)}`)
+  await expect(page.getByText(parentContent)).toBeVisible()
+
+  const replyInput = page.getByPlaceholder("Write your reply...")
+  await replyInput.fill(replyDraft)
+  await page.getByRole("button", {name: "Reply"}).click()
+
+  await expect(
+    page.getByText("Could not publish reply: User rejected signing", {exact: true})
+  ).toBeVisible()
+  await expect(replyInput).toHaveValue(replyDraft)
+})
+
 test("NIP-07 login can like a cached post without an attached NDK", async ({page}) => {
   const myPubkey = "1".repeat(64)
   const noteAuthor = "2".repeat(64)

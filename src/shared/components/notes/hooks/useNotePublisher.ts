@@ -3,6 +3,7 @@ import NDK, {NDKEvent, NDKKind} from "@/lib/ndk"
 import {NoteCreatorState} from "./useNoteCreatorState"
 import {buildEventTags} from "../utils/eventTags"
 import {cacheEvent} from "@/utils/eventCache"
+import {useToastStore} from "@/stores/toast"
 
 interface UseNotePublisherParams {
   ndkInstance: NDK | undefined
@@ -80,6 +81,17 @@ export function useNotePublisher(params: UseNotePublisherParams) {
       }
     } catch (error) {
       console.error("Failed to create note:", error)
+      const detail =
+        error instanceof Error
+          ? error.message.trim()
+          : typeof error === "string"
+            ? error.trim()
+            : ""
+      const action = params.replyingTo ? "reply" : "post"
+      const message = detail
+        ? `Could not publish ${action}: ${detail}`
+        : `Could not publish ${action}. Please try again.`
+      useToastStore.getState().addToast(message, "error")
       setPublishing(false)
       return {
         success: false,
