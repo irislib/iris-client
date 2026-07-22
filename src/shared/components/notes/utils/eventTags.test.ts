@@ -84,3 +84,31 @@ describe("buildReplyTags", () => {
     expect(tags.filter((tag) => tag[0] === "e")).toEqual(initialReplyTags.slice(0, 2))
   })
 })
+
+describe("buildEventTags", () => {
+  it("publishes imeta only for exact media urls still present in the content", () => {
+    const keptUrl = "https://cdn.example.com/kept.jpg?size=large"
+    const removedUrl = "https://cdn.example.com/removed.jpg"
+    const prefixUrl = "https://cdn.example.com/photo.jpg"
+
+    const tags = buildEventTags({
+      replyingTo: undefined,
+      quotedEvent: undefined,
+      imeta: [
+        {url: keptUrl, width: 800, height: 600, blurhash: "kept-blurhash"},
+        {url: removedUrl, width: 640, height: 480, blurhash: "removed-blurhash"},
+        {url: prefixUrl, width: 320, height: 240, blurhash: "prefix-blurhash"},
+      ],
+      text: `Caption\n${keptUrl}\n${prefixUrl}-different`,
+      expirationDelta: null,
+      eventKind: 1,
+      title: "",
+      price: {amount: "", currency: "USD"},
+      myPubKey: REPLIER,
+    })
+
+    expect(tags.filter((tag) => tag[0] === "imeta")).toEqual([
+      ["imeta", `url ${keptUrl}`, "dim 800x600", "blurhash kept-blurhash"],
+    ])
+  })
+})

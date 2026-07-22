@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.4
+
+- Publish uploaded image metadata only when the exact media URL remains in the
+  final post content, preventing removed composer images from leaking into
+  ordinary notes and marketplace image tags.
+
 ## 2.5.3
 
 - Pin the audited double-ratchet TypeScript 0.0.165 release and verify same-key messaging across two and three browser sessions.

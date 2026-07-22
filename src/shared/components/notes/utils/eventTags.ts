@@ -4,6 +4,30 @@ import {getEventRoot} from "@/utils/nostr"
 import {extractHashtags} from "./hashtags"
 import {KIND_CLASSIFIED} from "@/utils/constants"
 
+const CONTENT_URL_REGEX =
+  /(?:https?:\/\/|htree:\/\/)[^\s<>"']+|nhash1[a-z0-9]+\/[^\s<>"']+/gi
+
+function trimTrailingUrlPunctuation(value: string): string {
+  let trimmed = value
+  while (/[),.!?:;]+$/.test(trimmed)) {
+    trimmed = trimmed.slice(0, -1)
+  }
+  return trimmed
+}
+
+function extractContentUrls(content: string): Set<string> {
+  const urls = new Set<string>()
+  CONTENT_URL_REGEX.lastIndex = 0
+
+  for (const match of content.matchAll(CONTENT_URL_REGEX)) {
+    const rawUrl = match[0]
+    urls.add(rawUrl)
+    urls.add(trimTrailingUrlPunctuation(rawUrl))
+  }
+
+  return urls
+}
+
 export function buildReplyTags(replyingTo: NDKEvent, myPubKey: string): string[][] {
   const tags: string[][] = []
   const rootEvent = getEventRoot(replyingTo) || replyingTo.id
@@ -126,8 +150,10 @@ interface BuildEventTagsParams {
 
 export function buildEventTags(params: BuildEventTagsParams): string[][] {
   const tags: string[][] = params.initialTags
-    ? params.initialTags.map((tag) => [...tag])
+    ? params.initialTags.filter((tag) => tag[0] !== "imeta").map((tag) => [...tag])
     : []
+  const contentUrls = extractContentUrls(params.text)
+  const contentImeta = params.imeta.filter((tag) => contentUrls.has(tag.url.trim()))
 
   if (params.replyingTo && params.includeReplyTags !== false) {
     tags.push(...buildReplyTags(params.replyingTo, params.myPubKey))
@@ -137,7 +163,7 @@ export function buildEventTags(params: BuildEventTagsParams): string[][] {
     tags.push(...buildQuoteTags(params.quotedEvent, params.myPubKey, tags))
   }
 
-  tags.push(...buildImetaTags(params.imeta))
+  tags.push(...buildImetaTags(contentImeta))
 
   if (params.gTags && params.gTags.length > 0) {
     tags.push(...buildGeohashTags(params.gTags))
@@ -150,7 +176,7 @@ export function buildEventTags(params: BuildEventTagsParams): string[][] {
   }
 
   if (params.eventKind === KIND_CLASSIFIED) {
-    tags.push(...buildMarketListingTags(params.title, params.price, params.imeta))
+    tags.push(...buildMarketListingTags(params.title, params.price, contentImeta))
   }
 
   return tags
