@@ -26,7 +26,6 @@ const truncateMiddle = (value: string, maxLength: number) => {
 
 export default function LinkDevice({onBack}: LinkDeviceProps) {
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
-  const {setPublicKey, setPrivateKey, setNip07Login, setLinkedDevice} = useUserStore()
   const [error, setError] = useState("")
   const [inviteUrl, setInviteUrl] = useState("")
   const [qrCodeUrl, setQrCodeUrl] = useState("")
@@ -54,10 +53,12 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
           async (ownerPubkey) => {
             try {
               ndk().signer = undefined
-              setPublicKey(ownerPubkey)
-              setPrivateKey("")
-              setNip07Login(false)
-              setLinkedDevice(true)
+              useUserStore.setState({
+                publicKey: ownerPubkey,
+                privateKey: "",
+                nip07Login: false,
+                linkedDevice: true,
+              })
 
               localStorage.removeItem("cashu.ndk.privateKeySignerPrivateKey")
               localStorage.removeItem("cashu.ndk.pubkey")
@@ -90,7 +91,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
       unsubscribeRef.current?.()
       unsubscribeRef.current = null
     }
-  }, [setLinkedDevice, setNip07Login, setPrivateKey, setPublicKey, setShowLoginDialog])
+  }, [setShowLoginDialog])
 
   useEffect(() => {
     if (!inviteUrl) return

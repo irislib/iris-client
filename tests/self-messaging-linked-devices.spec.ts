@@ -2,6 +2,8 @@ import {test, expect, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 import {waitForConnectedRelays} from "./utils/relay-status"
+import {nip19} from "nostr-tools"
+import {expectDmMessageInputEnabled} from "./private-messaging-helpers"
 
 test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
 
@@ -25,9 +27,12 @@ async function openLoginDialog(page: Page) {
   await signUpButton.click()
 }
 
-async function openSelfChat(page: Page) {
-  const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
-  await profileLink.click()
+async function openChat(page: Page, targetPubkey?: string) {
+  if (targetPubkey) {
+    await page.goto(`/${nip19.npubEncode(targetPubkey)}`)
+  } else {
+    await page.locator('[data-testid="sidebar-user-row"]').first().click()
+  }
   await page.waitForLoadState("domcontentloaded")
 
   await expect(page.getByTestId("profile-header-actions")).toBeVisible({
@@ -43,9 +48,7 @@ async function openSelfChat(page: Page) {
   await messageButton.click()
   await expect(page).toHaveURL(/\/chats\/chat/, {timeout: 15000})
 
-  const messageInput = page.getByPlaceholder("Message").last()
-  await expect(messageInput).toBeVisible({timeout: 30000})
-  await expect(messageInput).toBeEnabled({timeout: 60000})
+  await expectDmMessageInputEnabled(page)
 }
 
 async function waitForNextCreatedAtSecond(): Promise<void> {
@@ -103,20 +106,26 @@ async function ensureCurrentDeviceRegistered(page: Page) {
 }
 
 test.describe("Self-messaging between linked devices", () => {
-  test("syncs self DMs between owner device and linked sibling device", async ({
+  test("syncs self and peer DMs, then logs out a revoked linked sibling", async ({
     browser,
   }) => {
     test.setTimeout(180000)
 
     const ownerContext = await browser.newContext()
     const linkedContext = await browser.newContext()
+    const peerContext = await browser.newContext()
 
     const ownerPage = await ownerContext.newPage()
     const linkedPage = await linkedContext.newPage()
+    const peerPage = await peerContext.newPage()
 
     try {
-      await signUp(ownerPage)
+      const owner = await signUp(ownerPage)
+      if (!owner.publicKey) throw new Error("Expected owner public key")
       await ensureCurrentDeviceRegistered(ownerPage)
+      const peer = await signUp(peerPage)
+      if (!peer.publicKey) throw new Error("Expected peer public key")
+      await ensureCurrentDeviceRegistered(peerPage)
 
       await openLoginDialog(linkedPage)
       await linkedPage.getByRole("button", {name: "Link this device"}).click()
@@ -170,8 +179,8 @@ test.describe("Self-messaging between linked devices", () => {
       await waitForConnectedRelays(ownerPage)
       await waitForConnectedRelays(linkedPage)
 
-      await openSelfChat(ownerPage)
-      await openSelfChat(linkedPage)
+      await openChat(ownerPage)
+      await openChat(linkedPage)
 
       const timestamp = Date.now()
       const ownerToLinked = `owner to linked ${timestamp}`
@@ -198,9 +207,62 @@ test.describe("Self-messaging between linked devices", () => {
       await expect(
         ownerPage.locator(".whitespace-pre-wrap").getByText(linkedToOwner).last()
       ).toBeVisible({timeout: 60000})
+
+      const ownerToPeer = `owner to external peer ${timestamp}`
+      await openChat(ownerPage, peer.publicKey)
+      const ownerPeerInput = ownerPage.getByPlaceholder("Message").last()
+      await expect(ownerPeerInput).toBeEnabled({timeout: 60000})
+      await ownerPeerInput.fill(ownerToPeer)
+      await ownerPeerInput.press("Enter")
+
+      await openChat(linkedPage, peer.publicKey)
+      await expect(
+        linkedPage.locator(".whitespace-pre-wrap").getByText(ownerToPeer).last()
+      ).toBeVisible({timeout: 60000})
+
+      await openChat(peerPage, owner.publicKey)
+      await expect(
+        peerPage.locator(".whitespace-pre-wrap").getByText(ownerToPeer).last()
+      ).toBeVisible({timeout: 60000})
+
+      await linkedPage.evaluate(() => {
+        localStorage.setItem("cashu:seed", "wallet-seed-sentinel")
+      })
+      await ownerPage.goto("/chats/new/devices")
+      const revokeLinkedDevice = ownerPage.getByTitle("Revoke device").first()
+      await expect(revokeLinkedDevice).toBeVisible({timeout: 30000})
+      await revokeLinkedDevice.click()
+
+      const revokeDialog = ownerPage.locator("dialog[open]").filter({
+        has: ownerPage.getByRole("heading", {name: "Confirm Device Revocation"}),
+      })
+      await expect(revokeDialog).toBeVisible({timeout: 10000})
+      await revokeDialog.getByRole("button", {name: "Revoke Device"}).click()
+
+      await expect
+        .poll(
+          () =>
+            linkedPage
+              .evaluate(() => {
+                const raw = localStorage.getItem("user-storage")
+                if (!raw) return {publicKey: "", linkedDevice: false}
+                const state = JSON.parse(raw)?.state
+                return {
+                  publicKey: state?.publicKey ?? "",
+                  linkedDevice: state?.linkedDevice ?? false,
+                }
+              })
+              .catch(() => ({publicKey: "reloading", linkedDevice: true})),
+          {timeout: 60000}
+        )
+        .toEqual({publicKey: "", linkedDevice: false})
+      await expect
+        .poll(() => linkedPage.evaluate(() => localStorage.getItem("cashu:seed")))
+        .toBe("wallet-seed-sentinel")
     } finally {
       await ownerContext.close()
       await linkedContext.close()
+      await peerContext.close()
     }
   })
 })

@@ -47,6 +47,7 @@ const createNdk = () => {
 }
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -86,6 +87,43 @@ describe("createRuntimeSubscribe", () => {
     unsubscribe()
     expect(calls[0]?.subscription.stop).toHaveBeenCalledTimes(1)
     expect(calls[1]?.subscription.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it("deduplicates overlapping live and backfill events until the entry expires", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
+    const {ndk, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(ndk as never)
+    const onEvent = vi.fn()
+    const event = {id: "same-event"}
+
+    const unsubscribe = subscribe({kinds: [1060], authors: [ALICE]}, onEvent)
+    calls[0]?.subscription.emit(event)
+    calls[1]?.subscription.emit(event)
+    expect(onEvent).toHaveBeenCalledTimes(1)
+
+    vi.advanceTimersByTime(10 * 60 * 1000 + 1)
+    calls[1]?.subscription.emit(event)
+    expect(onEvent).toHaveBeenCalledTimes(2)
+
+    unsubscribe()
+    calls[0]?.subscription.emit({id: "after-cleanup"})
+    expect(onEvent).toHaveBeenCalledTimes(2)
+  })
+
+  it("bounds remembered event ids", () => {
+    const {ndk, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(ndk as never)
+    const onEvent = vi.fn()
+
+    subscribe({kinds: [1060], authors: [ALICE]}, onEvent)
+    calls[0]?.subscription.emit({id: "oldest"})
+    for (let index = 0; index < 1024; index += 1) {
+      calls[0]?.subscription.emit({id: `event-${index}`})
+    }
+    calls[1]?.subscription.emit({id: "oldest"})
+
+    expect(onEvent).toHaveBeenCalledTimes(1026)
   })
 
   it("backfills only authors that were not already tracked", () => {

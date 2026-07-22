@@ -8,6 +8,7 @@ import {KIND_TEXT_NOTE} from "@/utils/constants"
 import SearchInput from "@/shared/components/ui/SearchInput"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
+import {getFeedCacheKey} from "@/stores/feed"
 
 interface SearchFiltersProps {
   showTabSelector?: boolean
@@ -149,7 +150,7 @@ const SearchFilters = memo(function SearchFilters({
 
       <div className="flex-1 w-full">
         {feedConfig ? (
-          <Feed feedConfig={feedConfig} />
+          <Feed key={getFeedCacheKey(feedConfig)} feedConfig={feedConfig} />
         ) : (
           <div className="mt-4">
             <AlgorithmicFeed

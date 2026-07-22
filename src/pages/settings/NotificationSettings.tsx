@@ -1,5 +1,6 @@
 import {
   showNotification,
+  ensurePushSubscription,
   subscribeToDMNotifications,
   subscribeToNotifications,
 } from "@/utils/notifications"
@@ -82,10 +83,11 @@ const NotificationSettings = () => {
   const trySubscribePush = async () => {
     try {
       if (allGood && !subscribedToPush) {
-        await Promise.all([subscribeToNotifications(), subscribeToDMNotifications()])
-        setSubscribedToPush(true)
+        const subscribed = await ensurePushSubscription()
+        setSubscribedToPush(subscribed)
       }
     } catch (e) {
+      setSubscribedToPush(false)
       error(e)
     }
   }
@@ -118,7 +120,7 @@ const NotificationSettings = () => {
     }
 
     subscribeToDMNotifications()
-  }, [allGood, subscribedToPush, notifications.server])
+  }, [allGood, subscribedToPush, notifications.server, notifications.preferences.dms])
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -137,6 +139,7 @@ const NotificationSettings = () => {
         try {
           const registration = await navigator.serviceWorker.ready
           const subscription = await registration.pushManager.getSubscription()
+          setSubscribedToPush(Boolean(subscription))
           if (subscription) {
             setCurrentEndpoint(subscription.endpoint)
           }
@@ -440,13 +443,13 @@ const NotificationSettings = () => {
               <div className="flex items-center justify-between">
                 <StatusIndicator
                   status={subscribedToPush}
-                  enabledMessage="Subscribed to push notifications"
-                  disabledMessage="Not subscribed to push notifications"
+                  enabledMessage="Browser push subscription is active"
+                  disabledMessage="Browser push subscription is not active"
                 />
                 {allGood && !subscribedToPush && (
                   <button
                     className="btn btn-primary btn-sm"
-                    onClick={subscribeToNotifications}
+                    onClick={() => void trySubscribePush()}
                   >
                     Subscribe
                   </button>

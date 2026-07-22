@@ -73,9 +73,14 @@ const ChatList = ({className}: ChatListProps) => {
   const privateChatSections = useMemo(() => {
     const all: Array<{id: string; type: "private"}> = []
     const requests: Array<{id: string; type: "private"}> = []
-    const sessionUserRecords =
-      (getNdrRuntime().getSessionUserRecords() as SessionUserRecordsLike | undefined) ??
-      null
+    let sessionUserRecords: SessionUserRecordsLike | null = null
+    try {
+      sessionUserRecords =
+        (getNdrRuntime().getSessionUserRecords() as SessionUserRecordsLike | undefined) ??
+        null
+    } catch {
+      // A secondary tab may display cached chats without owning the ratchet runtime.
+    }
 
     // "Accepted" = followed, explicitly accepted, locally sent, or backed by outgoing session activity.
     for (const {userPubKey} of privateChatsList) {

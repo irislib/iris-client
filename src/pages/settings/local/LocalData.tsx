@@ -24,7 +24,7 @@ interface EventStats {
   newestEvent?: number
 }
 
-export function LocalData() {
+export default function LocalData() {
   const [stats, setStats] = useState<EventStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -424,5 +424,3 @@ export function LocalData() {
     </div>
   )
 }
-
-export default LocalData

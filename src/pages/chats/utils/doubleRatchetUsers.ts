@@ -178,19 +178,6 @@ const updateDoubleRatchetSearchIndex = debounce(
   300
 )
 
-// Add a user to the doubleRatchetUsers set
-export const addDoubleRatchetUser = (pubkey: string) => {
-  doubleRatchetUsers.add(pubkey)
-  updateDoubleRatchetSearchIndex()
-}
-
-// Remove a user from the doubleRatchetUsers set
-export const removeDoubleRatchetUser = (pubkey: string) => {
-  doubleRatchetUsers.delete(pubkey)
-  userData.delete(pubkey)
-  updateDoubleRatchetSearchIndex()
-}
-
 // Search for double ratchet users using the Fuse.js index
 export const searchDoubleRatchetUsers = (query: string): DoubleRatchetUser[] => {
   if (!fuse || !query.trim()) {
@@ -207,11 +194,6 @@ export const searchDoubleRatchetUsers = (query: string): DoubleRatchetUser[] => 
 // Get all double ratchet users
 export const getAllDoubleRatchetUsers = (): DoubleRatchetUser[] => {
   return Array.from(userData.values()).filter((user) => !shouldHideUser(user.pubkey))
-}
-
-// Get all pubkeys from the doubleRatchetUsers Set (for cleanup)
-export const getAllDoubleRatchetUserPubkeys = (): string[] => {
-  return Array.from(doubleRatchetUsers)
 }
 
 export const getDoubleRatchetUsersCount = () => {

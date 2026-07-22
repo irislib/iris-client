@@ -157,6 +157,7 @@ vi.mock("@/stores/privateMessages", () => ({
   usePrivateMessagesStore: {
     getState: () => ({
       events: new Map(),
+      awaitHydration: vi.fn().mockResolvedValue(undefined),
       updateMessage: vi.fn(),
     }),
   },
@@ -168,10 +169,12 @@ vi.mock("@/utils/ndk", () => ({
 
 vi.mock("@/utils/dmEventHandler", () => ({
   attachNdrRuntimeEventListener: vi.fn(),
+  cleanupNdrRuntimeEventListener: vi.fn(),
 }))
 
 vi.mock("@/utils/groupMessageHandler", () => ({
   attachGroupMessageListener: vi.fn(),
+  cleanupGroupMessageListener: vi.fn(),
 }))
 
 vi.mock("@/lib/ndk", () => {
@@ -259,5 +262,19 @@ describe("PrivateChats invite acceptance", () => {
       ownerPublicKey: mocks.ownerPubkey,
     })
     expect(invite.accept).not.toHaveBeenCalled()
+  })
+
+  it("rejects owner-only device management from linked logins", async () => {
+    mocks.userState.linkedDevice = true
+    const {prepareRegistrationForIdentity, prepareRevocation, registerDevice} =
+      await import("./PrivateChats")
+
+    await expect(prepareRegistrationForIdentity(mocks.devicePubkey)).rejects.toThrow(
+      "Linked devices cannot manage devices"
+    )
+    await expect(prepareRevocation(mocks.devicePubkey)).rejects.toThrow(
+      "Linked devices cannot manage devices"
+    )
+    await expect(registerDevice()).rejects.toThrow("Linked devices cannot manage devices")
   })
 })

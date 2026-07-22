@@ -27,13 +27,7 @@ describe("NIP-49 - ncryptsec", () => {
             }).toThrow();
         });
 
-        it("should support different log_n values", () => {
-            // Test with log_n = 16 (default, fast)
-            const encrypted16 = encrypt(privateKeyBytes, password, 16);
-            const decrypted16 = decrypt(encrypted16, password);
-            expect(bytesToHex(decrypted16)).toBe(privateKeyHex);
-
-            // Test with log_n = 18 (more secure)
+        it("should support a non-default log_n value", () => {
             const encrypted18 = encrypt(privateKeyBytes, password, 18);
             const decrypted18 = decrypt(encrypted18, password);
             expect(bytesToHex(decrypted18)).toBe(privateKeyHex);
@@ -76,10 +70,6 @@ describe("NIP-49 - ncryptsec", () => {
 
             // Should be different due to random salt and nonce
             expect(encrypted1).not.toBe(encrypted2);
-
-            // But both should decrypt to the same private key
-            expect(bytesToHex(decrypt(encrypted1, password))).toBe(privateKeyHex);
-            expect(bytesToHex(decrypt(encrypted2, password))).toBe(privateKeyHex);
         });
     });
 

@@ -45,8 +45,7 @@ const Chat = ({id}: {id: string}) => {
   let sessionUserRecords: SessionUserRecordsLike | undefined
   try {
     sessionUserRecords = getNdrRuntime().getSessionUserRecords() as
-      | SessionUserRecordsLike
-      | undefined
+      SessionUserRecordsLike | undefined
   } catch {
     sessionUserRecords = undefined
   }

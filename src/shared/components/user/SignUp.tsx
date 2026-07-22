@@ -40,6 +40,7 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
           setState({
             publicKey,
             privateKey: "", // No private key for view-only mode
+            nip07Login: false,
             linkedDevice: false,
           })
           setShowLoginDialog(false)
@@ -59,6 +60,7 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
           setState({
             privateKey: privateKeyHex,
             publicKey,
+            nip07Login: false,
             linkedDevice: false,
           })
 
@@ -97,6 +99,7 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
     setState({
       privateKey: privateKeyHex,
       publicKey: pk,
+      nip07Login: false,
       walletConnect: true,
       linkedDevice: false,
     })

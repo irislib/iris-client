@@ -15,7 +15,6 @@ interface SignInProps {
 }
 
 export default function SignIn({onClose, onLink}: SignInProps) {
-  const {setNip07Login, setPublicKey, setPrivateKey, setLinkedDevice} = useUserStore()
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
@@ -29,9 +28,12 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         if (inputPrivateKey.indexOf("npub1") === 0) {
           const decoded = nip19.decode(inputPrivateKey)
           const publicKey = decoded.data as string
-          setPublicKey(publicKey)
-          setPrivateKey("") // No private key for view-only mode
-          setLinkedDevice(false)
+          useUserStore.setState({
+            publicKey,
+            privateKey: "",
+            nip07Login: false,
+            linkedDevice: false,
+          })
           setShowLoginDialog(false)
           onClose()
         }
@@ -43,9 +45,12 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           ndk().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
 
-          setPrivateKey(hex)
-          setPublicKey(publicKey)
-          setLinkedDevice(false)
+          useUserStore.setState({
+            privateKey: hex,
+            publicKey,
+            nip07Login: false,
+            linkedDevice: false,
+          })
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -59,9 +64,12 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           ndk().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
 
-          setPrivateKey(hex)
-          setPublicKey(publicKey)
-          setLinkedDevice(false)
+          useUserStore.setState({
+            privateKey: hex,
+            publicKey,
+            nip07Login: false,
+            linkedDevice: false,
+          })
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", hex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
           setShowLoginDialog(false)
@@ -69,15 +77,18 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         }
       }
     }
-  }, [inputPrivateKey, setPrivateKey, setPublicKey, onClose, setShowLoginDialog])
+  }, [inputPrivateKey, onClose, setShowLoginDialog])
 
   async function extensionLogin() {
     if (window.nostr) {
       try {
         const publicKey = await window.nostr.getPublicKey()
-        setPublicKey(publicKey)
-        setNip07Login(true)
-        setLinkedDevice(false)
+        useUserStore.setState({
+          publicKey,
+          privateKey: "",
+          nip07Login: true,
+          linkedDevice: false,
+        })
         setShowLoginDialog(false)
         onClose()
       } catch (error) {

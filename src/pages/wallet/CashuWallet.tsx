@@ -197,8 +197,7 @@ export default function CashuWallet() {
     if (!manager || handledDeepLink.current) return
 
     const state = location.state as
-      | {receiveToken?: string; lightningInvoice?: string}
-      | undefined
+      {receiveToken?: string; lightningInvoice?: string} | undefined
 
     if (!state?.receiveToken && !state?.lightningInvoice) return
 

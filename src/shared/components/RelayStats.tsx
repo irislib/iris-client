@@ -1,9 +1,8 @@
-import {useState, useEffect} from "react"
-import {ndk as getNdk} from "@/utils/ndk"
 import {Link} from "@/navigation"
 import {useUserStore} from "@/stores/user"
 import {RelayList} from "./RelayList"
 import Widget from "@/shared/components/ui/Widget"
+import {useWorkerRelayStatus} from "@/shared/hooks/useWorkerRelayStatus"
 
 interface RelayStatsProps {
   background?: boolean
@@ -11,26 +10,16 @@ interface RelayStatsProps {
 
 export function RelayStats({background = true}: RelayStatsProps = {}) {
   const {relayConfigs} = useUserStore()
-  const [ndkRelays, setNdkRelays] = useState(new Map())
-
-  useEffect(() => {
-    const updateStats = () => {
-      const ndk = getNdk()
-      setNdkRelays(new Map(ndk.pool.relays))
-    }
-
-    updateStats()
-    const interval = setInterval(updateStats, 2000)
-    return () => clearInterval(interval)
-  }, [])
+  const {relays} = useWorkerRelayStatus()
+  const connectedRelayUrls = new Set(
+    relays
+      .filter((relay) => relay.status >= 5)
+      .map((relay) => relay.url.replace(/\/$/, ""))
+  )
 
   const connectedCount =
     relayConfigs?.filter((config) => {
-      const relay =
-        ndkRelays.get(config.url) ||
-        ndkRelays.get(config.url.replace(/\/$/, "")) ||
-        ndkRelays.get(config.url + "/")
-      return !config.disabled && relay?.connected
+      return !config.disabled && connectedRelayUrls.has(config.url.replace(/\/$/, ""))
     }).length || 0
 
   const totalEnabled = relayConfigs?.filter((c) => !c.disabled).length || 0

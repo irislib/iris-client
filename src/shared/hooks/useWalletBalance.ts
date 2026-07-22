@@ -1,7 +1,11 @@
 import {useWalletStore} from "@/stores/wallet"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {useEffect, useRef} from "react"
-import {getCashuManager} from "@/lib/cashu/manager"
+
+const loadCashuManager = async () => {
+  const {initCashuManager} = await import("@/lib/cashu/manager")
+  return initCashuManager()
+}
 
 export const useWalletBalance = () => {
   const {balance, setBalance} = useWalletStore()
@@ -9,6 +13,12 @@ export const useWalletBalance = () => {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
+    let disposed = false
+    let unsubscribers: Array<() => void> = []
+    const setCurrentBalance = (value: number | null) => {
+      if (!disposed) setBalance(value)
+    }
+
     // Clear any existing intervals
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current)
@@ -16,24 +26,20 @@ export const useWalletBalance = () => {
     }
 
     const updateBalance = async () => {
+      if (disposed) return
       try {
         // No wallet selected
         if (activeProviderType === "disabled" || activeProviderType === undefined) {
-          setBalance(null)
+          setCurrentBalance(null)
           return
         }
 
         // Cashu wallet
         if (activeProviderType === "cashu") {
-          const manager = getCashuManager()
-          if (!manager) {
-            setBalance(null)
-            return
-          }
-
+          const manager = await loadCashuManager()
           const balances = await manager.wallet.getBalances()
           const totalBalance = Object.values(balances).reduce((sum, val) => sum + val, 0)
-          setBalance(totalBalance)
+          setCurrentBalance(totalBalance)
           return
         }
 
@@ -41,23 +47,23 @@ export const useWalletBalance = () => {
         if (activeProviderType === "nwc" && activeNWCId) {
           const connection = nwcConnections.find((c) => c.id === activeNWCId)
           if (connection?.balance !== undefined) {
-            setBalance(connection.balance)
+            setCurrentBalance(connection.balance)
           } else {
-            setBalance(null)
+            setCurrentBalance(null)
           }
           return
         }
 
         // Native WebLN - most don't support balance
         if (activeProviderType === "native") {
-          setBalance(null)
+          setCurrentBalance(null)
           return
         }
 
-        setBalance(null)
+        setCurrentBalance(null)
       } catch (error) {
-        console.warn("Failed to get wallet balance:", error)
-        setBalance(null)
+        if (!disposed) console.warn("Failed to get wallet balance:", error)
+        setCurrentBalance(null)
       }
     }
 
@@ -66,35 +72,31 @@ export const useWalletBalance = () => {
 
     // Listen to Cashu events for real-time updates
     if (activeProviderType === "cashu") {
-      const manager = getCashuManager()
-      if (manager) {
-        const unsubscribers = [
-          manager.on("melt-quote:paid", () => updateBalance()),
-          manager.on("send:created", () => updateBalance()),
-          manager.on("receive:created", () => updateBalance()),
-          manager.on("mint-quote:redeemed", () => updateBalance()),
-          manager.on("proofs:saved", () => updateBalance()),
-        ]
-
-        // Still poll every 30 seconds as backup
-        pollIntervalRef.current = setInterval(updateBalance, 30000)
-
-        return () => {
-          unsubscribers.forEach((unsub) => unsub())
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
+      void loadCashuManager()
+        .then((manager) => {
+          if (disposed) return
+          unsubscribers = [
+            manager.on("melt-quote:paid", () => updateBalance()),
+            manager.on("send:created", () => updateBalance()),
+            manager.on("receive:created", () => updateBalance()),
+            manager.on("mint-quote:redeemed", () => updateBalance()),
+            manager.on("proofs:saved", () => updateBalance()),
+          ]
+        })
+        .catch((error) => {
+          if (!disposed) {
+            console.warn("Failed to initialize Cashu balance updates:", error)
           }
-        }
-      }
+        })
     }
 
-    // Poll every 30 seconds for non-Cashu wallets
+    // Poll every 30 seconds as a backup if a provider update is missed.
     pollIntervalRef.current = setInterval(updateBalance, 30000)
 
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-      }
+      disposed = true
+      unsubscribers.forEach((unsubscribe) => unsubscribe())
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current)
     }
   }, [setBalance, activeProviderType, activeNWCId, nwcConnections])
 

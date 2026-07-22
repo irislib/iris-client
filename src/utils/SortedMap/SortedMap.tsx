@@ -5,7 +5,6 @@ type Comparator<K, V> = (a: [K, V], b: [K, V]) => number
 export class SortedMap<K, V extends Record<string, any>> {
   private map: Map<K, V>
   private sortedKeys: K[]
-  private keyToIndex: Map<K, number> // O(1) index lookup
   private compare: Comparator<K, V>
 
   constructor(
@@ -13,7 +12,6 @@ export class SortedMap<K, V extends Record<string, any>> {
     compare?: string | Comparator<K, V>
   ) {
     this.map = new Map(initialEntries || [])
-    this.keyToIndex = new Map()
 
     /* eslint-disable no-nested-ternary */
     if (compare) {
@@ -35,9 +33,6 @@ export class SortedMap<K, V extends Record<string, any>> {
     this.sortedKeys = initialEntries
       ? [...this.map.entries()].sort(this.compare).map(([key]) => key)
       : []
-
-    // Build initial index map
-    this.sortedKeys.forEach((key, idx) => this.keyToIndex.set(key, idx))
   }
 
   private binarySearch(key: K, value: V): number {
@@ -57,28 +52,15 @@ export class SortedMap<K, V extends Record<string, any>> {
     return left
   }
 
-  // Update keyToIndex for a range of sortedKeys
-  private updateIndexRange(start: number, end: number) {
-    for (let i = start; i < end; i++) {
-      this.keyToIndex.set(this.sortedKeys[i], i)
-    }
-  }
-
   set(key: K, value: V) {
-    const existingIndex = this.keyToIndex.get(key)
-    this.map.set(key, value)
-
-    if (existingIndex !== undefined) {
-      // Remove from old position - O(n) splice but O(1) lookup
+    if (this.map.has(key)) {
+      const existingIndex = this.sortedKeys.indexOf(key)
       this.sortedKeys.splice(existingIndex, 1)
-      // Update indices for shifted elements
-      this.updateIndexRange(existingIndex, this.sortedKeys.length)
     }
 
+    this.map.set(key, value)
     const insertAt = this.binarySearch(key, value)
     this.sortedKeys.splice(insertAt, 0, key)
-    // Update indices for shifted elements (including new one)
-    this.updateIndexRange(insertAt, this.sortedKeys.length)
   }
 
   get(key: K): V | undefined {
@@ -132,45 +114,15 @@ export class SortedMap<K, V extends Record<string, any>> {
     }
   }
 
-  *range(
-    options: {
-      gte?: K
-      lte?: K
-      direction?: "asc" | "desc"
-    } = {}
-  ): IterableIterator<[K, V]> {
-    const {gte, lte, direction = "asc"} = options
-
-    const startIndex = gte ? this.binarySearch(gte, this.map.get(gte) as V) : 0
-    const endIndex = lte
-      ? this.binarySearch(lte, this.map.get(lte) as V)
-      : this.sortedKeys.length
-
-    if (direction === "asc") {
-      for (let i = startIndex; i < endIndex; i++) {
-        const key = this.sortedKeys[i]
-        yield [key, this.map.get(key) as V]
-      }
-    } else {
-      for (let i = endIndex - 1; i >= startIndex; i--) {
-        const key = this.sortedKeys[i]
-        yield [key, this.map.get(key) as V]
-      }
-    }
-  }
-
   has(key: K): boolean {
     return this.map.has(key)
   }
 
   delete(key: K): boolean {
     if (this.map.delete(key)) {
-      const index = this.keyToIndex.get(key)
-      if (index !== undefined) {
+      const index = this.sortedKeys.indexOf(key)
+      if (index >= 0) {
         this.sortedKeys.splice(index, 1)
-        this.keyToIndex.delete(key)
-        // Update indices for shifted elements
-        this.updateIndexRange(index, this.sortedKeys.length)
       }
       return true
     }
@@ -180,7 +132,6 @@ export class SortedMap<K, V extends Record<string, any>> {
   clear(): void {
     this.map.clear()
     this.sortedKeys = []
-    this.keyToIndex.clear()
   }
 
   get size(): number {

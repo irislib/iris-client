@@ -1,26 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "entry": ["src/main.tsx", "src/service-worker.ts"],
+  "entry": ["src/service-worker.ts"],
   "project": ["src/**/*.{ts,tsx}"],
   "ignore": [
-    "public/**",
-    "dist/**",
-    "build/**",
-    "coverage/**",
     "tests/**/*.spec.ts",
     "**/*.test.{ts,tsx}",
     "**/*.spec.{ts,tsx}",
     "src/debug/**",
     "src/lib/**"
   ],
-  "ignoreDependencies": [
-    "workbox-strategies",
-    "workbox-cacheable-response",
-    "workbox-precaching",
-    "workbox-expiration",
-    "workbox-routing",
-    "workbox-core"
-  ],
+  "ignoreDependencies": ["buffer"],
   "ignoreExportsUsedInFile": true,
   "playwright": {
     "entry": ["tests/**/*.spec.ts"]

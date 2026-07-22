@@ -8,6 +8,9 @@ import {useUserStore} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 import {getUnmuteLabel} from "@/utils/muteLabels"
 import {NostrEvent} from "nostr-social-graph"
+import {enqueueContactListPublish} from "@/utils/contactListPublishQueue"
+
+const lastContactListTimestamps = new Map<string, number>()
 
 export function FollowButton({pubKey, small = true}: {pubKey: string; small?: boolean}) {
   const socialGraph = useSocialGraph()
@@ -40,6 +43,7 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   }
 
   const [localIsFollowing, setLocalIsFollowing] = useState(isFollowing)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   useEffect(() => {
     setLocalIsFollowing(isFollowing)
@@ -50,14 +54,11 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
   }
 
   const handleClick = async () => {
+    if (isPublishing) return
     if (!myPubKey || !pubKeyHex) {
       console.error("Cannot handle click: missing keys")
       return
     }
-
-    const event = new NDKEvent(ndk())
-    event.kind = 3
-    const followedUsers = socialGraph.getFollowedByUser(myPubKey)
 
     if (isMuted) {
       // Handle unmute case - just unmute, don't follow
@@ -71,26 +72,39 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
       return // Don't proceed with follow/unfollow logic
     }
 
-    setLocalIsFollowing(!localIsFollowing)
+    const nextIsFollowing = !isFollowing
+    setLocalIsFollowing(nextIsFollowing)
+    setIsPublishing(true)
+    try {
+      await enqueueContactListPublish(myPubKey, async () => {
+        const nextFollowedUsers = new Set(socialGraph.getFollowedByUser(myPubKey))
+        if (nextIsFollowing) {
+          nextFollowedUsers.add(pubKeyHex)
+        } else {
+          nextFollowedUsers.delete(pubKeyHex)
+        }
 
-    if (isFollowing) {
-      followedUsers.delete(pubKeyHex)
-    } else {
-      followedUsers.add(pubKeyHex)
-    }
+        const event = new NDKEvent(ndk())
+        event.kind = 3
+        event.tags = Array.from(nextFollowedUsers).map((pubKey) => [
+          "p",
+          pubKey,
+        ]) as NDKTag[]
+        const lastTimestamp = lastContactListTimestamps.get(myPubKey) ?? 0
+        event.created_at = Math.max(Math.floor(Date.now() / 1000), lastTimestamp + 1)
+        lastContactListTimestamps.set(myPubKey, event.created_at)
+        event.pubkey = myPubKey
 
-    event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as NDKTag[]
-    event.created_at = Math.floor(Date.now() / 1000)
-    event.pubkey = myPubKey
-
-    // Feed to social graph immediately for instant UI update
-    handleSocialGraphEvent(event as unknown as NostrEvent)
-
-    event.publish().catch((e) => console.warn("Error publishing follow event:", e))
-
-    setTimeout(() => {
+        await event.publish()
+        handleSocialGraphEvent(event as unknown as NostrEvent)
+      })
       setUpdated((updated) => updated + 1)
-    }, 1000)
+    } catch (error) {
+      setLocalIsFollowing(isFollowing)
+      console.warn("Error publishing follow event:", error)
+    } finally {
+      setIsPublishing(false)
+    }
   }
 
   // text should be Follow or Following. if Following, on hover it should say Unfollow
@@ -108,6 +122,8 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
     <button
       className={`btn ${small ? "btn-sm" : ""} ${className} relative`}
       onClick={handleClick}
+      disabled={isPublishing}
+      aria-busy={isPublishing}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >

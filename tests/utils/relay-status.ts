@@ -1,27 +1,26 @@
 import {expect, type Page} from "@playwright/test"
 
-function firstCount(value: string | null): number {
-  return Number(value?.match(/\d+/)?.[0] ?? 0)
-}
-
 export async function waitForConnectedRelays(page: Page, timeout = 10_000) {
-  const headerIndicator = page.locator('[title*="relays connected"]').first()
-  const networkSummary = page.getByRole("link", {name: /^Network \(\d+\/\d+\)$/}).first()
-
   await expect
     .poll(
       async () => {
-        const [headerCount, summaryCount] = await Promise.all([
-          headerIndicator
+        try {
+          return await page.evaluate(async () => {
+            const modulePath = "/src/utils/ndk.ts"
+            const {getWorkerTransport} = await import(/* @vite-ignore */ modulePath)
+            const statuses = await getWorkerTransport()?.getRelayStatus()
+            return (
+              statuses?.filter(({status}: {status: number}) => status >= 5).length ?? 0
+            )
+          })
+        } catch {
+          const summary = await page
+            .getByRole("link", {name: /^Network \(\d+\/\d+\)$/})
+            .first()
             .textContent()
-            .then(firstCount)
-            .catch(() => 0),
-          networkSummary
-            .textContent()
-            .then(firstCount)
-            .catch(() => 0),
-        ])
-        return Math.max(headerCount, summaryCount)
+            .catch(() => null)
+          return Number(summary?.match(/\((\d+)\//)?.[1] ?? 0)
+        }
       },
       {timeout}
     )

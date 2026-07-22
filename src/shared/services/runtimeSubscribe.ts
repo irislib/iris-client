@@ -6,6 +6,38 @@ import {
 } from "nostr-double-ratchet"
 
 const DIRECT_MESSAGE_BACKFILL_LIMIT = 200
+const RECENT_EVENT_LIMIT = 1024
+const RECENT_EVENT_TTL_MS = 10 * 60 * 1000
+
+const createDeduplicatingForwarder = <Event extends {id: string}>(
+  onEvent: (event: Event) => void
+) => {
+  const seen = new Map<string, number>()
+  let active = true
+
+  return {
+    forward(event: Event) {
+      if (!active) return
+
+      const now = Date.now()
+      const previous = seen.get(event.id)
+      if (previous !== undefined && now - previous <= RECENT_EVENT_TTL_MS) return
+
+      seen.delete(event.id)
+      seen.set(event.id, now)
+      while (seen.size > RECENT_EVENT_LIMIT) {
+        const oldest = seen.keys().next().value
+        if (oldest === undefined) break
+        seen.delete(oldest)
+      }
+      onEvent(event)
+    },
+    dispose() {
+      active = false
+      seen.clear()
+    },
+  }
+}
 
 interface RuntimeSubscribeNdk {
   pool: {
@@ -34,12 +66,13 @@ export const createRuntimeSubscribe = (
   return (filter, onEvent) => {
     const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
     const relayOptions = relayUrls.length > 0 ? {relayUrls} : {}
+    const {forward, dispose} = createDeduplicatingForwarder(onEvent)
     const forwardEvent = (event: NDKEvent) => {
       const rawEvent =
         typeof (event as {rawEvent?: () => unknown}).rawEvent === "function"
           ? (event as {rawEvent: () => unknown}).rawEvent()
           : event
-      onEvent(rawEvent as unknown as Parameters<typeof onEvent>[0])
+      forward(rawEvent as unknown as Parameters<typeof onEvent>[0])
     }
 
     const registered = tracker.registerFilter(filter)
@@ -69,6 +102,7 @@ export const createRuntimeSubscribe = (
     }
 
     return () => {
+      dispose()
       tracker.unregister(registered.token)
       for (const backfillSubscription of backfillSubscriptions) {
         backfillSubscription.stop()

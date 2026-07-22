@@ -96,8 +96,12 @@ const MessageForm = ({
   groupId,
   groupMembers,
 }: MessageFormProps) => {
-  const {canSendPrivateMessages, appKeysManagerReady, sessionManagerReady} =
-    useDevicesStore()
+  const {
+    canSendPrivateMessages,
+    appKeysManagerReady,
+    sessionManagerReady,
+    privateMessagingBlocked,
+  } = useDevicesStore()
   const {addToast} = useToastStore()
   const [newMessage, setNewMessage] = useState("")
   const [encryptionMetadata, setEncryptionMetadata] = useState<
@@ -256,7 +260,9 @@ const MessageForm = ({
   // For private/group chats, check if device is registered
   const isPrivateOrGroupChat = !isPublicChat || groupId
   const isInitializing =
-    isPrivateOrGroupChat && (!appKeysManagerReady || !sessionManagerReady)
+    isPrivateOrGroupChat &&
+    !privateMessagingBlocked &&
+    (!appKeysManagerReady || !sessionManagerReady)
   const needsSetup = isPrivateOrGroupChat && !isInitializing && !canSendPrivateMessages
   const recipientNotSetup =
     isDM && canSendPrivateMessages && recipientHasAppKeys === false
@@ -348,8 +354,13 @@ const MessageForm = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      {(isInitializing || needsSetup || recipientNotSetup) && (
+      {(privateMessagingBlocked || isInitializing || needsSetup || recipientNotSetup) && (
         <div className="absolute bottom-full left-0 right-0 px-4 py-2 text-xs bg-base-200">
+          {privateMessagingBlocked && (
+            <span className="text-base-content/60">
+              Private messaging is active in another tab. Close it and reload this tab.
+            </span>
+          )}
           {isInitializing && (
             <div className="flex items-center gap-2 text-base-content/60">
               <span className="loading loading-spinner loading-xs" />

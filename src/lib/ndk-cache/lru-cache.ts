@@ -25,12 +25,14 @@ export class CacheHandler<T> {
     this.debug = options.debug
     this.options = options
     this.maxSize = options.maxSize
+    this.indexes = new Map()
     if (options.maxSize > 0) {
-      this.cache = new LRUCache({maxSize: options.maxSize})
+      this.cache = new LRUCache({
+        maxSize: options.maxSize,
+        onEntryEvicted: ({key, value}) => this.removeFromIndexes(key, value),
+      })
       setInterval(() => this.dump().catch(console.error), 1000 * 10)
     }
-
-    this.indexes = new Map()
   }
 
   public getSet(key: string): Set<T> | null {
@@ -120,8 +122,8 @@ export class CacheHandler<T> {
 
     // update indexes
     for (const [attribute, index] of this.indexes.entries()) {
-      const indexKey = (value as any)[attribute] as string
-      if (indexKey) {
+      const indexKey = (value as any)[attribute] as string | number | undefined
+      if (indexKey !== undefined && indexKey !== null) {
         const indexValue = index.get(indexKey) || new Set<string>()
         indexValue.add(key)
         index.set(indexKey, indexValue)
@@ -146,7 +148,28 @@ export class CacheHandler<T> {
   }
 
   public addIndex<_T>(attribute: string | number) {
-    this.indexes.set(attribute, new LRUCache({maxSize: this.options.maxSize}))
+    const index = new LRUCache<string | number, Set<string>>({
+      maxSize: this.options.maxSize,
+    })
+    this.indexes.set(attribute, index)
+    this.cache?.forEach((value, key) => {
+      const indexKey = (value as any)[attribute] as string | number | undefined
+      if (indexKey === undefined || indexKey === null) return
+      const keys = index.get(indexKey) || new Set<string>()
+      keys.add(key)
+      index.set(indexKey, keys)
+    })
+  }
+
+  private removeFromIndexes(key: string, value: T) {
+    for (const [attribute, index] of this.indexes.entries()) {
+      const indexKey = (value as any)[attribute] as string | number | undefined
+      if (indexKey === undefined || indexKey === null) continue
+      const keys = index.get(indexKey)
+      if (!keys) continue
+      keys.delete(key)
+      if (keys.size === 0) index.delete(indexKey)
+    }
   }
 
   public getFromIndex(index: string, key: string | number) {

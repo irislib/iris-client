@@ -14,10 +14,18 @@ import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {initServiceWorkerAutoReload} from "@/swInit"
 import {startMessageExpirationCleanup} from "@/utils/messageExpirationCleanup"
 import {syncDisappearingMessagesToNdrRuntime} from "@/utils/disappearingMessages"
+import localforage from "localforage"
+import {usePrivateMessagesStore} from "@/stores/privateMessages"
+import {useGroupsStore} from "@/stores/groups"
+import {useDraftStore} from "@/stores/draft"
+import {useChatExpirationStore} from "@/stores/chatExpiration"
+import {useMessageRequestsStore} from "@/stores/messageRequests"
+import {
+  acquirePrivateMessagingTabLock,
+  releasePrivateMessagingTabLock,
+} from "@/utils/privateMessagingTabLock"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
-import {cleanupNdrRuntimeEventListener} from "./utils/dmEventHandler"
-import {cleanupGroupMessageListener} from "./utils/groupMessageHandler"
 import {hasWriteAccess, shouldStartPrivateMessagingOnAuthChange} from "./utils/auth"
 import {maybeAutoEnableInjectedNip07Login} from "./utils/injectedNip07"
 import {
@@ -27,8 +35,10 @@ import {
   hasLocalAppKeys,
   getDelegateManager,
   startAppKeysSubscription,
+  closePrivateMessaging,
+  setPrivateMessagingAvailable,
 } from "@/shared/services/PrivateChats"
-import {useDevicesStore} from "./stores/devices"
+import {onCurrentDeviceRemovedFromRoster, useDevicesStore} from "./stores/devices"
 import {autoRegisterDevice} from "./utils/autoRegisterDevice"
 import {syncInjectedHtreeHeadAssetUrls} from "./utils/nativeHtree"
 
@@ -65,6 +75,9 @@ const initializeApp = async () => {
 
   // Wait for settings to hydrate from localStorage before initializing NDK
   await useUserStore.getState().awaitHydration()
+  const privateMessagingAvailable = await acquirePrivateMessagingTabLock()
+  setPrivateMessagingAvailable(privateMessagingAvailable)
+  useDevicesStore.getState().setPrivateMessagingBlocked(!privateMessagingAvailable)
   void maybeAutoEnableInjectedNip07Login()
 
   // Start NDK initialization in background (non-blocking)
@@ -73,6 +86,8 @@ const initializeApp = async () => {
     log("✅ NDK initialized")
 
     // Initialize AppKeysManager first (fast), then DelegateManager in parallel
+    if (!privateMessagingAvailable) return
+
     try {
       // Initialize AppKeysManager first so we can check local keys immediately
       await initAppKeysManager()
@@ -116,7 +131,7 @@ const initializeApp = async () => {
     })
 
     // Only initialize DM sessions if not in readonly mode
-    if (hasWriteAccess()) {
+    if (hasWriteAccess() && privateMessagingAvailable) {
       startPrivateMessaging(state.publicKey)
     }
   }
@@ -157,6 +172,7 @@ initializeApp()
 
 // Store subscriptions
 const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
+  if (useDevicesStore.getState().privateMessagingBlocked) return
   // Only proceed if public key actually changed
   if (state.publicKey && state.publicKey !== prevState.publicKey) {
     log("Public key changed, initializing chat modules")
@@ -178,6 +194,36 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
   }
 })
 
+let revokedDeviceCleanup: Promise<void> | null = null
+const unsubscribeDeviceRemoval = onCurrentDeviceRemovedFromRoster(() => {
+  if (!useUserStore.getState().linkedDevice || revokedDeviceCleanup) return
+
+  revokedDeviceCleanup = (async () => {
+    closePrivateMessaging()
+    const {ndk} = await import("@/utils/ndk")
+    ndk().signer = undefined
+    await Promise.allSettled([
+      usePrivateMessagesStore.getState().clear(),
+      localforage.dropInstance({
+        name: "iris-session-manager",
+        storeName: "session-private",
+      }),
+      useGroupsStore.persist.clearStorage(),
+      useDraftStore.persist.clearStorage(),
+      useChatExpirationStore.persist.clearStorage(),
+      useMessageRequestsStore.persist.clearStorage(),
+    ])
+    useGroupsStore.setState({groups: {}})
+    useDraftStore.getState().clearAll()
+    useChatExpirationStore.setState({expirations: {}})
+    useMessageRequestsStore.setState({acceptedChats: {}, rejectedChats: {}})
+    localStorage.removeItem("cashu.ndk.privateKeySignerPrivateKey")
+    localStorage.removeItem("cashu.ndk.pubkey")
+    useUserStore.getState().reset()
+    location.reload()
+  })()
+})
+
 // Subscribe to theme changes
 const unsubscribeTheme = useSettingsStore.subscribe((state) => {
   if (typeof state.appearance.theme === "string") {
@@ -191,8 +237,9 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     // Clean up subscriptions on hot reload
     unsubscribeUser()
+    unsubscribeDeviceRemoval()
     unsubscribeTheme()
-    cleanupNdrRuntimeEventListener()
-    cleanupGroupMessageListener()
+    closePrivateMessaging()
+    releasePrivateMessagingTabLock()
   })
 }

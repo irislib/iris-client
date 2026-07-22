@@ -121,8 +121,14 @@ describe("imported identity registration", () => {
     })
 
     expect(mocks.devicesStore.setPendingAutoRegistration).not.toHaveBeenCalled()
-    expect(mocks.userStore.setPrivateKey).toHaveBeenCalled()
-    expect(mocks.userStore.setPublicKey).toHaveBeenCalledWith(publicKey)
+    expect(mocks.userSetState).toHaveBeenCalledWith({
+      privateKey: expect.any(String),
+      publicKey,
+      nip07Login: false,
+      linkedDevice: false,
+    })
+    expect(mocks.userStore.setPrivateKey).not.toHaveBeenCalled()
+    expect(mocks.userStore.setPublicKey).not.toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -147,6 +153,7 @@ describe("imported identity registration", () => {
     expect(mocks.userSetState).toHaveBeenCalledWith({
       privateKey: expect.any(String),
       publicKey,
+      nip07Login: false,
       linkedDevice: false,
     })
     expect(onClose).toHaveBeenCalled()

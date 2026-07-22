@@ -57,6 +57,7 @@ export class NDKWorkerTransport {
   >()
   private searchReady = false
   private readonly SEARCH_TIMEOUT_MS = 10_000
+  private unsubscribeSettings?: () => void
 
   // Heartbeat monitoring - detects unresponsive workers (infinite loops, deadlocks)
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
@@ -194,6 +195,9 @@ export class NDKWorkerTransport {
     relayUrls?: string[],
     options?: {disableExtraRelayUrls?: boolean}
   ): Promise<void> {
+    if (this.ndk && this.ndk !== ndk) {
+      this.removeTransportPlugin(this.ndk)
+    }
     this.ndk = ndk
     this.relayUrls = relayUrls || []
     this.disableExtraRelayUrls = !!options?.disableExtraRelayUrls
@@ -202,7 +206,9 @@ export class NDKWorkerTransport {
     if (!ndk.transportPlugins) {
       ndk.transportPlugins = []
     }
-    ndk.transportPlugins.push(this as any) // Type compatibility handled at runtime
+    if (!ndk.transportPlugins.includes(this)) {
+      ndk.transportPlugins.push(this)
+    }
 
     const settingsState = useSettingsStore.getState()
     const settings = {
@@ -229,23 +235,25 @@ export class NDKWorkerTransport {
       window.addEventListener("online", this.handleOnline)
     }
 
-    // Subscribe to settings changes and forward to worker
-    useSettingsStore.subscribe((state) => {
-      const settings = {
-        appearance: state.appearance,
-        content: state.content,
-        imgproxy: state.imgproxy,
-        notifications: state.notifications,
-        network: state.network,
-        desktop: state.desktop,
-        debug: state.debug,
-        legal: state.legal,
-      }
-      this.postMessage({
-        type: "updateSettings",
-        settings,
-      } as WorkerMessage)
-    })
+    // Subscribe once: connect() also runs after an automatic worker restart.
+    if (!this.unsubscribeSettings) {
+      this.unsubscribeSettings = useSettingsStore.subscribe((state) => {
+        const settings = {
+          appearance: state.appearance,
+          content: state.content,
+          imgproxy: state.imgproxy,
+          notifications: state.notifications,
+          network: state.network,
+          desktop: state.desktop,
+          debug: state.debug,
+          legal: state.legal,
+        }
+        this.postMessage({
+          type: "updateSettings",
+          settings,
+        } as WorkerMessage)
+      })
+    }
 
     // Don't await - let worker init in background
   }
@@ -415,8 +423,22 @@ export class NDKWorkerTransport {
       window.removeEventListener("online", this.handleOnline)
     }
 
+    this.unsubscribeSettings?.()
+    this.unsubscribeSettings = undefined
+    if (this.ndk) {
+      this.removeTransportPlugin(this.ndk)
+    }
+
     this.postMessage({type: "close"} as WorkerMessage)
     this.worker.terminate()
+  }
+
+  private removeTransportPlugin(ndk: NDK): void {
+    for (let i = ndk.transportPlugins.length - 1; i >= 0; i--) {
+      if (ndk.transportPlugins[i] === this) {
+        ndk.transportPlugins.splice(i, 1)
+      }
+    }
   }
 
   /**

@@ -2,6 +2,7 @@ import {Manager, ConsoleLogger} from "./core/index"
 import {IndexedDbRepositories} from "./indexeddb/index"
 
 let managerInstance: Manager | null = null
+let managerInitPromise: Promise<Manager> | null = null
 
 const getSeed = async (): Promise<Uint8Array> => {
   const storedSeed = localStorage.getItem("cashu:seed")
@@ -21,29 +22,36 @@ const getSeed = async (): Promise<Uint8Array> => {
 }
 
 export const initCashuManager = async (): Promise<Manager> => {
-  if (managerInstance) {
-    return managerInstance
+  if (managerInstance) return managerInstance
+  if (managerInitPromise) return managerInitPromise
+
+  managerInitPromise = (async () => {
+    const repos = new IndexedDbRepositories({name: "iris-cashu-db"})
+    await repos.init()
+
+    const manager = new Manager(
+      repos,
+      getSeed,
+      new ConsoleLogger("cashu", {level: "warn"})
+    )
+    try {
+      await manager.enableMintQuoteWatcher({watchExistingPendingOnStart: true})
+      await manager.enableProofStateWatcher()
+      await manager.enableMintQuoteProcessor()
+      await manager.quotes.requeuePaidMintQuotes()
+      managerInstance = manager
+      return manager
+    } catch (error) {
+      await manager.dispose().catch(() => {})
+      throw error
+    }
+  })()
+
+  try {
+    return await managerInitPromise
+  } finally {
+    managerInitPromise = null
   }
-
-  const repos = new IndexedDbRepositories({
-    name: "iris-cashu-db",
-  })
-
-  await repos.init()
-
-  const logger = new ConsoleLogger("cashu", {level: "warn"})
-
-  managerInstance = new Manager(repos, getSeed, logger)
-
-  // Enable watchers for automatic quote redemption
-  await managerInstance.enableMintQuoteWatcher({watchExistingPendingOnStart: true})
-  await managerInstance.enableProofStateWatcher()
-
-  // Enable processor to automatically redeem paid quotes
-  await managerInstance.enableMintQuoteProcessor()
-  await managerInstance.quotes.requeuePaidMintQuotes()
-
-  return managerInstance
 }
 
 export const getCashuManager = (): Manager | null => {
@@ -51,6 +59,7 @@ export const getCashuManager = (): Manager | null => {
 }
 
 export const disposeCashuManager = async (): Promise<void> => {
+  if (managerInitPromise) await managerInitPromise.catch(() => {})
   if (managerInstance) {
     await managerInstance.dispose()
     managerInstance = null

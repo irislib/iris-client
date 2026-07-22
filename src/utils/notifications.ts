@@ -1,8 +1,4 @@
-import {
-  INVITE_RESPONSE_KIND,
-  MESSAGE_EVENT_KIND,
-  type SessionUserRecordsLike,
-} from "nostr-double-ratchet"
+import {MESSAGE_EVENT_KIND, type SessionUserRecordsLike} from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
@@ -53,6 +49,43 @@ export interface Notification {
 }
 
 export const notifications = new SortedMap<string, Notification>([], "time")
+
+/**
+ * Runs one synchronization at a time and collapses queued work to the newest value.
+ * A newer reconciliation therefore always observes the server state left by an older
+ * in-flight mutation and gets the final say.
+ */
+export function createLatestNotificationSyncQueue<T>(
+  sync: (value: T) => Promise<void>,
+  onError: (reason: unknown) => void = error
+) {
+  let queuedValue: T
+  let hasQueuedValue = false
+  let drainPromise: Promise<void> | undefined
+
+  const drain = async () => {
+    try {
+      while (hasQueuedValue) {
+        const value = queuedValue
+        hasQueuedValue = false
+        try {
+          await sync(value)
+        } catch (reason) {
+          onError(reason)
+        }
+      }
+    } finally {
+      drainPromise = undefined
+    }
+  }
+
+  return (value: T) => {
+    queuedValue = value
+    hasQueuedValue = true
+    drainPromise ??= drain()
+    return drainPromise
+  }
+}
 
 // Define the NotificationOptions interface locally
 interface NotificationOptions {
@@ -115,6 +148,7 @@ export const showNotification = async (
 }
 
 let subscriptionPromise: Promise<PushSubscription | null> | null = null
+let subscriptionServer: string | null = null
 
 async function getOrCreatePushSubscription() {
   if (!("serviceWorker" in navigator) || !("Notification" in window)) {
@@ -125,12 +159,17 @@ async function getOrCreatePushSubscription() {
     return null
   }
 
+  const server = useSettingsStore.getState().notifications.server
+  if (subscriptionServer !== server) {
+    subscriptionServer = server
+    subscriptionPromise = null
+  }
+
   if (!subscriptionPromise) {
     subscriptionPromise = (async () => {
       const reg = await navigator.serviceWorker.ready
       let pushSubscription = await reg.pushManager.getSubscription()
-      const store = useSettingsStore.getState()
-      const api = new IrisAPI(store.notifications.server)
+      const api = new IrisAPI(server)
       const {vapid_public_key: vapidKey} = await api.getPushNotificationInfo()
 
       // Check if we need to resubscribe due to different vapid key
@@ -164,12 +203,72 @@ async function getOrCreatePushSubscription() {
     })()
   }
 
-  return subscriptionPromise
+  const pending = subscriptionPromise
+  try {
+    const subscription = await pending
+    if (!subscription && subscriptionPromise === pending) subscriptionPromise = null
+    return subscription
+  } catch (error) {
+    if (subscriptionPromise === pending) subscriptionPromise = null
+    throw error
+  }
 }
 
-export const subscribeToDMNotifications = debounce(async () => {
+export async function ensurePushSubscription(): Promise<boolean> {
+  return Boolean(await getOrCreatePushSubscription())
+}
+
+interface DmNotificationSyncPlan {
+  deleteIds: string[]
+  register: boolean
+  update?: [string, NotificationSubscription]
+}
+
+export function planDmNotificationSync(
+  subscriptions: Record<string, NotificationSubscription>,
+  webPushData: PushNotifications,
+  sessionAuthors: string[],
+  enabled: boolean
+): DmNotificationSyncPlan {
+  const managed = Object.entries(subscriptions).filter(
+    ([, subscription]) =>
+      subscription.filter.kinds?.length === 1 &&
+      subscription.filter.kinds[0] === MESSAGE_EVENT_KIND &&
+      !!subscription.filter.authors &&
+      (subscription.web_push_subscriptions || []).some(
+        ({endpoint}) => endpoint === webPushData.endpoint
+      )
+  )
+
+  if (!enabled || sessionAuthors.length === 0) {
+    return {deleteIds: managed.map(([id]) => id), register: false}
+  }
+
+  const [current, ...duplicates] = managed
+  if (!current) {
+    return {deleteIds: [], register: true}
+  }
+
+  const currentPush = current[1].web_push_subscriptions.find(
+    ({endpoint}) => endpoint === webPushData.endpoint
+  )
+  const needsUpdate =
+    !sameStringSet(current[1].filter.authors || [], sessionAuthors) ||
+    !sameWebPushSubscription(currentPush, webPushData)
+
+  return {
+    deleteIds: duplicates.map(([id]) => id),
+    register: false,
+    ...(needsUpdate ? {update: current} : {}),
+  }
+}
+
+let dmNotificationSyncGeneration = 0
+
+const syncDmNotifications = async (generation: number) => {
+  const isCurrent = () => generation === dmNotificationSyncGeneration
   const pushSubscription = await getOrCreatePushSubscription()
-  if (!pushSubscription) {
+  if (!isCurrent() || !pushSubscription) {
     return
   }
 
@@ -178,128 +277,103 @@ export const subscribeToDMNotifications = debounce(async () => {
     return
   }
 
-  const inviteRecipients: string[] = []
+  const store = useSettingsStore.getState()
+  const dmsEnabled = store.notifications.preferences?.dms ?? true
 
   let sessionAuthors: string[] = []
-  try {
-    const runtime = getNdrRuntime()
-    if (runtime.getState().sessionManagerReady) {
+  if (dmsEnabled) {
+    try {
+      const runtime = getNdrRuntime()
+      if (!runtime.getState().sessionManagerReady) return
       sessionAuthors = extractSessionPubkeysFromUserRecords(
         runtime.getSessionUserRecords(),
         publicKey
       )
+    } catch (err) {
+      error("Failed to load session data for DM push subscription:", err)
+      return
     }
-  } catch (err) {
-    error("Failed to load session data for DM push subscription:", err)
   }
 
-  const webPushData = {
-    endpoint: pushSubscription.endpoint,
-    p256dh: base64.encode(new Uint8Array(pushSubscription.getKey("p256dh")!)),
-    auth: base64.encode(new Uint8Array(pushSubscription.getKey("auth")!)),
-  }
+  const webPushData = buildWebPushData(pushSubscription)
 
   const messageFilter = {
     kinds: [MESSAGE_EVENT_KIND],
     authors: sessionAuthors,
   }
 
-  const inviteFilter = {
-    kinds: [INVITE_RESPONSE_KIND],
-    "#p": inviteRecipients,
-  }
-
-  const store = useSettingsStore.getState()
   const api = new IrisAPI(store.notifications.server)
   const currentSubscriptions = await api.getNotificationSubscriptions()
+  if (!isCurrent()) return
+  const plan = planDmNotificationSync(
+    currentSubscriptions,
+    webPushData,
+    sessionAuthors,
+    dmsEnabled
+  )
 
-  // Create/update subscription for session authors
-  if (sessionAuthors.length > 0) {
-    const sessionSub = Object.entries(currentSubscriptions).find(
-      ([, sub]) =>
-        sub.filter.kinds?.length === messageFilter.kinds.length &&
-        sub.filter.kinds[0] === MESSAGE_EVENT_KIND &&
-        sub.filter.authors && // Look for subscription with authors filter
-        (sub.web_push_subscriptions || []).some(
-          (sub) => sub.endpoint === webPushData.endpoint
-        )
-    )
+  await Promise.all(plan.deleteIds.map((id) => api.deleteNotificationSubscription(id)))
+  if (!isCurrent()) return
 
-    if (sessionSub) {
-      const [id, sub] = sessionSub
-      const existingAuthors = sub.filter.authors || []
-      if (!arrayEqual(existingAuthors, sessionAuthors)) {
-        await api.updateNotificationSubscription(id, {
-          filter: messageFilter,
-          web_push_subscriptions: [webPushData],
-          webhooks: [],
-          subscriber: sub.subscriber,
-        })
-      }
-    } else {
-      await api.registerPushNotifications([webPushData], messageFilter)
-    }
+  if (plan.update) {
+    const [id, subscription] = plan.update
+    await api.updateNotificationSubscription(id, {
+      ...subscription,
+      filter: messageFilter,
+      web_push_subscriptions: [webPushData],
+    })
+  } else if (plan.register) {
+    await api.registerPushNotifications([webPushData], messageFilter)
   }
+}
 
-  // Create/update subscription for invite authors
-  if (inviteRecipients.length > 0) {
-    const inviteSub = Object.entries(currentSubscriptions).find(
-      ([, sub]) =>
-        sub.filter.kinds?.length === inviteFilter.kinds.length &&
-        sub.filter.kinds[0] === INVITE_RESPONSE_KIND &&
-        sub.filter["#p"] && // Look for subscription with #p tags
-        !sub.filter.authors && // but no authors filter
-        (sub.web_push_subscriptions || []).some(
-          (sub) => sub.endpoint === webPushData.endpoint
-        )
-    )
-
-    if (inviteSub) {
-      const [id, sub] = inviteSub
-      const existinginviteRecipients = sub.filter["#p"] || []
-      if (!arrayEqual(existinginviteRecipients, inviteRecipients)) {
-        await api.updateNotificationSubscription(id, {
-          filter: inviteFilter,
-          web_push_subscriptions: [webPushData],
-          webhooks: [],
-          subscriber: sub.subscriber,
-        })
-      }
-    } else {
-      await api.registerPushNotifications([webPushData], inviteFilter)
-    }
-  }
-}, 5000)
+const queueDmNotificationSync = createLatestNotificationSyncQueue(syncDmNotifications)
+const scheduleDmNotificationSync = debounce(queueDmNotificationSync, 5000)
+export const subscribeToDMNotifications = () =>
+  scheduleDmNotificationSync(++dmNotificationSyncGeneration)
 
 // Helper function to compare arrays
 function arrayEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((val, idx) => b[idx] === val)
 }
 
+function sameStringSet(a: string[], b: string[]) {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
+}
+
 export function extractSessionPubkeysFromUserRecords(
   userRecords: SessionUserRecordsLike,
   ourPublicKey?: string
 ): string[] {
-  return Array.from(userRecords.entries())
-    .filter(([publicKey]) => !ourPublicKey || publicKey !== ourPublicKey)
-    .flatMap(([, {devices}]) =>
-      Array.from(devices?.values() ?? []).flatMap((device) => {
-        const sessions = [device.activeSession, ...(device.inactiveSessions ?? [])]
-        return sessions.filter(Boolean)
-      })
+  return Array.from(
+    new Set(
+      Array.from(userRecords.entries())
+        .filter(([publicKey]) => !ourPublicKey || publicKey !== ourPublicKey)
+        .flatMap(([, {devices}]) =>
+          Array.from(devices?.values() ?? []).flatMap((device) => {
+            const sessions = [device.activeSession, ...(device.inactiveSessions ?? [])]
+            return sessions.filter(Boolean)
+          })
+        )
+        .flatMap((session) => {
+          const state = session?.state
+          if (!state) return []
+          return [state.theirCurrentNostrPublicKey, state.theirNextNostrPublicKey]
+        })
+        .filter(
+          (key): key is string =>
+            typeof key === "string" && (!ourPublicKey || key !== ourPublicKey)
+        )
     )
-    .flatMap((session) => {
-      const state = session?.state
-      if (!state) return []
-      return [state.theirCurrentNostrPublicKey, state.theirNextNostrPublicKey]
-    })
-    .filter(
-      (key): key is string =>
-        typeof key === "string" && (!ourPublicKey || key !== ourPublicKey)
-    )
+  )
 }
 
-export const subscribeToNotifications = debounce(async () => {
+let notificationSyncGeneration = 0
+
+const syncNotifications = async (generation: number) => {
+  const isCurrent = () => generation === notificationSyncGeneration
   if (!("serviceWorker" in navigator)) {
     return
   }
@@ -312,7 +386,7 @@ export const subscribeToNotifications = debounce(async () => {
 
   try {
     const pushSubscription = await getOrCreatePushSubscription()
-    if (!pushSubscription) {
+    if (!isCurrent() || !pushSubscription) {
       return
     }
 
@@ -356,6 +430,7 @@ export const subscribeToNotifications = debounce(async () => {
 
     // Check for existing subscription on notification server
     const currentSubscriptions = await api.getNotificationSubscriptions()
+    if (!isCurrent()) return
 
     const managedSubscriptions = Object.entries(currentSubscriptions).filter(([, sub]) =>
       isManagedNotificationSubscription(sub, myPubKey, webPushData.endpoint)
@@ -366,6 +441,7 @@ export const subscribeToNotifications = debounce(async () => {
       await Promise.all(
         duplicateSubs.map(([id]) => api.deleteNotificationSubscription(id))
       )
+      if (!isCurrent()) return
     }
 
     if (kinds.length === 0) {
@@ -406,9 +482,14 @@ export const subscribeToNotifications = debounce(async () => {
       )
     }
   } catch (e) {
-    error(e)
+    if (isCurrent()) error(e)
   }
-}, 5000)
+}
+
+const queueNotificationSync = createLatestNotificationSyncQueue(syncNotifications)
+const scheduleNotificationSync = debounce(queueNotificationSync, 5000)
+export const subscribeToNotifications = () =>
+  scheduleNotificationSync(++notificationSyncGeneration)
 
 export const clearNotifications = async () => {
   if (!("serviceWorker" in navigator)) {

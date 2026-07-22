@@ -8,10 +8,10 @@ import LinkDeviceInvite from "./LinkDeviceInvite"
 
 const DevicesTab = () => {
   const publicKey = useUserStore((s) => s.publicKey)
-  const {setIdentityPubkey} = useDevicesStore()
+  const {setIdentityPubkey, privateMessagingBlocked} = useDevicesStore()
 
   useEffect(() => {
-    if (!publicKey) {
+    if (!publicKey || privateMessagingBlocked) {
       return
     }
 
@@ -33,12 +33,20 @@ const DevicesTab = () => {
     return () => {
       cancelled = true
     }
-  }, [publicKey, setIdentityPubkey])
+  }, [privateMessagingBlocked, publicKey, setIdentityPubkey])
 
   if (!publicKey) {
     return (
       <div className="p-4 text-center text-base-content/60">
         Please log in to manage devices
+      </div>
+    )
+  }
+
+  if (privateMessagingBlocked) {
+    return (
+      <div className="p-4 text-center text-base-content/60 md:hidden">
+        Private messaging is active in another tab. Close it and reload this tab.
       </div>
     )
   }

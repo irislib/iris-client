@@ -1,5 +1,6 @@
 import {useState, useEffect, useRef} from "react"
 import {useDevicesStore} from "@/stores/devices"
+import {useUserStore} from "@/stores/user"
 import {
   RiComputerLine,
   RiRefreshLine,
@@ -29,6 +30,7 @@ const getButtonText = (revoking: boolean, isCurrentDevice: boolean) => {
 
 const DeviceList = () => {
   const {registeredDevices, identityPubkey} = useDevicesStore()
+  const isLinkedDevice = useUserStore((state) => state.linkedDevice)
   const [republishing, setRepublishing] = useState(false)
   const [deviceToRevoke, setDeviceToRevoke] = useState<string | null>(null)
   const [revoking, setRevoking] = useState(false)
@@ -156,23 +158,38 @@ const DeviceList = () => {
                       .join(" • ")}
                   </div>
                 </div>
-                {isCurrentDevice ? (
-                  <div className="flex items-center gap-1">
+                {!isLinkedDevice &&
+                  (isCurrentDevice ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={handleRepublishInvite}
+                        disabled={republishing}
+                        className="btn btn-ghost btn-sm"
+                        title="Republish invite event"
+                      >
+                        <RiRefreshLine
+                          className={`w-4 h-4 ${republishing ? "animate-spin" : ""}`}
+                        />
+                      </button>
+                      <button
+                        onClick={() => handleRevokeClick(device.identityPubkey, true)}
+                        disabled={revoking}
+                        className="btn btn-ghost btn-sm text-error"
+                        title="Remove this device from messaging"
+                      >
+                        {revoking && deviceToRevoke === device.identityPubkey ? (
+                          <RiLoader4Line className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <RiDeleteBinLine className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  ) : (
                     <button
-                      onClick={handleRepublishInvite}
-                      disabled={republishing}
-                      className="btn btn-ghost btn-sm"
-                      title="Republish invite event"
-                    >
-                      <RiRefreshLine
-                        className={`w-4 h-4 ${republishing ? "animate-spin" : ""}`}
-                      />
-                    </button>
-                    <button
-                      onClick={() => handleRevokeClick(device.identityPubkey, true)}
+                      onClick={() => handleRevokeClick(device.identityPubkey)}
                       disabled={revoking}
                       className="btn btn-ghost btn-sm text-error"
-                      title="Remove this device from messaging"
+                      title="Revoke device"
                     >
                       {revoking && deviceToRevoke === device.identityPubkey ? (
                         <RiLoader4Line className="w-4 h-4 animate-spin" />
@@ -180,21 +197,7 @@ const DeviceList = () => {
                         <RiDeleteBinLine className="w-4 h-4" />
                       )}
                     </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleRevokeClick(device.identityPubkey)}
-                    disabled={revoking}
-                    className="btn btn-ghost btn-sm text-error"
-                    title="Revoke device"
-                  >
-                    {revoking && deviceToRevoke === device.identityPubkey ? (
-                      <RiLoader4Line className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RiDeleteBinLine className="w-4 h-4" />
-                    )}
-                  </button>
-                )}
+                  ))}
               </div>
             </div>
           )
@@ -284,6 +287,11 @@ const DeviceList = () => {
           <button onClick={closeModal}>close</button>
         </form>
       </dialog>
+      {isLinkedDevice && (
+        <p className="text-sm text-base-content/60 text-center">
+          Manage devices from the main account.
+        </p>
+      )}
     </div>
   )
 }

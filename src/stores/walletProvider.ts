@@ -2,12 +2,12 @@ import {create} from "zustand"
 import {persist} from "zustand/middleware"
 import {SimpleWebLNWallet} from "@/utils/webln"
 import {SimpleNWCWallet} from "@/utils/nwc"
-import {getCashuManager, initCashuManager} from "@/lib/cashu/manager"
 import throttle from "lodash/throttle"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
+const loadCashuManager = () => import("@/lib/cashu/manager")
 
 export type WalletProviderType = "native" | "nwc" | "cashu" | "disabled" | undefined
 
@@ -273,6 +273,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
         ) {
           log("🔍 Eagerly initializing Cashu manager...")
           try {
+            const {initCashuManager} = await loadCashuManager()
             const manager = await initCashuManager()
             log("✅ Cashu manager initialized early")
 
@@ -557,6 +558,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
 
         // Handle Cashu wallet
         if (activeProviderType === "cashu") {
+          const {getCashuManager} = await loadCashuManager()
           const manager = getCashuManager()
           if (!manager) {
             throw new Error("Cashu manager not initialized")
@@ -630,6 +632,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
 
         // Handle Cashu wallet
         if (activeProviderType === "cashu") {
+          const {getCashuManager} = await loadCashuManager()
           const manager = getCashuManager()
           if (!manager) {
             throw new Error("Cashu manager not initialized")
@@ -690,6 +693,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
 
             // Handle Cashu wallet
             if (activeProviderType === "cashu") {
+              const {getCashuManager} = await loadCashuManager()
               const manager = getCashuManager()
               if (!manager) {
                 log("🔍 Cashu manager not initialized yet")

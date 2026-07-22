@@ -10,6 +10,7 @@ interface DeviceState {
   hasLocalAppKeys: boolean
   lastEventTimestamp: number // Track last processed AppKeys event timestamp
   pendingAutoRegistration: boolean
+  privateMessagingBlocked: boolean
   // Computed
   canSendPrivateMessages: boolean
   // Actions
@@ -19,6 +20,7 @@ interface DeviceState {
   setSessionManagerReady: (ready: boolean) => void
   setHasLocalAppKeys: (has: boolean) => void
   setPendingAutoRegistration: (pending: boolean) => void
+  setPrivateMessagingBlocked: (blocked: boolean) => void
 }
 
 const initialState = {
@@ -30,8 +32,11 @@ const initialState = {
   hasLocalAppKeys: false,
   lastEventTimestamp: 0,
   pendingAutoRegistration: false,
+  privateMessagingBlocked: false,
   canSendPrivateMessages: false,
 }
+
+const currentDeviceRemovalListeners = new Set<(pubkey: string) => void>()
 
 const computeDeviceRegistrationState = (state: {
   identityPubkey: string | null
@@ -70,6 +75,7 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
   setRegisteredDevices: (devices: DeviceEntry[], timestamp?: number) => {
     const {
       identityPubkey,
+      registeredDevices,
       appKeysManagerReady,
       sessionManagerReady,
       hasLocalAppKeys,
@@ -92,6 +98,13 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
       lastEventTimestamp: timestamp ?? lastEventTimestamp,
       canSendPrivateMessages: nextState.canSendPrivateMessages,
     })
+    const removedCurrentDevice =
+      identityPubkey &&
+      registeredDevices.some((device) => device.identityPubkey === identityPubkey) &&
+      !devices.some((device) => device.identityPubkey === identityPubkey)
+    if (removedCurrentDevice) {
+      for (const listener of currentDeviceRemovalListeners) listener(identityPubkey)
+    }
   },
   setAppKeysManagerReady: (ready: boolean) => {
     const {sessionManagerReady, hasLocalAppKeys, identityPubkey, registeredDevices} =
@@ -140,4 +153,13 @@ export const useDevicesStore = create<DeviceState>()((set, get) => ({
   },
   setPendingAutoRegistration: (pending: boolean) =>
     set({pendingAutoRegistration: pending}),
+  setPrivateMessagingBlocked: (privateMessagingBlocked: boolean) =>
+    set({privateMessagingBlocked}),
 }))
+
+export const onCurrentDeviceRemovedFromRoster = (
+  listener: (pubkey: string) => void
+): (() => void) => {
+  currentDeviceRemovalListeners.add(listener)
+  return () => currentDeviceRemovalListeners.delete(listener)
+}

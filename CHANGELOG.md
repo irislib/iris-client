@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.5.5
+
+- Harden encrypted messaging startup, backfill deduplication, delivery status,
+  device linking and revocation, and single-tab ratchet ownership.
+- Add a production-like signup, post, reaction, session-restore, and navigation
+  journey with browser performance metrics and faster parallel test gates.
+- Serialize notification reconciliation, honor direct-message preferences, and
+  report the browser's actual push-subscription state.
+- Defer Cashu wallet code, shrink the service-worker precache by about 48%,
+  preserve unrelated runtime caches, and accelerate feed and cache operations.
+- Fix rapid follow publication races, corrupt-session recovery, signature
+  verification recursion, and worker relay-status recovery.
+- Replace the browser-opening bundle analyzer with concise CLI build output and
+  remove redundant tests, unused dependencies, exports, and source files.
+
 ## 2.5.4
 
 - Publish uploaded image metadata only when the exact media URL remains in the

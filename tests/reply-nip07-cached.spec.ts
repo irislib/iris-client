@@ -20,7 +20,7 @@ const seedCachedEvent = async (
         const db = request.result
         const createObjectStore = (
           name: string,
-          options: IDBObjectStoreParameters,
+          options: {keyPath?: string | string[]; autoIncrement?: boolean},
           indexes: Array<[string, string | string[]]> = []
         ) => {
           if (db.objectStoreNames.contains(name)) return

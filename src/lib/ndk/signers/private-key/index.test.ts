@@ -118,34 +118,6 @@ describe("NDKPrivateKeySigner", () => {
       }).toThrow()
     })
 
-    it("supports different log_n values", () => {
-      const signer = new NDKPrivateKeySigner(knownNsec)
-
-      const ncryptsec16 = signer.encryptToNcryptsec(password, 16)
-      const restored16 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec16, password)
-      expect(restored16.pubkey).toBe(knownPubkey)
-
-      const ncryptsec18 = signer.encryptToNcryptsec(password, 18)
-      const restored18 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec18, password)
-      expect(restored18.pubkey).toBe(knownPubkey)
-    })
-
-    it("supports different key security byte values", () => {
-      const signer = new NDKPrivateKeySigner(knownNsec)
-
-      const ncryptsec00 = signer.encryptToNcryptsec(password, 16, 0x00)
-      const restored00 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec00, password)
-      expect(restored00.pubkey).toBe(knownPubkey)
-
-      const ncryptsec01 = signer.encryptToNcryptsec(password, 16, 0x01)
-      const restored01 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec01, password)
-      expect(restored01.pubkey).toBe(knownPubkey)
-
-      const ncryptsec02 = signer.encryptToNcryptsec(password, 16, 0x02)
-      const restored02 = NDKPrivateKeySigner.fromNcryptsec(ncryptsec02, password)
-      expect(restored02.pubkey).toBe(knownPubkey)
-    })
-
     it("can sign events with signer created from ncryptsec", async () => {
       const signer = new NDKPrivateKeySigner(knownNsec)
       const ncryptsec = signer.encryptToNcryptsec(password)

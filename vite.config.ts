@@ -1,4 +1,3 @@
-import {visualizer} from "rollup-plugin-visualizer"
 import react from "@vitejs/plugin-react"
 import {VitePWA} from "vite-plugin-pwa"
 import {defineConfig} from "vite"
@@ -15,6 +14,10 @@ export default defineConfig({
       injectManifest: {
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         globPatterns: ["**/*"],
+        // The bundled legacy Cashu app has its own entry point and assets. Preloading
+        // the entire subtree made every Iris service-worker install download it,
+        // even for people who never open /cashu/.
+        globIgnores: ["cashu/**/*"],
         rollupOptions: {
           onwarn(warning, warn) {
             if (warning.code === "EVAL" && warning.id?.includes("tseep")) return
@@ -47,17 +50,6 @@ export default defineConfig({
         enabled: true,
         type: "module",
       },
-    }),
-    visualizer({
-      open: true,
-      gzipSize: true,
-      filename: "build/stats.html",
-    }),
-    visualizer({
-      open: false,
-      gzipSize: true,
-      filename: "build/stats-list.txt",
-      template: "list",
     }),
   ],
   resolve: {
@@ -133,6 +125,10 @@ export default defineConfig({
             return "nostr-double-ratchet"
           }
 
+          if (id.includes("node_modules/@cashu/cashu-ts")) {
+            return "cashu-core"
+          }
+
           const vendorLibs = [
             "react",
             "react-dom/client",
@@ -160,7 +156,6 @@ export default defineConfig({
             "zustand",
             "blurhash",
             "debug",
-            "@cashu/cashu-ts",
           ]
           if (vendorLibs.some((lib) => id.includes(`node_modules/${lib}`))) {
             return "vendor"

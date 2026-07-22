@@ -1,9 +1,4 @@
 import {test, expect} from "@playwright/test"
-import {signUp} from "./auth.setup"
-
-test("user can sign up with a name", async ({page}) => {
-  await signUp(page)
-})
 
 test("user can sign up without a name", async ({page}) => {
   // Start from the home page

@@ -1,9 +1,31 @@
 import {expect, test} from "@playwright/test"
 import {nip19} from "nostr-tools"
+import {Relay} from "nostr-tools/relay"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
 test.skip(usingBuiltDist, "requires deterministic local-relay follow-list propagation")
+
+async function getRelayFollowCount(publicKey: string): Promise<number> {
+  const relay = await Relay.connect("ws://127.0.0.1:7777")
+  return new Promise<number>((resolve, reject) => {
+    let followCount = 0
+    const timeout = setTimeout(() => {
+      relay.close()
+      reject(new Error("Timed out querying the local relay contact list"))
+    }, 5000)
+    relay.subscribe([{kinds: [3], authors: [publicKey], limit: 1}], {
+      onevent: (event) => {
+        followCount = event.tags.filter((tag) => tag[0] === "p").length
+      },
+      oneose: () => {
+        clearTimeout(timeout)
+        relay.close()
+        resolve(followCount)
+      },
+    })
+  })
+}
 
 test("fresh viewer can open another user's follows list without following them first", async ({
   browser,
@@ -38,6 +60,7 @@ test("fresh viewer can open another user's follows list without following them f
     await expect(followButton.locator("span.absolute")).toHaveText("Following", {
       timeout: 15000,
     })
+    await expect(followButton).toBeEnabled({timeout: 15000})
   }
 
   try {
@@ -52,6 +75,9 @@ test("fresh viewer can open another user's follows list without following them f
     await expect(authorPage.getByRole("button", {name: /2 follows/i})).toBeVisible({
       timeout: 20000,
     })
+    await expect
+      .poll(() => getRelayFollowCount(author.publicKey!), {timeout: 20000})
+      .toBe(2)
 
     await signUp(viewerPage, "Fresh Viewer")
     await viewerPage.goto(getProfilePath(author.publicKey))

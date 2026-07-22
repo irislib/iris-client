@@ -24,79 +24,62 @@ export function useWorkerRelayStatus() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const transport = getWorkerTransport()
-    if (!transport) {
-      setLoading(false)
-      return
-    }
+    let disposed = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    let pollInterval: ReturnType<typeof setInterval> | undefined
+    let unsubscribe: (() => void) | undefined
 
-    const fetchStatus = async () => {
-      try {
-        const statuses = await transport.getRelayStatus()
-        setRelays(statuses)
-        setLoading(false)
-      } catch (error) {
-        console.error("Failed to fetch relay status:", error)
-        setLoading(false)
+    const initialize = () => {
+      if (disposed) return
+      const transport = getWorkerTransport()
+      if (!transport) {
+        retryTimer = setTimeout(initialize, 250)
+        return
       }
-    }
 
-    // Initial fetch
-    fetchStatus()
-
-    // Listen for push updates from worker
-    const unsubscribe =
-      "onRelayStatusUpdate" in transport
-        ? (
-            transport as {
-              onRelayStatusUpdate: (cb: (s: RelayStatus[]) => void) => () => void
-            }
-          ).onRelayStatusUpdate((statuses: RelayStatus[]) => {
-            log("Received status update:", statuses)
+      const fetchStatus = async () => {
+        try {
+          const statuses = await transport.getRelayStatus()
+          if (!disposed) {
             setRelays(statuses)
             setLoading(false)
-          })
-        : undefined
+          }
+        } catch (error) {
+          if (!disposed) {
+            console.error("Failed to fetch relay status:", error)
+            setLoading(false)
+          }
+        }
+      }
 
-    // Fallback polling every 5s in case push updates miss something
-    const interval = setInterval(fetchStatus, 5000)
+      void fetchStatus()
+
+      unsubscribe =
+        "onRelayStatusUpdate" in transport
+          ? (
+              transport as {
+                onRelayStatusUpdate: (cb: (s: RelayStatus[]) => void) => () => void
+              }
+            ).onRelayStatusUpdate((statuses: RelayStatus[]) => {
+              if (disposed) return
+              log("Received status update:", statuses)
+              setRelays(statuses)
+              setLoading(false)
+            })
+          : undefined
+
+      pollInterval = setInterval(fetchStatus, 5000)
+    }
+
+    initialize()
 
     return () => {
-      clearInterval(interval)
+      disposed = true
+      if (retryTimer) clearTimeout(retryTimer)
+      if (pollInterval) clearInterval(pollInterval)
       unsubscribe?.()
     }
   }, [])
 
   return {relays, loading}
-}
-
-/**
- * Hook to manage relays in worker
- */
-export function useWorkerRelayManager() {
-  const transport = getWorkerTransport()
-
-  const addRelay = async (url: string) => {
-    await transport?.addRelay(url)
-  }
-
-  const removeRelay = async (url: string) => {
-    await transport?.removeRelay(url)
-  }
-
-  const connectRelay = async (url: string) => {
-    await transport?.connectRelay(url)
-  }
-
-  const disconnectRelay = async (url: string) => {
-    await transport?.disconnectRelay(url)
-  }
-
-  return {
-    addRelay,
-    removeRelay,
-    connectRelay,
-    disconnectRelay,
-    available: !!transport,
-  }
 }

@@ -2,7 +2,6 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {getExpirationTimestampSeconds} from "nostr-double-ratchet"
 
 let started = false
-let timeoutId: number | null = null
 
 /**
  * Periodically removes messages that have passed their NIP-40 expiration time.
@@ -36,7 +35,7 @@ export function startMessageExpirationCleanup(): void {
         ? 60_000
         : Math.max(1000, Math.min(60_000, (nextExpirationSeconds - nowSeconds) * 1000))
 
-    timeoutId = window.setTimeout(tick, delayMs)
+    window.setTimeout(tick, delayMs)
   }
 
   // Wait for messages to hydrate before the first scan.
@@ -45,11 +44,4 @@ export function startMessageExpirationCleanup(): void {
     .awaitHydration()
     .then(tick)
     .catch(() => {})
-}
-
-export function stopMessageExpirationCleanup(): void {
-  if (timeoutId !== null) {
-    clearTimeout(timeoutId)
-    timeoutId = null
-  }
 }

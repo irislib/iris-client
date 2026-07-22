@@ -45,8 +45,7 @@ type RemoteSearchContext = {
 }
 
 type RemoteSearchTarget =
-  | {kind: "root"; root: CID}
-  | {kind: "tree"; npub: string; treeName: string}
+  {kind: "root"; root: CID} | {kind: "tree"; npub: string; treeName: string}
 
 type RemoteTreeSnapshotRecord = {
   nhash: string
@@ -193,11 +192,12 @@ function createRemoteSearch(): RemoteSearchContext | null {
       timeout: REMOTE_SEARCH_CACHE_TIMEOUT_MS,
     })
     const treeRef = parseTreeRef(indexRef)
-    const target = treeRef
-      ? ({kind: "tree", ...treeRef} satisfies RemoteSearchTarget)
-      : indexRef.startsWith("nhash1")
-        ? ({kind: "root", root: nhashDecode(indexRef)} satisfies RemoteSearchTarget)
-        : null
+    let target: RemoteSearchTarget | null = null
+    if (treeRef) {
+      target = {kind: "tree", ...treeRef}
+    } else if (indexRef.startsWith("nhash1")) {
+      target = {kind: "root", root: nhashDecode(indexRef)}
+    }
     if (!target) {
       return null
     }
@@ -307,8 +307,7 @@ function rootsEqual(left: CID, right: CID): boolean {
 }
 
 function resolveSeededTreeRoot():
-  | (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord)
-  | null {
+  (RemoteResolvedTreeRoot & RemoteTreeSnapshotRecord) | null {
   const snapshot = resolveIndexSnapshotRef()
   if (!snapshot?.startsWith("nhash1")) {
     return null
@@ -424,6 +423,20 @@ async function cacheRemoteProfile(
   }
 
   try {
+    let displayName = searchProfile.name
+    if (
+      typeof rawProfile?.displayName === "string" &&
+      rawProfile.displayName.trim().length > 0
+    ) {
+      displayName = rawProfile.displayName
+    }
+    if (
+      typeof rawProfile?.display_name === "string" &&
+      rawProfile.display_name.trim().length > 0
+    ) {
+      displayName = rawProfile.display_name
+    }
+
     await db.profiles.put({
       ...(rawProfile ?? {}),
       pubkey: searchProfile.pubKey,
@@ -433,14 +446,7 @@ async function cacheRemoteProfile(
         typeof rawProfile?.name === "string" && rawProfile.name.trim().length > 0
           ? rawProfile.name
           : searchProfile.name,
-      display_name:
-        typeof rawProfile?.display_name === "string" &&
-        rawProfile.display_name.trim().length > 0
-          ? rawProfile.display_name
-          : typeof rawProfile?.displayName === "string" &&
-              rawProfile.displayName.trim().length > 0
-            ? rawProfile.displayName
-            : searchProfile.name,
+      display_name: displayName,
       nip05:
         typeof rawProfile?.nip05 === "string" ? rawProfile.nip05 : searchProfile.nip05,
       picture:

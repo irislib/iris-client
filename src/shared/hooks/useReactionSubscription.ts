@@ -27,8 +27,7 @@ export default function useReactionSubscription(
   const showingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
   const pendingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
   const oldestEventAt = useRef<number | null>(null)
-  const unfilteredEventsReceivedAfterFilterChange = useRef(0)
-  const expansionsWithoutNewEvents = useRef(0)
+  const expansionAttempts = useRef(0)
   const [hasInitialData, setHasInitialData] = useState(cache.hasInitialData || false)
 
   useEffect(() => {
@@ -62,8 +61,6 @@ export default function useReactionSubscription(
       limit,
     }
 
-    unfilteredEventsReceivedAfterFilterChange.current = 0
-
     const sub = ndk().subscribe(reactionFilter)
 
     let reactionCount = 0
@@ -82,8 +79,6 @@ export default function useReactionSubscription(
           originalPostId.slice(0, 8)
         )
       }
-
-      unfilteredEventsReceivedAfterFilterChange.current += 1
 
       if (showingReactionCounts.current.has(originalPostId)) {
         showingReactionCounts.current.get(originalPostId)?.add(event.id)
@@ -112,11 +107,12 @@ export default function useReactionSubscription(
 
     const timeout = setTimeout(() => {
       if (pendingReactionCounts.current.size <= LOW_THRESHOLD) {
-        if (unfilteredEventsReceivedAfterFilterChange.current === 0) {
-          expansionsWithoutNewEvents.current += 1
-        }
-        if (expansionsWithoutNewEvents.current < 3) {
+        expansionAttempts.current += 1
+        if (expansionAttempts.current < 3) {
           expandFilters()
+        } else if (!hasInitialData) {
+          setHasInitialData(true)
+          cache.hasInitialData = true
         }
       }
     }, 5000)

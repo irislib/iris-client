@@ -3,7 +3,6 @@ export {
   getEventReplyingTo,
   isRepost,
   getEventRoot,
-  getQuotedEvent,
   NDKEventFromRawEvent,
   type RawEvent,
 } from "./eventUtils"

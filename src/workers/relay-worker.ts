@@ -50,12 +50,10 @@ import type {
 } from "../lib/ndk-transport-types"
 import type {SettingsState} from "../stores/settings"
 import {DEFAULT_WORKER_RELAYS} from "../shared/constants/relays"
+import {verifyRelayEvent, type WasmEventVerifier} from "./relay-signature-verifier"
 
 // WASM sig verification - nostr-wasm Nostr interface
-interface WasmVerifier {
-  verifyEvent(event: unknown): void // throws on invalid sig
-}
-let wasmVerifier: WasmVerifier | null = null
+let wasmVerifier: WasmEventVerifier | null = null
 let wasmLoading = false
 
 async function loadWasm() {
@@ -331,26 +329,8 @@ async function initialize(
     })
 
     // Setup custom sig verification with wasm fallback
-    ndk.signatureVerificationFunction = async (event: NDKEvent) => {
-      if (wasmVerifier) {
-        try {
-          wasmVerifier.verifyEvent({
-            id: event.id,
-            sig: event.sig!,
-            pubkey: event.pubkey,
-            content: event.content,
-            kind: event.kind!,
-            created_at: event.created_at!,
-            tags: event.tags,
-          })
-          return true
-        } catch {
-          return false
-        }
-      }
-      // Fallback to JS verification until wasm loads
-      return !!event.verifySignature(false)
-    }
+    ndk.signatureVerificationFunction = async (event: NDKEvent) =>
+      verifyRelayEvent(event, wasmVerifier)
 
     // Lazy load wasm in background
     loadWasm()
@@ -523,7 +503,7 @@ async function handlePublish(
 
     // Verify signature if requested (e.g., WebRTC events from untrusted sources)
     if (opts?.verifySignature) {
-      const isValid = event.verifySignature(false)
+      const isValid = verifyRelayEvent(event, wasmVerifier)
       if (!isValid) {
         warn(
           "[Relay Worker] Invalid signature for event from:",

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     identityPubkey: null as string | null,
     registeredDevices: [] as Array<{identityPubkey: string; createdAt: number}>,
   },
+  linkedDevice: false,
   appKeysManager: {
     getDeviceLabels: vi
       .fn<
@@ -25,6 +26,11 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/stores/devices", () => ({
   useDevicesStore: () => mocks.devicesStore,
+}))
+
+vi.mock("@/stores/user", () => ({
+  useUserStore: (selector: (state: {linkedDevice: boolean}) => unknown) =>
+    selector({linkedDevice: mocks.linkedDevice}),
 }))
 
 vi.mock("@/shared/services/PrivateChats", () => ({
@@ -65,6 +71,7 @@ describe("DeviceList", () => {
     }
     mocks.appKeysManager.getDeviceLabels.mockReset()
     mocks.appKeysManager.getDeviceLabels.mockReturnValue(undefined)
+    mocks.linkedDevice = false
   })
 
   it("shows all managed device keys as npub", async () => {
@@ -111,5 +118,29 @@ describe("DeviceList", () => {
 
     expect(container.textContent).toContain("Sirius MacBook")
     expect(container.textContent).toContain("Iris Client Desktop")
+  })
+
+  it("keeps owner-only device controls unavailable on linked devices", async () => {
+    const currentDevicePubkey = "6b".repeat(32)
+    const siblingDevicePubkey = "1f".repeat(32)
+    mocks.linkedDevice = true
+    mocks.devicesStore = {
+      identityPubkey: currentDevicePubkey,
+      registeredDevices: [
+        {identityPubkey: currentDevicePubkey, createdAt: 2},
+        {identityPubkey: siblingDevicePubkey, createdAt: 1},
+      ],
+    }
+
+    await act(async () => {
+      root.render(React.createElement(DeviceList))
+    })
+
+    expect(container.querySelector('[title="Republish invite event"]')).toBeNull()
+    expect(
+      container.querySelector('[title="Remove this device from messaging"]')
+    ).toBeNull()
+    expect(container.querySelector('[title="Revoke device"]')).toBeNull()
+    expect(container.textContent).toContain("Manage devices from the main account")
   })
 })

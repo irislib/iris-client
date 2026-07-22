@@ -50,6 +50,21 @@ function runTestsForMap(MapConstructor: any, mapName: string) {
       expect(map.has(5)).toBe(false)
     })
 
+    it("should reorder an entry when its value changes", () => {
+      const sorted = new MapConstructor(
+        undefined,
+        (a: [string, {rank: number}], b: [string, {rank: number}]) =>
+          a[1].rank - b[1].rank
+      )
+
+      sorted.set("a", {rank: 1})
+      sorted.set("b", {rank: 2})
+      sorted.set("a", {rank: 3})
+
+      expect(Array.from(sorted.keys())).toEqual(["b", "a"])
+      expect(sorted.size).toBe(2)
+    })
+
     it("should iterate in order", () => {
       const map = new MapConstructor()
       map.set(5, "five")

@@ -42,7 +42,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: usingBuiltDist ? 4 : "100%",
+  // The local relay and Vite server stay faster overall when browsers do not
+  // compete for every CPU core. Release runs retain their proven four-worker cap.
+  workers: usingBuiltDist ? 4 : "50%",
   reporter: "html",
   use: {
     baseURL,

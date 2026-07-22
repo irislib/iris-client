@@ -88,6 +88,7 @@ interface UserState {
 
 let hydrationPromise: Promise<void> | null = null
 let resolveHydration: (() => void) | null = null
+let hydrationFinished = false
 
 export const useUserStore = create<UserState>()(
   persist(
@@ -223,7 +224,7 @@ export const useUserStore = create<UserState>()(
             return {}
           }),
         awaitHydration: () => {
-          if (get().hasHydrated) return Promise.resolve()
+          if (hydrationFinished || get().hasHydrated) return Promise.resolve()
           if (!hydrationPromise) {
             hydrationPromise = new Promise<void>((resolve) => {
               resolveHydration = resolve
@@ -255,8 +256,14 @@ export const useUserStore = create<UserState>()(
 
         if (error) {
           console.warn("[Iris] user store rehydrate failed:", error)
+          try {
+            localStorage.removeItem("user-storage")
+          } catch {
+            // Storage may be unavailable; startup should still continue with defaults.
+          }
         }
 
+        hydrationFinished = true
         if (resolveHydration) {
           resolveHydration()
           resolveHydration = null
@@ -294,9 +301,7 @@ export const useUserStore = create<UserState>()(
           state.mediaservers = mediaservers
 
           const persistedDefault = state.defaultMediaserver as
-            | MediaServer
-            | null
-            | undefined
+            MediaServer | null | undefined
           state.defaultMediaserver =
             persistedDefault && persistedDefault.url !== LEGACY_IRIS_BLOSSOM_URL
               ? persistedDefault

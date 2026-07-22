@@ -22,8 +22,14 @@ import {useDevicesStore} from "../../stores/devices"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {attachNdrRuntimeEventListener} from "@/utils/dmEventHandler"
-import {attachGroupMessageListener} from "@/utils/groupMessageHandler"
+import {
+  attachNdrRuntimeEventListener,
+  cleanupNdrRuntimeEventListener,
+} from "@/utils/dmEventHandler"
+import {
+  attachGroupMessageListener,
+  cleanupGroupMessageListener,
+} from "@/utils/groupMessageHandler"
 import {
   getCurrentDeviceRegistrationLabels,
   getLinkedDeviceRegistrationLabels,
@@ -40,6 +46,7 @@ let runtime: NdrRuntime | null = null
 let runtimeCleanup: (() => void) | null = null
 let runtimeOwnerIdentityKeyHex: string | null = null
 let runtimeUserSetupPoller: ReturnType<typeof setInterval> | null = null
+let privateMessagingAvailable = true
 const runtimeUserSetupInFlight = new Set<string>()
 
 type RuntimeUserRecord =
@@ -74,15 +81,14 @@ const createFetch = (ndkInstance: NDK): NostrFetch => {
 }
 
 const createPublish = (ndkInstance: NDK): NostrPublish => {
-  return (async (event) => {
+  return (async (event, innerEventId) => {
     const e = new NDKEvent(ndkInstance, event)
     await e.publish()
 
-    const innerId = (event.tags ?? []).find(([k]) => k === "inner")?.[1]
-    if (innerId) {
+    if (innerEventId) {
       const {events, updateMessage} = usePrivateMessagesStore.getState()
       for (const [chatId, messageMap] of events.entries()) {
-        const existing = messageMap.get(innerId)
+        const existing = messageMap.get(innerEventId)
         if (!existing) continue
 
         const updates: Partial<typeof existing> = {sentToRelays: true}
@@ -90,7 +96,7 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
           updates.nostrEventId = e.id
         }
 
-        void updateMessage(chatId, innerId, updates)
+        await updateMessage(chatId, innerEventId, updates)
         break
       }
     }
@@ -120,7 +126,16 @@ const closeRuntime = (): void => {
   runtimeOwnerIdentityKeyHex = null
 }
 
+export const closePrivateMessaging = (): void => {
+  cleanupNdrRuntimeEventListener()
+  cleanupGroupMessageListener()
+  closeRuntime()
+}
+
 const getRuntime = (): NdrRuntime => {
+  if (!privateMessagingAvailable) {
+    throw new Error("Private messaging is active in another tab")
+  }
   const ownerIdentityKeyHex = getOwnerIdentityKeyHex()
 
   if (runtime && runtimeOwnerIdentityKeyHex === ownerIdentityKeyHex) {
@@ -210,6 +225,11 @@ export const getNdrRuntime = (): NdrRuntime => {
   return getRuntime()
 }
 
+export const setPrivateMessagingAvailable = (available: boolean): void => {
+  privateMessagingAvailable = available
+  if (!available) closePrivateMessaging()
+}
+
 const ensureNdkConnected = async (): Promise<void> => {
   const ndkInstance = ndk()
   if (ndkInstance.pool.connectedRelays().length === 0) {
@@ -253,10 +273,22 @@ export const ensureNdrRuntime = async (ownerPubkey: string): Promise<NdrRuntime>
 }
 
 export const initPrivateMessaging = async (ownerPubkey: string): Promise<NdrRuntime> => {
-  const currentRuntime = await ensureNdrRuntime(ownerPubkey)
+  if (!ownerPubkey) throw new Error("Owner pubkey required")
 
-  attachNdrRuntimeEventListener(currentRuntime)
-  attachGroupMessageListener()
+  const currentRuntime = getRuntime()
+  try {
+    await usePrivateMessagesStore.getState().awaitHydration()
+    attachNdrRuntimeEventListener(currentRuntime)
+    attachGroupMessageListener()
+    await ensureNdkConnected()
+    await currentRuntime.initForOwner(ownerPubkey)
+  } catch (error) {
+    cleanupNdrRuntimeEventListener()
+    cleanupGroupMessageListener()
+    if (runtime === currentRuntime) closeRuntime()
+    throw error
+  }
+
   startRuntimeUserSetupSync(currentRuntime)
 
   await currentRuntime.republishInvite().catch((error) => {
@@ -266,34 +298,7 @@ export const initPrivateMessaging = async (ownerPubkey: string): Promise<NdrRunt
   return currentRuntime
 }
 
-export const waitForNdrRuntime = async (ownerPubkey?: string): Promise<NdrRuntime> => {
-  const currentRuntime = getRuntime()
-  if (currentRuntime.getState().sessionManagerReady) {
-    return currentRuntime
-  }
-
-  const resolvedOwnerPubkey =
-    ownerPubkey ||
-    currentRuntime.getState().ownerPubkey ||
-    useUserStore.getState().publicKey
-  if (!resolvedOwnerPubkey) {
-    throw new Error("Owner pubkey required to initialize NdrRuntime")
-  }
-
-  return ensureNdrRuntime(resolvedOwnerPubkey)
-}
-
-export const waitForAppKeysManager = async (): Promise<AppKeysManager> => {
-  await initAppKeysManager()
-  return getAppKeysManager()
-}
-
-export const waitForDelegateManager = async (): Promise<DelegateManager> => {
-  await initDelegateManager()
-  return getDelegateManager()
-}
-
-export const waitForManagers = async (): Promise<void> => {
+const waitForManagers = async (): Promise<void> => {
   await getRuntime().initManagers()
 }
 
@@ -301,11 +306,15 @@ export const hasLocalAppKeys = (): boolean => {
   return getRuntime().getState().hasLocalAppKeys
 }
 
+const requireOwnerPublicKey = (): string => {
+  const {publicKey, linkedDevice} = useUserStore.getState()
+  if (!publicKey) throw new Error("No public key - user must be logged in")
+  if (linkedDevice) throw new Error("Linked devices cannot manage devices")
+  return publicKey
+}
+
 export const registerDevice = async (timeoutMs?: number): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
+  const publicKey = requireOwnerPublicKey()
 
   const labels = await getCurrentDeviceRegistrationLabels()
 
@@ -321,10 +330,7 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
 }
 
 export const revokeDevice = async (identityPubkey: string): Promise<void> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
+  const publicKey = requireOwnerPublicKey()
 
   await ensureNdkConnected()
   await getRuntime().initForOwner(publicKey)
@@ -340,10 +346,7 @@ export const revokeDevice = async (identityPubkey: string): Promise<void> => {
 export type {PreparedRegistration, PreparedRevocation}
 
 export const prepareRegistration = async (): Promise<PreparedRegistration> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
+  const publicKey = requireOwnerPublicKey()
 
   const labels = await getCurrentDeviceRegistrationLabels()
 
@@ -358,10 +361,7 @@ export const prepareRegistration = async (): Promise<PreparedRegistration> => {
 export const prepareRegistrationForIdentity = async (
   identityPubkey: string
 ): Promise<PreparedRegistration> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
+  const publicKey = requireOwnerPublicKey()
 
   const labels = await getLinkedDeviceRegistrationLabels()
 
@@ -377,6 +377,7 @@ export const prepareRegistrationForIdentity = async (
 export const publishPreparedRegistration = async (
   prepared: PreparedRegistration
 ): Promise<void> => {
+  requireOwnerPublicKey()
   await getRuntime().publishPreparedRegistration(prepared)
   log("Device registered:", prepared.newDeviceIdentity)
 }
@@ -384,10 +385,7 @@ export const publishPreparedRegistration = async (
 export const prepareRevocation = async (
   identityPubkey: string
 ): Promise<PreparedRevocation> => {
-  const {publicKey} = useUserStore.getState()
-  if (!publicKey) {
-    throw new Error("No public key - user must be logged in")
-  }
+  const publicKey = requireOwnerPublicKey()
 
   return getRuntime().prepareRevocation({
     ownerPubkey: publicKey,
@@ -399,6 +397,7 @@ export const prepareRevocation = async (
 export const publishPreparedRevocation = async (
   prepared: PreparedRevocation
 ): Promise<void> => {
+  requireOwnerPublicKey()
   await getRuntime().publishPreparedRevocation(prepared)
   log("Device revoked:", prepared.revokedIdentity)
 }
@@ -411,38 +410,6 @@ export const revokeCurrentDevice = async (): Promise<void> => {
   }
 
   await revokeDevice(manager.getIdentityPublicKey())
-}
-
-export const deleteDeviceInvite = async (deviceId: string) => {
-  const {publicKey} = useUserStore.getState()
-
-  const dTag = `double-ratchet/invites/${deviceId}`
-  const deletionEvent = new NDKEvent(ndk(), {
-    kind: 30078,
-    pubkey: publicKey,
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    tags: [["d", dTag]],
-  })
-
-  await deletionEvent.sign()
-  await deletionEvent.publish()
-
-  log("Published invite tombstone for device:", deviceId)
-
-  const storage = new LocalForageStorageAdapter()
-  await storage.del(`invite/${deviceId}`)
-}
-
-export const deleteCurrentDeviceInvite = async () => {
-  await getRuntime().initDelegateManager()
-  const deviceId = getRuntime().getState().currentDevicePubkey
-  if (!deviceId) {
-    log("No device identity, skipping invite tombstone")
-    return
-  }
-
-  await deleteDeviceInvite(deviceId)
 }
 
 export const startAppKeysSubscription = (ownerPubkey: string): void => {
@@ -463,59 +430,10 @@ export const refreshOwnAppKeysFromRelay = async (
   return getRuntime().refreshOwnAppKeysFromRelay(resolvedOwnerPubkey, timeoutMs)
 }
 
-export const stopAppKeysSubscription = (): void => {
-  runtime?.stopAppKeysSubscription()
-  log("AppKeys subscription stopped")
-}
-
 export const republishInvite = async (): Promise<void> => {
   await ensureNdkConnected()
   await getRuntime().republishInvite()
   log("Republished invite")
-}
-
-export const rotateInvite = async (): Promise<void> => {
-  await getRuntime().rotateInvite()
-  log("Rotated invite for device:", getRuntime().getState().currentDevicePubkey)
-}
-
-export const checkInviteOnRelay = async (): Promise<{
-  found: boolean
-  eventId?: string
-  createdAt?: number
-}> => {
-  const delegateManager = getRuntime().getDelegateManager()
-  if (!delegateManager) {
-    return {found: false}
-  }
-
-  const deviceId = delegateManager.getIdentityPublicKey()
-  const ndkInstance = ndk()
-
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      subscription.stop()
-      resolve({found: false})
-    }, 3000)
-
-    const subscription = ndkInstance.subscribe({
-      kinds: [30078],
-      authors: [deviceId],
-      "#d": [`double-ratchet/invites/${deviceId}`],
-    } as NDKFilter)
-
-    subscription.on("event", (event: NDKEvent) => {
-      clearTimeout(timeout)
-      subscription.stop()
-      resolve({
-        found: true,
-        eventId: event.id,
-        createdAt: event.created_at,
-      })
-    })
-
-    subscription.start()
-  })
 }
 
 export const createLinkInvite = async (): Promise<Invite> => {

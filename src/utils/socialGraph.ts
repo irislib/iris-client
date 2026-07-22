@@ -7,7 +7,7 @@ import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
 // Removed static import to avoid race condition - use dynamic import in setupSubscription
-import {useEffect, useState, useCallback} from "react"
+import {useMemo} from "react"
 import {KIND_CONTACTS, KIND_MUTE_LIST, DEBUG_NAMESPACES} from "@/utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 
@@ -53,7 +53,7 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
   }
   isInitialized = true
 
-  const loadGraph = async () => {
+  try {
     const data = await localForage.getItem("socialGraph")
     if (data) {
       try {
@@ -69,10 +69,12 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
       await localForage.removeItem("socialGraph")
       instance = await loadPreCrawledGraph(publicKey)
     }
+  } catch (err) {
+    error("Failed to load persisted social graph, using bundled graph instead:", err)
+    instance = await loadPreCrawledGraph(publicKey)
+  } finally {
     notifyGraphChange()
   }
-
-  return loadGraph()
 }
 
 const saveToLocalForage = async () => {
@@ -209,7 +211,6 @@ function getMissingFollowLists(myPubKey: string) {
   getFollowListsInternal(myPubKey, true, 1)
 }
 
-let isLoaded = false
 let resolveLoaded: ((value: boolean) => void) | null = null
 
 export const socialGraphLoaded = new Promise<boolean>((resolve) => {
@@ -219,14 +220,18 @@ export const socialGraphLoaded = new Promise<boolean>((resolve) => {
 // Initialize social graph (separate from subscription setup)
 export const initializeSocialGraph = async () => {
   const currentPublicKey = useUserStore.getState().publicKey
-  await initializeInstance(currentPublicKey || undefined)
-
-  if (!currentPublicKey) {
-    instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
+  try {
+    await initializeInstance(currentPublicKey || undefined)
+  } catch (err) {
+    error("Failed to initialize social graph, using an empty graph instead:", err)
+    instance = new SocialGraph(currentPublicKey || DEFAULT_SOCIAL_GRAPH_ROOT)
+    notifyGraphChange()
+  } finally {
+    if (!currentPublicKey) {
+      instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
+    }
+    resolveLoaded?.(true)
   }
-
-  isLoaded = true
-  resolveLoaded?.(true)
 }
 
 // Setup subscription (called after NDK is ready)
@@ -252,16 +257,6 @@ initializeSocialGraph().catch((err) => {
   error("Failed to initialize social graph:", err)
 })
 
-export const useSocialGraphLoaded = () => {
-  const [isSocialGraphLoaded, setIsSocialGraphLoaded] = useState(isLoaded)
-  useEffect(() => {
-    socialGraphLoaded.then(() => {
-      setIsSocialGraphLoaded(true)
-    })
-  }, [])
-  return isSocialGraphLoaded
-}
-
 /**
  * Hook that returns follows for a user and re-renders when the social graph changes.
  * This replaces the need to wait for socialGraphLoaded before rendering.
@@ -274,25 +269,11 @@ export const useFollowsFromGraph = (
   const version = useSocialGraphStore((state) => state.version)
 
   // Compute follows when version changes
-  const follows = useCallback(() => {
+  return useMemo(() => {
     if (!pubKey) return []
     const followSet = instance.getFollowedByUser(pubKey, includeSelf)
     return Array.from(followSet)
   }, [pubKey, includeSelf, version])
-
-  return follows()
-}
-
-/**
- * Hook that returns the follow distance for a user.
- * Re-renders when the social graph changes.
- */
-export const useFollowDistance = (pubKey: string | null | undefined): number => {
-  // Subscribe to graph version changes via Zustand store
-  useSocialGraphStore((state) => state.version)
-
-  if (!pubKey) return 1000
-  return instance.getFollowDistance(pubKey)
 }
 
 /**
@@ -508,16 +489,6 @@ export const stopRecrawl = () => {
   }
 }
 
-export function getMutualFollows(pubkey?: string): string[] {
-  const myPubkey = pubkey || instance.getRoot()
-  if (!myPubkey) return []
-
-  const following = Array.from(instance.getFollowedByUser(myPubkey))
-  return following.filter((followedPubkey) =>
-    instance.getFollowedByUser(followedPubkey).has(myPubkey)
-  )
-}
-
 /**
  * Hook that returns the social graph instance and subscribes to changes.
  * Components using this hook will re-render when the graph changes.
@@ -533,5 +504,3 @@ export const useSocialGraph = () => {
  * Use useSocialGraph() in components for automatic re-rendering.
  */
 export const getSocialGraph = () => instance
-
-export default getSocialGraph

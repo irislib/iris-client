@@ -1,6 +1,10 @@
-import {useSocialGraph, handleSocialGraphEvent} from "@/utils/socialGraph.ts"
+import {
+  useSocialGraph,
+  handleSocialGraphEvent,
+  socialGraphLoaded,
+} from "@/utils/socialGraph.ts"
 import {PublicKey} from "@/shared/utils/PublicKey"
-import {useEffect, useState, useMemo, useRef} from "react"
+import {useEffect, useState, useMemo} from "react"
 import {NostrEvent} from "nostr-social-graph"
 import {NDKEvent, NDKSubscription} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
@@ -12,7 +16,6 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
     [pubKey]
   )
   const [follows, setFollows] = useState<string[] | undefined>(undefined)
-  const subscriptionRef = useRef<NDKSubscription | null>(null)
 
   // Initialize follows when pubKeyHex changes
   useEffect(() => {
@@ -24,52 +27,48 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
   }, [pubKeyHex, includeSelf, socialGraph])
 
   useEffect(() => {
-    // Clean up any existing subscription first
-    if (subscriptionRef.current) {
-      subscriptionRef.current.stop()
-      subscriptionRef.current = null
-    }
+    if (!pubKeyHex) return
 
-    try {
-      if (pubKeyHex) {
-        const filter = {kinds: [3], authors: [pubKeyHex]}
+    let cancelled = false
+    let subscription: NDKSubscription | null = null
+    let latestTimestamp = 0
 
-        // Don't use closeOnEose so we can receive real-time updates when user follows/unfollows
-        const sub = ndk().subscribe(filter)
-        subscriptionRef.current = sub
+    const subscribe = async () => {
+      await socialGraphLoaded
+      if (cancelled) return
 
-        let latestTimestamp = 0
-
-        sub?.on("event", (event: NDKEvent) => {
-          event.ndk = ndk()
-          socialGraph.handleEvent(event as NostrEvent)
-          if (event && event.created_at && event.created_at > latestTimestamp) {
-            latestTimestamp = event.created_at
-            handleSocialGraphEvent(event as NostrEvent)
-            const pubkeys = event
-              .getMatchingTags("p")
-              .map((pTag) => pTag[1])
-              .sort((a, b) => {
-                return socialGraph.getFollowDistance(a) - socialGraph.getFollowDistance(b)
-              })
-            if (includeSelf && pubKey) {
-              pubkeys.unshift(pubKey)
+      subscription = ndk().subscribe(
+        {kinds: [3], authors: [pubKeyHex]},
+        {
+          onEvent: (event: NDKEvent) => {
+            event.ndk = ndk()
+            if (event.created_at && event.created_at > latestTimestamp) {
+              latestTimestamp = event.created_at
+              handleSocialGraphEvent(event as NostrEvent)
+              const pubkeys = event
+                .getMatchingTags("p")
+                .map((pTag) => pTag[1])
+                .sort((a, b) => {
+                  return (
+                    socialGraph.getFollowDistance(a) - socialGraph.getFollowDistance(b)
+                  )
+                })
+              if (includeSelf && pubKey) {
+                pubkeys.unshift(pubKey)
+              }
+              setFollows(pubkeys)
             }
-            setFollows(pubkeys)
-          }
-        })
-      }
-    } catch (error) {
-      console.warn(error)
+          },
+        }
+      )
     }
+    void subscribe().catch((error) => console.warn(error))
 
     return () => {
-      if (subscriptionRef.current) {
-        subscriptionRef.current.stop()
-        subscriptionRef.current = null
-      }
+      cancelled = true
+      subscription?.stop()
     }
-  }, [pubKeyHex, includeSelf, pubKey])
+  }, [pubKeyHex, includeSelf, pubKey, socialGraph])
 
   return follows ?? []
 }

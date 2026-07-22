@@ -97,13 +97,3 @@ export function extractAndColorPeerId(message: string): {
 
   return {text: ""}
 }
-
-/**
- * Get text-only color class for a namespace
- */
-export function getNamespaceTextColor(namespace: string): string {
-  const color = getNamespaceColor(namespace)
-  // Extract text color from bg-X-100 text-X-900 pattern
-  const match = color.match(/text-(\w+-\d+)/)
-  return match ? `text-${match[1]}` : "text-gray-900"
-}

@@ -1,7 +1,9 @@
-import {describe, expect, it} from "vitest"
+import {describe, expect, it, vi} from "vitest"
 
 import {NDKWorkerTransport} from "./ndk-transport-worker"
 import type {WorkerMessage, WorkerResponse} from "./ndk-transport-types"
+import type NDK from "./ndk"
+import {useSettingsStore} from "@/stores/settings"
 
 class FakeWorker {
   onerror: ((error: ErrorEvent) => void) | null = null
@@ -119,5 +121,45 @@ describe("NDKWorkerTransport search", () => {
         },
       ],
     ])
+  })
+})
+
+describe("NDKWorkerTransport lifecycle", () => {
+  it("keeps transport and settings registration singular after a worker restart", async () => {
+    vi.useFakeTimers()
+    const workers: FakeWorker[] = []
+    const unsubscribeSettings = vi.fn()
+    const subscribeSpy = vi
+      .spyOn(useSettingsStore, "subscribe")
+      .mockReturnValue(unsubscribeSettings)
+    const transport = new NDKWorkerTransport(() => {
+      const worker = new FakeWorker()
+      workers.push(worker)
+      return worker as unknown as Worker
+    })
+    const ndk = {transportPlugins: []} as unknown as NDK
+
+    try {
+      await transport.connect(ndk, ["wss://relay.example"])
+      expect(ndk.transportPlugins).toEqual([transport])
+      expect(subscribeSpy).toHaveBeenCalledTimes(1)
+
+      const restarting = (
+        transport as unknown as {handleWorkerCrash: () => Promise<void>}
+      ).handleWorkerCrash()
+      await vi.advanceTimersByTimeAsync(1000)
+      await restarting
+
+      expect(workers).toHaveLength(2)
+      expect(ndk.transportPlugins).toEqual([transport])
+      expect(subscribeSpy).toHaveBeenCalledTimes(1)
+
+      transport.close()
+      expect(ndk.transportPlugins).toEqual([])
+      expect(unsubscribeSettings).toHaveBeenCalledOnce()
+    } finally {
+      subscribeSpy.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })

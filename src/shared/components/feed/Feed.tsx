@@ -120,6 +120,7 @@ const Feed = memo(function Feed({
     "displayCount"
   )
   const firstFeedItemRef = useRef<HTMLDivElement>(null)
+  const feedContainerRef = useRef<HTMLDivElement>(null)
   const [bottomVisibleEventTimestamp, setBottomVisibleEventTimestamp] =
     useState<number>(Infinity)
 
@@ -213,6 +214,10 @@ const Feed = memo(function Feed({
     }
     return filteredEvents
   }, [filteredEvents, displayAs])
+  const eventsById = useMemo(
+    () => new Map(filteredEvents.map((event) => [event.id, event])),
+    [filteredEvents]
+  )
 
   const [, setForceUpdateCount] = useState(0)
 
@@ -243,7 +248,7 @@ const Feed = memo(function Feed({
           const eventId = entry.target.getAttribute("data-event-id")
           if (!eventId) return
 
-          const event = filteredEvents.find((e) => e.id === eventId)
+          const event = eventsById.get(eventId)
           if (!event) return
 
           if (entry.isIntersecting) {
@@ -284,29 +289,33 @@ const Feed = memo(function Feed({
           setBottomVisibleEventTimestamp(lowestTimestamp)
         } else {
           // No visible events - if we have events but no observer hits, use the newest event as fallback
-          if (bottomVisibleEventTimestamp === Infinity && filteredEvents.length > 0) {
+          if (eventsById.size > 0) {
+            const firstEvent = eventsById.values().next().value
             const firstEventTimestamp =
-              "created_at" in filteredEvents[0] ? filteredEvents[0].created_at || 0 : 0
-            setBottomVisibleEventTimestamp(firstEventTimestamp)
+              firstEvent && "created_at" in firstEvent ? firstEvent.created_at || 0 : 0
+            setBottomVisibleEventTimestamp((current) =>
+              current === Infinity ? firstEventTimestamp : current
+            )
           }
         }
       },
       {rootMargin: "-200px 0px 0px 0px"}
     )
 
-    // Observe all feed items (use setTimeout to ensure DOM is updated)
-    setTimeout(() => {
-      const feedItems = document.querySelectorAll("[data-event-id]")
-      feedItems.forEach((item) => observer.observe(item))
-    }, 0)
+    // Observe this feed's items after React commits them.
+    const animationFrame = requestAnimationFrame(() => {
+      const feedItems = feedContainerRef.current?.querySelectorAll("[data-event-id]")
+      feedItems?.forEach((item) => observer.observe(item))
+    })
 
     return () => {
       // Clear all pending timers
       seenTimers.forEach((timerId) => window.clearTimeout(timerId))
       seenTimers.clear()
+      cancelAnimationFrame(animationFrame)
       observer.disconnect()
     }
-  }, [displayCount, displayAs, filteredEvents.length])
+  }, [displayAs, displayCount, eventsById])
 
   // Auto-show new events if enabled
   useEffect(() => {
@@ -323,7 +332,7 @@ const Feed = memo(function Feed({
 
   return (
     <PerfProfiler id="Feed">
-      <div className="relative">
+      <div ref={feedContainerRef} className="relative">
         {showDisplayAsSelector && (
           <DisplayAsSelector activeSelection={displayAs} onSelect={setDisplayAs} />
         )}

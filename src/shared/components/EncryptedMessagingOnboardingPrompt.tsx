@@ -3,8 +3,20 @@ import {useDevicesStore} from "@/stores/devices"
 import Icon from "@/shared/components/Icons/Icon"
 
 const EncryptedMessagingOnboardingPrompt = () => {
-  const {appKeysManagerReady, sessionManagerReady, canSendPrivateMessages} =
-    useDevicesStore()
+  const {
+    appKeysManagerReady,
+    sessionManagerReady,
+    canSendPrivateMessages,
+    privateMessagingBlocked,
+  } = useDevicesStore()
+
+  if (privateMessagingBlocked) {
+    return (
+      <div className="bg-base-200 border-b border-custom p-4 text-sm text-base-content/70">
+        Private messaging is active in another tab. Close it and reload this tab.
+      </div>
+    )
+  }
 
   const isInitializing = !appKeysManagerReady || !sessionManagerReady
   const needsSetup = !isInitializing && !canSendPrivateMessages

@@ -8,7 +8,7 @@ import {
 import {PROFILE_AVATAR_WIDTH, EVENT_AVATAR_WIDTH} from "./shared/components/user/const"
 import {CacheFirst, StaleWhileRevalidate, NetworkOnly} from "workbox-strategies"
 import {CacheableResponsePlugin} from "workbox-cacheable-response"
-import {precacheAndRoute, PrecacheEntry} from "workbox-precaching"
+import {cleanupOutdatedCaches, precacheAndRoute, PrecacheEntry} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {registerRoute} from "workbox-routing"
@@ -42,6 +42,7 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: (string | PrecacheEntry)[]
 }
 
+cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 clientsClaim()
 
@@ -170,24 +171,6 @@ self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting()
   }
-})
-self.addEventListener("install", (event) => {
-  // delete all cache on install
-  event.waitUntil(
-    caches
-      .keys()
-      .then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            log("Deleting cache: ", cacheName)
-            return caches.delete(cacheName)
-          })
-        )
-      })
-      .then(() => {
-        return self.skipWaiting()
-      })
-  )
 })
 
 interface PushData {

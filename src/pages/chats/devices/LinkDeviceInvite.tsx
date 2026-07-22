@@ -56,8 +56,6 @@ const LinkDeviceInvite = () => {
     setErrorMessage("")
 
     try {
-      await acceptLinkInvite(invite)
-
       const identity = invite.inviter
       const {registeredDevices} = useDevicesStore.getState()
       const alreadyRegistered = registeredDevices.some(
@@ -67,6 +65,10 @@ const LinkDeviceInvite = () => {
         const prepared = await prepareRegistrationForIdentity(identity)
         await publishPreparedRegistration(prepared)
       }
+
+      // The invited browser treats this response as a successful login, so only
+      // send it after its AppKeys authorization is safely on the relays.
+      await acceptLinkInvite(invite)
 
       setStatus("linked")
     } catch (err) {

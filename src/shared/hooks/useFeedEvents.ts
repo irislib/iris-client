@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, useCallback} from "react"
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 import {eventComparator} from "../components/feed/utils"
 import {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
@@ -52,14 +52,14 @@ export default function useFeedEvents({
   const myPubKey = useUserStore((state) => state.publicKey)
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
   const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())
-  const eventsRef = useRef(
-    new SortedMap(
-      [],
+  const eventSort = useMemo(
+    () =>
       sortFn
         ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
-        : eventComparator
-    )
+        : eventComparator,
+    [sortFn]
   )
+  const eventsRef = useRef(new SortedMap<string, NDKEvent>([], eventSort))
   // Buffer for future events (max 20 entries, sorted by timestamp)
   const futureEventsRef = useRef(
     new SortedMap<string, FutureEvent>(
@@ -77,6 +77,41 @@ export default function useFeedEvents({
   )
   const hasReceivedEventsRef = useRef<boolean>(eventsRef.current.size > 0)
   const [eventsVersion, setEventsVersion] = useState(0) // Version counter for filtered events
+  const subscriptionFingerprint = useMemo(
+    () => JSON.stringify(subscriptionFilters?.length ? subscriptionFilters : [filters]),
+    [filters, subscriptionFilters]
+  )
+  const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}`
+  const previousFeedIdentityRef = useRef(feedIdentity)
+  const previousEventSortRef = useRef(eventSort)
+  const feedGenerationRef = useRef(0)
+
+  useLayoutEffect(() => {
+    if (
+      previousFeedIdentityRef.current === feedIdentity &&
+      previousEventSortRef.current === eventSort
+    ) {
+      return
+    }
+    previousFeedIdentityRef.current = feedIdentity
+    previousEventSortRef.current = eventSort
+    feedGenerationRef.current += 1
+
+    for (const [, futureEvent] of futureEventsRef.current.entries()) {
+      clearTimeout(futureEvent.timer)
+    }
+    futureEventsRef.current.clear()
+    eventsRef.current = new SortedMap<string, NDKEvent>([], eventSort)
+    oldestRef.current = undefined
+    setUntilTimestamp(undefined)
+    hasReceivedEventsRef.current = false
+    initialLoadDoneRef.current = false
+    setInitialLoadDoneState(false)
+    setNewEvents(new Map())
+    setNewEventsFrom(new Set())
+    setEventsVersion((version) => version + 1)
+  }, [eventSort, feedIdentity])
+
   const resolvedSubscriptionFilters = useMemo(() => {
     const baseFilters = subscriptionFilters?.length ? subscriptionFilters : [filters]
 
@@ -90,11 +125,6 @@ export default function useFeedEvents({
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
   }, [filters, subscriptionFilters, untilTimestamp, displayCount])
-  const subscriptionFingerprint = useMemo(
-    () => JSON.stringify(subscriptionFilters?.length ? subscriptionFilters : [filters]),
-    [filters, subscriptionFilters]
-  )
-
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -351,16 +381,6 @@ export default function useFeedEvents({
     filters.authors,
   ])
 
-  const prevFiltersStringRef = useRef<string | undefined>(undefined)
-
-  useEffect(() => {
-    if (prevFiltersStringRef.current !== subscriptionFingerprint) {
-      prevFiltersStringRef.current = subscriptionFingerprint
-      oldestRef.current = undefined
-      setUntilTimestamp(undefined)
-    }
-  }, [subscriptionFingerprint])
-
   useEffect(() => {
     if (!injectedEvents?.length) {
       return
@@ -377,8 +397,13 @@ export default function useFeedEvents({
 
   useEffect(() => {
     if (filters.authors && filters.authors.length === 0) {
+      hasReceivedEventsRef.current = false
+      initialLoadDoneRef.current = true
+      setInitialLoadDoneState(true)
       return
     }
+
+    const generation = feedGenerationRef.current
 
     const subs = resolvedSubscriptionFilters.map((subscriptionFilter) =>
       ndk().subscribe(subscriptionFilter, relayUrls ? {relayUrls} : undefined)
@@ -391,6 +416,7 @@ export default function useFeedEvents({
 
     // Set up a timeout to mark initial load as done even if no events arrive
     const initialLoadTimeout = setTimeout(() => {
+      if (generation !== feedGenerationRef.current) return
       if (!initialLoadDoneRef.current) {
         initialLoadDoneRef.current = true
         setInitialLoadDoneState(true)
@@ -398,6 +424,7 @@ export default function useFeedEvents({
     }, 5000)
 
     const markLoadDoneIfHasEvents = debounce(() => {
+      if (generation !== feedGenerationRef.current) return
       if (hasReceivedEventsRef.current && !initialLoadDoneRef.current) {
         initialLoadDoneRef.current = true
         setInitialLoadDoneState(true)
@@ -405,6 +432,7 @@ export default function useFeedEvents({
     }, 500)
 
     const handleEvent = (event: NDKEvent) => {
+      if (generation !== feedGenerationRef.current) return
       if (!event?.id || !event.created_at) return
       if (eventsRef.current.has(event.id)) return
       if (!shouldAcceptEventRef.current!(event)) {
@@ -456,6 +484,8 @@ export default function useFeedEvents({
   }, [
     resolvedSubscriptionFilters,
     JSON.stringify(filters),
+    feedIdentity,
+    eventSort,
     addFutureEvent,
     addEventToMain,
   ])

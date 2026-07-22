@@ -27,10 +27,3 @@ export default function getAnimalName(seed: string): string {
 
   return `${capitalize(adjectives[adjIndex])} ${capitalize(animals[animalIndex])}`
 }
-
-export function getDisplayName(pubkey: string, customName: string | null): string {
-  if (customName && customName.trim()) {
-    return customName.trim()
-  }
-  return getAnimalName(pubkey)
-}

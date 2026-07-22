@@ -1,5 +1,5 @@
-import {afterEach, describe, expect, it} from "vitest"
-import {useDevicesStore} from "./devices"
+import {afterEach, describe, expect, it, vi} from "vitest"
+import {onCurrentDeviceRemovedFromRoster, useDevicesStore} from "./devices"
 
 const resetStore = () => {
   useDevicesStore.setState({
@@ -11,6 +11,7 @@ const resetStore = () => {
     hasLocalAppKeys: false,
     lastEventTimestamp: 0,
     pendingAutoRegistration: false,
+    privateMessagingBlocked: false,
     canSendPrivateMessages: false,
   })
 }
@@ -70,5 +71,35 @@ describe("devices store", () => {
       {identityPubkey: "device-2", createdAt: 101},
     ])
     expect(useDevicesStore.getState().lastEventTimestamp).toBe(101)
+  })
+
+  it("reports when the current device disappears from a newer roster", () => {
+    const removed = vi.fn()
+    const unsubscribe = onCurrentDeviceRemovedFromRoster(removed)
+    useDevicesStore.getState().setIdentityPubkey("device-1")
+    useDevicesStore
+      .getState()
+      .setRegisteredDevices([{identityPubkey: "device-1", createdAt: 100}], 100)
+
+    useDevicesStore
+      .getState()
+      .setRegisteredDevices([{identityPubkey: "device-2", createdAt: 101}], 101)
+
+    expect(removed).toHaveBeenCalledOnce()
+    expect(removed).toHaveBeenCalledWith("device-1")
+    unsubscribe()
+  })
+
+  it("does not report a device that was never registered", () => {
+    const removed = vi.fn()
+    const unsubscribe = onCurrentDeviceRemovedFromRoster(removed)
+    useDevicesStore.getState().setIdentityPubkey("device-1")
+
+    useDevicesStore
+      .getState()
+      .setRegisteredDevices([{identityPubkey: "device-2", createdAt: 101}], 101)
+
+    expect(removed).not.toHaveBeenCalled()
+    unsubscribe()
   })
 })
