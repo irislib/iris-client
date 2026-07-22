@@ -83,9 +83,15 @@ const ProfileHeader = ({
           <div className="flex flex-row items-end gap-8 mt-4 justify-between select-none">
             <span
               onClick={() => profile?.picture && setShowProfilePhotoModal(true)}
-              className="cursor-pointer"
+              className="cursor-pointer shrink-0 rounded-full bg-base-200 ring-4 ring-base-200 shadow-lg"
+              data-testid="profile-hero-avatar"
             >
-              <Avatar pubKey={pubKey} showBadge={false} width={PROFILE_AVATAR_WIDTH} />
+              <Avatar
+                pubKey={pubKey}
+                showBadge={false}
+                width={PROFILE_AVATAR_WIDTH}
+                backgroundClassName="bg-base-200"
+              />
             </span>
             {showProfilePhotoModal && (
               <Modal

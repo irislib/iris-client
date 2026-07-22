@@ -48,6 +48,7 @@ const NavSideBar = () => {
     <ErrorBoundary>
       <div
         ref={ref}
+        data-testid="desktop-sidebar"
         className="bg-base-200 hidden md:sticky md:flex top-0 select-none md:w-20 xl:w-64 h-screen z-40 flex-col md:justify-between border-r border-custom overflow-y-scroll scrollbar-hide pt-[env(safe-area-inset-top)] flex-shrink-0"
       >
         <div className="flex flex-col items-start md:items-center xl:items-start gap-4 md:gap-2 xl:gap-4">
@@ -58,18 +59,6 @@ const NavSideBar = () => {
             <img className="w-8 h-8" src={logoUrl} alt={CONFIG.appName} />
             <span className="inline md:hidden xl:inline">{CONFIG.appName}</span>
           </NavLink>
-          {myPubKey && !ndk().signer && (
-            <div
-              title="Read-only mode"
-              className="px-4 py-2 mx-2 md:mx-0 xl:mx-2 flex items-center gap-2"
-            >
-              <RiLockLine className="w-6 h-6 text-error md:hidden xl:inline" />
-              <span className="badge badge-error badge-md md:badge-sm">
-                <span className="hidden xl:inline">Read-only</span>
-                <RiLockLine className="w-4 h-4 xl:hidden" />
-              </span>
-            </div>
-          )}
           {debug.enabled && (
             <NavLink
               to="/settings/system"
@@ -140,6 +129,16 @@ const NavSideBar = () => {
                 <RelayConnectivityIndicator className="xl:flex-row" />
                 <OfflineIndicator className="hidden xl:flex badge-md" />
               </div>
+              {!ndk().signer && (
+                <div
+                  title="Read-only mode"
+                  data-testid="sidebar-readonly-indicator"
+                  className="badge badge-error badge-sm xl:badge-md gap-1 self-center xl:self-start mb-1"
+                >
+                  <RiLockLine className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden xl:inline">Read-only</span>
+                </div>
+              )}
               <div className="flex-1">
                 <UserRow
                   pubKey={myPubKey}

@@ -17,6 +17,7 @@ export const Avatar = ({
   showBadge = true,
   showTooltip = true,
   showHoverCard = false,
+  backgroundClassName = "bg-base-100",
   cornerBadge,
   fallbackProfile,
 }: {
@@ -25,6 +26,7 @@ export const Avatar = ({
   showBadge?: boolean
   showTooltip?: boolean
   showHoverCard?: boolean
+  backgroundClassName?: string
   fallbackProfile?: Pick<SearchResult, "name" | "nip05" | "picture">
   cornerBadge?: {
     content: ReactNode
@@ -75,7 +77,7 @@ export const Avatar = ({
 
   return (
     <div
-      className={`aspect-square rounded-full bg-base-100 flex items-center justify-center select-none relative`}
+      className={`aspect-square rounded-full ${backgroundClassName} flex items-center justify-center select-none relative`}
       {...hoverProps}
       style={{width, height: width}}
     >
