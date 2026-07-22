@@ -121,10 +121,8 @@ export function getLightningAddress(pubkey: string, domain = "npub.cash"): strin
 
 export async function extractMintFromToken(tokenString: string): Promise<string | null> {
   try {
-    const {getDecodedToken} = await import("@cashu/cashu-ts")
-    const decoded = getDecodedToken(tokenString)
-    const mintUrl = decoded.token[0]?.mint
-    return mintUrl || null
+    const {getTokenMetadata} = await import("@cashu/cashu-ts")
+    return getTokenMetadata(tokenString).mint || null
   } catch (error) {
     console.error("Failed to extract mint from token:", error)
     return null

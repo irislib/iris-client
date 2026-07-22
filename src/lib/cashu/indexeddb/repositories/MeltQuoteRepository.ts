@@ -1,5 +1,4 @@
-import type {MeltQuoteRepository} from "../../core/index"
-import type {MeltQuote} from "../../core/index"
+import type {MeltQuote, MeltQuoteRepository, PersistedMeltPreview} from "../../core/index"
 import type {IdbDb, MeltQuoteRow} from "../lib/db.ts"
 
 export class IdbMeltQuoteRepository implements MeltQuoteRepository {
@@ -9,10 +8,12 @@ export class IdbMeltQuoteRepository implements MeltQuoteRepository {
     this.db = db
   }
 
+  private get table() {
+    return this.db.table<MeltQuoteRow, [string, string]>("coco_cashu_melt_quotes")
+  }
+
   async getMeltQuote(mintUrl: string, quoteId: string): Promise<MeltQuote | null> {
-    const row = (await (this.db as any)
-      .table("coco_cashu_melt_quotes")
-      .get([mintUrl, quoteId])) as MeltQuoteRow | undefined
+    const row = await this.table.get([mintUrl, quoteId])
     if (!row) return null
     const quote: MeltQuote = {
       mintUrl: row.mintUrl,
@@ -24,11 +25,14 @@ export class IdbMeltQuoteRepository implements MeltQuoteRepository {
       expiry: row.expiry,
       fee_reserve: row.fee_reserve,
       payment_preimage: row.payment_preimage,
+      meltPreview: row.meltPreviewJson
+        ? (JSON.parse(row.meltPreviewJson) as PersistedMeltPreview)
+        : null,
     }
     return quote
   }
 
-  async addMeltQuote(quote: MeltQuote): Promise<void> {
+  async saveMeltQuote(quote: MeltQuote): Promise<void> {
     const row: MeltQuoteRow = {
       mintUrl: quote.mintUrl,
       quote: quote.quote,
@@ -39,30 +43,15 @@ export class IdbMeltQuoteRepository implements MeltQuoteRepository {
       expiry: quote.expiry,
       fee_reserve: quote.fee_reserve,
       payment_preimage: quote.payment_preimage ?? null,
+      meltPreviewJson: quote.meltPreview ? JSON.stringify(quote.meltPreview) : null,
     }
-    await (this.db as any).table("coco_cashu_melt_quotes").put(row)
-  }
-
-  async setMeltQuoteState(
-    mintUrl: string,
-    quoteId: string,
-    state: MeltQuote["state"]
-  ): Promise<void> {
-    const existing = (await (this.db as any)
-      .table("coco_cashu_melt_quotes")
-      .get([mintUrl, quoteId])) as MeltQuoteRow | undefined
-    if (!existing) return
-    await (this.db as any)
-      .table("coco_cashu_melt_quotes")
-      .put({...existing, state} as MeltQuoteRow)
+    await this.table.put(row)
   }
 
   async getPendingMeltQuotes(): Promise<MeltQuote[]> {
-    const rows = (await (this.db as any)
-      .table("coco_cashu_melt_quotes")
-      .toArray()) as MeltQuoteRow[]
+    const rows = await this.table.toArray()
     return rows
-      .filter((r) => r.state !== "PAID")
+      .filter((row) => row.state === "PENDING" || row.meltPreviewJson)
       .map((row) => ({
         mintUrl: row.mintUrl,
         quote: row.quote,
@@ -73,6 +62,9 @@ export class IdbMeltQuoteRepository implements MeltQuoteRepository {
         expiry: row.expiry,
         fee_reserve: row.fee_reserve,
         payment_preimage: row.payment_preimage,
+        meltPreview: row.meltPreviewJson
+          ? (JSON.parse(row.meltPreviewJson) as PersistedMeltPreview)
+          : null,
       }))
   }
 }

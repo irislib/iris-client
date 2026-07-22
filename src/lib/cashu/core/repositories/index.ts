@@ -25,7 +25,8 @@ export interface KeysetRepository {
 
 export interface CounterRepository {
   getCounter(mintUrl: string, keysetId: string): Promise<Counter | null>
-  setCounter(mintUrl: string, keysetId: string, counter: number): Promise<void>
+  reserveCounter(mintUrl: string, keysetId: string, count: number): Promise<number>
+  advanceCounter(mintUrl: string, keysetId: string, minimum: number): Promise<number>
 }
 
 export interface ProofRepository {
@@ -51,12 +52,7 @@ export interface MintQuoteRepository {
 
 export interface MeltQuoteRepository {
   getMeltQuote(mintUrl: string, quoteId: string): Promise<MeltQuote | null>
-  addMeltQuote(quote: MeltQuote): Promise<void>
-  setMeltQuoteState(
-    mintUrl: string,
-    quoteId: string,
-    state: MeltQuote["state"]
-  ): Promise<void>
+  saveMeltQuote(quote: MeltQuote): Promise<void>
   getPendingMeltQuotes(): Promise<MeltQuote[]>
 }
 

@@ -36,7 +36,4 @@ export type ReceiveHistoryEntry = BaseHistoryEntry & {
 }
 
 export type HistoryEntry =
-  | MintHistoryEntry
-  | MeltHistoryEntry
-  | SendHistoryEntry
-  | ReceiveHistoryEntry
+  MintHistoryEntry | MeltHistoryEntry | SendHistoryEntry | ReceiveHistoryEntry

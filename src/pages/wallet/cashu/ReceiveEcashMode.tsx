@@ -40,10 +40,10 @@ export default function ReceiveEcashMode({
 
       // Try to extract memo from token
       try {
-        const {getDecodedToken} = await import("@cashu/cashu-ts")
-        const decoded = getDecodedToken(initialToken.trim())
-        if (decoded.memo) {
-          setReceiveNote(decoded.memo)
+        const {getTokenMetadata} = await import("@cashu/cashu-ts")
+        const metadata = getTokenMetadata(initialToken.trim())
+        if (metadata.memo) {
+          setReceiveNote(metadata.memo)
         }
       } catch (err) {
         console.warn("Failed to decode token for memo:", err)
@@ -65,32 +65,16 @@ export default function ReceiveEcashMode({
       }
 
       try {
-        const {getDecodedToken} = await import("@cashu/cashu-ts")
-        const decoded = getDecodedToken(trimmed)
+        const {getTokenMetadata} = await import("@cashu/cashu-ts")
+        const metadata = getTokenMetadata(trimmed)
 
-        // Calculate amount
-        let total = 0
-        if (decoded.proofs && Array.isArray(decoded.proofs)) {
-          for (const proof of decoded.proofs) {
-            total += proof.amount || 0
-          }
-        } else if (decoded.token && Array.isArray(decoded.token)) {
-          for (const tokenEntry of decoded.token) {
-            if (tokenEntry.proofs && Array.isArray(tokenEntry.proofs)) {
-              for (const proof of tokenEntry.proofs) {
-                total += proof.amount || 0
-              }
-            }
-          }
-        }
-
-        setPreviewAmount(total)
-        setPreviewMemo(decoded.memo || "")
-        setPreviewMint(decoded.mint || "")
+        setPreviewAmount(metadata.amount)
+        setPreviewMemo(metadata.memo || "")
+        setPreviewMint(metadata.mint)
 
         // Auto-fill note from memo if not already set
-        if (decoded.memo && !receiveNote) {
-          setReceiveNote(decoded.memo)
+        if (metadata.memo && !receiveNote) {
+          setReceiveNote(metadata.memo)
         }
       } catch (err) {
         // Invalid token, clear preview
@@ -108,10 +92,10 @@ export default function ReceiveEcashMode({
     setReceiving(true)
     setError("")
     try {
-      const {getDecodedToken} = await import("@cashu/cashu-ts")
-      const decoded = getDecodedToken(tokenInput.trim())
+      const {getTokenMetadata} = await import("@cashu/cashu-ts")
+      const metadata = getTokenMetadata(tokenInput.trim())
 
-      const mintUrl = decoded.mint
+      const mintUrl = metadata.mint
       if (mintUrl) {
         const isKnown = await manager.mint.isKnownMint(mintUrl)
         if (!isKnown) {
@@ -126,7 +110,7 @@ export default function ReceiveEcashMode({
       const existingMetadata = await getPaymentMetadata(trimmedToken)
 
       // Use receiveNote or fall back to token memo
-      const noteToSave = receiveNote.trim() || decoded.memo || undefined
+      const noteToSave = receiveNote.trim() || metadata.memo || undefined
 
       // If we sent this token and are now redeeming it ourselves,
       // save metadata marking ourselves as the sender

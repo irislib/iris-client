@@ -1,14 +1,12 @@
-import type {Token, Proof} from "@cashu/cashu-ts"
+import {getTokenMetadata, type Proof, type Token} from "@cashu/cashu-ts"
 import type {
   MintService,
   WalletService,
   ProofService,
   WalletRestoreService,
-  CounterService,
 } from "@core/services"
-import {getDecodedToken} from "@cashu/cashu-ts"
 import {ProofValidationError, UnknownMintError} from "@core/models"
-import {mapProofToCoreProof} from "@core/utils"
+import {createFeeAwareOutputPlan, mapProofToCoreProof} from "@core/utils"
 import type {Logger} from "../logging/Logger.ts"
 import type {CoreEvents} from "@core/events/types.ts"
 import type {EventBus} from "@core/events/EventBus.ts"
@@ -18,7 +16,6 @@ export class WalletApi {
   private walletService: WalletService
   private proofService: ProofService
   private walletRestoreService: WalletRestoreService
-  private counterService: CounterService
   private eventBus: EventBus<CoreEvents>
   private readonly logger?: Logger
 
@@ -27,7 +24,6 @@ export class WalletApi {
     walletService: WalletService,
     proofService: ProofService,
     walletRestoreService: WalletRestoreService,
-    counterService: CounterService,
     eventBus: EventBus<CoreEvents>,
     logger?: Logger
   ) {
@@ -35,26 +31,34 @@ export class WalletApi {
     this.walletService = walletService
     this.proofService = proofService
     this.walletRestoreService = walletRestoreService
-    this.counterService = counterService
     this.eventBus = eventBus
     this.logger = logger
   }
 
   async receive(token: Token | string) {
-    let decoded: Token
+    let mint: string
     try {
-      decoded = typeof token === "string" ? getDecodedToken(token) : token
+      mint = typeof token === "string" ? getTokenMetadata(token).mint : token.mint
     } catch (err) {
       this.logger?.warn("Failed to decode token for receive", {err})
       throw new ProofValidationError("Invalid token")
     }
 
-    const {mint, proofs} = decoded
-
     const known = await this.mintService.isKnownMint(mint)
     if (!known) {
       throw new UnknownMintError(`Mint ${mint} is not known`)
     }
+
+    const {wallet, keysetId} = await this.walletService.getWalletWithActiveKeysetId(mint)
+    let decoded: Token
+    try {
+      decoded = typeof token === "string" ? wallet.decodeToken(token) : token
+    } catch (err) {
+      this.logger?.warn("Failed to decode token proofs", {mint, err})
+      throw new ProofValidationError("Invalid token")
+    }
+    decoded = {...decoded, unit: decoded.unit ?? "sat"}
+    const {proofs} = decoded
 
     if (!Array.isArray(proofs) || proofs.length === 0) {
       this.logger?.warn("Token contains no proofs", {mint})
@@ -74,29 +78,31 @@ export class WalletApi {
     })
 
     try {
-      const {wallet, keysetId} = await this.walletService.getWalletWithActiveKeysetId(mint)
-
-      // Get counter for deterministic secret generation
-      const counterObj = await this.counterService.getCounter(mint, keysetId)
-      const counter = counterObj.counter
-
-      // Get all proofs for offline receive via deterministic secrets
       const allProofs = await this.proofService.getReadyProofs(mint)
-
-      const newProofs = await wallet.receive({mint, proofs}, {
-        counter,
-        keysetId,
-        proofsWeHave: allProofs,
-      })
-
-      // Increment counter by number of new proofs
-      await this.counterService.incrementCounter(mint, keysetId, newProofs.length)
+      const amountAfterFees = receiveAmount - wallet.getFeesForProofs(proofs)
+      if (amountAfterFees <= 0) {
+        throw new ProofValidationError("Token amount does not cover mint fees")
+      }
+      const {keep: receiveOutputs} =
+        await this.proofService.createOutputsAndIncrementCounters(mint, {
+          keep: amountAfterFees,
+          send: 0,
+        })
+      const newProofs = await wallet.receive(
+        decoded,
+        {keysetId, proofsWeHave: allProofs},
+        {type: "custom", data: receiveOutputs}
+      )
 
       await this.proofService.saveProofs(
         mint,
         mapProofToCoreProof(mint, "ready", newProofs)
       )
-      await this.eventBus.emit("receive:created", {mintUrl: mint, token: decoded})
+      await this.eventBus.emit("receive:created", {
+        mintUrl: mint,
+        token: decoded,
+        amount: newProofs.reduce((sum, proof) => sum + proof.amount, 0),
+      })
       this.logger?.debug("Token received and proofs saved", {
         mint,
         newProofs: newProofs.length,
@@ -108,31 +114,46 @@ export class WalletApi {
   }
 
   async send(mintUrl: string, amount: number, memo?: string): Promise<Token> {
-    const selectedProofs = await this.proofService.selectProofsToSend(mintUrl, amount)
-    const selectedAmount = selectedProofs.reduce((acc, proof) => acc + proof.amount, 0)
+    const {wallet, keys} = await this.walletService.getWalletWithActiveKeysetId(mintUrl)
+    let selectedProofs = await this.proofService.selectProofsToSend(mintUrl, amount)
+    let selectedAmount = selectedProofs.reduce((acc, proof) => acc + proof.amount, 0)
+    let inputFees = wallet.getFeesForProofs(selectedProofs)
 
     // For offline operation: just select proofs without swapping
-    // If exact amount match, use proofs directly
+    // if their value covers the requested net amount plus their future input fee.
     let sendProofs = selectedProofs
     let keepProofs: Proof[] = []
+    const exactOfflineMatch = selectedAmount === amount + inputFees
 
-    if (selectedAmount > amount) {
+    if (!exactOfflineMatch) {
       // Need change - split using proofsWeHave for deterministic secrets
-      const {wallet} = await this.walletService.getWalletWithActiveKeysetId(mintUrl)
+      const sendPlan = createFeeAwareOutputPlan(amount, keys, wallet)
+      const sendAmount = sendPlan.amount
+      if (selectedAmount < sendAmount + inputFees) {
+        selectedProofs = await this.proofService.selectProofsToSend(mintUrl, sendAmount)
+        selectedAmount = selectedProofs.reduce((sum, proof) => sum + proof.amount, 0)
+        inputFees = wallet.getFeesForProofs(selectedProofs)
+      }
       const allProofs = await this.proofService.getReadyProofs(mintUrl)
       const outputData = await this.proofService.createOutputsAndIncrementCounters(
         mintUrl,
         {
-          keep: selectedAmount - amount,
-          send: amount,
+          keep: selectedAmount - sendAmount - inputFees,
+          send: sendAmount,
+          sendDenominations: sendPlan.denominations,
         }
       )
 
       // proofsWeHave enables offline splitting via deterministic secret generation
-      const {send, keep} = await wallet.send(amount, selectedProofs, {
-        outputData,
-        proofsWeHave: allProofs,
-      })
+      const {send, keep} = await wallet.send(
+        sendAmount,
+        selectedProofs,
+        {proofsWeHave: allProofs},
+        {
+          keep: {type: "custom", data: outputData.keep},
+          send: {type: "custom", data: outputData.send},
+        }
+      )
       sendProofs = send
       keepProofs = keep
 
@@ -155,11 +176,12 @@ export class WalletApi {
     const token: Token = {
       mint: mintUrl,
       proofs: sendProofs,
+      unit: "sat",
     }
     if (memo) {
       token.memo = memo
     }
-    await this.eventBus.emit("send:created", {mintUrl, token})
+    await this.eventBus.emit("send:created", {mintUrl, token, amount})
     return token
   }
 

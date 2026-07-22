@@ -52,7 +52,7 @@ export class MemoryProofRepository implements ProofRepository {
     const map = this.getMintMap(mintUrl)
     const results: CoreProof[] = []
     for (const p of map.values()) {
-      if (p.state === "ready" && p.id === keysetId) {
+      if (p.id === keysetId) {
         results.push(p as CoreProof)
       }
     }

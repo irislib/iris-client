@@ -1,4 +1,4 @@
-import {OutputData, type Proof} from "@cashu/cashu-ts"
+import {OutputData, splitAmount, type Proof} from "@cashu/cashu-ts"
 import type {CoreProof} from "../types"
 import type {CounterService} from "./CounterService"
 import type {ProofRepository} from "../repositories"
@@ -34,7 +34,12 @@ export class ProofService {
 
   async createOutputsAndIncrementCounters(
     mintUrl: string,
-    amount: {keep: number; send: number}
+    amount: {
+      keep: number
+      send: number
+      keepDenominations?: number[]
+      sendDenominations?: number[]
+    }
   ): Promise<{keep: OutputData[]; send: OutputData[]}> {
     if (!mintUrl || mintUrl.trim().length === 0) {
       throw new ProofValidationError("mintUrl is required")
@@ -49,31 +54,38 @@ export class ProofService {
     }
     const {keys} = await this.walletService.getWalletWithActiveKeysetId(mintUrl)
     const seed = await this.seedService.getSeed()
-    const currentCounter = await this.counterService.getCounter(mintUrl, keys.id)
+    const keepCount =
+      amount.keep > 0
+        ? splitAmount(amount.keep, keys.keys, amount.keepDenominations).length
+        : 0
+    const sendCount =
+      amount.send > 0
+        ? splitAmount(amount.send, keys.keys, amount.sendDenominations).length
+        : 0
     const data: {keep: OutputData[]; send: OutputData[]} = {keep: [], send: []}
+    if (keepCount + sendCount === 0) return data
+    const {start} = await this.counterService.reserveCounters(
+      mintUrl,
+      keys.id,
+      keepCount + sendCount
+    )
     if (amount.keep > 0) {
-      console.log("amount.keep", amount.keep)
       data.keep = OutputData.createDeterministicData(
         amount.keep,
         seed,
-        currentCounter.counter,
-        keys
+        start,
+        keys,
+        amount.keepDenominations
       )
-      console.log("keep", data.keep)
-      if (data.keep.length > 0) {
-        await this.counterService.incrementCounter(mintUrl, keys.id, data.keep.length)
-      }
     }
     if (amount.send > 0) {
       data.send = OutputData.createDeterministicData(
         amount.send,
         seed,
-        currentCounter.counter + data.keep.length,
-        keys
+        start + keepCount,
+        keys,
+        amount.sendDenominations
       )
-      if (data.send.length > 0) {
-        await this.counterService.incrementCounter(mintUrl, keys.id, data.send.length)
-      }
     }
     this.logger?.debug("Deterministic outputs created", {
       mintUrl,
@@ -82,6 +94,22 @@ export class ProofService {
       outputs: data.keep.length + data.send.length,
     })
     return data
+  }
+
+  async createBlankOutputsAndIncrementCounter(
+    mintUrl: string,
+    maxChange: number
+  ): Promise<OutputData[]> {
+    if (!Number.isFinite(maxChange) || maxChange <= 0) return []
+
+    const count = Math.ceil(Math.log2(maxChange)) || 1
+    const {keysetId} = await this.walletService.getWalletWithActiveKeysetId(mintUrl)
+    const seed = await this.seedService.getSeed()
+    const {start} = await this.counterService.reserveCounters(mintUrl, keysetId, count)
+    const outputs = Array.from({length: count}, (_, index) =>
+      OutputData.createSingleDeterministicData(0, seed, start + index, keysetId)
+    )
+    return outputs
   }
 
   async saveProofs(mintUrl: string, proofs: CoreProof[]): Promise<void> {
@@ -199,7 +227,14 @@ export class ProofService {
       throw new ProofValidationError("Not enough proofs to send")
     }
     const cashuWallet = await this.walletService.getWallet(mintUrl)
-    const selectedProofs = cashuWallet.selectProofsToSend(proofs, amount)
+    const selectedProofs = cashuWallet.selectProofsToSend(proofs, amount, true)
+    const selectedAmount = selectedProofs.send.reduce(
+      (sum, proof) => sum + proof.amount,
+      0
+    )
+    if (selectedAmount < amount + cashuWallet.getFeesForProofs(selectedProofs.send)) {
+      throw new ProofValidationError("Not enough proofs to send")
+    }
     this.logger?.debug("Selected proofs to send", {
       mintUrl,
       amount,

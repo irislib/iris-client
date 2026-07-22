@@ -5,5 +5,6 @@ export interface Keyset {
   keypairs: Record<number, string> // JSON string
   active: boolean
   feePpk: number
+  finalExpiry?: number
   updatedAt: number
 }

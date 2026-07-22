@@ -1,5 +1,5 @@
 import {test, expect} from "@playwright/test"
-import {bytesToHex} from "@noble/hashes/utils"
+import {bytesToHex} from "@noble/hashes/utils.js"
 import {generateSecretKey} from "nostr-tools"
 import {signIn} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"

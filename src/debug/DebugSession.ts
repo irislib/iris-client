@@ -1,6 +1,6 @@
 import NDK, {NDKEvent, NDKFilter, NDKPrivateKeySigner} from "@/lib/ndk"
 import {generateSecretKey, getPublicKey, nip44} from "nostr-tools"
-import {bytesToHex, hexToBytes} from "@noble/hashes/utils"
+import {bytesToHex, hexToBytes} from "@noble/hashes/utils.js"
 import {KIND_DEBUG_DATA} from "@/utils/constants"
 
 export class DebugSession {

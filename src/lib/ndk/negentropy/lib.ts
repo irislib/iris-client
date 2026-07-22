@@ -2,7 +2,7 @@
 // Modified by hzrd149 to be TypeScript and work without the window.crypto.subtle API
 // Further adapted for iris-client
 
-import {sha256} from "@noble/hashes/sha256"
+import {sha256} from "@noble/hashes/sha2.js"
 
 const PROTOCOL_VERSION = 0x61 // Version 1
 const ID_SIZE = 32
@@ -104,11 +104,11 @@ function getBytes(buf: WrappedBuffer, n: number) {
 
 class Accumulator {
   buf: Uint8Array
-  sha256: (slice: Uint8Array | string) => Uint8Array
+  sha256: (slice: Uint8Array) => Uint8Array
 
   constructor() {
     this.buf = new Uint8Array(ID_SIZE)
-    this.sha256 = (slice: Uint8Array | string) => sha256.create().update(slice).digest()
+    this.sha256 = (slice: Uint8Array) => sha256.create().update(slice).digest()
   }
 
   setToZero() {

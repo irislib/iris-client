@@ -87,6 +87,21 @@ export async function initializeCoco(config: CocoConfig): Promise<Manager> {
     config.processors
   )
 
+  // Recovery is best-effort and intentionally does not delay wallet startup.
+  // The timeout bounds this startup task; per-quote locks also make a later
+  // manual refresh safe if an underlying request is still settling.
+  let recoveryTimeout: ReturnType<typeof setTimeout> | undefined
+  const startupRecovery = new Promise<void>((resolve, reject) => {
+    recoveryTimeout = setTimeout(
+      () => reject(new Error("Pending melt recovery timed out")),
+      15_000
+    )
+    void coco.quotes.reconcilePendingMelts().then(() => resolve(), reject)
+  })
+  void startupRecovery
+    .catch((err) => config.logger?.warn("Startup melt recovery incomplete", {err}))
+    .finally(() => clearTimeout(recoveryTimeout))
+
   // Enable watchers (default: all enabled unless explicitly disabled)
   const mintQuoteWatcherConfig = config.watchers?.mintQuoteWatcher
   if (!mintQuoteWatcherConfig?.disabled) {
@@ -490,7 +505,6 @@ export class Manager {
       this.walletService,
       this.proofService,
       this.walletRestoreService,
-      this.counterService,
       this.eventBus,
       walletApiLogger
     )

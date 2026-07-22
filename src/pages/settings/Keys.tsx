@@ -2,7 +2,7 @@ import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {CashuSeedBackup} from "@/shared/components/settings/CashuSeedBackup"
 import CopyButton from "@/shared/components/button/CopyButton"
-import {hexToBytes} from "@noble/hashes/utils"
+import {hexToBytes} from "@noble/hashes/utils.js"
 import {useUserStore} from "@/stores/user"
 import {nip19} from "nostr-tools"
 

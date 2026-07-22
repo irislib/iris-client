@@ -22,36 +22,29 @@ export class CounterService {
 
   async getCounter(mintUrl: string, keysetId: string): Promise<Counter> {
     const counter = await this.counterRepo.getCounter(mintUrl, keysetId)
-    if (!counter) {
-      const newCounter = {
-        mintUrl,
-        keysetId,
-        counter: 0,
-      }
-      await this.counterRepo.setCounter(mintUrl, keysetId, 0)
-      this.logger?.debug("Initialized counter", {mintUrl, keysetId})
-      return newCounter
-    }
-    return counter
+    return counter ?? {mintUrl, keysetId, counter: 0}
   }
 
-  async incrementCounter(mintUrl: string, keysetId: string, n: number) {
-    assertNonNegativeInteger("n", n, this.logger)
-    const current = await this.getCounter(mintUrl, keysetId)
-    const updatedValue = current.counter + n
-    await this.counterRepo.setCounter(mintUrl, keysetId, updatedValue)
-    const updated = {...current, counter: updatedValue}
+  async reserveCounters(mintUrl: string, keysetId: string, count: number) {
+    assertNonNegativeInteger("count", count, this.logger)
+    const start = await this.counterRepo.reserveCounter(mintUrl, keysetId, count)
+    const updated = {mintUrl, keysetId, counter: start + count}
     await this.eventBus?.emit("counter:updated", updated)
-    this.logger?.info("Counter incremented", {mintUrl, keysetId, counter: updatedValue})
-    return updated
+    this.logger?.info("Counters reserved", {
+      mintUrl,
+      keysetId,
+      start,
+      count,
+    })
+    return {start, end: updated.counter}
   }
 
-  async overwriteCounter(mintUrl: string, keysetId: string, counter: number) {
-    assertNonNegativeInteger("counter", counter, this.logger)
-    await this.counterRepo.setCounter(mintUrl, keysetId, counter)
+  async advanceCounterToAtLeast(mintUrl: string, keysetId: string, minimum: number) {
+    assertNonNegativeInteger("minimum", minimum, this.logger)
+    const counter = await this.counterRepo.advanceCounter(mintUrl, keysetId, minimum)
     const updated = {mintUrl, keysetId, counter}
     await this.eventBus?.emit("counter:updated", updated)
-    this.logger?.info("Counter overwritten", {mintUrl, keysetId, counter})
+    this.logger?.info("Counter advanced", {mintUrl, keysetId, counter})
     return updated
   }
 }

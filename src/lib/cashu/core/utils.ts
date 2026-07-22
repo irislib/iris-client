@@ -1,7 +1,12 @@
-import type {Proof} from "@cashu/cashu-ts"
+import {
+  hashToCurve,
+  splitAmount,
+  type MintKeys,
+  type Proof,
+  type Wallet,
+} from "@cashu/cashu-ts"
 import type {CoreProof, ProofState} from "./types"
 import type {Logger} from "./logging/Logger.ts"
-import {hashToCurve} from "@cashu/cashu-ts/crypto/common"
 
 export function mapProofToCoreProof(
   mintUrl: string,
@@ -24,6 +29,25 @@ export function assertNonNegativeInteger(
     logger?.warn("Invalid numeric value", {[paramName]: value})
     throw new Error(`${paramName} must be a non-negative integer`)
   }
+}
+
+export function createFeeAwareOutputPlan(
+  netAmount: number,
+  keys: MintKeys,
+  wallet: Pick<Wallet, "getFeesForKeyset">
+): {amount: number; denominations: number[]} {
+  const denominations = splitAmount(netAmount, keys.keys)
+  let fee = wallet.getFeesForKeyset(denominations.length, keys.id)
+  let feeDenominations = fee > 0 ? splitAmount(fee, keys.keys) : []
+
+  while (
+    wallet.getFeesForKeyset(denominations.length + feeDenominations.length, keys.id) > fee
+  ) {
+    fee += 1
+    feeDenominations = splitAmount(fee, keys.keys)
+  }
+
+  return {amount: netAmount + fee, denominations: [...denominations, ...feeDenominations]}
 }
 
 export function toBase64Url(bytes: Uint8Array): string {

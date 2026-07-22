@@ -1,12 +1,6 @@
 import {useState, useEffect, useMemo} from "react"
 import type {Manager} from "@/lib/cashu/core/index"
-import {
-  getDecodedToken,
-  CashuMint,
-  CashuWallet,
-  type Token,
-  type Proof,
-} from "@cashu/cashu-ts"
+import {getTokenMetadata, Mint, Wallet, type Token} from "@cashu/cashu-ts"
 import {RiShare2Line} from "@remixicon/react"
 import {DoubleRatchetUserSearch} from "@/pages/chats/components/DoubleRatchetUserSearch"
 import type {DoubleRatchetUser} from "@/pages/chats/utils/doubleRatchetUsers"
@@ -26,6 +20,7 @@ const {log, warn, error: logError} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WA
 interface SendEcashShareProps {
   manager: Manager | null
   generatedToken: string
+  displayAmount?: number
   initialToken?: Token
   selectedUserPubkey: string | null
   onClose: () => void
@@ -34,6 +29,7 @@ interface SendEcashShareProps {
 export default function SendEcashShare({
   manager,
   generatedToken,
+  displayAmount,
   initialToken,
   selectedUserPubkey,
   onClose,
@@ -128,66 +124,30 @@ export default function SendEcashShare({
 
   // Parse token to extract amount and memo
   const tokenData = useMemo(() => {
-    // If we have initialToken (Token object from history), use it directly
+    // History and new-send flows provide the requested net amount explicitly.
     if (initialToken) {
-      let total = 0
-      const token = initialToken
-
-      // Handle v3 tokens (token array format)
-      if ("token" in token && Array.isArray(token.token)) {
-        for (const entry of token.token) {
-          if (entry.proofs && Array.isArray(entry.proofs)) {
-            for (const proof of entry.proofs) {
-              total += proof.amount || 0
-            }
-          }
-        }
-      }
-      // Handle v4 tokens (direct proofs array)
-      else if ("proofs" in token && Array.isArray(token.proofs)) {
-        for (const proof of token.proofs) {
-          total += proof.amount || 0
-        }
-      }
-
       return {
-        amount: total,
-        memo: token.memo || "",
+        amount:
+          displayAmount ??
+          initialToken.proofs.reduce((sum, proof) => sum + proof.amount, 0),
+        memo: initialToken.memo || "",
       }
     }
 
     // Otherwise decode from generated token string
     if (!generatedToken) return {amount: 0, memo: ""}
     try {
-      const decoded = getDecodedToken(generatedToken)
-      let total = 0
-
-      // Handle v3 tokens (token array format)
-      if (decoded.token && Array.isArray(decoded.token)) {
-        for (const entry of decoded.token) {
-          if (entry.proofs && Array.isArray(entry.proofs)) {
-            for (const proof of entry.proofs) {
-              total += proof.amount || 0
-            }
-          }
-        }
-      }
-      // Handle v4 tokens (direct proofs array)
-      else if (decoded.proofs && Array.isArray(decoded.proofs)) {
-        for (const proof of decoded.proofs) {
-          total += proof.amount || 0
-        }
-      }
+      const metadata = getTokenMetadata(generatedToken)
 
       return {
-        amount: total,
-        memo: decoded.memo || "",
+        amount: displayAmount ?? metadata.amount,
+        memo: metadata.memo || "",
       }
     } catch (err) {
       logError("Failed to decode token:", err)
       return {amount: 0, memo: ""}
     }
-  }, [initialToken, generatedToken])
+  }, [displayAmount, initialToken, generatedToken])
 
   // Generate QR code
   useEffect(() => {
@@ -284,33 +244,16 @@ export default function SendEcashShare({
     setError("")
     setTokenStatus(null)
     try {
-      const decoded = getDecodedToken(generatedToken)
-
-      // Get proofs
-      const proofs: Proof[] = []
-
-      if (decoded.token && Array.isArray(decoded.token) && decoded.token[0]) {
-        proofs.push(...(decoded.token[0].proofs || []))
-      } else if (decoded.proofs) {
-        proofs.push(...decoded.proofs)
-      }
+      const metadata = getTokenMetadata(generatedToken)
+      const mintUrl = metadata.mint
+      const tempWallet = new Wallet(new Mint(mintUrl), {unit: metadata.unit})
+      await tempWallet.loadMint()
+      const {proofs} = tempWallet.decodeToken(generatedToken)
 
       if (proofs.length === 0) {
         setError("Invalid token format")
         return
       }
-
-      // Get mint URL
-      const mintUrl = decoded.mint
-      if (!mintUrl) {
-        setError("No mint URL in token")
-        return
-      }
-
-      // Create temporary wallet instance to check proof states
-      const mint = new CashuMint(mintUrl)
-      const mintKeys = await mint.getKeys()
-      const tempWallet = new CashuWallet(mint, {keys: mintKeys.keysets})
 
       const states = await tempWallet.checkProofsStates(proofs)
 

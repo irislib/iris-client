@@ -1,6 +1,6 @@
-import type {CashuMint, Proof} from "@cashu/cashu-ts"
+import type {Mint, Proof} from "@cashu/cashu-ts"
 
-export type MintInfo = Awaited<ReturnType<CashuMint["getInfo"]>>
+export type MintInfo = Awaited<ReturnType<Mint["getInfo"]>>
 
 export type ProofState = "inflight" | "ready" | "spent"
 

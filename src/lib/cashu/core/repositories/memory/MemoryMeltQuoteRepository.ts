@@ -13,26 +13,15 @@ export class MemoryMeltQuoteRepository implements MeltQuoteRepository {
     return this.quotes.get(key) ?? null
   }
 
-  async addMeltQuote(quote: MeltQuote): Promise<void> {
+  async saveMeltQuote(quote: MeltQuote): Promise<void> {
     const key = this.makeKey(quote.mintUrl, quote.quote)
     this.quotes.set(key, quote)
-  }
-
-  async setMeltQuoteState(
-    mintUrl: string,
-    quoteId: string,
-    state: MeltQuote["state"]
-  ): Promise<void> {
-    const key = this.makeKey(mintUrl, quoteId)
-    const existing = this.quotes.get(key)
-    if (!existing) return
-    this.quotes.set(key, {...existing, state})
   }
 
   async getPendingMeltQuotes(): Promise<MeltQuote[]> {
     const result: MeltQuote[] = []
     for (const q of this.quotes.values()) {
-      if (q.state !== "PAID") result.push(q)
+      if (q.state === "PENDING" || q.meltPreview) result.push(q)
     }
     return result
   }

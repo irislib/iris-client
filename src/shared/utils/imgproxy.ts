@@ -1,6 +1,6 @@
-import * as utils from "@noble/curves/abstract/utils"
-import {sha256} from "@noble/hashes/sha256"
-import {hmac} from "@noble/hashes/hmac"
+import {sha256} from "@noble/hashes/sha2.js"
+import {hmac} from "@noble/hashes/hmac.js"
+import {concatBytes, hexToBytes} from "@noble/hashes/utils.js"
 import {base64} from "@scure/base"
 
 export const DefaultImgProxy = {
@@ -20,16 +20,12 @@ function urlSafe(s: string) {
 }
 
 function hmacSha256(key: Uint8Array, ...messages: Uint8Array[]) {
-  return hmac(sha256, key, utils.concatBytes(...messages))
+  return hmac(sha256, key, concatBytes(...messages))
 }
 
 function signUrl(path: string, key: string, salt: string) {
   const te = new TextEncoder()
-  const result = hmacSha256(
-    utils.hexToBytes(key),
-    utils.hexToBytes(salt),
-    te.encode(path)
-  )
+  const result = hmacSha256(hexToBytes(key), hexToBytes(salt), te.encode(path))
   return urlSafe(base64.encode(result))
 }
 

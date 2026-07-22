@@ -1,6 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {generateSecretKey, getPublicKey} from "nostr-tools"
-import {bytesToHex} from "@noble/hashes/utils"
+import {bytesToHex} from "@noble/hashes/utils.js"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 

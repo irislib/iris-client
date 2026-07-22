@@ -30,27 +30,27 @@ export class HistoryService {
     this.historyRepository = historyRepository
     this.logger = logger
     this.eventBus = eventBus
-    this.eventBus.on("mint-quote:state-changed", ({mintUrl, quoteId, state}) => {
+    this.eventBus.on("mint-quote:state-changed", ({mintUrl, quoteId, state}) =>
       this.handleMintQuoteStateChanged(mintUrl, quoteId, state)
-    })
-    this.eventBus.on("mint-quote:created", ({mintUrl, quoteId, quote}) => {
+    )
+    this.eventBus.on("mint-quote:created", ({mintUrl, quoteId, quote}) =>
       this.handleMintQuoteCreated(mintUrl, quoteId, quote)
-    })
-    this.eventBus.on("mint-quote:added", ({mintUrl, quoteId, quote}) => {
+    )
+    this.eventBus.on("mint-quote:added", ({mintUrl, quoteId, quote}) =>
       this.handleMintQuoteAdded(mintUrl, quoteId, quote)
-    })
-    this.eventBus.on("melt-quote:created", ({mintUrl, quoteId, quote}) => {
+    )
+    this.eventBus.on("melt-quote:created", ({mintUrl, quoteId, quote}) =>
       this.handleMeltQuoteCreated(mintUrl, quoteId, quote)
-    })
-    this.eventBus.on("melt-quote:state-changed", ({mintUrl, quoteId, state}) => {
+    )
+    this.eventBus.on("melt-quote:state-changed", ({mintUrl, quoteId, state}) =>
       this.handleMeltQuoteStateChanged(mintUrl, quoteId, state)
-    })
-    this.eventBus.on("send:created", ({mintUrl, token}) => {
-      this.handleSendCreated(mintUrl, token)
-    })
-    this.eventBus.on("receive:created", ({mintUrl, token}) => {
-      this.handleReceiveCreated(mintUrl, token)
-    })
+    )
+    this.eventBus.on("send:created", ({mintUrl, token, amount}) =>
+      this.handleSendCreated(mintUrl, token, amount)
+    )
+    this.eventBus.on("receive:created", ({mintUrl, token, amount}) =>
+      this.handleReceiveCreated(mintUrl, token, amount)
+    )
     // this.eventBus.on('send:state-changed', this.handleSendStateChanged.bind(this));
     // this.eventBus.on('receive:state-changed', this.handleReceiveStateChanged.bind(this));
   }
@@ -59,12 +59,12 @@ export class HistoryService {
     return this.historyRepository.getPaginatedHistoryEntries(limit, offset)
   }
 
-  async handleSendCreated(mintUrl: string, token: Token) {
+  async handleSendCreated(mintUrl: string, token: Token, amount: number) {
     const entry: Omit<SendHistoryEntry, "id"> = {
       type: "send",
       createdAt: Date.now(),
       unit: token.unit || "sat",
-      amount: token.proofs.reduce((acc, proof) => acc + proof.amount, 0),
+      amount,
       mintUrl,
       token,
     }
@@ -80,12 +80,12 @@ export class HistoryService {
     }
   }
 
-  async handleReceiveCreated(mintUrl: string, token: Token) {
+  async handleReceiveCreated(mintUrl: string, token: Token, amount: number) {
     const entry: Omit<ReceiveHistoryEntry, "id"> = {
       type: "receive",
       createdAt: Date.now(),
       unit: token.unit || "sat",
-      amount: token.proofs.reduce((acc, proof) => acc + proof.amount, 0),
+      amount,
       mintUrl,
       token,
     }

@@ -35,7 +35,7 @@ export interface CoreEvents {
   "melt-quote:created": {mintUrl: string; quoteId: string; quote: MeltQuoteResponse}
   "melt-quote:state-changed": {mintUrl: string; quoteId: string; state: MeltQuoteState}
   "melt-quote:paid": {mintUrl: string; quoteId: string; quote: MeltQuoteResponse}
-  "send:created": {mintUrl: string; token: Token}
-  "receive:created": {mintUrl: string; token: Token}
+  "send:created": {mintUrl: string; token: Token; amount: number}
+  "receive:created": {mintUrl: string; token: Token; amount: number}
   "history:updated": {mintUrl: string; entry: HistoryEntry}
 }

@@ -85,8 +85,8 @@ export class IdbProofRepository implements ProofRepository {
   async getProofsByKeysetId(mintUrl: string, keysetId: string): Promise<CoreProof[]> {
     const rows = (await (this.db as any)
       .table("coco_cashu_proofs")
-      .where("[mintUrl+id+state]")
-      .equals([mintUrl, keysetId, "ready"])
+      .where("[mintUrl+id]")
+      .equals([mintUrl, keysetId])
       .toArray()) as ProofRow[]
     return rows.map((r) => {
       const base: Proof = {
@@ -97,7 +97,7 @@ export class IdbProofRepository implements ProofRepository {
         ...(r.dleqJson ? {dleq: JSON.parse(r.dleqJson)} : {}),
         ...(r.witness ? {witness: JSON.parse(r.witness)} : {}),
       }
-      return {...base, mintUrl, state: "ready"} satisfies CoreProof
+      return {...base, mintUrl, state: r.state} satisfies CoreProof
     })
   }
 

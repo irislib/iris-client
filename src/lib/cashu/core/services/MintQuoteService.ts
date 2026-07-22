@@ -35,7 +35,7 @@ export class MintQuoteService {
     this.logger?.info("Creating mint quote", {mintUrl, amount, description})
     try {
       const {wallet} = await this.walletService.getWalletWithActiveKeysetId(mintUrl)
-      const quote = await wallet.createMintQuote(amount, description)
+      const quote = await wallet.createMintQuoteBolt11(amount, description)
       await this.mintQuoteRepo.addMintQuote({...quote, mintUrl})
       await this.eventBus.emit("mint-quote:created", {
         mintUrl,
@@ -59,22 +59,22 @@ export class MintQuoteService {
       }
       const wallet = await this.walletService.getWallet(mintUrl)
       // Get keyset that matches the quote's unit
-      const matchingKeyset = wallet.keysets.find((k) => k.unit === quote.unit && k.active)
-      if (!matchingKeyset) {
+      const keyset = wallet.getKeyset()
+      if (keyset.unit !== quote.unit || !keyset.isActive) {
         throw new Error(
           `No active keyset found for unit ${quote.unit} at mint ${mintUrl}`
         )
       }
-      const {keep} = await this.proofService.createOutputsAndIncrementCounters(
-        mintUrl,
-        {
-          keep: quote.amount,
-          send: 0,
-        }
-      )
-      const proofs = await wallet.mintProofs(quote.amount, quote.quote, {
-        outputData: keep,
+      const {keep} = await this.proofService.createOutputsAndIncrementCounters(mintUrl, {
+        keep: quote.amount,
+        send: 0,
       })
+      const proofs = await wallet.mintProofsBolt11(
+        quote.amount,
+        quote,
+        {keysetId: keyset.id},
+        {type: "custom", data: keep}
+      )
       await this.eventBus.emit("mint-quote:redeemed", {mintUrl, quoteId, quote})
       this.logger?.info("Mint quote redeemed, proofs minted", {
         mintUrl,

@@ -1,4 +1,4 @@
-import type {Proof, CashuWallet} from "@cashu/cashu-ts"
+import type {Proof, Wallet} from "@cashu/cashu-ts"
 import {mapProofToCoreProof} from "@core/utils"
 import type {ProofService} from "./ProofService"
 import type {CounterService} from "./CounterService"
@@ -29,11 +29,7 @@ export class WalletRestoreService {
    * Enforces the invariant: restored proofs must be >= previously stored proofs.
    * Throws on any validation or persistence error. No transactions are used here.
    */
-  async restoreKeyset(
-    mintUrl: string,
-    wallet: CashuWallet,
-    keysetId: string
-  ): Promise<void> {
+  async restoreKeyset(mintUrl: string, wallet: Wallet, keysetId: string): Promise<void> {
     this.logger?.debug("Restoring keyset", {mintUrl, keysetId})
     const oldProofs = await this.proofService.getProofsByKeysetId(mintUrl, keysetId)
     this.logger?.debug("Existing proofs before restore", {
@@ -43,8 +39,8 @@ export class WalletRestoreService {
     })
 
     const {proofs, lastCounterWithSignature} = await wallet.batchRestore(
-      this.restoreBatchSize,
       this.restoreGapLimit,
+      this.restoreBatchSize,
       this.restoreStartCounter,
       keysetId
     )
@@ -83,7 +79,11 @@ export class WalletRestoreService {
       throw new Error("Malformed state check")
     }
 
-    const checkedProofs: {spent: Proof[]; ready: Proof[]} = {spent: [], ready: []}
+    const checkedProofs: {spent: Proof[]; pending: Proof[]; ready: Proof[]} = {
+      spent: [],
+      pending: [],
+      ready: [],
+    }
     for (const [index, state] of states.entries()) {
       if (!proofs[index]) {
         this.logger?.error("Proof not found", {mintUrl, keysetId, index})
@@ -91,8 +91,12 @@ export class WalletRestoreService {
       }
       if (state.state === "SPENT") {
         checkedProofs.spent.push(proofs[index])
-      } else {
+      } else if (state.state === "PENDING") {
+        checkedProofs.pending.push(proofs[index])
+      } else if (state.state === "UNSPENT") {
         checkedProofs.ready.push(proofs[index])
+      } else {
+        throw new Error(`Unknown proof state: ${String(state.state)}`)
       }
     }
 
@@ -100,22 +104,45 @@ export class WalletRestoreService {
       mintUrl,
       keysetId,
       ready: checkedProofs.ready.length,
+      pending: checkedProofs.pending.length,
       spent: checkedProofs.spent.length,
     })
 
-    const newCounter = lastCounterWithSignature ? lastCounterWithSignature + 1 : 0
+    const oldSecrets = new Set(oldProofs.map(({secret}) => secret))
+    const restoredSecrets = new Set(proofs.map(({secret}) => secret))
+    if (oldProofs.some(({secret}) => !restoredSecrets.has(secret))) {
+      throw new Error("Restore did not reproduce all existing proofs")
+    }
 
-    await this.counterService.overwriteCounter(mintUrl, keysetId, newCounter)
-    this.logger?.debug("Requested counter overwrite for keyset", {
+    const newCounter =
+      lastCounterWithSignature !== undefined ? lastCounterWithSignature + 1 : 0
+
+    await this.counterService.advanceCounterToAtLeast(mintUrl, keysetId, newCounter)
+    this.logger?.debug("Requested counter advancement for keyset", {
       mintUrl,
       keysetId,
       counter: newCounter,
     })
 
-    await this.proofService.saveProofs(
-      mintUrl,
-      mapProofToCoreProof(mintUrl, "ready", checkedProofs.ready)
-    )
+    const existingSpent = checkedProofs.spent
+      .filter(({secret}) => oldSecrets.has(secret))
+      .map(({secret}) => secret)
+    const existingPending = checkedProofs.pending
+      .filter(({secret}) => oldSecrets.has(secret))
+      .map(({secret}) => secret)
+    const existingReady = checkedProofs.ready
+      .filter(({secret}) => oldSecrets.has(secret))
+      .map(({secret}) => secret)
+    await this.proofService.setProofState(mintUrl, existingSpent, "spent")
+    await this.proofService.setProofState(mintUrl, existingPending, "inflight")
+    await this.proofService.setProofState(mintUrl, existingReady, "ready")
+
+    const newReady = checkedProofs.ready.filter(({secret}) => !oldSecrets.has(secret))
+    const newPending = checkedProofs.pending.filter(({secret}) => !oldSecrets.has(secret))
+    await this.proofService.saveProofs(mintUrl, [
+      ...mapProofToCoreProof(mintUrl, "ready", newReady),
+      ...mapProofToCoreProof(mintUrl, "inflight", newPending),
+    ])
     this.logger?.info("Saved restored proofs for keyset", {
       mintUrl,
       keysetId,

@@ -14,7 +14,7 @@ interface SendEcashFormProps {
   balance?: number
   selectedUserPubkey: string | null
   requestedMint: string | null
-  onTokenCreated: (token: string) => void
+  onTokenCreated: (token: string, amount: number) => void
   initialAmount?: number
   initialNote?: string
 }
@@ -120,7 +120,7 @@ export default function SendEcashForm({
         }
       }
 
-      onTokenCreated(encoded)
+      onTokenCreated(encoded, sendAmount)
     } catch (err) {
       error("Failed to create ecash token:", err)
       setErrorMessage(

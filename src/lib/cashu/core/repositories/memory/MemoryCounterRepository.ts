@@ -12,8 +12,25 @@ export class MemoryCounterRepository implements CounterRepository {
     return this.counters.get(this.key(mintUrl, keysetId)) ?? null
   }
 
-  async setCounter(mintUrl: string, keysetId: string, counter: number): Promise<void> {
+  async reserveCounter(
+    mintUrl: string,
+    keysetId: string,
+    count: number
+  ): Promise<number> {
     const key = this.key(mintUrl, keysetId)
+    const start = this.counters.get(key)?.counter ?? 0
+    this.counters.set(key, {mintUrl, keysetId, counter: start + count})
+    return start
+  }
+
+  async advanceCounter(
+    mintUrl: string,
+    keysetId: string,
+    minimum: number
+  ): Promise<number> {
+    const key = this.key(mintUrl, keysetId)
+    const counter = Math.max(this.counters.get(key)?.counter ?? 0, minimum)
     this.counters.set(key, {mintUrl, keysetId, counter})
+    return counter
   }
 }

@@ -1,5 +1,7 @@
 # Base stage with system dependencies
-FROM node:20-bookworm AS base
+FROM node:22-bookworm AS base
+
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -102,7 +104,7 @@ RUN curl -fsSL https://upload.iris.to/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e89599
 # Install dependencies as developer user
 WORKDIR /home/developer/iris-client
 USER developer
-RUN yarn install --frozen-lockfile
+RUN pnpm install --frozen-lockfile
 USER root
 
 # Copy nvim config for both users
@@ -126,4 +128,4 @@ USER developer
 WORKDIR /home/developer/iris-client
 
 # Start dev server by default
-CMD ["yarn", "dev"]
+CMD ["pnpm", "dev"]

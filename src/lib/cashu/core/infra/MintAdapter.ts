@@ -1,10 +1,10 @@
-import {CashuMint, type MintAllKeysets} from "@cashu/cashu-ts"
+import {Mint, type MintAllKeysets} from "@cashu/cashu-ts"
 import type {MintInfo} from "../types"
 
 //TODO: This adapter is currently not rate limited. As long as it's only used to fetch mint info and keysets, this is fine.
 
 export class MintAdapter {
-  private cashuMints: Record<string, CashuMint> = {}
+  private cashuMints: Record<string, Mint> = {}
 
   async fetchMintInfo(mintUrl: string): Promise<MintInfo> {
     const cashuMint = await this.getCashuMint(mintUrl)
@@ -25,9 +25,9 @@ export class MintAdapter {
     return keysets[0].keys
   }
 
-  private async getCashuMint(mintUrl: string): Promise<CashuMint> {
+  private async getCashuMint(mintUrl: string): Promise<Mint> {
     if (!this.cashuMints[mintUrl]) {
-      this.cashuMints[mintUrl] = new CashuMint(mintUrl)
+      this.cashuMints[mintUrl] = new Mint(mintUrl)
     }
     return this.cashuMints[mintUrl]
   }
@@ -36,18 +36,18 @@ export class MintAdapter {
   // Check current state of a bolt11 mint quote
   async checkMintQuoteState(_mintUrl: string, _quoteId: string): Promise<unknown> {
     // TODO: implement HTTP call
-    return {} as any
+    return {}
   }
 
   // Check current state of a bolt11 melt quote
   async checkMeltQuoteState(_mintUrl: string, _quoteId: string): Promise<unknown> {
     // TODO: implement HTTP call
-    return {} as any
+    return {}
   }
 
   // Batch check of proof states by secrets (up to 100 per request)
   async checkProofStates(_mintUrl: string, _proofSecrets: string[]): Promise<unknown[]> {
     // TODO: implement HTTP call (batch)
-    return [] as any[]
+    return []
   }
 }

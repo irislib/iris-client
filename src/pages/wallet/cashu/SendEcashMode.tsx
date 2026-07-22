@@ -14,6 +14,7 @@ interface SendEcashModeProps {
   onSuccess: () => void
   onClose: () => void
   initialToken?: Token
+  initialDisplayAmount?: number
   initialInvoice?: string
   balance?: number
 }
@@ -24,10 +25,12 @@ export default function SendEcashMode({
   onSuccess,
   onClose,
   initialToken,
+  initialDisplayAmount,
   initialInvoice,
   balance,
 }: SendEcashModeProps) {
   const [generatedToken, setGeneratedToken] = useState<string>("")
+  const [generatedAmount, setGeneratedAmount] = useState(initialDisplayAmount)
   const [selectedUserPubkey, setSelectedUserPubkey] = useState<string | null>(null)
   const [initialAmount, setInitialAmount] = useState<number>(0)
   const [initialNote, setInitialNote] = useState<string>("")
@@ -96,8 +99,9 @@ export default function SendEcashMode({
     loadInitialToken()
   }, [initialToken])
 
-  const handleTokenCreated = async (token: string) => {
+  const handleTokenCreated = async (token: string, amount: number) => {
     setGeneratedToken(token)
+    setGeneratedAmount(amount)
     onSuccess()
 
     // If payment request with NIP-117 recipient, auto-send via DM
@@ -112,6 +116,7 @@ export default function SendEcashMode({
       <SendEcashShare
         manager={manager}
         generatedToken={generatedToken}
+        displayAmount={generatedAmount}
         initialToken={initialToken}
         selectedUserPubkey={selectedUserPubkey}
         onClose={onClose}

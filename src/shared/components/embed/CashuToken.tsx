@@ -1,6 +1,5 @@
 import {useState, useEffect} from "react"
 import {RiBitCoinFill, RiLockLine} from "@remixicon/react"
-import type {Proof} from "@cashu/cashu-ts"
 import Embed, {type EmbedComponentProps} from "./index.ts"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -42,19 +41,16 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
           setRedeemed(true)
         }
 
-        const {getDecodedToken} = await import("@cashu/cashu-ts")
-        const decoded = getDecodedToken(trimmedToken)
+        const {getTokenMetadata} = await import("@cashu/cashu-ts")
+        const tokenMetadata = getTokenMetadata(trimmedToken)
 
         // Calculate total amount and check for P2PK locks
-        let totalAmount = 0
         let lockedPubkey: string | null = null
 
         const checkProofsForP2PK = (
           proofs: Array<{amount?: number; secret?: string}>
         ) => {
           for (const proof of proofs) {
-            totalAmount += proof.amount || 0
-
             // Check if proof has P2PK lock
             if (proof.secret && typeof proof.secret === "string") {
               try {
@@ -73,20 +69,12 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
           }
         }
 
-        if (decoded.proofs && Array.isArray(decoded.proofs)) {
-          checkProofsForP2PK(decoded.proofs)
-        } else if (decoded.token && Array.isArray(decoded.token)) {
-          for (const tokenEntry of decoded.token) {
-            if (tokenEntry.proofs && Array.isArray(tokenEntry.proofs)) {
-              checkProofsForP2PK(tokenEntry.proofs)
-            }
-          }
-        }
+        checkProofsForP2PK(tokenMetadata.incompleteProofs)
 
-        setAmount(totalAmount)
+        setAmount(tokenMetadata.amount)
         setP2pkLock(lockedPubkey)
-        setMemo(decoded.memo || "")
-        setMintUrl(decoded.mint || "")
+        setMemo(tokenMetadata.memo || "")
+        setMintUrl(tokenMetadata.mint)
 
         // Check if we can redeem (only if locked to our pubkey)
         if (lockedPubkey) {
@@ -223,35 +211,16 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
       }
 
       const trimmedToken = match.trim()
-      const {getDecodedToken} = await import("@cashu/cashu-ts")
-      const decoded = getDecodedToken(trimmedToken)
-
-      // Extract all proofs from token
-      const proofs: Proof[] = []
-      if (decoded.proofs && Array.isArray(decoded.proofs)) {
-        proofs.push(...decoded.proofs)
-      } else if (decoded.token && Array.isArray(decoded.token)) {
-        for (const tokenEntry of decoded.token) {
-          if (tokenEntry.proofs && Array.isArray(tokenEntry.proofs)) {
-            proofs.push(...tokenEntry.proofs)
-          }
-        }
-      }
+      const {getTokenMetadata, Wallet} = await import("@cashu/cashu-ts")
+      const metadata = getTokenMetadata(trimmedToken)
+      const tempWallet = new Wallet(metadata.mint, {unit: metadata.unit})
+      await tempWallet.loadMint()
+      const {proofs} = tempWallet.decodeToken(trimmedToken)
 
       if (proofs.length === 0) {
         setErrorMessage("No proofs found in token")
         return
       }
-
-      // Get cashu-ts wallet instance directly to check states
-      const mintUrl = decoded.mint
-      const {CashuMint} = await import("@cashu/cashu-ts")
-      const mint = new CashuMint(mintUrl)
-
-      // Import wallet keys from manager
-      const mintKeys = await mint.getKeys()
-      const {CashuWallet} = await import("@cashu/cashu-ts")
-      const tempWallet = new CashuWallet(mint, {keys: mintKeys.keysets})
 
       const states = await tempWallet.checkProofsStates(proofs)
 

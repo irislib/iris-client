@@ -4,3 +4,7 @@ dist
 /public
 node_modules
 pnpm-lock.yaml
+
+# Bundled NDK sources retain their upstream formatting.
+src/lib/ndk/
+src/lib/ndk-cache/

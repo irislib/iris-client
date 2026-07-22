@@ -1,16 +1,10 @@
-import {
-  CashuMint,
-  CashuWallet,
-  type MintKeys,
-  type MintKeyset,
-} from "@cashu/cashu-ts"
+import {KeyChain, Mint, Wallet, type MintKeys, type MintKeyset} from "@cashu/cashu-ts"
 import type {MintService} from "./MintService"
 import type {Logger} from "../logging/Logger.ts"
 import type {SeedService} from "./SeedService.ts"
-import {RequestRateLimiter} from "../infra/RequestRateLimiter.ts"
 
 interface CachedWallet {
-  wallet: CashuWallet
+  wallet: Wallet
   lastCheck: number
 }
 
@@ -19,28 +13,16 @@ export class WalletService {
   private readonly CACHE_TTL = 5 * 60 * 1000
   private readonly mintService: MintService
   private readonly seedService: SeedService
-  private inFlight: Map<string, Promise<CashuWallet>> = new Map()
+  private inFlight: Map<string, Promise<Wallet>> = new Map()
   private readonly logger?: Logger
-  private readonly requestLimiters: Map<string, RequestRateLimiter> = new Map()
-  private readonly requestLimiterOptionsForMint?: (
-    mintUrl: string
-  ) => Partial<ConstructorParameters<typeof RequestRateLimiter>[0]>
 
-  constructor(
-    mintService: MintService,
-    seedService: SeedService,
-    logger?: Logger,
-    requestLimiterOptionsForMint?: (
-      mintUrl: string
-    ) => Partial<ConstructorParameters<typeof RequestRateLimiter>[0]>
-  ) {
+  constructor(mintService: MintService, seedService: SeedService, logger?: Logger) {
     this.mintService = mintService
     this.seedService = seedService
     this.logger = logger
-    this.requestLimiterOptionsForMint = requestLimiterOptionsForMint
   }
 
-  async getWallet(mintUrl: string): Promise<CashuWallet> {
+  async getWallet(mintUrl: string): Promise<Wallet> {
     if (!mintUrl || mintUrl.trim().length === 0) {
       throw new Error("mintUrl is required")
     }
@@ -65,16 +47,21 @@ export class WalletService {
   }
 
   async getWalletWithActiveKeysetId(mintUrl: string): Promise<{
-    wallet: CashuWallet
+    wallet: Wallet
     keysetId: string
     keyset: MintKeyset
     keys: MintKeys
   }> {
     const wallet = await this.getWallet(mintUrl)
-    const keyset = wallet.getActiveKeyset(wallet.keysets)
-    // Use cached keys (forceRefresh=false) to avoid mint fetch
-    const keys = await wallet.getKeys(keyset.id, false)
-    return {wallet, keysetId: keyset.id, keyset, keys}
+    const keyset = wallet.getKeyset()
+    const keys = keyset.toMintKeys()
+    if (!keys) throw new Error(`No keys loaded for keyset ${keyset.id}`)
+    return {
+      wallet,
+      keysetId: keyset.id,
+      keyset: keyset.toMintKeyset(),
+      keys,
+    }
   }
 
   /**
@@ -96,90 +83,93 @@ export class WalletService {
   /**
    * Force refresh mint data and get fresh wallet
    */
-  async refreshWallet(mintUrl: string): Promise<CashuWallet> {
+  async refreshWallet(mintUrl: string): Promise<Wallet> {
     this.clearCache(mintUrl)
     this.inFlight.delete(mintUrl)
     await this.mintService.updateMintData(mintUrl)
     return this.getWallet(mintUrl)
   }
-  private async buildWallet(mintUrl: string): Promise<CashuWallet> {
-    // Try to get fresh mint data, fall back to cache if offline
-    let mint, keysets
-    try {
-      ({mint, keysets} = await this.mintService.ensureUpdatedMint(mintUrl))
-    } catch (err) {
-      // If network error, use cached data for offline operation
-      const isNetworkError =
-        err instanceof Error &&
-        (err.message.includes("Failed to fetch") || err.message.includes("NetworkError"))
+  private async buildWallet(mintUrl: string): Promise<Wallet> {
+    let seed: Uint8Array | undefined
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      // Try to get fresh mint data, fall back to cache if offline
+      let mint, keysets
+      try {
+        ;({mint, keysets} = await this.mintService.ensureUpdatedMint(mintUrl))
+      } catch (err) {
+        // If network error, use cached data for offline operation
+        const isNetworkError =
+          err instanceof Error &&
+          (err.message.includes("Failed to fetch") ||
+            err.message.includes("NetworkError"))
 
-      if (isNetworkError) {
-        this.logger?.warn("Mint unreachable, using cached keys", {mintUrl})
-        ;({mint, keysets} = await this.mintService.getCachedMint(mintUrl))
-      } else {
-        throw err
+        if (isNetworkError) {
+          this.logger?.warn("Mint unreachable, using cached keys", {mintUrl})
+          ;({mint, keysets} = await this.mintService.getCachedMint(mintUrl))
+        } else {
+          throw err
+        }
       }
+
+      const validKeysets = keysets.filter(
+        (keyset) => keyset.keypairs && Object.keys(keyset.keypairs).length > 0
+      )
+
+      if (validKeysets.length === 0) {
+        throw new Error(`No valid keysets found for mint ${mintUrl}`)
+      }
+
+      const keys: MintKeys[] = validKeysets.map((keyset) => ({
+        id: keyset.id,
+        unit: keyset.unit,
+        active: keyset.active,
+        input_fee_ppk: keyset.feePpk,
+        final_expiry: keyset.finalExpiry,
+        keys: keyset.keypairs,
+      }))
+
+      const compatibleKeysets: MintKeyset[] = validKeysets.map((k) => ({
+        id: k.id,
+        unit: k.unit,
+        active: k.active,
+        input_fee_ppk: k.feePpk,
+        final_expiry: k.finalExpiry,
+      }))
+
+      seed ??= await this.seedService.getSeed()
+
+      const logger = this.logger?.child?.({module: "Wallet"})
+      const cashuMint = new Mint(mintUrl, {logger})
+      const wallet = new Wallet(cashuMint, {
+        unit: "sat",
+        logger,
+        bip39seed: seed,
+      })
+      const keyChainCache = KeyChain.mintToCacheDTO(
+        "sat",
+        mintUrl,
+        compatibleKeysets,
+        keys
+      )
+      wallet.loadMintFromCache(mint.mintInfo, keyChainCache)
+
+      try {
+        wallet.getKeyset()
+      } catch (err) {
+        if (attempt > 0) throw err
+        this.logger?.warn("Cached keysets unusable, refreshing mint data", {mintUrl, err})
+        await this.mintService.updateMintData(mintUrl)
+        continue
+      }
+
+      this.walletCache.set(mintUrl, {
+        wallet,
+        lastCheck: Date.now(),
+      })
+
+      this.logger?.info("Wallet built", {mintUrl, keysetCount: validKeysets.length})
+      return wallet
     }
-
-    const validKeysets = keysets.filter(
-      (keyset) => keyset.keypairs && Object.keys(keyset.keypairs).length > 0
-    )
-
-    if (validKeysets.length === 0) {
-      throw new Error(`No valid keysets found for mint ${mintUrl}`)
-    }
-
-    const keys = validKeysets.map((keyset) => ({
-      id: keyset.id,
-      unit: keyset.unit,
-      keys: keyset.keypairs,
-    }))
-
-    const compatibleKeysets: MintKeyset[] = validKeysets.map((k) => ({
-      id: k.id,
-      unit: k.unit,
-      active: k.active,
-      input_fee_ppk: k.feePpk,
-    }))
-
-    const seed = await this.seedService.getSeed()
-
-    const requestLimiter = this.getOrCreateRequestLimiter(mintUrl)
-    const wallet = new CashuWallet(new CashuMint(mintUrl, requestLimiter.request), {
-      mintInfo: mint.mintInfo,
-      keys,
-      keysets: compatibleKeysets,
-      // @ts-ignore
-      logger:
-        this.logger && this.logger.child
-          ? this.logger.child({module: "Wallet"})
-          : undefined,
-      bip39seed: seed,
-    })
-
-    this.walletCache.set(mintUrl, {
-      wallet,
-      lastCheck: Date.now(),
-    })
-
-    this.logger?.info("Wallet built", {mintUrl, keysetCount: validKeysets.length})
-    return wallet
-  }
-
-  private getOrCreateRequestLimiter(mintUrl: string): RequestRateLimiter {
-    const existing = this.requestLimiters.get(mintUrl)
-    if (existing) return existing
-    const defaults = this.requestLimiterOptionsForMint?.(mintUrl) ?? {}
-    const limiter = new RequestRateLimiter({
-      capacity: 20,
-      refillPerMinute: 20,
-      bypassPathPrefixes: [],
-      ...defaults,
-      logger: this.logger?.child
-        ? this.logger.child({module: "RequestRateLimiter"})
-        : this.logger,
-    })
-    this.requestLimiters.set(mintUrl, limiter)
-    return limiter
+    throw new Error(`No usable active keyset found for mint ${mintUrl}`)
   }
 }

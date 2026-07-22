@@ -1,5 +1,5 @@
 import {NDKEvent} from "@/lib/ndk"
-import Markdown from "markdown-to-jsx"
+import Markdown from "markdown-to-jsx/react"
 import ProxyImg from "../ProxyImg"
 import {useNavigate} from "@/navigation"
 import {nip19} from "nostr-tools"
@@ -80,6 +80,7 @@ function LongForm({event, standalone}: LongFormProps) {
         <Markdown
           className="prose leading-relaxed tracking-wide text-gray-450 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
           options={{
+            disableParsingRawHTML: true,
             forceBlock: true,
             overrides: {
               img: {

@@ -588,9 +588,16 @@ export const useWalletProviderStore = create<WalletProviderState>()(
               quoteId: quote.quote,
               request: quote.request?.slice(0, 30) + "...",
             })
-            await manager.quotes.payMeltQuote(mintUrl, quote.quote)
+            const result = await manager.quotes.payMeltQuote(mintUrl, quote.quote)
+            if (result.state !== "PAID") {
+              throw new Error(
+                result.state === "PENDING"
+                  ? "Cashu payment is pending at the mint"
+                  : "Cashu mint did not pay the invoice"
+              )
+            }
 
-            return {preimage: quote.payment_preimage || undefined}
+            return {preimage: result.payment_preimage || undefined}
           } catch (error: unknown) {
             // Check if it's a network/mint error
             const errorMessage = error instanceof Error ? error.message : String(error)

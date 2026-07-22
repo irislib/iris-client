@@ -1,7 +1,7 @@
 import {ChangeEvent, KeyboardEvent, useEffect, useRef, useState} from "react"
 import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {NDKEvent, NDKPrivateKeySigner} from "@/lib/ndk"
-import {bytesToHex} from "@noble/hashes/utils"
+import {bytesToHex} from "@noble/hashes/utils.js"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {useUIStore} from "@/stores/ui"

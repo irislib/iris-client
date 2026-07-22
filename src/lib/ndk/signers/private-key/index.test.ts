@@ -1,7 +1,7 @@
-import {describe, expect, it, vi, beforeEach, afterEach} from "vitest"
-import {bytesToHex} from "@noble/hashes/utils"
+import {describe, expect, it} from "vitest"
+import {bytesToHex} from "@noble/hashes/utils.js"
 import {nip19} from "nostr-tools"
-import {NDKEvent, type NostrEvent} from "../../index.js"
+import {NDKEvent} from "../../index.js"
 import {NDKPrivateKeySigner} from "./index"
 
 describe("NDKPrivateKeySigner", () => {

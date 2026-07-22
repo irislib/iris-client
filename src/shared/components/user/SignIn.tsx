@@ -1,4 +1,4 @@
-import {hexToBytes, bytesToHex} from "@noble/hashes/utils"
+import {hexToBytes, bytesToHex} from "@noble/hashes/utils.js"
 import {NDKPrivateKeySigner} from "@/lib/ndk"
 import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"

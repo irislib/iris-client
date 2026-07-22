@@ -16,8 +16,7 @@ type NewHistoryEntry =
   | Omit<ReceiveHistoryEntry, "id">
 
 type UpdatableHistoryEntry =
-  | Omit<MintHistoryEntry, "id" | "createdAt">
-  | Omit<MeltHistoryEntry, "id" | "createdAt">
+  Omit<MintHistoryEntry, "id" | "createdAt"> | Omit<MeltHistoryEntry, "id" | "createdAt">
 
 export class IdbHistoryRepository {
   private readonly db: IdbDb

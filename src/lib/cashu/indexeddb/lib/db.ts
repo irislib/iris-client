@@ -31,6 +31,7 @@ export interface KeysetRow {
   keypairs: string // JSON string
   active: number // 0/1
   feePpk: number
+  finalExpiry?: number
   updatedAt: number
 }
 
@@ -73,4 +74,5 @@ export interface MeltQuoteRow {
   expiry: number
   fee_reserve: number
   payment_preimage: string | null
+  meltPreviewJson?: string | null
 }

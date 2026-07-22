@@ -1,7 +1,6 @@
 import {useState, useCallback} from "react"
 import type {Manager} from "@/lib/cashu/core/index"
 import type {HistoryEntry} from "@/lib/cashu/core/models/History"
-import {IndexedDbRepositories} from "@/lib/cashu/indexeddb/index"
 import {
   getNPubCashBalance,
   claimNPubCashTokens,
@@ -13,16 +12,6 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
 
-const meltQuoteRepos = new IndexedDbRepositories({name: "iris-cashu-db"})
-let meltQuoteReposInitialized = false
-
-const ensureMeltQuoteReposInit = async () => {
-  if (!meltQuoteReposInitialized) {
-    await meltQuoteRepos.init()
-    meltQuoteReposInitialized = true
-  }
-}
-
 export function useWalletRefresh(
   manager: Manager | null,
   myPubKey: string | null,
@@ -30,47 +19,39 @@ export function useWalletRefresh(
 ) {
   const [refreshing, setRefreshing] = useState(false)
 
-  const refreshData = useCallback(
-    async (immediate = false) => {
-      if (!manager) {
-        warn("⚠️ No manager available for refresh")
-        return
-      }
-      log("🔄 Refreshing Cashu wallet data...", immediate ? "(immediate)" : "(delayed)")
-      try {
-        // Add small delay to let cashu persist changes (unless immediate refresh)
-        if (!immediate) {
-          await new Promise((resolve) => setTimeout(resolve, 200))
-        }
+  const refreshData = useCallback(async () => {
+    if (!manager) {
+      warn("⚠️ No manager available for refresh")
+      return
+    }
+    log("🔄 Refreshing Cashu wallet data...")
+    try {
+      const bal = await manager.wallet.getBalances()
+      log("💰 Balance fetched:", bal)
 
-        const bal = await manager.wallet.getBalances()
-        log("💰 Balance fetched:", bal)
+      const hist = await manager.history.getPaginatedHistory(0, 1000)
+      log(
+        "📜 Raw history entries from manager:",
+        hist.length,
+        hist.map((h) => ({
+          type: h.type,
+          amount: h.amount,
+          timestamp: h.createdAt,
+        }))
+      )
 
-        const hist = await manager.history.getPaginatedHistory(0, 1000)
-        log(
-          "📜 Raw history entries from manager:",
-          hist.length,
-          hist.map((h) => ({
-            type: h.type,
-            amount: h.amount,
-            timestamp: h.createdAt,
-          }))
-        )
+      const enrichedHist = await enrichHistoryWithMetadata(hist)
+      log("✅ Wallet data refreshed, history count:", enrichedHist.length)
 
-        const enrichedHist = await enrichHistoryWithMetadata(hist)
-        log("✅ Wallet data refreshed, history count:", enrichedHist.length)
-
-        return {balance: bal, history: enrichedHist}
-      } catch (err) {
-        error("❌ Failed to refresh data:", err)
-        throw err
-      }
-    },
-    [manager, enrichHistoryWithMetadata]
-  )
+      return {balance: bal, history: enrichedHist}
+    } catch (err) {
+      error("❌ Failed to refresh data:", err)
+      throw err
+    }
+  }, [manager, enrichHistoryWithMetadata])
 
   const handleRefresh = useCallback(
-    async (balance: {[mintUrl: string]: number} | null) => {
+    async (_balance: {[mintUrl: string]: number} | null) => {
       log("🔄 Manual refresh button clicked")
       setRefreshing(true)
       try {
@@ -99,48 +80,20 @@ export function useWalletRefresh(
           }
         }
 
-        // Check pending melt quotes (for stuck outgoing Lightning payments)
-        if (manager && balance) {
-          const mints = Object.keys(balance)
-          log("🔍 Checking pending melt quotes on mints:", mints)
-          for (const mintUrl of mints) {
-            try {
-              // Force check by calling mint API directly
-              const {CashuMint} = await import("@cashu/cashu-ts")
-              const mint = new CashuMint(mintUrl)
-
-              // Get pending quotes from our DB
-              await ensureMeltQuoteReposInit()
-              const pendingQuotes =
-                await meltQuoteRepos.meltQuoteRepository.getPendingMeltQuotes()
-
-              log(`📋 Found ${pendingQuotes.length} pending melt quotes`)
-
-              // Check each one
-              for (const quote of pendingQuotes) {
-                try {
-                  const status = await mint.checkMeltQuote(quote.quote)
-                  log(`🔎 Quote ${quote.quote}: ${status.state}`)
-
-                  if (status.state === "PAID" && quote.state !== "PAID") {
-                    log(`✅ Quote ${quote.quote} is now PAID, updating...`)
-                    await meltQuoteRepos.meltQuoteRepository.setMeltQuoteState(
-                      quote.mintUrl,
-                      quote.quote,
-                      "PAID"
-                    )
-                  }
-                } catch (err) {
-                  error(`Failed to check quote ${quote.quote}:`, err)
-                }
-              }
-            } catch (err) {
-              error(`Failed to check mint ${mintUrl}:`, err)
-            }
-          }
+        // Reconcile persisted outgoing Lightning payments, including wallets whose
+        // pending melt consumed their entire ready balance.
+        if (manager) {
+          log("🔍 Reconciling pending melt quotes")
+          const result = await manager.quotes.reconcilePendingMelts()
+          log("✅ Melt quote reconciliation complete", {
+            paid: result.paid.length,
+            unpaid: result.unpaid.length,
+            pending: result.pending.length,
+            failed: result.failed.length,
+          })
         }
 
-        const data = await refreshData(true) // immediate = true for manual refresh
+        const data = await refreshData()
 
         // Also check npub.cash
         if (myPubKey && ndk().signer) {
@@ -162,7 +115,7 @@ export function useWalletRefresh(
                 }
 
                 await manager.wallet.receive(token)
-                return await refreshData(true)
+                return await refreshData()
               }
             }
           }

@@ -65,6 +65,9 @@ export default function CashuWallet() {
   const [sendDialogInitialToken, setSendDialogInitialToken] = useState<Token | undefined>(
     undefined
   )
+  const [sendDialogInitialAmount, setSendDialogInitialAmount] = useState<
+    number | undefined
+  >(undefined)
   const [sendDialogInitialInvoice, setSendDialogInitialInvoice] = useState<string>("")
   const [receiveDialogInitialToken, setReceiveDialogInitialToken] = useState<string>("")
   const [receiveDialogInitialInvoice, setReceiveDialogInitialInvoice] =
@@ -99,6 +102,7 @@ export default function CashuWallet() {
 
   const handleSendEntryClick = useCallback((entry: SendHistoryEntry) => {
     setSendDialogInitialToken(entry.token)
+    setSendDialogInitialAmount(entry.amount)
     setShowSendDialog(true)
   }, [])
 
@@ -118,6 +122,7 @@ export default function CashuWallet() {
   const handleCloseSendDialog = () => {
     setShowSendDialog(false)
     setSendDialogInitialToken(undefined)
+    setSendDialogInitialAmount(undefined)
     setSendDialogInitialInvoice("")
   }
 
@@ -279,8 +284,8 @@ export default function CashuWallet() {
 
           // Fetch and cache mint info
           try {
-            const {CashuMint} = await import("@cashu/cashu-ts")
-            const mint = new CashuMint(mintUrl)
+            const {Mint} = await import("@cashu/cashu-ts")
+            const mint = new Mint(mintUrl)
             const info = await mint.getInfo()
             setCachedMintInfo(mintUrl, info)
           } catch (err) {
@@ -548,6 +553,7 @@ export default function CashuWallet() {
               mintUrl={activeMint || DEFAULT_MINT}
               onSuccess={handleDataRefresh}
               initialToken={sendDialogInitialToken}
+              initialDisplayAmount={sendDialogInitialAmount}
               initialInvoice={sendDialogInitialInvoice}
               balance={balance?.[activeMint || DEFAULT_MINT] || 0}
             />

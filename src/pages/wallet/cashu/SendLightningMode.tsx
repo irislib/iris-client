@@ -157,7 +157,14 @@ export default function SendLightningMode({
       const quote = await manager.quotes.createMeltQuote(mintUrl, invoice)
 
       // Pay the quote
-      await manager.quotes.payMeltQuote(mintUrl, quote.quote)
+      const result = await manager.quotes.payMeltQuote(mintUrl, quote.quote)
+      if (result.state !== "PAID") {
+        throw new Error(
+          result.state === "PENDING"
+            ? "Payment is pending at the mint; check your wallet history before retrying"
+            : "The mint did not pay the invoice"
+        )
+      }
 
       setSendInvoice("")
       setLnurlComment("")

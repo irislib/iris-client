@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.5.6
+
+- Upgrade the Cashu wallet to the maintained 3.7 LTS API, including cached wallet
+  hydration, fee-correct token handling, atomic deterministic counters, restoration,
+  and crash-safe Lightning payment recovery.
+- Add fast cryptographic fake-mint journeys for mint, send, receive, duplicate-spend,
+  melt, lost-response, signed-change, and restart-recovery behavior.
+- Refresh compatible cryptography, Nostr, React, Markdown, and CSS tooling
+  dependencies, move the supported runtime to Node 22, and clear the remaining
+  dependency audit finding.
+- Disable raw HTML and JSX parsing in untrusted long-form Nostr articles and add
+  regression coverage for signatures, HMAC URLs, Cashu outputs, and hostile
+  Markdown.
+- Keep Tailwind and DaisyUI on their current stable major versions until their
+  coordinated theme and plugin migration can be tested separately.
+
 ## 2.5.5
 
 - Harden encrypted messaging startup, backfill deduplication, delivery status,

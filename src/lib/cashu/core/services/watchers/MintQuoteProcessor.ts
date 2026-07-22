@@ -1,8 +1,7 @@
 import type {EventBus, CoreEvents} from "@core/events"
 import type {Logger} from "../../logging/Logger.ts"
 import type {MintQuoteService} from "../MintQuoteService"
-import type {MintQuoteState} from "@cashu/cashu-ts"
-import {MintOperationError, NetworkError} from "../../models/Error"
+import {MintOperationError, NetworkError, type MintQuoteState} from "@cashu/cashu-ts"
 
 interface QueueItem {
   mintUrl: string
@@ -297,16 +296,12 @@ export class MintQuoteProcessor {
       attempt: item.retryCount + 1,
     })
 
-    try {
-      await handler.process(mintUrl, quoteId)
-      this.logger?.info("Successfully processed mint quote", {
-        mintUrl,
-        quoteId,
-        quoteType,
-      })
-    } catch (err) {
-      throw err // Let the outer catch handle it
-    }
+    await handler.process(mintUrl, quoteId)
+    this.logger?.info("Successfully processed mint quote", {
+      mintUrl,
+      quoteId,
+      quoteType,
+    })
   }
 
   private handleProcessingError(item: QueueItem, err: unknown): void {

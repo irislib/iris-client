@@ -1,5 +1,9 @@
 import type {MeltQuoteResponse, MintQuoteResponse} from "@cashu/cashu-ts"
-import type {MintQuoteService, MeltQuoteService} from "@core/services"
+import type {
+  MintQuoteService,
+  MeltQuoteService,
+  ReconcilePendingMeltsResult,
+} from "@core/services"
 
 export class QuotesApi {
   private mintQuoteService: MintQuoteService
@@ -25,8 +29,12 @@ export class QuotesApi {
     return this.meltQuoteService.createMeltQuote(mintUrl, invoice)
   }
 
-  async payMeltQuote(mintUrl: string, quoteId: string): Promise<void> {
+  async payMeltQuote(mintUrl: string, quoteId: string): Promise<MeltQuoteResponse> {
     return this.meltQuoteService.payMeltQuote(mintUrl, quoteId)
+  }
+
+  async reconcilePendingMelts(): Promise<ReconcilePendingMeltsResult> {
+    return this.meltQuoteService.reconcilePendingMelts()
   }
 
   async addMintQuote(

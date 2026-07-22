@@ -15,8 +15,7 @@ export class IdbMintRepository implements MintRepository {
 
   async getMintByUrl(mintUrl: string): Promise<Mint> {
     const row = (await (this.db as any).table("coco_cashu_mints").get(mintUrl)) as
-      | MintRow
-      | undefined
+      MintRow | undefined
     if (!row) throw new Error(`Mint not found: ${mintUrl}`)
     return {
       mintUrl: row.mintUrl,

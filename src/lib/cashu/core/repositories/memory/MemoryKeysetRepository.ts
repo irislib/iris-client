@@ -33,8 +33,10 @@ export class MemoryKeysetRepository implements KeysetRepository {
     }
     mintMap.set(keyset.id, {
       ...existing,
+      unit: keyset.unit,
       active: keyset.active,
       feePpk: keyset.feePpk,
+      finalExpiry: keyset.finalExpiry ?? existing.finalExpiry,
       updatedAt: Math.floor(Date.now() / 1000),
     })
   }

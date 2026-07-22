@@ -12,6 +12,7 @@ interface SendDialogProps {
   mintUrl: string
   onSuccess: () => void
   initialToken?: Token
+  initialDisplayAmount?: number
   initialInvoice?: string
   balance?: number
 }
@@ -23,6 +24,7 @@ export default function SendDialog({
   mintUrl,
   onSuccess,
   initialToken,
+  initialDisplayAmount,
   initialInvoice,
   balance,
 }: SendDialogProps) {
@@ -133,6 +135,7 @@ export default function SendDialog({
             onSuccess={onSuccess}
             onClose={handleClose}
             initialToken={initialToken}
+            initialDisplayAmount={initialDisplayAmount}
             initialInvoice={initialInvoice}
             balance={balance}
           />
