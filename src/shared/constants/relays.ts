@@ -6,6 +6,7 @@ const PRODUCTION_RELAYS = [
   "wss://relay.damus.io/",
   "wss://relay.snort.social/",
   "wss://relay.primal.net/",
+  "wss://nos.lol/",
 ]
 
 const TEST_RELAY = ["wss://temp.iris.to/"]
