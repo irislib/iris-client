@@ -1,4 +1,4 @@
-import {ReactNode, useCallback, useEffect, useRef} from "react"
+import {ReactNode, useEffect, useRef} from "react"
 
 function findNearestScrollingParent(element: HTMLElement): HTMLElement | null {
   let parent = element.parentElement
@@ -25,16 +25,9 @@ type Props = {
 
 const InfiniteScroll = ({onLoadMore, children, scrollContainer}: Props) => {
   const observerRef = useRef<HTMLDivElement | null>(null)
-
-  const handleObserver = useCallback(
-    (entries: IntersectionObserverEntry[]) => {
-      const target = entries[0]
-      if (target.isIntersecting) {
-        onLoadMore()
-      }
-    },
-    [onLoadMore]
-  )
+  const onLoadMoreRef = useRef(onLoadMore)
+  const wasIntersectingRef = useRef(false)
+  onLoadMoreRef.current = onLoadMore
 
   useEffect(() => {
     // Find scroll container automatically if not provided
@@ -45,26 +38,31 @@ const InfiniteScroll = ({onLoadMore, children, scrollContainer}: Props) => {
 
     const observerOptions = {
       root: actualScrollContainer,
-      rootMargin: "1000px",
-      threshold: 1.0,
+      rootMargin: "400px 0px",
+      threshold: 0,
     }
 
-    const observer = new IntersectionObserver(handleObserver, observerOptions)
-    if (observerRef.current) {
-      observer.observe(observerRef.current)
+    const observer = new IntersectionObserver((entries) => {
+      const target = entries[0]
+      if (target.isIntersecting && !wasIntersectingRef.current) {
+        onLoadMoreRef.current()
+      }
+      wasIntersectingRef.current = target.isIntersecting
+    }, observerOptions)
+    const target = observerRef.current
+    if (target) {
+      observer.observe(target)
     }
 
     return () => {
-      if (observerRef.current) {
-        observer.unobserve(observerRef.current)
-      }
+      observer.disconnect()
     }
-  }, [handleObserver, scrollContainer])
+  }, [scrollContainer])
 
   return (
     <>
       {children}
-      <div ref={observerRef} />
+      <div ref={observerRef} className="h-px" aria-hidden="true" />
     </>
   )
 }

@@ -8,6 +8,7 @@ const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 interface FetchOptions {
   timeout?: number // ms to wait before resolving, undefined = no timeout
+  settleAfterMs?: number // resolve an incomplete ID batch after this much event silence
 }
 
 interface FetchResult {
@@ -32,6 +33,7 @@ export function fetchEventsReliable(
   let resolved = false
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
   let warningHandle: ReturnType<typeof setTimeout> | undefined
+  let settleHandle: ReturnType<typeof setTimeout> | undefined
   let sub: NDKSubscription
 
   const finalize = (resolve: (value: NDKEvent[]) => void) => {
@@ -39,6 +41,7 @@ export function fetchEventsReliable(
     resolved = true
     if (timeoutHandle) clearTimeout(timeoutHandle)
     if (warningHandle) clearTimeout(warningHandle)
+    if (settleHandle) clearTimeout(settleHandle)
     sub.stop()
     resolve(Array.from(events.values()))
   }
@@ -130,6 +133,9 @@ export function fetchEventsReliable(
             `[fetchEventsReliable] Got all ${requestedIds.size} requested events, resolving`
           )
           finalize(resolve)
+        } else if (opts?.settleAfterMs !== undefined) {
+          if (settleHandle) clearTimeout(settleHandle)
+          settleHandle = setTimeout(() => finalize(resolve), opts.settleAfterMs)
         }
       }
     })
@@ -184,6 +190,8 @@ export function fetchEventsReliable(
     unsubscribe: () => {
       resolved = true
       if (timeoutHandle) clearTimeout(timeoutHandle)
+      if (warningHandle) clearTimeout(warningHandle)
+      if (settleHandle) clearTimeout(settleHandle)
       if (sub) sub.stop()
     },
   }

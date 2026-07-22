@@ -106,6 +106,10 @@ export function initServiceWorkerAutoReload(opts: ServiceWorkerAutoReloadOptions
         })
       })
 
+      // Safari can keep a standalone PWA alive for a long time. Check on every
+      // launch instead of waiting for the periodic timer or browser heuristics.
+      registration.update().catch(() => {})
+
       intervalId = setIntervalFn(() => {
         registration.update().catch(() => {})
       }, updateIntervalMs)

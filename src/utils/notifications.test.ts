@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from "vitest"
 import {MESSAGE_EVENT_KIND} from "nostr-double-ratchet"
 import {
+  clearNotifications,
   createLatestNotificationSyncQueue,
   extractSessionPubkeysFromUserRecords,
   planDmNotificationSync,
@@ -177,5 +178,31 @@ describe("planDmNotificationSync", () => {
       register: false,
       update: ["first", duplicatedAuthors.first],
     })
+  })
+})
+
+describe("clearNotifications", () => {
+  it("tolerates Safari registrations without getNotifications", async () => {
+    const getRegistrations = vi.fn(async () => [{}])
+    vi.stubGlobal("navigator", {serviceWorker: {getRegistrations}})
+
+    await expect(clearNotifications()).resolves.toBeUndefined()
+    expect(getRegistrations).toHaveBeenCalledOnce()
+
+    vi.unstubAllGlobals()
+  })
+
+  it("closes notifications when the browser exposes the API", async () => {
+    const close = vi.fn()
+    const getNotifications = vi.fn(async () => [{close}])
+    vi.stubGlobal("navigator", {
+      serviceWorker: {getRegistrations: vi.fn(async () => [{getNotifications}])},
+    })
+
+    await clearNotifications()
+
+    expect(getNotifications).toHaveBeenCalledOnce()
+    expect(close).toHaveBeenCalledOnce()
+    vi.unstubAllGlobals()
   })
 })

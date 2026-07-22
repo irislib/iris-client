@@ -29,6 +29,7 @@ export default function useReactionSubscription(
   const oldestEventAt = useRef<number | null>(null)
   const expansionAttempts = useRef(0)
   const [hasInitialData, setHasInitialData] = useState(cache.hasInitialData || false)
+  const hasInitialDataRef = useRef(cache.hasInitialData || false)
 
   useEffect(() => {
     if (cache.pendingReactionCounts) {
@@ -63,6 +64,13 @@ export default function useReactionSubscription(
 
     const sub = ndk().subscribe(reactionFilter)
 
+    const markInitialDataReady = () => {
+      if (hasInitialDataRef.current) return
+      hasInitialDataRef.current = true
+      cache.hasInitialData = true
+      setHasInitialData(true)
+    }
+
     let reactionCount = 0
     sub.on("event", (event) => {
       if (!event.created_at || !event.id) return
@@ -71,6 +79,10 @@ export default function useReactionSubscription(
       if (!originalPostId) return
 
       if (filterSeen && seenEventIds.has(originalPostId)) return
+
+      if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
+        oldestEventAt.current = event.created_at
+      }
 
       reactionCount++
       if (reactionCount <= 5) {
@@ -88,18 +100,11 @@ export default function useReactionSubscription(
         pendingReactionCounts.current.set(originalPostId, new Set([event.id]))
       }
 
-      // Fetch post with groupable delay to batch multiple ID requests
-      ndk().subscribe(
-        {ids: [originalPostId]},
-        {groupable: true, groupableDelay: 200, closeOnEose: true}
-      )
-
       if (
-        !hasInitialData &&
+        !hasInitialDataRef.current &&
         pendingReactionCounts.current.size >= INITIAL_DATA_THRESHOLD
       ) {
-        setHasInitialData(true)
-        cache.hasInitialData = true
+        markInitialDataReady()
       }
       cache.pendingReactionCounts = pendingReactionCounts.current
       cache.showingReactionCounts = showingReactionCounts.current
@@ -110,9 +115,16 @@ export default function useReactionSubscription(
         expansionAttempts.current += 1
         if (expansionAttempts.current < 3) {
           expandFilters()
-        } else if (!hasInitialData) {
-          setHasInitialData(true)
-          cache.hasInitialData = true
+        }
+
+        const hasReactions = pendingReactionCounts.current.size > 0
+        const exhaustedInitialWindows = expansionAttempts.current >= 3
+
+        // For You can fall back to its chronological source immediately. Popular
+        // must survive a cold social-graph load instead of declaring itself empty
+        // before its author list and reactions arrive.
+        if (filterSeen || hasReactions || exhaustedInitialWindows) {
+          markInitialDataReady()
         }
       }
     }, 5000)
@@ -121,7 +133,7 @@ export default function useReactionSubscription(
       clearTimeout(timeout)
       sub.stop()
     }
-  }, [currentFilters])
+  }, [cache, currentFilters, expandFilters, filterSeen])
 
   const getNextMostPopular = (n: number): string[] => {
     // Note: We don't call expandFilters() here to avoid triggering re-renders during data fetching

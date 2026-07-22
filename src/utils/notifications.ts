@@ -498,6 +498,7 @@ export const clearNotifications = async () => {
 
   const registrations = await navigator.serviceWorker.getRegistrations()
   for (const registration of registrations) {
+    if (typeof registration.getNotifications !== "function") continue
     const notifications = await registration.getNotifications()
     notifications.forEach((notification) => notification.close())
   }

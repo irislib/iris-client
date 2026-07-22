@@ -160,7 +160,7 @@ describe("initServiceWorkerAutoReload", () => {
     cleanup()
   })
 
-  it("checks for updates periodically", async () => {
+  it("checks for updates immediately and periodically", async () => {
     const registration = new FakeRegistration()
     const container = new FakeServiceWorkerContainer(Promise.resolve(registration))
     container.controller = {}
@@ -175,12 +175,12 @@ describe("initServiceWorkerAutoReload", () => {
 
     await Promise.resolve()
 
-    expect(registration.update).toHaveBeenCalledTimes(0)
+    expect(registration.update).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(60_000)
     await Promise.resolve()
 
-    expect(registration.update).toHaveBeenCalledTimes(1)
+    expect(registration.update).toHaveBeenCalledTimes(2)
     cleanup()
   })
 

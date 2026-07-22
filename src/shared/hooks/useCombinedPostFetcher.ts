@@ -75,7 +75,10 @@ export default function useCombinedPostFetcher({
         ids: allIds,
       }
 
-      const {promise} = fetchEventsReliable(postFilter, {timeout: 2000})
+      const {promise} = fetchEventsReliable(postFilter, {
+        timeout: 4000,
+        settleAfterMs: 300,
+      })
       let eventsArray = await promise
 
       if (excludeOwnPosts && myPubKey) {
@@ -100,34 +103,28 @@ export default function useCombinedPostFetcher({
     if (isLoadingRef.current || hasLoadedInitial.current) return
     isLoadingRef.current = true
     setLoading(true)
-    const newEvents = await loadBatch(10)
 
-    // If we got events, use them
-    if (newEvents.length > 0) {
-      newEvents.forEach((event) => addSeenEventId(event.id))
-      setEvents(newEvents)
+    try {
+      let newEvents = await loadBatch(10)
+      if (newEvents.length === 0) {
+        newEvents = await loadBatch(10)
+      }
+
+      if (newEvents.length > 0) {
+        newEvents.forEach((event) => addSeenEventId(event.id))
+        setEvents(newEvents)
+      }
+    } catch {
+      // Relay failures are expected; a later load can recover without leaving
+      // an unhandled rejection or a permanent spinner.
+    } finally {
+      // Relay or cache failures must never leave the feed in a permanent spinner.
       hasLoadedInitial.current = true
+      cache.hasLoadedInitial = true
       isLoadingRef.current = false
       setLoading(false)
-    } else {
-      // Try one more batch before giving up
-      const secondBatch = await loadBatch(10)
-      secondBatch.forEach((event) => addSeenEventId(event.id))
-      setEvents(secondBatch)
-      if (secondBatch.length > 0) {
-        hasLoadedInitial.current = true
-        isLoadingRef.current = false
-        setLoading(false)
-      } else {
-        // Keep loading state true for a bit longer to allow subscriptions to receive more data
-        setTimeout(() => {
-          hasLoadedInitial.current = true
-          isLoadingRef.current = false
-          setLoading(false)
-        }, 3000)
-      }
     }
-  }, [loadBatch])
+  }, [cache, loadBatch])
 
   const loadMore = useCallback(async () => {
     if (isLoadingRef.current) {
@@ -141,10 +138,6 @@ export default function useCombinedPostFetcher({
       const newEvents = await loadBatch(10)
 
       if (newEvents.length === 0) {
-        setTimeout(() => {
-          isLoadingRef.current = false
-          setLoading(false)
-        }, 1000)
         return
       }
 
@@ -157,10 +150,9 @@ export default function useCombinedPostFetcher({
           ? [...prevEvents, ...uniqueNewEvents]
           : prevEvents
       })
-
-      isLoadingRef.current = false
-      setLoading(false)
-    } catch (error) {
+    } catch {
+      // Keep the current feed when relays are temporarily unavailable.
+    } finally {
       isLoadingRef.current = false
       setLoading(false)
     }

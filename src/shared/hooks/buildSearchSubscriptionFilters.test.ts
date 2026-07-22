@@ -3,8 +3,17 @@ import {describe, expect, it} from "vitest"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 
 describe("buildSearchSubscriptionFilters", () => {
-  it("keeps non-search filters unchanged", () => {
+  it("bounds non-search filters that do not declare a limit", () => {
     const filters = {kinds: [1], authors: ["pubkey"]}
+
+    expect(buildSearchSubscriptionFilters(filters, undefined, 100)).toEqual({
+      ...filters,
+      limit: 100,
+    })
+  })
+
+  it("keeps an explicit non-search limit", () => {
+    const filters = {kinds: [1], authors: ["pubkey"], limit: 25}
 
     expect(buildSearchSubscriptionFilters(filters, undefined, 100)).toEqual(filters)
   })

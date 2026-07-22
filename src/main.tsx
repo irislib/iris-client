@@ -125,10 +125,6 @@ const initializeApp = async () => {
     subscribeToNotifications()
     subscribeToDMNotifications()
     void migratePublicChats()
-    // Recalculate follow distances after social graph loads
-    import("@/utils/socialGraph").then(({socialGraphLoaded, getSocialGraph}) => {
-      socialGraphLoaded.then(() => getSocialGraph().recalculateFollowDistances())
-    })
 
     // Only initialize DM sessions if not in readonly mode
     if (hasWriteAccess() && privateMessagingAvailable) {

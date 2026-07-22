@@ -42,7 +42,13 @@ export function buildSearchSubscriptionFilters(
   fallbackLimit = 100
 ): NDKFilter | NDKFilter[] {
   if (!filters.search) {
-    return withUntil(filters, untilTimestamp)
+    return withUntil(
+      {
+        ...filters,
+        limit: filters.limit ?? fallbackLimit,
+      },
+      untilTimestamp
+    )
   }
 
   const searchTerms = filters.search.toLowerCase().split(/\s+/)

@@ -91,13 +91,7 @@ const FeedWidget = memo(function FeedWidget({
       )}
 
       {loadMore ? (
-        <InfiniteScroll
-          onLoadMore={() => {
-            console.warn("FeedWidget loadMore triggered (with events)")
-            loadMore()
-          }}
-          scrollContainer={scrollContainer}
-        >
+        <InfiniteScroll onLoadMore={loadMore} scrollContainer={scrollContainer}>
           {renderEvents()}
         </InfiniteScroll>
       ) : (
