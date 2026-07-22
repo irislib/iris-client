@@ -304,7 +304,7 @@ describe("native htree runtime helpers", () => {
       historyRootPath: "/htree/nhash1example",
     })
 
-    const iconLink = {href: "./favicon.png"}
+    const iconLink = {href: "./favicon.svg"}
     const appleLink = {href: "./img/apple-touch-icon.png"}
     const manifestLink = {href: "./manifest.json"}
     const fakeDocument = {
@@ -321,7 +321,7 @@ describe("native htree runtime helpers", () => {
 
     syncInjectedHtreeHeadAssetUrls(fakeDocument)
 
-    expect(iconLink.href).toBe("/htree/nhash1example/favicon.png")
+    expect(iconLink.href).toBe("/htree/nhash1example/favicon.svg")
     expect(appleLink.href).toBe("/htree/nhash1example/img/apple-touch-icon.png")
     expect(manifestLink.href).toBe("/htree/nhash1example/manifest.json")
   })

@@ -292,7 +292,7 @@ export function resolveAppAssetUrl(assetPath: string): string {
 
 export function syncInjectedHtreeHeadAssetUrls(doc: Document = document): void {
   const headAssets = [
-    ['link[rel="icon"]', "/favicon.png"],
+    ['link[rel="icon"]', "/favicon.svg"],
     ['link[rel="apple-touch-icon"]', "/img/apple-touch-icon.png"],
     ['link[rel="manifest"]', "/manifest.json"],
   ] as const

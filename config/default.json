@@ -4,7 +4,7 @@
   "hostname": "iris.to",
   "nip05Domain": "iris.to",
   "icon": "/img/icon128.png",
-  "navLogo": "/img/icon128.png",
+  "navLogo": "/favicon.svg",
   "defaultTheme": "dark",
   "aboutText": "Iris - Connecting People",
   "repository": "https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client",
