@@ -101,7 +101,7 @@
     "lodash": "^4.18.1",
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
-    "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.165/nostr-double-ratchet-0.0.165.tgz",
+    "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.166/nostr-double-ratchet-0.0.166.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
