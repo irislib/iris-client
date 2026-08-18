@@ -157,7 +157,14 @@ export interface NDKSubscriptionOptions {
    * @example ["webrtc"] - only use WebRTC peers
    * @example ["relays", "webrtc"] - use both (default)
    */
-  transports?: ("relays" | "webrtc" | "bluetooth")[]
+  transports?: ("relays" | "webrtc" | "bluetooth" | "worker-transport")[]
+
+  /**
+   * Finish an asynchronous cache query before opening relay subscriptions.
+   * Unlike CACHE_FIRST, a full cache hit still continues to relays so callers
+   * can treat EOSE as completion of both sources.
+   */
+  waitForCacheBeforeRelays?: boolean
 
   /**
    * When set, the cache will be queried first, and, when hitting relays,
@@ -463,6 +470,9 @@ export class NDKSubscription extends EventEmitter<{
    */
   public closeOnEose: boolean
 
+  /** Whether this subscription also waits for main-thread relay EOSEs. */
+  private usesRelayTransport = true
+
   /**
    * Pool monitor callback
    */
@@ -558,6 +568,10 @@ export class NDKSubscription extends EventEmitter<{
     return this.opts?.groupableDelay
   }
 
+  public setUsesRelayTransport(usesRelayTransport: boolean): void {
+    this.usesRelayTransport = usesRelayTransport
+  }
+
   get groupableDelayType(): NDKSubscriptionDelayedType {
     return this.opts?.groupableDelayType || "at-most"
   }
@@ -585,6 +599,7 @@ export class NDKSubscription extends EventEmitter<{
   }
 
   private shouldWaitForCache(): boolean {
+    if (this.opts.waitForCacheBeforeRelays) return true
     if (this.opts.addSinceFromCache) return true
 
     return (
@@ -652,7 +667,10 @@ export class NDKSubscription extends EventEmitter<{
             // load the results into the subscription state
             updateStateFromCacheResults(events)
             // if the cache has a hit, return early
-            if (queryFullyFilled(this)) {
+            if (
+              queryFullyFilled(this) &&
+              !this.opts.waitForCacheBeforeRelays
+            ) {
               this.emit("eose", this)
               return
             }
@@ -677,7 +695,7 @@ export class NDKSubscription extends EventEmitter<{
       }
       updateStateFromCacheResults(cacheResult)
 
-      if (queryFullyFilled(this)) {
+      if (queryFullyFilled(this) && !this.opts.waitForCacheBeforeRelays) {
         this.emit("eose", this)
       } else {
         loadFromRelays()
@@ -999,7 +1017,9 @@ export class NDKSubscription extends EventEmitter<{
       ? Date.now() - this.lastEventReceivedAt
       : undefined
 
-    const hasSeenAllEoses = this.eosesSeen.size === this.relayFilters?.size
+    const hasSeenAllEoses = this.usesRelayTransport
+      ? this.eosesSeen.size === this.relayFilters?.size
+      : relay === null
     const queryFilled = queryFullyFilled(this)
 
     const performEose = (reason: string) => {

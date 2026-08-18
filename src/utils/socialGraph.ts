@@ -1,5 +1,5 @@
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
-import {NDKSubscription} from "@/lib/ndk"
+import {NDKSubscription, NDKSubscriptionCacheUsage} from "@/lib/ndk"
 import {useUserStore} from "@/stores/user"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 import {VerifiedEvent} from "nostr-tools"
@@ -127,13 +127,22 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
 
 let sub: NDKSubscription | undefined
 let isManualRecrawling = false
+let graphSyncGeneration = 0
+let unsubscribeFromUserStore: (() => void) | undefined
+let activeGraphSync: {publicKey: string; promise: Promise<void>} | undefined
+const activeOpinionSubscriptions = new Set<NDKSubscription>()
+
+const INITIAL_SYNC_SETTLE_MS = 300
+const INITIAL_SYNC_TIMEOUT_MS = 8_000
 
 function getFollowListsInternal(
   myPubKey: string,
   missingOnly = true,
   upToDistance = 1,
-  isManual = false
+  isManual = false,
+  isCurrent: () => boolean = () => true
 ) {
+  if (!isCurrent()) return
   const toFetch = new Set<string>()
 
   const addUsersToFetch = (users: Set<string>, currentDistance: number) => {
@@ -157,9 +166,10 @@ function getFollowListsInternal(
   log("fetching", toFetch.size, missingOnly ? "missing" : "total", "follow lists")
 
   const fetchBatch = async (authors: string[]) => {
-    if (isManual && !isManualRecrawling) return
+    if (!isCurrent() || (isManual && !isManualRecrawling)) return
 
     const {ndk: getNdk, initNDK} = await import("@/utils/ndk")
+    if (!isCurrent()) return
     initNDK() // Init in background - messages queue until ready
     const sub = getNdk().subscribe(
       {
@@ -170,13 +180,14 @@ function getFollowListsInternal(
     )
 
     sub.on("event", (e: unknown) => {
+      if (!isCurrent()) return
       handleSocialGraphEvent(e as unknown as VerifiedEvent)
       debouncedRemoveNonFollowed()
     })
   }
 
   const processBatch = () => {
-    if (isManual && !isManualRecrawling) {
+    if (!isCurrent() || (isManual && !isManualRecrawling)) {
       return
     }
 
@@ -207,8 +218,8 @@ export function getFollowLists(myPubKey: string, missingOnly = true, upToDistanc
   getFollowListsInternal(myPubKey, missingOnly, upToDistance, true)
 }
 
-function getMissingFollowLists(myPubKey: string) {
-  getFollowListsInternal(myPubKey, true, 1)
+function getMissingFollowLists(myPubKey: string, isCurrent: () => boolean) {
+  getFollowListsInternal(myPubKey, true, 1, false, isCurrent)
 }
 
 let resolveLoaded: ((value: boolean) => void) | null = null
@@ -219,14 +230,17 @@ export const socialGraphLoaded = new Promise<boolean>((resolve) => {
 
 // Initialize social graph (separate from subscription setup)
 export const initializeSocialGraph = async () => {
-  const currentPublicKey = useUserStore.getState().publicKey
+  const publicKeyAtStart = useUserStore.getState().publicKey
   try {
-    await initializeInstance(currentPublicKey || undefined)
+    await initializeInstance(publicKeyAtStart || undefined)
   } catch (err) {
     error("Failed to initialize social graph, using an empty graph instead:", err)
-    instance = new SocialGraph(currentPublicKey || DEFAULT_SOCIAL_GRAPH_ROOT)
+    instance = new SocialGraph(publicKeyAtStart || DEFAULT_SOCIAL_GRAPH_ROOT)
     notifyGraphChange()
   } finally {
+    // Authentication can change while IndexedDB/the bundled graph is loading.
+    // Reconcile the current state instead of trusting the captured key.
+    const currentPublicKey = useUserStore.getState().publicKey
     if (!currentPublicKey) {
       instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
     }
@@ -236,20 +250,65 @@ export const initializeSocialGraph = async () => {
 
 // Setup subscription (called after NDK is ready)
 export const setupSocialGraphSubscriptions = async () => {
-  const currentPublicKey = useUserStore.getState().publicKey
-  if (currentPublicKey) {
-    await setupSubscription(currentPublicKey)
+  const requestGraphSync = (publicKey: string) => {
+    if (activeGraphSync?.publicKey === publicKey) {
+      return activeGraphSync.promise
+    }
+
+    const promise = (
+      publicKey ? setupSubscription(publicKey) : resetSubscriptionToDefault()
+    ).catch((err) => {
+      error("Failed to synchronize social graph:", err)
+      const expectedRoot = publicKey || DEFAULT_SOCIAL_GRAPH_ROOT
+      if (
+        useUserStore.getState().publicKey === publicKey &&
+        instance.getRoot() === expectedRoot
+      ) {
+        // The persisted graph is still a valid stable snapshot when relays or
+        // the worker fail to initialize; do not leave the feed spinning forever.
+        notifyGraphChange()
+        useSocialGraphStore.getState().incrementMuteListVersion()
+        useSocialGraphStore.getState().setReady(true)
+      }
+    })
+    const requestedSync = {publicKey, promise}
+    activeGraphSync = requestedSync
+    void promise.finally(() => {
+      if (activeGraphSync === requestedSync) activeGraphSync = undefined
+    })
+    return promise
   }
 
-  useUserStore.subscribe((state, prevState) => {
-    if (state.publicKey !== prevState.publicKey) {
-      if (state.publicKey) {
-        setupSubscription(state.publicKey)
-      } else {
-        instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
+  // Install the watcher before awaiting the initial sync. A cold graph can take
+  // several seconds to hydrate, during which login/logout must not be missed.
+  if (!unsubscribeFromUserStore) {
+    unsubscribeFromUserStore = useUserStore.subscribe((state, prevState) => {
+      if (state.publicKey !== prevState.publicKey) {
+        void requestGraphSync(state.publicKey)
       }
+    })
+  }
+
+  const publicKeyAtStart = useUserStore.getState().publicKey
+  const expectedRoot = publicKeyAtStart || DEFAULT_SOCIAL_GRAPH_ROOT
+  if (
+    useSocialGraphStore.getState().isReady &&
+    instance.getRoot() === expectedRoot &&
+    (!publicKeyAtStart || !!sub)
+  ) {
+    return
+  }
+  await requestGraphSync(publicKeyAtStart)
+
+  // If auth changed at the boundary of the initial await, join the current
+  // request before reporting subscription setup as complete.
+  const currentPublicKey = useUserStore.getState().publicKey
+  if (currentPublicKey !== publicKeyAtStart) {
+    const currentRoot = currentPublicKey || DEFAULT_SOCIAL_GRAPH_ROOT
+    if (instance.getRoot() !== currentRoot || !useSocialGraphStore.getState().isReady) {
+      await requestGraphSync(currentPublicKey)
     }
-  })
+  }
 }
 
 // Auto-initialize on module load
@@ -298,25 +357,109 @@ export const useIsFollowing = (
 export const useGraphSize = () => {
   // Subscribe to graph version changes via Zustand store
   useSocialGraphStore((state) => state.version)
+  useSocialGraphStore((state) => state.muteListVersion)
   return instance.size()
 }
 
-async function setupSubscription(publicKey: string) {
-  instance.setRoot(publicKey)
+const isCurrentGraphSync = (syncGeneration: number, publicKey: string) =>
+  syncGeneration === graphSyncGeneration &&
+  useUserStore.getState().publicKey === publicKey &&
+  instance.getRoot() === publicKey
+
+const stopGraphSyncSubscriptions = () => {
+  const previousSub = sub
+  sub = undefined
+  previousSub?.stop()
+  activeOpinionSubscriptions.forEach((opinionSub) => opinionSub.stop())
+  activeOpinionSubscriptions.clear()
+}
+
+async function resetSubscriptionToDefault() {
+  const syncGeneration = ++graphSyncGeneration
+  useSocialGraphStore.getState().setReady(false)
+  stopGraphSyncSubscriptions()
+
+  await instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
   await instance.recalculateFollowDistances()
+  if (syncGeneration !== graphSyncGeneration || useUserStore.getState().publicKey) {
+    return
+  }
+
   notifyGraphChange()
-  sub?.stop()
+  useSocialGraphStore.getState().incrementMuteListVersion()
+  useSocialGraphStore.getState().setReady(true)
+}
+
+const waitForInitialSubscription = (
+  subscription: NDKSubscription,
+  isCurrent: () => boolean,
+  deadline: number
+) =>
+  new Promise<void>((resolve) => {
+    let settled = false
+    let eoseReceived = false
+    let settleTimer: ReturnType<typeof setTimeout> | undefined
+    const cutoffTimer = setTimeout(finish, Math.max(0, deadline - Date.now()))
+
+    function finish() {
+      if (settled) return
+      settled = true
+      if (settleTimer) clearTimeout(settleTimer)
+      clearTimeout(cutoffTimer)
+      resolve()
+    }
+    const scheduleSettledFinish = () => {
+      if (settled || !eoseReceived || !isCurrent()) return
+      if (settleTimer) clearTimeout(settleTimer)
+      settleTimer = setTimeout(
+        finish,
+        Math.min(INITIAL_SYNC_SETTLE_MS, Math.max(0, deadline - Date.now()))
+      )
+    }
+    subscription.on("event", scheduleSettledFinish)
+    subscription.on("close", finish)
+    subscription.on("eose", () => {
+      eoseReceived = true
+      scheduleSettledFinish()
+    })
+  })
+
+async function setupSubscription(publicKey: string) {
+  const syncGeneration = ++graphSyncGeneration
+  useSocialGraphStore.getState().setReady(false)
+  stopGraphSyncSubscriptions()
+
+  await instance.setRoot(publicKey)
+  await instance.recalculateFollowDistances()
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  notifyGraphChange()
 
   // Import ndk lazily to avoid initialization race
   const {ndk: getNdk, initNDK} = await import("@/utils/ndk")
-  initNDK() // Init in background - messages queue until ready
-  sub = getNdk().subscribe({
-    kinds: [KIND_CONTACTS, KIND_MUTE_LIST],
-    authors: [publicKey],
-    limit: 1,
+  await initNDK()
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+
+  const rootFilters = [
+    {kinds: [KIND_CONTACTS], authors: [publicKey], limit: 1},
+    {kinds: [KIND_MUTE_LIST], authors: [publicKey], limit: 1},
+  ]
+  const initialSyncDeadline = Date.now() + INITIAL_SYNC_TIMEOUT_MS
+  const rootSub = getNdk().subscribe(rootFilters, {
+    // Keep cache and relay events in one ordered worker stream. Readiness uses
+    // its EOSE when available, with one global bounded snapshot cutoff below.
+    transports: ["worker-transport"],
+    waitForCacheBeforeRelays: true,
   })
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) {
+    rootSub.stop()
+    return
+  }
+  sub = rootSub
+
   let latestTime = 0
-  sub?.on("event", (ev) => {
+  let initialSyncDone = false
+  const handleRootEvent = (ev: {kind?: number; created_at?: number}) => {
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
     if (ev.kind === KIND_MUTE_LIST) {
       handleSocialGraphEvent(ev as NostrEvent)
       return
@@ -326,9 +469,137 @@ async function setupSubscription(publicKey: string) {
     }
     latestTime = ev.created_at
     handleSocialGraphEvent(ev as NostrEvent)
-    queueMicrotask(() => getMissingFollowLists(publicKey))
-    instance.recalculateFollowDistances().then(() => notifyGraphChange())
+    void instance.recalculateFollowDistances().then(() => {
+      if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
+    })
+
+    if (initialSyncDone) {
+      queueMicrotask(() =>
+        getMissingFollowLists(publicKey, () =>
+          isCurrentGraphSync(syncGeneration, publicKey)
+        )
+      )
+    }
+  }
+  rootSub.on("event", handleRootEvent)
+
+  const hydrateDirectFollowOpinions = async () => {
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+    const hydratedAuthors = new Set<string>()
+
+    // Root contact data can arrive while the first opinion batch is loading.
+    // Continue until every direct follow in the settled root snapshot was read.
+    while (
+      isCurrentGraphSync(syncGeneration, publicKey) &&
+      Date.now() < initialSyncDeadline
+    ) {
+      const authors = Array.from(instance.getFollowedByUser(publicKey)).filter(
+        (author) => !hydratedAuthors.has(author)
+      )
+      if (authors.length === 0) break
+
+      for (let index = 0; index < authors.length; index += 500) {
+        if (
+          !isCurrentGraphSync(syncGeneration, publicKey) ||
+          Date.now() >= initialSyncDeadline
+        ) {
+          break
+        }
+        const authorsBatch = authors.slice(index, index + 500)
+        const opinionSub = getNdk().subscribe(
+          {
+            kinds: [KIND_CONTACTS, KIND_MUTE_LIST],
+            authors: authorsBatch,
+          },
+          {
+            transports: ["worker-transport"],
+            waitForCacheBeforeRelays: true,
+          }
+        )
+        activeOpinionSubscriptions.add(opinionSub)
+
+        opinionSub.on("event", (event) => {
+          if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+          handleSocialGraphEvent(event as NostrEvent)
+        })
+        await waitForInitialSubscription(
+          opinionSub,
+          () => isCurrentGraphSync(syncGeneration, publicKey),
+          initialSyncDeadline
+        )
+        activeOpinionSubscriptions.delete(opinionSub)
+        opinionSub.stop()
+        authorsBatch.forEach((author) => hydratedAuthors.add(author))
+      }
+
+      await instance.recalculateFollowDistances()
+    }
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+    notifyGraphChange()
+    // Ensure visibility caches observe the complete initial opinion snapshot,
+    // even when many mute events arrived inside the throttling window.
+    useSocialGraphStore.getState().incrementMuteListVersion()
+  }
+
+  await waitForInitialSubscription(
+    rootSub,
+    () => isCurrentGraphSync(syncGeneration, publicKey),
+    initialSyncDeadline
+  )
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+
+  await hydrateDirectFollowOpinions()
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+
+  // Freeze the hydration phase before publishing readiness. Everything after
+  // this point is eventual background sync for future feed mounts.
+  rootSub.stop()
+  if (sub === rootSub) sub = undefined
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+
+  initialSyncDone = true
+
+  const backgroundRootSub = getNdk().subscribe(rootFilters, {
+    transports: ["worker-transport"],
+    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
   })
+  backgroundRootSub.on("event", handleRootEvent)
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) {
+    backgroundRootSub.stop()
+    return
+  }
+  sub = backgroundRootSub
+
+  const directFollowAuthors = Array.from(instance.getFollowedByUser(publicKey))
+  for (let index = 0; index < directFollowAuthors.length; index += 500) {
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+    const authorsBatch = directFollowAuthors.slice(index, index + 500)
+    const backgroundOpinionSub = getNdk().subscribe(
+      {
+        kinds: [KIND_CONTACTS, KIND_MUTE_LIST],
+        authors: authorsBatch,
+      },
+      {
+        transports: ["worker-transport"],
+        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+      }
+    )
+    backgroundOpinionSub.on("event", (event) => {
+      if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+      handleSocialGraphEvent(event as NostrEvent)
+      void instance.recalculateFollowDistances().then(() => {
+        if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
+      })
+    })
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) {
+      backgroundOpinionSub.stop()
+      return
+    }
+    activeOpinionSubscriptions.add(backgroundOpinionSub)
+  }
+
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  useSocialGraphStore.getState().setReady(true)
 }
 
 export const saveToFile = async () => {

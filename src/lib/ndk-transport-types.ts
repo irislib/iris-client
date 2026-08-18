@@ -10,6 +10,7 @@ export interface WorkerSubscribeOpts {
   closeOnEose?: boolean
   groupable?: boolean
   groupableDelay?: number
+  waitForCacheBeforeRelays?: boolean
 }
 
 export interface WorkerPublishOpts {

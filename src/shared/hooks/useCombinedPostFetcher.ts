@@ -1,11 +1,13 @@
-import {useState, useEffect, useRef, useCallback} from "react"
+import {useState, useEffect, useRef, useCallback, useLayoutEffect} from "react"
 import {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {addSeenEventId} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
 import {useUserStore} from "@/stores/user"
 import {fetchEventsReliable} from "@/utils/fetchEventsReliable"
+import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 interface CombinedPostFetcherCache {
+  scopeKey?: string
   events?: NDKEvent[]
   hasLoadedInitial?: boolean
 }
@@ -16,6 +18,9 @@ interface CombinedPostFetcherProps {
   hasPopularData: boolean
   hasChronologicalData: boolean
   cache: CombinedPostFetcherCache
+  sourceKey: string
+  ready: boolean
+  visibilitySnapshot: AlgorithmicVisibilitySnapshot | null
   popularRatio?: number
   excludeOwnPosts?: boolean
 }
@@ -26,18 +31,60 @@ export default function useCombinedPostFetcher({
   hasPopularData,
   hasChronologicalData,
   cache,
+  sourceKey,
+  ready,
+  visibilitySnapshot,
   popularRatio = 0.5,
   excludeOwnPosts = false,
 }: CombinedPostFetcherProps) {
-  const [events, setEvents] = useState<NDKEvent[]>(cache.events || [])
+  const [events, setEvents] = useState<NDKEvent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
-  const hasLoadedInitial = useRef(cache.hasLoadedInitial || false)
+  const hasLoadedInitial = useRef(false)
   const myPubKey = useUserStore((state) => state.publicKey)
   const isLoadingRef = useRef(false)
+  const generationRef = useRef(0)
+  const activeScopeRef = useRef<string | null>(null)
+  const scopeKey = `${myPubKey || "anonymous"}:${sourceKey}`
+  const policyReady = ready && !!visibilitySnapshot
+
+  useLayoutEffect(() => {
+    if (!policyReady || !visibilitySnapshot) {
+      if (activeScopeRef.current !== null) {
+        generationRef.current += 1
+        activeScopeRef.current = null
+        hasLoadedInitial.current = false
+        isLoadingRef.current = false
+        setEvents([])
+        setLoading(false)
+      }
+      return
+    }
+
+    if (activeScopeRef.current === scopeKey) return
+
+    generationRef.current += 1
+    activeScopeRef.current = scopeKey
+    isLoadingRef.current = false
+
+    const cacheMatchesScope = cache.scopeKey === scopeKey
+    const cachedEvents = cacheMatchesScope
+      ? (cache.events || []).filter(
+          (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+        )
+      : []
+
+    cache.scopeKey = scopeKey
+    cache.events = cachedEvents
+    hasLoadedInitial.current = cacheMatchesScope && !!cache.hasLoadedInitial
+    cache.hasLoadedInitial = hasLoadedInitial.current
+    setEvents(cachedEvents)
+    setLoading(false)
+  }, [cache, policyReady, scopeKey, visibilitySnapshot])
 
   useEffect(() => {
+    if (activeScopeRef.current !== scopeKey) return
     cache.events = events
-  }, [events, cache])
+  }, [events, cache, scopeKey])
 
   useEffect(() => {
     cache.hasLoadedInitial = hasLoadedInitial.current
@@ -45,6 +92,8 @@ export default function useCombinedPostFetcher({
 
   const loadBatch = useCallback(
     async (batchSize: number = 10) => {
+      if (!visibilitySnapshot) return []
+
       const popularCount = Math.floor(batchSize * popularRatio)
       const chronologicalCount = batchSize - popularCount
 
@@ -85,6 +134,10 @@ export default function useCombinedPostFetcher({
         eventsArray = eventsArray.filter((event) => event.pubkey !== myPubKey)
       }
 
+      eventsArray = eventsArray.filter(
+        (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+      )
+
       const shuffledEvents = shuffle(eventsArray)
       return shuffledEvents
     },
@@ -96,11 +149,13 @@ export default function useCombinedPostFetcher({
       popularRatio,
       myPubKey,
       excludeOwnPosts,
+      visibilitySnapshot,
     ]
   )
 
   const loadInitial = useCallback(async () => {
-    if (isLoadingRef.current || hasLoadedInitial.current) return
+    if (!policyReady || isLoadingRef.current || hasLoadedInitial.current) return
+    const generation = generationRef.current
     isLoadingRef.current = true
     setLoading(true)
 
@@ -110,7 +165,7 @@ export default function useCombinedPostFetcher({
         newEvents = await loadBatch(10)
       }
 
-      if (newEvents.length > 0) {
+      if (generation === generationRef.current && newEvents.length > 0) {
         newEvents.forEach((event) => addSeenEventId(event.id))
         setEvents(newEvents)
       }
@@ -119,18 +174,21 @@ export default function useCombinedPostFetcher({
       // an unhandled rejection or a permanent spinner.
     } finally {
       // Relay or cache failures must never leave the feed in a permanent spinner.
-      hasLoadedInitial.current = true
-      cache.hasLoadedInitial = true
-      isLoadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        hasLoadedInitial.current = true
+        cache.hasLoadedInitial = true
+        isLoadingRef.current = false
+        setLoading(false)
+      }
     }
-  }, [cache, loadBatch])
+  }, [cache, loadBatch, policyReady])
 
   const loadMore = useCallback(async () => {
-    if (isLoadingRef.current) {
+    if (!policyReady || isLoadingRef.current) {
       return
     }
 
+    const generation = generationRef.current
     isLoadingRef.current = true
     setLoading(true)
 
@@ -140,6 +198,8 @@ export default function useCombinedPostFetcher({
       if (newEvents.length === 0) {
         return
       }
+
+      if (generation !== generationRef.current) return
 
       newEvents.forEach((event) => addSeenEventId(event.id))
 
@@ -153,26 +213,28 @@ export default function useCombinedPostFetcher({
     } catch {
       // Keep the current feed when relays are temporarily unavailable.
     } finally {
-      isLoadingRef.current = false
-      setLoading(false)
+      if (generation === generationRef.current) {
+        isLoadingRef.current = false
+        setLoading(false)
+      }
     }
-  }, [loadBatch])
+  }, [loadBatch, policyReady])
 
   useEffect(() => {
-    const hasAnyData = hasPopularData || hasChronologicalData
+    const hasAnyData = policyReady && (hasPopularData || hasChronologicalData)
     if (hasAnyData && !hasLoadedInitial.current) {
       loadInitial()
     }
-  }, [hasPopularData, hasChronologicalData, loadInitial])
+  }, [policyReady, hasPopularData, hasChronologicalData, loadInitial])
 
   const isInitializing =
-    !hasLoadedInitial.current && (hasPopularData || hasChronologicalData)
+    policyReady && !hasLoadedInitial.current && (hasPopularData || hasChronologicalData)
   const waitingForDataSources =
-    !hasLoadedInitial.current && !hasPopularData && !hasChronologicalData
+    policyReady && !hasLoadedInitial.current && !hasPopularData && !hasChronologicalData
 
   return {
-    events,
-    loading: loading || isInitializing || waitingForDataSources,
+    events: policyReady ? events : [],
+    loading: !policyReady || loading || isInitializing || waitingForDataSources,
     loadMore,
   }
 }

@@ -6,6 +6,7 @@ import {getTag} from "@/utils/nostr"
 import {PopularityFilters} from "./usePopularityFilters"
 import {seenEventIds} from "@/utils/memcache"
 import {createDebugLogger} from "@/utils/createDebugLogger"
+import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -13,6 +14,7 @@ const LOW_THRESHOLD = 20
 const INITIAL_DATA_THRESHOLD = 5
 
 interface ReactionSubscriptionCache {
+  authorScope?: string
   hasInitialData?: boolean
   pendingReactionCounts?: Map<string, Set<string>>
   showingReactionCounts?: Map<string, Set<string>>
@@ -22,35 +24,70 @@ export default function useReactionSubscription(
   currentFilters: PopularityFilters,
   expandFilters: () => void,
   cache: ReactionSubscriptionCache,
+  visibilitySnapshot: AlgorithmicVisibilitySnapshot | null,
   filterSeen?: boolean
 ) {
-  const showingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
-  const pendingReactionCounts = useRef<Map<string, Set<string>>>(new Map())
+  const authorScope = `${currentFilters.scopeKey}:${
+    currentFilters.ready ? "ready" : "loading"
+  }:${currentFilters.authors.join(",")}`
+  const cacheMatchesScope = cache.authorScope === authorScope
+  const showingReactionCounts = useRef<Map<string, Set<string>>>(
+    cacheMatchesScope && cache.showingReactionCounts
+      ? cache.showingReactionCounts
+      : new Map()
+  )
+  const pendingReactionCounts = useRef<Map<string, Set<string>>>(
+    cacheMatchesScope && cache.pendingReactionCounts
+      ? cache.pendingReactionCounts
+      : new Map()
+  )
   const oldestEventAt = useRef<number | null>(null)
   const expansionAttempts = useRef(0)
-  const [hasInitialData, setHasInitialData] = useState(cache.hasInitialData || false)
-  const hasInitialDataRef = useRef(cache.hasInitialData || false)
+  const [hasInitialData, setHasInitialData] = useState(
+    cacheMatchesScope && (cache.hasInitialData || false)
+  )
+  const hasInitialDataRef = useRef(cacheMatchesScope && (cache.hasInitialData || false))
+  const activeAuthorScope = useRef(authorScope)
 
   useEffect(() => {
-    if (cache.pendingReactionCounts) {
-      pendingReactionCounts.current = cache.pendingReactionCounts
+    if (activeAuthorScope.current !== authorScope) {
+      activeAuthorScope.current = authorScope
+      pendingReactionCounts.current = new Map()
+      showingReactionCounts.current = new Map()
+      oldestEventAt.current = null
+      expansionAttempts.current = 0
+      hasInitialDataRef.current = false
+      setHasInitialData(false)
     }
-    if (cache.showingReactionCounts) {
-      showingReactionCounts.current = cache.showingReactionCounts
+
+    cache.authorScope = authorScope
+    cache.hasInitialData = hasInitialDataRef.current
+    cache.pendingReactionCounts = pendingReactionCounts.current
+    cache.showingReactionCounts = showingReactionCounts.current
+  }, [authorScope, cache])
+
+  useEffect(() => {
+    const {since, limit, authors: filterAuthors, ready} = currentFilters
+    const subscribedScope = authorScope
+
+    const markInitialDataReady = () => {
+      if (activeAuthorScope.current !== subscribedScope) return
+      if (hasInitialDataRef.current) return
+      hasInitialDataRef.current = true
+      cache.hasInitialData = true
+      setHasInitialData(true)
     }
-  }, [])
 
-  useEffect(() => {
-    cache.hasInitialData = hasInitialData
-  }, [hasInitialData, cache])
+    if (!ready || !visibilitySnapshot) {
+      return
+    }
 
-  useEffect(() => {
-    const {since, limit, authors: filterAuthors} = currentFilters
+    if (filterAuthors.length === 0) {
+      markInitialDataReady()
+      return
+    }
 
-    log(
-      "[ReactionSubscription] Starting subscription, authors:",
-      filterAuthors?.length || "undefined (match all)"
-    )
+    log("[ReactionSubscription] Starting subscription, authors:", filterAuthors.length)
 
     const now = Math.floor(Date.now() / 1000)
 
@@ -64,17 +101,14 @@ export default function useReactionSubscription(
 
     const sub = ndk().subscribe(reactionFilter)
 
-    const markInitialDataReady = () => {
-      if (hasInitialDataRef.current) return
-      hasInitialDataRef.current = true
-      cache.hasInitialData = true
-      setHasInitialData(true)
-    }
-
-    let reactionCount = 0
+    let signalCount = 0
     sub.on("event", (event) => {
+      if (activeAuthorScope.current !== subscribedScope) return
       if (!event.created_at || !event.id) return
-      if (event.kind !== KIND_REACTION) return
+      if (event.kind !== KIND_REACTION && event.kind !== KIND_REPOST) return
+      // Recommendation signals obey the same visibility policy as their UI.
+      // In particular, unknown and overmuted engagement actors cannot rank a post.
+      if (visibilitySnapshot.shouldHideRecommendationUser(event.pubkey)) return
       const originalPostId = getTag("e", event.tags)
       if (!originalPostId) return
 
@@ -84,20 +118,20 @@ export default function useReactionSubscription(
         oldestEventAt.current = event.created_at
       }
 
-      reactionCount++
-      if (reactionCount <= 5) {
+      signalCount++
+      if (signalCount <= 5) {
         log(
-          `[ReactionSubscription] Reaction ${reactionCount} to post:`,
+          `[ReactionSubscription] Signal ${signalCount} to post:`,
           originalPostId.slice(0, 8)
         )
       }
 
       if (showingReactionCounts.current.has(originalPostId)) {
-        showingReactionCounts.current.get(originalPostId)?.add(event.id)
+        showingReactionCounts.current.get(originalPostId)?.add(event.pubkey)
       } else if (pendingReactionCounts.current.has(originalPostId)) {
-        pendingReactionCounts.current.get(originalPostId)?.add(event.id)
+        pendingReactionCounts.current.get(originalPostId)?.add(event.pubkey)
       } else {
-        pendingReactionCounts.current.set(originalPostId, new Set([event.id]))
+        pendingReactionCounts.current.set(originalPostId, new Set([event.pubkey]))
       }
 
       if (
@@ -111,6 +145,7 @@ export default function useReactionSubscription(
     })
 
     const timeout = setTimeout(() => {
+      if (activeAuthorScope.current !== subscribedScope) return
       if (pendingReactionCounts.current.size <= LOW_THRESHOLD) {
         expansionAttempts.current += 1
         if (expansionAttempts.current < 3) {
@@ -133,7 +168,7 @@ export default function useReactionSubscription(
       clearTimeout(timeout)
       sub.stop()
     }
-  }, [cache, currentFilters, expandFilters, filterSeen])
+  }, [cache, currentFilters, expandFilters, filterSeen, visibilitySnapshot])
 
   const getNextMostPopular = (n: number): string[] => {
     // Note: We don't call expandFilters() here to avoid triggering re-renders during data fetching
@@ -153,6 +188,7 @@ export default function useReactionSubscription(
 
   return {
     getNextMostPopular,
-    hasInitialData,
+    hasInitialData: activeAuthorScope.current === authorScope && hasInitialData,
+    sourceKey: authorScope,
   }
 }

@@ -1,10 +1,12 @@
-import {useState, useCallback, useMemo, useRef} from "react"
-import {
-  useSocialGraph,
-  DEFAULT_SOCIAL_GRAPH_ROOT,
-  useFollowsFromGraph,
-} from "@/utils/socialGraph"
+import {useState, useCallback, useMemo} from "react"
+import {getSocialGraph, DEFAULT_SOCIAL_GRAPH_ROOT} from "@/utils/socialGraph"
+import {useSocialGraphStore} from "@/stores/socialGraph"
 import {useUserStore} from "@/stores/user"
+import {useSettingsStore} from "@/stores/settings"
+import {
+  createAlgorithmicVisibilitySnapshot,
+  type AlgorithmicVisibilitySnapshot,
+} from "@/utils/visibility"
 import {
   storeOldestTimestamp,
   getStoredOldestTimestamp,
@@ -17,11 +19,21 @@ const STORAGE_KEY = "PopularityFiltersOldestTimestamp"
 export interface PopularityFilters {
   since: number
   limit: number
-  authors: string[] | undefined
+  authors: string[]
+  ready: boolean
+  scopeKey: string
+}
+
+interface FeedGraphSnapshot {
+  viewer: string
+  reactionAuthors: string[]
+  chronologicalAuthors: string[]
+  policyKey: string
+  visibility: AlgorithmicVisibilitySnapshot
 }
 
 export default function usePopularityFilters(filterSeen?: boolean) {
-  const socialGraph = useSocialGraph()
+  const graphReady = useSocialGraphStore((state) => state.isReady)
   const [oldestTimestamp, setOldestTimestamp] = useState(
     filterSeen
       ? getStoredOldestTimestamp(STORAGE_KEY, 48)
@@ -29,46 +41,59 @@ export default function usePopularityFilters(filterSeen?: boolean) {
   )
 
   const myPubKey = useUserStore((state) => state.publicKey)
-  // Use reactive hook - updates when graph loads
-  const myFollows = useFollowsFromGraph(myPubKey, false)
-  const shouldUseFallback = myFollows.length === 0
+  // A mounted For You feed uses one graph snapshot. Live follow/mute events still
+  // update the rest of the app, but they cannot reshuffle a feed the user is
+  // already reading. Refreshing/remounting the feed intentionally takes a new
+  // snapshot.
+  const snapshot = useMemo<FeedGraphSnapshot | null>(() => {
+    if (!graphReady) return null
+    const socialGraph = getSocialGraph()
+    const {version, muteListVersion} = useSocialGraphStore.getState()
+    const maxDistance = useSettingsStore.getState().content.maxFollowDistanceForReplies
 
-  const authorsRef = useRef<string[]>([])
-  const authors = useMemo(() => {
-    let newAuthors: string[]
-    if (shouldUseFallback) {
-      // Use root user's follows immediately (pre-crawled graph loads sync from binary)
-      const root = socialGraph.getRoot()
-      const rootFollows = Array.from(socialGraph.getFollowedByUser(root))
-      // If root follows is also empty, use DEFAULT_SOCIAL_GRAPH_ROOT's follows as last resort
-      if (rootFollows.length === 0) {
-        newAuthors = Array.from(socialGraph.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT))
-      } else {
-        newAuthors = rootFollows
-      }
-    } else {
-      newAuthors = myFollows
+    const viewer = myPubKey || `anonymous:${socialGraph.getRoot()}`
+    const directFollows = myPubKey
+      ? Array.from(socialGraph.getFollowedByUser(myPubKey, false))
+      : []
+    const chronologicalAuthors = myPubKey
+      ? Array.from(socialGraph.getFollowedByUser(myPubKey, true))
+      : []
+
+    let reactionAuthors = directFollows
+    if (reactionAuthors.length === 0) {
+      const rootFollows = Array.from(socialGraph.getFollowedByUser(socialGraph.getRoot()))
+      reactionAuthors =
+        rootFollows.length > 0
+          ? rootFollows
+          : Array.from(socialGraph.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT))
     }
 
-    // Only update ref if content actually changed
-    if (
-      authorsRef.current.length !== newAuthors.length ||
-      !authorsRef.current.every((a, i) => a === newAuthors[i])
-    ) {
-      authorsRef.current = newAuthors
+    return {
+      viewer,
+      reactionAuthors: reactionAuthors.sort(),
+      chronologicalAuthors: chronologicalAuthors.sort(),
+      policyKey: `graph=${version}/${muteListVersion}:distance=${maxDistance ?? "unlimited"}`,
+      visibility: createAlgorithmicVisibilitySnapshot(socialGraph, maxDistance),
     }
-    return authorsRef.current
-  }, [shouldUseFallback, myFollows, socialGraph])
+  }, [graphReady, myPubKey])
+  const authors = snapshot?.reactionAuthors || []
+  const chronologicalAuthors = snapshot?.chronologicalAuthors || []
+  const scopeKey = snapshot
+    ? `${snapshot.viewer}:${snapshot.policyKey}:reactions=${authors.join(",")}:chronological=${chronologicalAuthors.join(",")}`
+    : `${myPubKey || "anonymous"}:loading`
 
   const currentFilters = useMemo<PopularityFilters>(() => {
     const filters = {
       since: oldestTimestamp,
       limit: LIMIT,
-      // Don't set authors to empty array - use undefined to match all
-      authors: authors.length > 0 ? authors : undefined,
+      // An empty author set must never become a match-all subscription while
+      // the social graph is loading.
+      authors,
+      ready: graphReady && !!snapshot,
+      scopeKey,
     }
     return filters
-  }, [oldestTimestamp, authors])
+  }, [oldestTimestamp, authors, graphReady, scopeKey, snapshot])
 
   const expandFilters = useCallback(() => {
     setOldestTimestamp((prev) => {
@@ -82,6 +107,8 @@ export default function usePopularityFilters(filterSeen?: boolean) {
 
   return {
     currentFilters,
+    chronologicalAuthors,
+    visibilitySnapshot: snapshot?.visibility || null,
     expandFilters,
   }
 }

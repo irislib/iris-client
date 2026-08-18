@@ -52,18 +52,21 @@ export const loadedImageCache = new LRUCache<string, string>({maxSize: 200})
 // Special feed cache interfaces
 
 interface ReactionSubscriptionCache {
+  authorScope?: string
   hasInitialData?: boolean
   pendingReactionCounts?: Map<string, Set<string>>
   showingReactionCounts?: Map<string, Set<string>>
 }
 
 interface ChronologicalSubscriptionCache {
+  authorScope?: string
   hasInitialData?: boolean
   pendingPosts?: Map<string, number>
   showingPosts?: Map<string, number>
 }
 
 interface CombinedPostFetcherCache {
+  scopeKey?: string
   events?: NDKEvent[]
   hasLoadedInitial?: boolean
 }
@@ -132,10 +135,13 @@ export const clearAlgorithmicFeedCaches = () => {
     if (cache) {
       cache.combinedPostFetcher.events = []
       cache.combinedPostFetcher.hasLoadedInitial = false
+      cache.combinedPostFetcher.scopeKey = undefined
+      cache.reactionSubscription.authorScope = undefined
       cache.reactionSubscription.hasInitialData = false
       cache.reactionSubscription.pendingReactionCounts?.clear()
       cache.reactionSubscription.showingReactionCounts?.clear()
       cache.chronologicalSubscription.hasInitialData = false
+      cache.chronologicalSubscription.authorScope = undefined
       cache.chronologicalSubscription.pendingPosts?.clear()
       cache.chronologicalSubscription.showingPosts?.clear()
       console.warn(`Cleared algorithmic feed cache for ${key}`, cache)

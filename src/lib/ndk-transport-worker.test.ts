@@ -125,6 +125,43 @@ describe("NDKWorkerTransport search", () => {
 })
 
 describe("NDKWorkerTransport lifecycle", () => {
+  it("dispatches a worker event before the following EOSE", async () => {
+    const worker = new FakeWorker()
+    const transport = new NDKWorkerTransport(() => worker as unknown as Worker)
+    const ndk = {transportPlugins: []} as unknown as NDK
+    const order: string[] = []
+
+    try {
+      await transport.connect(ndk, [])
+      worker.dispatchMessage({type: "ready"})
+      transport.subscribe(
+        "ordered-subscription",
+        [{kinds: [3]}],
+        () => order.push("event"),
+        () => order.push("eose")
+      )
+
+      worker.dispatchMessage({
+        type: "event",
+        subId: "ordered-subscription",
+        event: {
+          id: "event-id",
+          pubkey: "a".repeat(64),
+          created_at: 1,
+          kind: 3,
+          tags: [],
+          content: "",
+          sig: "signature",
+        },
+      })
+      worker.dispatchMessage({type: "eose", subId: "ordered-subscription"})
+
+      expect(order).toEqual(["event", "eose"])
+    } finally {
+      transport.close()
+    }
+  })
+
   it("keeps transport and settings registration singular after a worker restart", async () => {
     vi.useFakeTimers()
     const workers: FakeWorker[] = []

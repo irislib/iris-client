@@ -432,6 +432,7 @@ function handleSubscribe(
     groupable: shouldGroup,
     groupableDelay,
     cacheUsage,
+    waitForCacheBeforeRelays: opts?.waitForCacheBeforeRelays,
   })
 
   sub.on("event", (event: NDKEvent) => {

@@ -1021,6 +1021,7 @@ export class NDK extends EventEmitter<{
     const filterArray = Array.isArray(filters) ? filters : [filters]
     const transports = this.getTransportsForSubscription(filterArray, finalOpts)
     const allowRelaySubscription = transports.includes("relays")
+    subscription.setUsesRelayTransport(allowRelaySubscription)
 
     // Notify transport plugins that should handle this subscription
     for (const plugin of this.transportPlugins) {

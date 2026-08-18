@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.7
+
+- Make For You wait for a settled social-graph snapshot and keep that snapshot
+  stable until refresh, including across cold starts and account switches.
+- Exclude unknown, muted, and overmuted note, reaction, and repost authors from
+  recommendations; count unique visible actors and revalidate scoped feed caches.
+- Add local-relay journeys for reaction/repost recommendations and graph warning
+  parity, plus deterministic coverage for readiness, stale fetches, and auth races.
+- Improve iOS feed and infinite-scroll performance, cached-event fetching, and
+  service-worker startup behavior.
+- Fix NIP-07 reactions on cached posts and surface reply-signing failures.
+- Polish profile and read-only sidebar surfaces and update the double-ratchet
+  runtime to 0.0.166.
+
 ## 2.5.6
 
 - Upgrade the Cashu wallet to the maintained 3.7 LTS API, including cached wallet

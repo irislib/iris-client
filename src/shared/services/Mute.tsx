@@ -1,5 +1,5 @@
 import {NDKEvent} from "@/lib/ndk"
-import {getSocialGraph} from "@/utils/socialGraph"
+import {getSocialGraph, handleSocialGraphEvent} from "@/utils/socialGraph"
 import {NostrEvent} from "nostr-social-graph"
 import {ndk} from "@/utils/ndk"
 import {KIND_MUTE_LIST, KIND_FLAG_LIST} from "@/utils/constants"
@@ -61,7 +61,7 @@ const updateMuteList = async (
 
   await muteEvent.sign()
 
-  getSocialGraph().handleEvent(muteEvent as NostrEvent)
+  handleSocialGraphEvent(muteEvent as NostrEvent)
 
   // Clear visibility cache so muted/unmuted users are immediately updated
   clearVisibilityCache()

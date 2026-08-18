@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type NDK from "./ndk"
-import type {NDKEvent} from "./ndk/events"
+import {NDKEvent} from "./ndk/events"
 import {
   NDKSubscriptionCacheUsage,
   type NDKFilter,
@@ -395,6 +395,9 @@ export class NDKWorkerTransport {
     if (opts?.closeOnEose !== undefined) {
       subscribeOpts.closeOnEose = opts.closeOnEose
     }
+    if (opts?.waitForCacheBeforeRelays !== undefined) {
+      subscribeOpts.waitForCacheBeforeRelays = opts.waitForCacheBeforeRelays
+    }
 
     this.postMessage({
       type: "subscribe",
@@ -551,7 +554,7 @@ export class NDKWorkerTransport {
   }
 
   private setupMessageHandler(worker: Worker): void {
-    worker.onmessage = async (e: MessageEvent<WorkerResponse>) => {
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
       const {type, subId, event, relay, notice, error, id} = e.data
 
       switch (type) {
@@ -561,7 +564,6 @@ export class NDKWorkerTransport {
 
         case "event":
           if (subId && event && this.ndk) {
-            const {NDKEvent} = await import("./ndk/events")
             const ndkEvent = new NDKEvent(this.ndk, event)
             const handlers = this.subscriptions.get(subId)
             if (handlers) {

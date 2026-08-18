@@ -2,7 +2,6 @@ import {useEffect, useRef, useState, useCallback} from "react"
 import {NDKFilter} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
-import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {useUserStore} from "@/stores/user"
 import {seenEventIds} from "@/utils/memcache"
 import {getEventReplyingTo} from "@/utils/nostr"
@@ -17,6 +16,7 @@ const TIMESTAMP_DECREMENT = 24 * 60 * 60
 const STORAGE_KEY = "ChronologicalFilterOldestTimestamp"
 
 interface ChronologicalSubscriptionCache {
+  authorScope?: string
   hasInitialData?: boolean
   pendingPosts?: Map<string, number>
   showingPosts?: Map<string, number>
@@ -26,15 +26,24 @@ export default function useChronologicalSubscription(
   cache: ChronologicalSubscriptionCache,
   filterSeen?: boolean,
   showReplies?: boolean,
-  excludeOwnPosts?: boolean
+  excludeOwnPosts?: boolean,
+  ready = true,
+  authors: string[] = [],
+  graphScope = "legacy"
 ) {
   const myPubKey = useUserStore((state) => state.publicKey)
-  // Use reactive hook - will update when graph loads
-  const follows = useFollowsFromGraph(myPubKey, true)
+  const authorScope = `${graphScope}:${ready ? "ready" : "loading"}:${authors.join(",")}`
+  const cacheMatchesScope = cache.authorScope === authorScope
 
-  const showingPosts = useRef<Map<string, number>>(new Map())
-  const pendingPosts = useRef<Map<string, number>>(new Map())
-  const oldestEventAt = useRef<number | null>(null)
+  const initialPendingPosts =
+    cacheMatchesScope && cache.pendingPosts ? cache.pendingPosts : new Map()
+  const showingPosts = useRef<Map<string, number>>(
+    cacheMatchesScope && cache.showingPosts ? cache.showingPosts : new Map()
+  )
+  const pendingPosts = useRef<Map<string, number>>(initialPendingPosts)
+  const oldestEventAt = useRef<number | null>(
+    initialPendingPosts.size > 0 ? Math.min(...initialPendingPosts.values()) : null
+  )
   const unfilteredEventsReceivedAfterFilterChange = useRef(0)
   const expansionsWithoutNewEvents = useRef(0)
   const [oldestTimestamp, setOldestTimestamp] = useState(
@@ -42,30 +51,46 @@ export default function useChronologicalSubscription(
       ? getStoredOldestTimestamp(STORAGE_KEY, 48)
       : Math.floor(Date.now() / 1000) - 48 * 60 * 60
   )
-  const [hasInitialData, setHasInitialData] = useState(cache.hasInitialData || false)
+  const [hasInitialData, setHasInitialData] = useState(
+    cacheMatchesScope && (cache.hasInitialData || false)
+  )
+  const hasInitialDataRef = useRef(cacheMatchesScope && (cache.hasInitialData || false))
+  const activeAuthorScope = useRef(authorScope)
 
   useEffect(() => {
-    if (cache.pendingPosts && cache.pendingPosts.size > 0) {
-      pendingPosts.current = cache.pendingPosts
-      const timestamps = Array.from(pendingPosts.current.values())
-      if (timestamps.length > 0) {
-        oldestEventAt.current = Math.min(...timestamps)
-      }
+    if (activeAuthorScope.current !== authorScope) {
+      activeAuthorScope.current = authorScope
+      pendingPosts.current = new Map()
+      showingPosts.current = new Map()
+      oldestEventAt.current = null
+      unfilteredEventsReceivedAfterFilterChange.current = 0
+      expansionsWithoutNewEvents.current = 0
+      hasInitialDataRef.current = false
+      setHasInitialData(false)
     }
-    if (cache.showingPosts) {
-      showingPosts.current = cache.showingPosts
-    }
-  }, [])
+
+    cache.authorScope = authorScope
+    cache.hasInitialData = hasInitialDataRef.current
+    cache.pendingPosts = pendingPosts.current
+    cache.showingPosts = showingPosts.current
+  }, [authorScope, cache])
 
   useEffect(() => {
+    const subscribedScope = authorScope
     // Wait for follows to be loaded from social graph
-    if (!follows.length) {
+    if (!ready) {
+      return
+    }
+    if (!authors.length) {
+      hasInitialDataRef.current = true
+      cache.hasInitialData = true
+      setHasInitialData(true)
       return
     }
     const now = Math.floor(Date.now() / 1000)
     const chronologicalFilter: NDKFilter = {
       kinds: [KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT],
-      authors: follows,
+      authors,
       since: oldestTimestamp,
       until: oldestEventAt.current || now,
       limit: 300,
@@ -76,6 +101,7 @@ export default function useChronologicalSubscription(
     const sub = ndk().subscribe(chronologicalFilter)
 
     sub.on("event", (event) => {
+      if (activeAuthorScope.current !== subscribedScope) return
       if (!event.created_at || !event.id) return
       if (filterSeen && seenEventIds.has(event.id)) return
       if (excludeOwnPosts && event.pubkey === myPubKey) return
@@ -95,7 +121,11 @@ export default function useChronologicalSubscription(
         expansionsWithoutNewEvents.current = 0
       }
 
-      if (!hasInitialData && pendingPosts.current.size >= INITIAL_DATA_THRESHOLD) {
+      if (
+        !hasInitialDataRef.current &&
+        pendingPosts.current.size >= INITIAL_DATA_THRESHOLD
+      ) {
+        hasInitialDataRef.current = true
         setHasInitialData(true)
         cache.hasInitialData = true
       }
@@ -105,6 +135,7 @@ export default function useChronologicalSubscription(
     })
 
     const timeout = setTimeout(() => {
+      if (activeAuthorScope.current !== subscribedScope) return
       if (pendingPosts.current.size <= LOW_THRESHOLD) {
         if (unfilteredEventsReceivedAfterFilterChange.current === 0) {
           expansionsWithoutNewEvents.current += 1
@@ -121,7 +152,7 @@ export default function useChronologicalSubscription(
       clearTimeout(timeout)
       sub.stop()
     }
-  }, [follows, oldestTimestamp])
+  }, [authorScope, authors, cache, oldestTimestamp, ready])
 
   const expandTimestamp = useCallback(() => {
     setOldestTimestamp((prev) => {
@@ -162,6 +193,7 @@ export default function useChronologicalSubscription(
 
   return {
     getNextChronological,
-    hasInitialData,
+    hasInitialData: activeAuthorScope.current === authorScope && hasInitialData,
+    sourceKey: authorScope,
   }
 }
