@@ -70,15 +70,17 @@ function TestHook({
   ready,
   authors,
   graphScope,
+  filterSeen = false,
 }: {
   cache: Cache
   ready: boolean
   authors: string[]
   graphScope: string
+  filterSeen?: boolean
 }) {
   latestResult = useChronologicalSubscription(
     cache,
-    false,
+    filterSeen,
     false,
     false,
     ready,
@@ -216,5 +218,32 @@ describe("useChronologicalSubscription", () => {
 
     expect(cache.pendingPosts?.has("queued-old-post")).toBe(false)
     expect(cache.pendingPosts?.has("current-post")).toBe(true)
+  })
+
+  it("settles a seen-filtered source after its first quiet window", async () => {
+    vi.useFakeTimers()
+    const cache: Cache = {}
+
+    try {
+      await act(async () =>
+        root.render(
+          createElement(TestHook, {
+            cache,
+            ready: true,
+            authors: AUTHORS_A,
+            graphScope: "scope-a",
+            filterSeen: true,
+          })
+        )
+      )
+      expect(latestResult?.hasInitialData).toBe(false)
+
+      await act(async () => vi.advanceTimersByTime(5000))
+
+      expect(latestResult?.hasInitialData).toBe(true)
+      expect(cache.hasInitialData).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

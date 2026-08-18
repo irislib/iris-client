@@ -44,8 +44,19 @@ export default function useCombinedPostFetcher({
   const isLoadingRef = useRef(false)
   const generationRef = useRef(0)
   const activeScopeRef = useRef<string | null>(null)
+  const attemptedReadinessRef = useRef<string | null>(null)
   const scopeKey = `${myPubKey || "anonymous"}:${sourceKey}`
   const policyReady = ready && !!visibilitySnapshot
+  const normalizedPopularRatio = Math.min(1, Math.max(0, popularRatio))
+  const popularSourceEnabled = normalizedPopularRatio > 0
+  const chronologicalSourceEnabled = normalizedPopularRatio < 1
+  const popularSourceReady = popularSourceEnabled && hasPopularData
+  const chronologicalSourceReady = chronologicalSourceEnabled && hasChronologicalData
+  const hasAnySourceReady = popularSourceReady || chronologicalSourceReady
+  const allEnabledSourcesReady =
+    (!popularSourceEnabled || popularSourceReady) &&
+    (!chronologicalSourceEnabled || chronologicalSourceReady)
+  const sourceReadinessKey = `${popularSourceReady}:${chronologicalSourceReady}`
 
   useLayoutEffect(() => {
     if (!policyReady || !visibilitySnapshot) {
@@ -54,6 +65,7 @@ export default function useCombinedPostFetcher({
         activeScopeRef.current = null
         hasLoadedInitial.current = false
         isLoadingRef.current = false
+        attemptedReadinessRef.current = null
         setEvents([])
         setLoading(false)
       }
@@ -65,6 +77,7 @@ export default function useCombinedPostFetcher({
     generationRef.current += 1
     activeScopeRef.current = scopeKey
     isLoadingRef.current = false
+    attemptedReadinessRef.current = null
 
     const cacheMatchesScope = cache.scopeKey === scopeKey
     const cachedEvents = cacheMatchesScope
@@ -94,28 +107,37 @@ export default function useCombinedPostFetcher({
     async (batchSize: number = 10) => {
       if (!visibilitySnapshot) return []
 
-      const popularCount = Math.floor(batchSize * popularRatio)
+      const popularCount = Math.floor(batchSize * normalizedPopularRatio)
       const chronologicalCount = batchSize - popularCount
 
-      // Always try to get popular posts - let the function return empty if there's no data
-      const popularIds = getNextPopular(popularCount)
-      // Only get chronological if we're configured for it
-      const chronologicalIds = hasChronologicalData
-        ? getNextChronological(chronologicalCount)
-        : []
-
-      let allIds = [...new Set([...popularIds, ...chronologicalIds])]
-
-      if (allIds.length < batchSize) {
-        const remainingNeeded = batchSize - allIds.length
-        if (hasPopularData && popularIds.length < remainingNeeded) {
-          const extraPopular = getNextPopular(remainingNeeded)
-          allIds = [...new Set([...allIds, ...extraPopular])]
-        } else if (hasChronologicalData && chronologicalIds.length < remainingNeeded) {
-          const extraChronological = getNextChronological(remainingNeeded)
-          allIds = [...new Set([...allIds, ...extraChronological])]
+      const allIds: string[] = []
+      const seenIds = new Set<string>()
+      const appendIds = (ids: string[]) => {
+        for (const id of ids) {
+          if (seenIds.has(id) || allIds.length >= batchSize) continue
+          seenIds.add(id)
+          allIds.push(id)
         }
       }
+      const takePopular = (count: number) => {
+        if (count > 0 && popularSourceReady) {
+          appendIds(getNextPopular(count))
+        }
+      }
+      const takeChronological = (count: number) => {
+        if (count > 0 && chronologicalSourceReady) {
+          appendIds(getNextChronological(count))
+        }
+      }
+
+      takePopular(popularCount)
+      takeChronological(chronologicalCount)
+
+      // Let either ready source fill space left by an unavailable or exhausted
+      // source. Disabled sources are never called, including Chronological in
+      // the popular-only feed.
+      takePopular(batchSize - allIds.length)
+      takeChronological(batchSize - allIds.length)
 
       if (allIds.length === 0) {
         return []
@@ -144,9 +166,9 @@ export default function useCombinedPostFetcher({
     [
       getNextPopular,
       getNextChronological,
-      hasPopularData,
-      hasChronologicalData,
-      popularRatio,
+      normalizedPopularRatio,
+      popularSourceReady,
+      chronologicalSourceReady,
       myPubKey,
       excludeOwnPosts,
       visibilitySnapshot,
@@ -154,10 +176,19 @@ export default function useCombinedPostFetcher({
   )
 
   const loadInitial = useCallback(async () => {
-    if (!policyReady || isLoadingRef.current || hasLoadedInitial.current) return
+    if (
+      !policyReady ||
+      isLoadingRef.current ||
+      hasLoadedInitial.current ||
+      attemptedReadinessRef.current === sourceReadinessKey
+    ) {
+      return
+    }
+    attemptedReadinessRef.current = sourceReadinessKey
     const generation = generationRef.current
     isLoadingRef.current = true
     setLoading(true)
+    let shouldFinalize = false
 
     try {
       let newEvents = await loadBatch(10)
@@ -168,23 +199,29 @@ export default function useCombinedPostFetcher({
       if (generation === generationRef.current && newEvents.length > 0) {
         newEvents.forEach((event) => addSeenEventId(event.id))
         setEvents(newEvents)
+        shouldFinalize = true
+      } else if (newEvents.length === 0 && allEnabledSourcesReady) {
+        shouldFinalize = true
       }
     } catch {
       // Relay failures are expected; a later load can recover without leaving
       // an unhandled rejection or a permanent spinner.
+      shouldFinalize = allEnabledSourcesReady
     } finally {
       // Relay or cache failures must never leave the feed in a permanent spinner.
       if (generation === generationRef.current) {
-        hasLoadedInitial.current = true
-        cache.hasLoadedInitial = true
+        if (shouldFinalize) {
+          hasLoadedInitial.current = true
+          cache.hasLoadedInitial = true
+        }
         isLoadingRef.current = false
         setLoading(false)
       }
     }
-  }, [cache, loadBatch, policyReady])
+  }, [allEnabledSourcesReady, cache, loadBatch, policyReady, sourceReadinessKey])
 
   const loadMore = useCallback(async () => {
-    if (!policyReady || isLoadingRef.current) {
+    if (!policyReady || !hasAnySourceReady || isLoadingRef.current) {
       return
     }
 
@@ -218,19 +255,19 @@ export default function useCombinedPostFetcher({
         setLoading(false)
       }
     }
-  }, [loadBatch, policyReady])
+  }, [hasAnySourceReady, loadBatch, policyReady])
 
   useEffect(() => {
-    const hasAnyData = policyReady && (hasPopularData || hasChronologicalData)
-    if (hasAnyData && !hasLoadedInitial.current) {
-      loadInitial()
+    if (!policyReady || !hasAnySourceReady || hasLoadedInitial.current || loading) {
+      return
     }
-  }, [policyReady, hasPopularData, hasChronologicalData, loadInitial])
 
-  const isInitializing =
-    policyReady && !hasLoadedInitial.current && (hasPopularData || hasChronologicalData)
+    void loadInitial()
+  }, [hasAnySourceReady, loadInitial, loading, policyReady])
+
+  const isInitializing = policyReady && !hasLoadedInitial.current && hasAnySourceReady
   const waitingForDataSources =
-    policyReady && !hasLoadedInitial.current && !hasPopularData && !hasChronologicalData
+    policyReady && !hasLoadedInitial.current && !hasAnySourceReady
 
   return {
     events: policyReady ? events : [],

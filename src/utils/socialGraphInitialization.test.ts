@@ -9,9 +9,11 @@ const storage = vi.hoisted(() => ({
 vi.mock("localforage", () => ({default: storage}))
 
 it("settles graph readiness when persisted storage fails", async () => {
-  const {getSocialGraph, socialGraphLoaded} = await import("./socialGraph")
+  const {DEFAULT_SOCIAL_GRAPH_ROOT, getSocialGraph, socialGraphLoaded} =
+    await import("./socialGraph")
 
   await expect(socialGraphLoaded).resolves.toBe(true)
   expect(storage.getItem).toHaveBeenCalledWith("socialGraph")
   expect(getSocialGraph()).toBeDefined()
+  expect(getSocialGraph().getRoot()).toBe(DEFAULT_SOCIAL_GRAPH_ROOT)
 })

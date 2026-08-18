@@ -5,9 +5,9 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const graphMocks = vi.hoisted(() => {
-  const state = {follows: ["friend-a"]}
+  const state = {root: "viewer", follows: ["friend-a"]}
   const graph = {
-    getRoot: vi.fn(() => "viewer"),
+    getRoot: vi.fn(() => state.root),
     getFollowedByUser: vi.fn(
       (pubkey: string, includeSelf = false) =>
         new Set(includeSelf ? [pubkey, ...state.follows] : state.follows)
@@ -82,6 +82,7 @@ describe("usePopularityFilters", () => {
       version: 10,
       muteListVersion: 20,
     })
+    graphMocks.state.root = "viewer"
     graphMocks.state.follows = ["friend-a"]
     graphMocks.getSocialGraph.mockClear()
     graphMocks.graph.getRoot.mockClear()
@@ -139,5 +140,22 @@ describe("usePopularityFilters", () => {
     expect(latestResult?.visibilitySnapshot).not.toBe(capturedVisibility)
     expect(graphMocks.getSocialGraph).toHaveBeenCalledTimes(2)
     expect(visibilityMocks.createAlgorithmicVisibilitySnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it("uses the default graph root and its follows for an anonymous feed", async () => {
+    graphMocks.state.root = "default-root"
+    graphMocks.state.follows = ["default-friend"]
+    useUserStore.setState({publicKey: ""})
+    useSocialGraphStore.setState({isReady: true})
+
+    await act(async () => root.render(createElement(TestHook)))
+
+    expect(latestResult?.currentFilters.ready).toBe(true)
+    expect(latestResult?.currentFilters.authors).toEqual(["default-friend"])
+    expect(latestResult?.chronologicalAuthors).toEqual([])
+    expect(latestResult?.currentFilters.scopeKey).toContain(
+      "anonymous:default-root:graph=10/20"
+    )
+    expect(graphMocks.graph.getFollowedByUser).toHaveBeenCalledWith("default-root")
   })
 })

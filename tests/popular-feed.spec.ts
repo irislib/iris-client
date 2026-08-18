@@ -1,6 +1,8 @@
 import {test, expect} from "@playwright/test"
+import {usingBuiltDist} from "./utils/built-dist"
 
-test("popular feed resolves to posts or an empty state", async ({page}) => {
+test("anonymous Popular loads posts from the default social graph", async ({page}) => {
+  test.skip(!usingBuiltDist, "requires the bundled graph and production relays")
   test.setTimeout(60000)
 
   await page.goto("/")
@@ -32,5 +34,5 @@ test("popular feed resolves to posts or an empty state", async ({page}) => {
         intervals: [1000, 2000, 3000],
       }
     )
-    .not.toBe("loading")
+    .toBe("ready")
 })

@@ -77,14 +77,20 @@ export default function useChronologicalSubscription(
 
   useEffect(() => {
     const subscribedScope = authorScope
+    const markInitialDataReady = () => {
+      if (activeAuthorScope.current !== subscribedScope) return
+      if (hasInitialDataRef.current) return
+      hasInitialDataRef.current = true
+      cache.hasInitialData = true
+      setHasInitialData(true)
+    }
+
     // Wait for follows to be loaded from social graph
     if (!ready) {
       return
     }
     if (!authors.length) {
-      hasInitialDataRef.current = true
-      cache.hasInitialData = true
-      setHasInitialData(true)
+      markInitialDataReady()
       return
     }
     const now = Math.floor(Date.now() / 1000)
@@ -125,9 +131,7 @@ export default function useChronologicalSubscription(
         !hasInitialDataRef.current &&
         pendingPosts.current.size >= INITIAL_DATA_THRESHOLD
       ) {
-        hasInitialDataRef.current = true
-        setHasInitialData(true)
-        cache.hasInitialData = true
+        markInitialDataReady()
       }
 
       cache.pendingPosts = pendingPosts.current
@@ -140,7 +144,17 @@ export default function useChronologicalSubscription(
         if (unfilteredEventsReceivedAfterFilterChange.current === 0) {
           expansionsWithoutNewEvents.current += 1
         }
-        if (expansionsWithoutNewEvents.current >= 3) {
+        const hasPosts = pendingPosts.current.size > 0
+        const exhaustedInitialWindows = expansionsWithoutNewEvents.current >= 3
+
+        // A low-activity chronological source must eventually settle so it
+        // cannot hold the combined feed in its loading state forever. For You
+        // can fall back to Popular after its first seen-filtered window.
+        if (filterSeen || hasPosts || exhaustedInitialWindows) {
+          markInitialDataReady()
+        }
+
+        if (exhaustedInitialWindows) {
           expansionsWithoutNewEvents.current = 0
         } else {
           expandTimestamp()

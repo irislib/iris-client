@@ -47,6 +47,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
 
   const {currentFilters, chronologicalAuthors, visibilitySnapshot, expandFilters} =
     usePopularityFilters(filterSeen)
+  const chronologicalEnabled = popularRatio < 1
 
   const {
     getNextMostPopular,
@@ -69,16 +70,18 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     filterSeen,
     showReplies,
     excludeOwnPosts,
-    currentFilters.ready,
-    chronologicalAuthors,
-    currentFilters.scopeKey
+    currentFilters.ready && chronologicalEnabled,
+    chronologicalEnabled ? chronologicalAuthors : [],
+    `${currentFilters.scopeKey}:chronological=${
+      chronologicalEnabled ? "enabled" : "disabled"
+    }`
   )
 
   const result = useCombinedPostFetcher({
     getNextPopular: getNextMostPopular,
     getNextChronological,
     hasPopularData,
-    hasChronologicalData,
+    hasChronologicalData: chronologicalEnabled && hasChronologicalData,
     cache: cache.combinedPostFetcher || {},
     sourceKey: `${sourceKey}|${chronologicalSourceKey}`,
     ready: currentFilters.ready,

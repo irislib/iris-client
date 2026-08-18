@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.8
+
+- Restore the logged-out Popular feed by waiting for reaction-backed recommendations
+  from the default Sirius social graph instead of letting its disabled chronological
+  source complete an empty initial load.
+- Keep mixed recommendation feeds retryable while an enabled source is still loading,
+  settle quiet chronological windows, and fill underfull batches from whichever ready
+  source has posts.
+
 ## 2.5.7
 
 - Make For You wait for a settled social-graph snapshot and keep that snapshot
