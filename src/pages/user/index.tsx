@@ -307,7 +307,7 @@ function UserPage({pubKey}: {pubKey: string}) {
           <>
             {filteredFollows.length > 0 && (
               <Widget title="Follows" className="h-96">
-                <FollowList follows={filteredFollows} />
+                <FollowList follows={filteredFollows} visibility="recommendation" />
               </Widget>
             )}
             {pubKeyHex === myPubKey && (

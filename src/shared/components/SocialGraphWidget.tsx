@@ -1,9 +1,10 @@
-import {useState, useEffect, useCallback} from "react"
+import {useState, useEffect, useMemo} from "react"
 import {nip19} from "nostr-tools"
 import {useSocialGraph} from "@/utils/socialGraph"
 import {Link, useNavigate} from "@/navigation"
 import Widget from "@/shared/components/ui/Widget"
 import {formatAmount} from "@/utils/utils"
+import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 
 interface SocialGraphWidgetProps {
   background?: boolean
@@ -13,6 +14,7 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
   const socialGraph = useSocialGraph()
   const [socialGraphSize, setSocialGraphSize] = useState(socialGraph.size())
   const navigate = useNavigate()
+  const recommendationPolicy = useRecommendationVisibilitySnapshot()
 
   useEffect(() => {
     const updateStats = () => {
@@ -31,29 +33,33 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
     .filter(([d]) => Number(d) >= 3)
     .reduce((sum, [, count]) => sum + count, 0)
 
-  const pickRandomAtDistance = useCallback(
-    (distance: number) => {
-      const users = socialGraph.getUsersByFollowDistance(distance)
-      if (users && users.size > 0) {
-        const userArray = Array.from(users)
-        const randomUser = userArray[Math.floor(Math.random() * userArray.length)]
-        const npub = nip19.npubEncode(randomUser)
-        navigate(`/${npub}`)
-      }
-    },
-    [navigate, socialGraph]
-  )
+  const {visibleDistance1, visibleDistance2, visibleDistance3Plus} = useMemo(() => {
+    const snapshot = recommendationPolicy.snapshot
+    if (!recommendationPolicy.ready || !snapshot) {
+      return {visibleDistance1: [], visibleDistance2: [], visibleDistance3Plus: []}
+    }
 
-  const pickRandomAtDistance3Plus = useCallback(() => {
-    const distances = Object.keys(distanceData)
-      .map(Number)
-      .filter((d) => d >= 3)
+    const visibleUsersAtDistance = (distance: number) =>
+      Array.from(socialGraph.getUsersByFollowDistance(distance) || []).filter(
+        (pubKey) => !snapshot.shouldHideRecommendationUser(pubKey)
+      )
+    const policyDistanceData = socialGraph.size().sizeByDistance || {}
 
-    if (distances.length === 0) return
+    return {
+      visibleDistance1: visibleUsersAtDistance(1),
+      visibleDistance2: visibleUsersAtDistance(2),
+      visibleDistance3Plus: Object.keys(policyDistanceData)
+        .map(Number)
+        .filter((distance) => distance >= 3)
+        .flatMap(visibleUsersAtDistance),
+    }
+  }, [recommendationPolicy.ready, recommendationPolicy.snapshot, socialGraph])
 
-    const randomDistance = distances[Math.floor(Math.random() * distances.length)]
-    pickRandomAtDistance(randomDistance)
-  }, [distanceData, pickRandomAtDistance])
+  const pickRandom = (users: string[]) => {
+    if (users.length === 0) return
+    const randomUser = users[Math.floor(Math.random() * users.length)]
+    navigate(`/${nip19.npubEncode(randomUser)}`)
+  }
 
   return (
     <Widget title={false} background={background} className="h-auto">
@@ -89,9 +95,9 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
             <div>
               <div className="font-bold text-lg">{formatAmount(distance1, 3)}</div>
               <div className="opacity-60">1 hop</div>
-              {distance1 > 0 && (
+              {visibleDistance1.length > 0 && (
                 <button
-                  onClick={() => pickRandomAtDistance(1)}
+                  onClick={() => pickRandom(visibleDistance1)}
                   className="text-[10px] link link-info mt-1"
                 >
                   pick random
@@ -101,9 +107,9 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
             <div>
               <div className="font-bold text-lg">{formatAmount(distance2, 3)}</div>
               <div className="opacity-60">2 hops</div>
-              {distance2 > 0 && (
+              {visibleDistance2.length > 0 && (
                 <button
-                  onClick={() => pickRandomAtDistance(2)}
+                  onClick={() => pickRandom(visibleDistance2)}
                   className="text-[10px] link link-info mt-1"
                 >
                   pick random
@@ -113,9 +119,9 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
             <div>
               <div className="font-bold text-lg">{formatAmount(distance3Plus, 3)}</div>
               <div className="opacity-60">3+ hops</div>
-              {distance3Plus > 0 && (
+              {visibleDistance3Plus.length > 0 && (
                 <button
-                  onClick={pickRandomAtDistance3Plus}
+                  onClick={() => pickRandom(visibleDistance3Plus)}
                   className="text-[10px] link link-info mt-1"
                 >
                   pick random

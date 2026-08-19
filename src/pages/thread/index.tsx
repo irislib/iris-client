@@ -16,6 +16,7 @@ import {getTags} from "@/utils/nostr"
 import {nip19} from "nostr-tools"
 import {KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useLongformEvent} from "@/shared/hooks/useLongformEvent"
+import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 
 export default function ThreadPage({
   id,
@@ -38,6 +39,7 @@ export default function ThreadPage({
   )
   const [event, setEvent] = useState<NDKEvent | null>(null)
   const [loading, setLoading] = useState(false)
+  const recommendationPolicy = useRecommendationVisibilitySnapshot()
 
   const addRelevantPerson = useCallback((person: string) => {
     setRelevantPeople((prev) => new Map(prev).set(person, true))
@@ -87,6 +89,47 @@ export default function ThreadPage({
     },
     [content.maxFollowDistanceForReplies, threadAuthor, addRelevantPerson]
   )
+
+  const renderSidebarContextWidget = () => {
+    if (isArticle && threadAuthor) {
+      if (!recommendationPolicy.ready) {
+        return (
+          <Widget title="More from this author" className="h-96">
+            <div className="px-4 py-2 text-base-content/50 text-sm">
+              Loading recommendations...
+            </div>
+          </Widget>
+        )
+      }
+
+      if (recommendationPolicy.snapshot?.shouldHideRecommendationUser(threadAuthor)) {
+        return null
+      }
+
+      return (
+        <Widget title="More from this author" className="h-96">
+          <AuthorArticlesFeed
+            authorPubkey={threadAuthor}
+            currentArticleId={event?.id || id}
+            maxItems={5}
+            visibilitySnapshot={recommendationPolicy.snapshot}
+          />
+        </Widget>
+      )
+    }
+
+    if (relevantPeople.size === 0) return null
+
+    return (
+      <Widget title="Relevant people" className="h-96">
+        <FollowList
+          follows={Array.from(relevantPeople.keys())}
+          showAbout={true}
+          visibility="recommendation"
+        />
+      </Widget>
+    )
+  }
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -139,24 +182,7 @@ export default function ThreadPage({
       <RightColumn>
         {() => (
           <>
-            {isArticle && threadAuthor ? (
-              <Widget title="More from this author" className="h-96">
-                <AuthorArticlesFeed
-                  authorPubkey={threadAuthor}
-                  currentArticleId={event?.id || id}
-                  maxItems={5}
-                />
-              </Widget>
-            ) : (
-              relevantPeople.size > 0 && (
-                <Widget title="Relevant people" className="h-96">
-                  <FollowList
-                    follows={Array.from(relevantPeople.keys())}
-                    showAbout={true}
-                  />
-                </Widget>
-              )
-            )}
+            {renderSidebarContextWidget()}
             <Widget title="Popular" className="h-96">
               <AlgorithmicFeed
                 type="popular"

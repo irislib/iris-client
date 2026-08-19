@@ -5,6 +5,10 @@ import {getSocialGraph} from "./socialGraph"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 
 const cache = new LRUCache<string, boolean>({maxSize: 100})
+let recommendationSnapshotCache = new WeakMap<
+  SocialGraph,
+  {key: string; snapshot: AlgorithmicVisibilitySnapshot}
+>()
 export const SOCIAL_GRAPH_OVERMUTE_THRESHOLD = 3
 
 interface VisibilityEvent {
@@ -19,6 +23,7 @@ export interface AlgorithmicVisibilitySnapshot {
 
 export const clearVisibilityCache = () => {
   cache.clear()
+  recommendationSnapshotCache = new WeakMap()
 }
 
 export const graphConsidersUserOvermuted = (
@@ -238,8 +243,14 @@ export const createAlgorithmicVisibilitySnapshot = (
 
   const explicitAuthors = new Set([root, ...graph.getFollowedByUser(root)])
   const snapshot: AlgorithmicVisibilitySnapshot = {
-    shouldHideRecommendationUser: (pubKey) => !allowedRecommendationUsers.has(pubKey),
+    shouldHideRecommendationUser: (pubKey) => {
+      if (pubKey === root) return false
+      if (directMutes.has(pubKey)) return true
+      if (explicitAuthors.has(pubKey)) return false
+      return !allowedRecommendationUsers.has(pubKey)
+    },
     shouldHideAlgorithmicEvent: (event) => {
+      if (event.pubkey === root) return false
       if (directMutes.has(event.pubkey)) return true
       if (explicitAuthors.has(event.pubkey)) return false
       if (!allowedRecommendationUsers.has(event.pubkey)) return true
@@ -251,6 +262,32 @@ export const createAlgorithmicVisibilitySnapshot = (
   }
 
   return Object.freeze(snapshot)
+}
+
+/**
+ * Shares the expensive immutable policy build across every recommendation
+ * surface rendered for the same graph revision. Only the latest revision is
+ * retained per graph instance; mounted For You feeds keep their own reference
+ * to an older snapshot without keeping old cache entries alive.
+ */
+export const getOrCreateAlgorithmicVisibilitySnapshot = (
+  graph: SocialGraph,
+  maxFollowDistance: number | undefined,
+  graphVersion: number,
+  muteListVersion: number
+): AlgorithmicVisibilitySnapshot => {
+  const key = [
+    graph.getRoot(),
+    graphVersion,
+    muteListVersion,
+    maxFollowDistance ?? "unlimited",
+  ].join(":")
+  const cached = recommendationSnapshotCache.get(graph)
+  if (cached?.key === key) return cached.snapshot
+
+  const snapshot = createAlgorithmicVisibilitySnapshot(graph, maxFollowDistance)
+  recommendationSnapshotCache.set(graph, {key, snapshot})
+  return snapshot
 }
 
 export const shouldHideEvent = (

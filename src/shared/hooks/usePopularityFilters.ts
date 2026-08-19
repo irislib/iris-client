@@ -4,7 +4,7 @@ import {useSocialGraphStore} from "@/stores/socialGraph"
 import {useUserStore} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
 import {
-  createAlgorithmicVisibilitySnapshot,
+  getOrCreateAlgorithmicVisibilitySnapshot,
   type AlgorithmicVisibilitySnapshot,
 } from "@/utils/visibility"
 import {
@@ -34,6 +34,11 @@ interface FeedGraphSnapshot {
 
 export default function usePopularityFilters(filterSeen?: boolean) {
   const graphReady = useSocialGraphStore((state) => state.isReady)
+  const graphVersion = useSocialGraphStore((state) => state.version)
+  const muteListVersion = useSocialGraphStore((state) => state.muteListVersion)
+  const maxFollowDistance = useSettingsStore(
+    (state) => state.content.maxFollowDistanceForReplies
+  )
   const [oldestTimestamp, setOldestTimestamp] = useState(
     filterSeen
       ? getStoredOldestTimestamp(STORAGE_KEY, 48)
@@ -41,15 +46,25 @@ export default function usePopularityFilters(filterSeen?: boolean) {
   )
 
   const myPubKey = useUserStore((state) => state.publicKey)
+  const expectedRoot = myPubKey || DEFAULT_SOCIAL_GRAPH_ROOT
+  const graphRoot = useMemo(
+    () => (graphReady ? getSocialGraph().getRoot() : null),
+    [graphReady, graphVersion, muteListVersion]
+  )
+  const rootReady = graphReady && graphRoot === expectedRoot
+  // For You is intentionally stable after loading. Popular, including its
+  // sidebar widgets, re-captures policy when the live graph or setting changes.
+  const policyRevision = filterSeen
+    ? "mounted"
+    : `${graphVersion}/${muteListVersion}/${maxFollowDistance ?? "unlimited"}`
   // A mounted For You feed uses one graph snapshot. Live follow/mute events still
   // update the rest of the app, but they cannot reshuffle a feed the user is
   // already reading. Refreshing/remounting the feed intentionally takes a new
   // snapshot.
   const snapshot = useMemo<FeedGraphSnapshot | null>(() => {
-    if (!graphReady) return null
+    if (!rootReady) return null
     const socialGraph = getSocialGraph()
-    const {version, muteListVersion} = useSocialGraphStore.getState()
-    const maxDistance = useSettingsStore.getState().content.maxFollowDistanceForReplies
+    if (socialGraph.getRoot() !== expectedRoot) return null
 
     const viewer = myPubKey || `anonymous:${socialGraph.getRoot()}`
     const directFollows = myPubKey
@@ -72,10 +87,15 @@ export default function usePopularityFilters(filterSeen?: boolean) {
       viewer,
       reactionAuthors: reactionAuthors.sort(),
       chronologicalAuthors: chronologicalAuthors.sort(),
-      policyKey: `graph=${version}/${muteListVersion}:distance=${maxDistance ?? "unlimited"}`,
-      visibility: createAlgorithmicVisibilitySnapshot(socialGraph, maxDistance),
+      policyKey: `graph=${graphVersion}/${muteListVersion}:distance=${maxFollowDistance ?? "unlimited"}`,
+      visibility: getOrCreateAlgorithmicVisibilitySnapshot(
+        socialGraph,
+        maxFollowDistance,
+        graphVersion,
+        muteListVersion
+      ),
     }
-  }, [graphReady, myPubKey])
+  }, [expectedRoot, myPubKey, policyRevision, rootReady])
   const authors = snapshot?.reactionAuthors || []
   const chronologicalAuthors = snapshot?.chronologicalAuthors || []
   const scopeKey = snapshot
@@ -89,11 +109,11 @@ export default function usePopularityFilters(filterSeen?: boolean) {
       // An empty author set must never become a match-all subscription while
       // the social graph is loading.
       authors,
-      ready: graphReady && !!snapshot,
+      ready: rootReady && !!snapshot,
       scopeKey,
     }
     return filters
-  }, [oldestTimestamp, authors, graphReady, scopeKey, snapshot])
+  }, [oldestTimestamp, authors, rootReady, scopeKey, snapshot])
 
   const expandFilters = useCallback(() => {
     setOldestTimestamp((prev) => {

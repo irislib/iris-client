@@ -2,7 +2,9 @@ import {describe, expect, it} from "vitest"
 import {SocialGraph} from "nostr-social-graph"
 import {
   SOCIAL_GRAPH_OVERMUTE_THRESHOLD,
+  clearVisibilityCache,
   createAlgorithmicVisibilitySnapshot,
+  getOrCreateAlgorithmicVisibilitySnapshot,
   graphConsidersUnsolicitedEventHidden,
   graphConsidersUnsolicitedUserHidden,
   graphConsidersUserOvermuted,
@@ -175,6 +177,25 @@ describe("graphConsidersUserOvermuted", () => {
 })
 
 describe("createAlgorithmicVisibilitySnapshot", () => {
+  it("shares one expensive build per graph policy revision", async () => {
+    const root = key("0")
+    const known = key("1")
+    const graph = new SocialGraph(root)
+
+    graph.addFollower(root, known)
+    await graph.recalculateFollowDistances()
+    clearVisibilityCache()
+
+    const first = getOrCreateAlgorithmicVisibilitySnapshot(graph, 5, 10, 20)
+    const shared = getOrCreateAlgorithmicVisibilitySnapshot(graph, 5, 10, 20)
+    const nextMuteRevision = getOrCreateAlgorithmicVisibilitySnapshot(graph, 5, 10, 21)
+    const nextDistance = getOrCreateAlgorithmicVisibilitySnapshot(graph, 2, 10, 21)
+
+    expect(shared).toBe(first)
+    expect(nextMuteRevision).not.toBe(first)
+    expect(nextDistance).not.toBe(nextMuteRevision)
+  })
+
   it("keeps actor and post visibility immutable after the live graph changes", async () => {
     const root = key("0")
     const recommender = key("1")
@@ -263,6 +284,7 @@ describe("createAlgorithmicVisibilitySnapshot", () => {
     const snapshot = createAlgorithmicVisibilitySnapshot(graph, undefined)
 
     // Explicit follows and self remain visible unless the root directly mutes them.
+    expect(snapshot.shouldHideRecommendationUser(root)).toBe(false)
     expect(snapshot.shouldHideRecommendationUser(explicitAuthor)).toBe(false)
     expect(snapshot.shouldHideAlgorithmicEvent({pubkey: explicitAuthor, tags: []})).toBe(
       false
@@ -270,6 +292,7 @@ describe("createAlgorithmicVisibilitySnapshot", () => {
     expect(snapshot.shouldHideAlgorithmicEvent({pubkey: root, tags: []})).toBe(false)
 
     // A root mute always wins, even over an explicit follow.
+    expect(snapshot.shouldHideRecommendationUser(directlyMuted)).toBe(true)
     expect(snapshot.shouldHideAlgorithmicEvent({pubkey: directlyMuted, tags: []})).toBe(
       true
     )

@@ -3,6 +3,7 @@ import {useState} from "react"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll.tsx" // Make sure to import InfiniteScroll
 import ProfileCard from "@/shared/components/user/ProfileCard"
 import useFollows from "@/shared/hooks/useFollows"
+import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 import {shouldHideUser} from "@/utils/visibility"
 
 interface FollowListProps {
@@ -10,6 +11,7 @@ interface FollowListProps {
   pubKey?: string
   initialDisplayCount?: number
   showAbout?: boolean
+  visibility?: "explicit" | "recommendation"
 }
 
 function FollowList({
@@ -17,9 +19,13 @@ function FollowList({
   pubKey = "",
   initialDisplayCount = 10,
   showAbout = false,
+  visibility = "explicit",
 }: FollowListProps) {
   const [displayCount, setDisplayCount] = useState<number>(initialDisplayCount) // Start by displaying 10 items
   const f = useFollows(pubKey)
+  const recommendationPolicy = useRecommendationVisibilitySnapshot(
+    visibility === "recommendation"
+  )
 
   if (!pubKey && !follows) {
     throw new Error("FollowList needs follows or pubKey param")
@@ -27,8 +33,20 @@ function FollowList({
 
   const localFollows = follows && follows.length > 0 ? follows : f
 
-  // Explicit people lists should still show unknown users; only mute-based hiding applies.
-  const visibleFollows = localFollows.filter((pubkey) => !shouldHideUser(pubkey, 1, true))
+  if (
+    visibility === "recommendation" &&
+    (!recommendationPolicy.ready || !recommendationPolicy.snapshot)
+  ) {
+    return <div className="px-4 py-2 text-base-content/50 text-sm">Loading people...</div>
+  }
+
+  const visibleFollows = localFollows.filter((pubkey) =>
+    visibility === "recommendation"
+      ? !!recommendationPolicy.snapshot &&
+        !recommendationPolicy.snapshot.shouldHideRecommendationUser(pubkey)
+      : // Explicit people lists should still show unknown users; only mute-based hiding applies.
+        !shouldHideUser(pubkey, 1, true)
+  )
 
   const loadMoreFollows = () => {
     if (displayCount < visibleFollows.length) {

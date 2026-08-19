@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.10
+
+- Hide unknown and threshold-three overmuted identities from profile follows,
+  thread people/articles, Popular, and Social Graph sidebar recommendations.
+- Wait for the correct viewer or default graph before showing sidebar candidates,
+  while preserving self and direct follows unless directly muted.
+- Refresh sidebar visibility atomically on graph and setting changes without
+  changing an already-loaded For You feed, and share the graph-policy scan across
+  recommendation widgets.
+
 ## 2.5.9
 
 - Hide notification replies, reactions, reposts, pictures, highlights, and zaps

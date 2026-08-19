@@ -21,7 +21,7 @@ const graphMocks = vi.hoisted(() => {
 })
 
 const visibilityMocks = vi.hoisted(() => ({
-  createAlgorithmicVisibilitySnapshot: vi.fn(() =>
+  getOrCreateAlgorithmicVisibilitySnapshot: vi.fn(() =>
     Object.freeze({
       shouldHideRecommendationUser: vi.fn(() => false),
       shouldHideAlgorithmicEvent: vi.fn(() => false),
@@ -35,8 +35,8 @@ vi.mock("@/utils/socialGraph", () => ({
 }))
 
 vi.mock("@/utils/visibility", () => ({
-  createAlgorithmicVisibilitySnapshot:
-    visibilityMocks.createAlgorithmicVisibilitySnapshot,
+  getOrCreateAlgorithmicVisibilitySnapshot:
+    visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot,
 }))
 
 import {useSocialGraphStore} from "@/stores/socialGraph"
@@ -51,8 +51,8 @@ type HookResult = ReturnType<typeof usePopularityFilters>
 
 let latestResult: HookResult | undefined
 
-function TestHook() {
-  latestResult = usePopularityFilters()
+function TestHook({filterSeen = false}: {filterSeen?: boolean}) {
+  latestResult = usePopularityFilters(filterSeen)
   return null
 }
 
@@ -87,7 +87,7 @@ describe("usePopularityFilters", () => {
     graphMocks.getSocialGraph.mockClear()
     graphMocks.graph.getRoot.mockClear()
     graphMocks.graph.getFollowedByUser.mockClear()
-    visibilityMocks.createAlgorithmicVisibilitySnapshot.mockClear()
+    visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot.mockClear()
     latestResult = undefined
     container = document.createElement("div")
     root = createRoot(container)
@@ -100,7 +100,9 @@ describe("usePopularityFilters", () => {
   })
 
   it("freezes one ready graph snapshot until the hook remounts", async () => {
-    await act(async () => root.render(createElement(TestHook, {key: "first-mount"})))
+    await act(async () =>
+      root.render(createElement(TestHook, {key: "first-mount", filterSeen: true}))
+    )
 
     expect(latestResult?.currentFilters.ready).toBe(false)
     expect(latestResult?.currentFilters.authors).toEqual([])
@@ -115,31 +117,83 @@ describe("usePopularityFilters", () => {
     const capturedVisibility = latestResult?.visibilitySnapshot
     const capturedScope = latestResult?.currentFilters.scopeKey
     expect(capturedScope).toContain("graph=10/20")
-    expect(visibilityMocks.createAlgorithmicVisibilitySnapshot).toHaveBeenCalledOnce()
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledOnce()
 
     graphMocks.state.follows = ["friend-b"]
     await act(async () => {
       useSocialGraphStore.setState({version: 11, muteListVersion: 21})
       // Force an unrelated rerender to prove the memoized graph snapshot itself,
       // rather than the lack of a store notification, keeps the feed stable.
-      root.render(createElement(TestHook, {key: "first-mount"}))
+      root.render(createElement(TestHook, {key: "first-mount", filterSeen: true}))
     })
 
     expect(latestResult?.currentFilters.authors).toEqual(["friend-a"])
     expect(latestResult?.visibilitySnapshot).toBe(capturedVisibility)
     expect(latestResult?.currentFilters.scopeKey).toBe(capturedScope)
-    expect(graphMocks.getSocialGraph).toHaveBeenCalledOnce()
-    expect(visibilityMocks.createAlgorithmicVisibilitySnapshot).toHaveBeenCalledOnce()
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledOnce()
 
-    await act(async () => root.render(createElement(TestHook, {key: "second-mount"})))
+    await act(async () =>
+      root.render(createElement(TestHook, {key: "second-mount", filterSeen: true}))
+    )
 
     expect(latestResult?.currentFilters.ready).toBe(true)
     expect(latestResult?.currentFilters.authors).toEqual(["friend-b"])
     expect(latestResult?.currentFilters.scopeKey).not.toBe(capturedScope)
     expect(latestResult?.currentFilters.scopeKey).toContain("graph=11/21")
     expect(latestResult?.visibilitySnapshot).not.toBe(capturedVisibility)
-    expect(graphMocks.getSocialGraph).toHaveBeenCalledTimes(2)
-    expect(visibilityMocks.createAlgorithmicVisibilitySnapshot).toHaveBeenCalledTimes(2)
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledTimes(2)
+  })
+
+  it("refreshes a mounted Popular policy when graph opinions change", async () => {
+    useSocialGraphStore.setState({isReady: true})
+    await act(async () => root.render(createElement(TestHook)))
+
+    const firstVisibility = latestResult?.visibilitySnapshot
+    expect(latestResult?.currentFilters.authors).toEqual(["friend-a"])
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledOnce()
+
+    graphMocks.state.follows = ["friend-b"]
+    await act(async () => {
+      useSocialGraphStore.setState({version: 11})
+    })
+
+    expect(latestResult?.currentFilters.authors).toEqual(["friend-b"])
+    expect(latestResult?.visibilitySnapshot).not.toBe(firstVisibility)
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledTimes(2)
+  })
+
+  it("waits for the graph synchronizer to install the current viewer root", async () => {
+    graphMocks.state.root = "previous-viewer"
+    useSocialGraphStore.setState({isReady: true})
+
+    await act(async () => root.render(createElement(TestHook)))
+
+    expect(latestResult?.currentFilters.ready).toBe(false)
+    expect(latestResult?.currentFilters.authors).toEqual([])
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).not.toHaveBeenCalled()
+
+    graphMocks.state.root = "viewer"
+    await act(async () => {
+      useSocialGraphStore.setState({version: 11})
+    })
+
+    expect(latestResult?.currentFilters.ready).toBe(true)
+    expect(latestResult?.currentFilters.authors).toEqual(["friend-a"])
+    expect(
+      visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot
+    ).toHaveBeenCalledOnce()
   })
 
   it("uses the default graph root and its follows for an anonymous feed", async () => {
