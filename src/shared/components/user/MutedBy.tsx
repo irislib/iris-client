@@ -1,6 +1,6 @@
 import FollowList from "@/pages/user/components/FollowList"
 import Modal from "@/shared/components/ui/Modal.tsx"
-import {shouldHideUser} from "@/utils/visibility"
+import {shouldHideSocialGraphUser} from "@/utils/visibility"
 import {Fragment, useMemo, useState} from "react"
 import {useSocialGraph, useFollowsFromGraph, useGraphSize} from "@/utils/socialGraph"
 import {ProfileLink} from "./ProfileLink"
@@ -30,7 +30,8 @@ export default function MutedBy({pubkey}: {pubkey: string}) {
 
   // Show warning when we have follows data loaded
   const showMutedWarning =
-    follows.length > 1 && ((totalMutedBy > 0 && shouldHideUser(pubkey, 3)) || isRootMuted)
+    follows.length > 1 &&
+    ((totalMutedBy > 0 && shouldHideSocialGraphUser(pubkey)) || isRootMuted)
 
   const [showMuterList, setShowMuterList] = useState<boolean>(false)
 

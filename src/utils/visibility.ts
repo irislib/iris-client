@@ -5,7 +5,7 @@ import {getSocialGraph} from "./socialGraph"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 
 const cache = new LRUCache<string, boolean>({maxSize: 100})
-const ALGORITHMIC_OVERMUTE_THRESHOLD = 3
+export const SOCIAL_GRAPH_OVERMUTE_THRESHOLD = 3
 
 interface VisibilityEvent {
   pubkey: string
@@ -94,6 +94,86 @@ export const graphConsidersUserUnknown = (graph: SocialGraph, pubKey: string): b
   graph.getFollowDistance(pubKey) >= 1000
 
 /**
+ * Unsolicited surfaces are stricter than ordinary thread rendering: an
+ * unreachable sender is always hidden, even when the general reply-distance
+ * preference is set to unlimited.
+ */
+export const graphConsidersUnsolicitedUserHidden = (
+  graph: SocialGraph,
+  pubKey: string,
+  maxFollowDistance: number | undefined
+): boolean => {
+  const root = graph.getRoot()
+  if (pubKey === root) return false
+  if (graph.getMutedByUser(root).has(pubKey)) return true
+  if (graph.getFollowedByUser(root).has(pubKey)) return false
+
+  const distance = graph.getFollowDistance(pubKey)
+  return (
+    distance >= 1000 ||
+    (maxFollowDistance !== undefined && distance > maxFollowDistance) ||
+    graphConsidersUserOvermuted(graph, pubKey, SOCIAL_GRAPH_OVERMUTE_THRESHOLD)
+  )
+}
+
+export const shouldHideSocialGraphUser = (
+  pubKey: string,
+  allowUnknown = false
+): boolean => shouldHideUser(pubKey, SOCIAL_GRAPH_OVERMUTE_THRESHOLD, allowUnknown)
+
+export const shouldHideUnsolicitedUser = (pubKey: string): boolean => {
+  const graph = getSocialGraph()
+  return graphConsidersUnsolicitedUserHidden(
+    graph,
+    pubKey,
+    useSettingsStore.getState().content.maxFollowDistanceForReplies
+  )
+}
+
+export const graphConsidersUnsolicitedEventHidden = (
+  graph: SocialGraph,
+  event: VisibilityEvent,
+  senderPubKey: string,
+  maxFollowDistance: number | undefined
+): boolean => {
+  const root = graph.getRoot()
+  if (senderPubKey === root) return false
+  if (graph.getMutedByUser(root).has(senderPubKey)) return true
+  if (graph.getFollowedByUser(root).has(senderPubKey)) return false
+
+  if (graphConsidersUnsolicitedUserHidden(graph, senderPubKey, maxFollowDistance)) {
+    return true
+  }
+
+  return event.tags.some(
+    (tag) =>
+      tag[0] === "p" &&
+      !!tag[1] &&
+      graphConsidersUserOvermuted(graph, tag[1], SOCIAL_GRAPH_OVERMUTE_THRESHOLD)
+  )
+}
+
+/**
+ * Applies one notification visibility policy to the actual sender. A root mute
+ * wins, while self/direct follows retain explicit-author precedence and skip
+ * mention filtering. Other senders are checked for reachability, distance,
+ * overmute consensus, and overmuted identities mentioned by the event. For zap
+ * receipts, callers pass the extracted zap sender rather than the receipt signer.
+ */
+export const shouldHideUnsolicitedEvent = (
+  event: VisibilityEvent,
+  senderPubKey = event.pubkey
+): boolean => {
+  const graph = getSocialGraph()
+  return graphConsidersUnsolicitedEventHidden(
+    graph,
+    event,
+    senderPubKey,
+    useSettingsStore.getState().content.maxFollowDistanceForReplies
+  )
+}
+
+/**
  * Capture the complete recommendation visibility policy for one mounted feed.
  *
  * Building the overmute set walks every graph identity and each incoming follow
@@ -145,7 +225,7 @@ export const createAlgorithmicVisibilitySnapshot = (
 
     if (
       nearestDistance !== Number.POSITIVE_INFINITY &&
-      nearestMuters * ALGORITHMIC_OVERMUTE_THRESHOLD > nearestFollowers
+      nearestMuters * SOCIAL_GRAPH_OVERMUTE_THRESHOLD > nearestFollowers
     ) {
       overmutedUsers.add(targetPubKey)
     }

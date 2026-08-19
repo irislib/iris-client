@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.5.9
+
+- Hide notification replies, reactions, reposts, pictures, highlights, and zaps
+  from unknown or overmuted senders, using the same threshold as profile warnings.
+- Wait for the signed-in social graph before loading notification history and
+  revalidate cached groups, badge state, account changes, and graph/settings updates.
+- Preserve notifications from explicitly followed users unless directly muted,
+  and attribute zap visibility to the actual sender instead of the receipt service.
+
 ## 2.5.8
 
 - Restore the logged-out Popular feed by waiting for reaction-backed recommendations

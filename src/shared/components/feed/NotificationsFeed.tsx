@@ -21,17 +21,7 @@ function NotificationsFeed() {
   const isTopOfStack = useIsTopOfStack()
 
   useEffect(() => {
-    if (publicKey) {
-      startNotificationsSubscription(publicKey)
-    }
-
-    const unsubscribe = useUserStore.subscribe((state, prevState) => {
-      if (state.publicKey && state.publicKey !== prevState.publicKey) {
-        notifications.clear()
-        startNotificationsSubscription(state.publicKey)
-      }
-    })
-    return () => unsubscribe()
+    startNotificationsSubscription(publicKey || undefined)
   }, [publicKey])
 
   const [displayCount, setDisplayCount] = useHistoryState(

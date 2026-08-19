@@ -1,7 +1,10 @@
 import {describe, expect, it} from "vitest"
 import {SocialGraph} from "nostr-social-graph"
 import {
+  SOCIAL_GRAPH_OVERMUTE_THRESHOLD,
   createAlgorithmicVisibilitySnapshot,
+  graphConsidersUnsolicitedEventHidden,
+  graphConsidersUnsolicitedUserHidden,
   graphConsidersUserOvermuted,
   graphConsidersUserUnknown,
 } from "./visibility"
@@ -58,7 +61,10 @@ describe("graphConsidersUserOvermuted", () => {
     await graph.recalculateFollowDistances()
 
     expect(graphConsidersUserOvermuted(graph, target)).toBe(false)
-    expect(graphConsidersUserOvermuted(graph, target, 3)).toBe(true)
+    expect(
+      graphConsidersUserOvermuted(graph, target, SOCIAL_GRAPH_OVERMUTE_THRESHOLD)
+    ).toBe(true)
+    expect(graphConsidersUnsolicitedUserHidden(graph, target, undefined)).toBe(true)
   })
 
   it("treats accounts outside the loaded graph as unknown", async () => {
@@ -73,6 +79,98 @@ describe("graphConsidersUserOvermuted", () => {
     expect(graphConsidersUserUnknown(graph, root)).toBe(false)
     expect(graphConsidersUserUnknown(graph, known)).toBe(false)
     expect(graphConsidersUserUnknown(graph, unknown)).toBe(true)
+
+    // Unsolicited surfaces reject unreachable senders even when the user's
+    // general reply-distance setting is unlimited.
+    expect(graphConsidersUnsolicitedUserHidden(graph, root, undefined)).toBe(false)
+    expect(graphConsidersUnsolicitedUserHidden(graph, known, undefined)).toBe(false)
+    expect(graphConsidersUnsolicitedUserHidden(graph, unknown, undefined)).toBe(true)
+  })
+
+  it("lets a direct follow through unless the root directly mutes it", async () => {
+    const root = key("0")
+    const target = key("1")
+    const muter = key("2")
+    const graph = new SocialGraph(root)
+
+    graph.addFollower(root, target)
+    graph.addFollower(root, muter)
+    graph.handleEvent({
+      id: key("3"),
+      pubkey: muter,
+      created_at: 1,
+      kind: 10000,
+      tags: [["p", target]],
+      content: "",
+      sig: key("4") + key("4"),
+    })
+    await graph.recalculateFollowDistances()
+
+    expect(graphConsidersUnsolicitedUserHidden(graph, target, undefined)).toBe(false)
+
+    graph.handleEvent({
+      id: key("5"),
+      pubkey: root,
+      created_at: 2,
+      kind: 10000,
+      tags: [["p", target]],
+      content: "",
+      sig: key("6") + key("6"),
+    })
+
+    expect(graphConsidersUnsolicitedUserHidden(graph, target, undefined)).toBe(true)
+  })
+
+  it("checks an attributed sender instead of a wrapper event signer", async () => {
+    const root = key("0")
+    const followedSender = key("1")
+    const unknownSender = key("2")
+    const bridge = key("3")
+    const nonExplicitSender = key("4")
+    const muter = key("5")
+    const overmutedMention = key("6")
+    const graph = new SocialGraph(root)
+
+    graph.addFollower(root, followedSender)
+    graph.addFollower(root, bridge)
+    graph.addFollower(root, muter)
+    graph.addFollower(bridge, nonExplicitSender)
+    graph.handleEvent({
+      id: key("7"),
+      pubkey: muter,
+      created_at: 1,
+      kind: 10000,
+      tags: [["p", overmutedMention]],
+      content: "",
+      sig: key("8") + key("8"),
+    })
+    await graph.recalculateFollowDistances()
+
+    const serviceSignedEvent = {pubkey: root, tags: [["p", overmutedMention]]}
+    expect(
+      graphConsidersUnsolicitedEventHidden(
+        graph,
+        serviceSignedEvent,
+        followedSender,
+        undefined
+      )
+    ).toBe(false)
+    expect(
+      graphConsidersUnsolicitedEventHidden(
+        graph,
+        serviceSignedEvent,
+        unknownSender,
+        undefined
+      )
+    ).toBe(true)
+    expect(
+      graphConsidersUnsolicitedEventHidden(
+        graph,
+        serviceSignedEvent,
+        nonExplicitSender,
+        undefined
+      )
+    ).toBe(true)
   })
 })
 
