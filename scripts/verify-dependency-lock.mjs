@@ -6,14 +6,14 @@ const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
   "@hashtree/core": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.4.2/hashtree-core-0.2.1.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz",
     integrity:
-      "sha512-kkZKx/mNqImMy1DnWXRgv2LHaf5HbZg8sIpHV6/wLZKl3cQkmSY9xtjCZSTlUXeXIgOmxDzqDGa2GNf5Rg7b/A==",
+      "sha512-NcR9gnj3wsxCdf+FaTf4YSkWB5Yi2uptgaUlH+VqXCI/dPXyUugt/5BDnc41sdiTzRX2IWP44fvJe9Pb0P+1WA==",
   },
   "@hashtree/index": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.4.2/hashtree-index-0.1.11.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz",
     integrity:
-      "sha512-Zc6XHOYnJ0d8tOHvCp4ZXFJizh2MJj3PyYqGL2+sxti+HAFrkonGrz6cotXKUsr9A8Z4FE2XtnwfwTultdk6fw==",
+      "sha512-5/9dUXpCOJSiNs5WDgMjdy/E8lvzeNBAo/dkcBsPv/mxaa/qYL6YTaTzqd5CZVgH/usmuiefeO10LrWDRgbEXA==",
   },
   "@iris/release-tools": {
     url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.2/iris-release-tools-0.1.1.tgz",
