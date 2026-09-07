@@ -20,7 +20,15 @@ function contentTypeFor(filePath) {
   return MIME_TYPES.get(path.extname(filePath)) ?? "application/octet-stream"
 }
 
-export function shouldIgnoreConsoleError(text) {
+export function shouldIgnoreConsoleError(text, request) {
+  if (
+    /^Failed to load resource: net::ERR_FAILED\b/.test(text) &&
+    request &&
+    ["image", "media"].includes(request.resourceType) &&
+    new URL(request.url).origin !== request.origin
+  ) {
+    return true
+  }
   if (
     /^Failed to load resource: the server responded with a status of (?:401|403|404|418|429)\b/.test(
       text
@@ -133,6 +141,11 @@ export async function runPortableSmoke({
   const pageErrors = []
   const consoleErrors = []
   const smokeOrigin = new URL(url).origin
+  const requestTypes = new Map()
+
+  page.on("request", (request) => {
+    requestTypes.set(request.url(), request.resourceType())
+  })
 
   page.on("response", (response) => {
     if (isTopLevelDocumentResponse(page, response)) {
@@ -167,10 +180,17 @@ export async function runPortableSmoke({
   page.on("console", (message) => {
     if (message.type() === "error") {
       const text = message.text()
-      if (shouldIgnoreConsoleError(text)) {
+      const url = message.location().url
+      if (
+        shouldIgnoreConsoleError(text, {
+          url,
+          resourceType: requestTypes.get(url),
+          origin: smokeOrigin,
+        })
+      ) {
         return
       }
-      consoleErrors.push(`${text} (${message.location().url})`)
+      consoleErrors.push(`${text} (${url})`)
     }
   })
 
