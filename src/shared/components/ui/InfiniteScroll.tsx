@@ -21,13 +21,39 @@ type Props = {
   onLoadMore: () => void
   children: ReactNode
   scrollContainer?: HTMLElement | null
+  loadMoreKey?: string | number
+  loading?: boolean
 }
 
-const InfiniteScroll = ({onLoadMore, children, scrollContainer}: Props) => {
+const InfiniteScroll = ({
+  onLoadMore,
+  children,
+  scrollContainer,
+  loadMoreKey = 0,
+  loading = false,
+}: Props) => {
   const observerRef = useRef<HTMLDivElement | null>(null)
   const onLoadMoreRef = useRef(onLoadMore)
   const wasIntersectingRef = useRef(false)
-  onLoadMoreRef.current = onLoadMore
+  const attemptedKeyRef = useRef<string | number | null>(null)
+  onLoadMoreRef.current = () => {
+    if (
+      !wasIntersectingRef.current ||
+      loading ||
+      attemptedKeyRef.current === loadMoreKey
+    ) {
+      return
+    }
+    attemptedKeyRef.current = loadMoreKey
+    onLoadMore()
+  }
+
+  useEffect(() => {
+    // A short feed can leave its end marker in view while more relay data
+    // arrives. Retry on new candidates or appended posts, once per key, and
+    // defer that attempt until an in-flight batch has finished.
+    onLoadMoreRef.current()
+  }, [loadMoreKey, loading])
 
   useEffect(() => {
     // Find scroll container automatically if not provided
@@ -44,10 +70,9 @@ const InfiniteScroll = ({onLoadMore, children, scrollContainer}: Props) => {
 
     const observer = new IntersectionObserver((entries) => {
       const target = entries[0]
-      if (target.isIntersecting && !wasIntersectingRef.current) {
-        onLoadMoreRef.current()
-      }
       wasIntersectingRef.current = target.isIntersecting
+      if (!target.isIntersecting) attemptedKeyRef.current = null
+      onLoadMoreRef.current()
     }, observerOptions)
     const target = observerRef.current
     if (target) {
@@ -56,6 +81,8 @@ const InfiniteScroll = ({onLoadMore, children, scrollContainer}: Props) => {
 
     return () => {
       observer.disconnect()
+      wasIntersectingRef.current = false
+      attemptedKeyRef.current = null
     }
   }, [scrollContainer])
 

@@ -34,6 +34,7 @@ describe("social graph distance recalculation", () => {
     const graph = createGraph()
     const logger = vi.fn()
     const rebuilding = graph.recalculateFollowDistances(1, 1000, logger)
+    await Promise.resolve()
     graph.handleEvent({
       kind: 3,
       id: "updated-contacts",

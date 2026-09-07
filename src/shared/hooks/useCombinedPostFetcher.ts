@@ -287,5 +287,6 @@ export default function useCombinedPostFetcher({
     events: policyReady ? events : [],
     loading: !policyReady || loading || isInitializing || waitingForDataSources,
     loadMore,
+    loadMoreKey: `${scopeKey}:${sourceReadinessKey}:${events.length}`,
   }
 }

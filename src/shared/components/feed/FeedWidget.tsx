@@ -11,6 +11,7 @@ interface FeedWidgetProps {
   events: NDKEvent[]
   loading: boolean
   loadMore?: () => void
+  loadMoreKey?: string
   displayAs?: "list" | "grid" | "borderless"
   showDisplaySelector?: boolean
   onDisplayAsChange?: (display: "list" | "grid") => void
@@ -27,6 +28,7 @@ const FeedWidget = memo(function FeedWidget({
   events,
   loading,
   loadMore,
+  loadMoreKey,
   displayAs = "borderless",
   showDisplaySelector = false,
   onDisplayAsChange,
@@ -91,7 +93,12 @@ const FeedWidget = memo(function FeedWidget({
       )}
 
       {loadMore ? (
-        <InfiniteScroll onLoadMore={loadMore} scrollContainer={scrollContainer}>
+        <InfiniteScroll
+          onLoadMore={loadMore}
+          loadMoreKey={loadMoreKey}
+          loading={loading}
+          scrollContainer={scrollContainer}
+        >
           {renderEvents()}
         </InfiniteScroll>
       ) : (

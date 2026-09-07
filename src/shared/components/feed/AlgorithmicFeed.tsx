@@ -59,7 +59,7 @@ const AlgorithmicFeed = function AlgorithmicFeed({
 
   const {feedDisplayAs: displayAs, setFeedDisplayAs: setDisplayAs} = useFeedStore()
 
-  const {events, loadMore, loading} = useAlgorithmicFeed(cache, {
+  const {events, loadMore, loadMoreKey, loading} = useAlgorithmicFeed(cache, {
     filterSeen: config.filterSeen,
     showReplies: config.showReplies,
     popularRatio: config.includeChronological ? 0.5 : 1.0,
@@ -71,6 +71,7 @@ const AlgorithmicFeed = function AlgorithmicFeed({
       events={events}
       loading={loading}
       loadMore={loadMore}
+      loadMoreKey={loadMoreKey}
       displayAs={small ? "borderless" : displayAs}
       showDisplaySelector={showDisplaySelector}
       onDisplayAsChange={setDisplayAs}

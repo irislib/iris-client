@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.5.13
+
+- Update nostr-double-ratchet to 0.0.169: send private messages after signing and
+  saving locally. Relay delivery and retries run in the background, with queued
+  encrypted messages preserved across reloads.
+- Update nostr-social-graph to 2.0.1 for coalesced distance calculations and faster
+  binary processing, remove the temporary graph patch, and avoid duplicate
+  startup traversals.
+- Fill short feeds and continue pagination when more relay candidates arrive,
+  while keeping existing post order stable.
+
 ## 2.5.12
 
 - Start restored For You feeds from the saved visibility graph without waiting

@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.12",
+  "version": "2.5.13",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -101,8 +101,8 @@
     "lodash": "^4.18.1",
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
-    "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.168/nostr-double-ratchet-0.0.168.tgz",
-    "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.0/nostr-social-graph-2.0.0.tgz",
+    "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.169/nostr-double-ratchet-0.0.169.tgz",
+    "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
     "qrcode": "^1.5.4",
@@ -158,10 +158,5 @@
     "workbox-strategies": "^7.4.1",
     "workbox-window": "^7.4.1",
     "ws": "^8.21.1"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "nostr-social-graph@2.0.0": "patches/nostr-social-graph@2.0.0.patch"
-    }
   }
 }
