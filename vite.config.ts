@@ -173,7 +173,7 @@ export default defineConfig({
     "import.meta.env.VITE_BUILD_TIME": JSON.stringify(new Date().toISOString()),
   },
   test: {
-    include: ["src/**/*.test.ts", "dev-relay/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}", "dev-relay/**/*.test.ts"],
     exclude: [
       "tests/**/*",
       "node_modules/**/*",

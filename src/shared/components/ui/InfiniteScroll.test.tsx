@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import {act, createElement} from "react"
+import {act} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import InfiniteScroll from "./InfiniteScroll"
@@ -55,10 +55,9 @@ describe("InfiniteScroll", () => {
 
     await act(async () => {
       root.render(
-        createElement(InfiniteScroll, {
-          onLoadMore: firstLoad,
-          children: createElement("p", null, "post"),
-        })
+        <InfiniteScroll onLoadMore={firstLoad}>
+          <p>post</p>
+        </InfiniteScroll>
       )
     })
 
@@ -67,10 +66,9 @@ describe("InfiniteScroll", () => {
 
     await act(async () => {
       root.render(
-        createElement(InfiniteScroll, {
-          onLoadMore: nextLoad,
-          children: createElement("p", null, "post"),
-        })
+        <InfiniteScroll onLoadMore={nextLoad}>
+          <p>post</p>
+        </InfiniteScroll>
       )
     })
 
