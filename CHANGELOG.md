@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.14
+
+- Speed up logout by skipping notification-worker waits when none is registered
+  and running independent cleanup in parallel, while preserving device revocation
+  and private-data cleanup.
+- Show For You posts and recommendations from the default network before the
+  first follow, honor personal mutes, and switch to the personal network when
+  following someone.
+- Remove the empty-follow prompt above recommendation feeds.
+
 ## 2.5.13
 
 - Update nostr-double-ratchet to 0.0.169: send private messages after signing and
