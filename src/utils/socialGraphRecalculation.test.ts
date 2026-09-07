@@ -20,6 +20,22 @@ function createGraph() {
 }
 
 describe("social graph distance recalculation", () => {
+  it("keeps a root switch queued as the previous recalculation completes", async () => {
+    const graph = createGraph()
+    let switched: Promise<void> | undefined
+    await graph.recalculateFollowDistances(1000, 1000, (message) => {
+      if (message.includes(": done")) {
+        queueMicrotask(() => {
+          switched = graph.setRoot(key(2))
+        })
+      }
+    })
+    await switched
+    expect(graph.getRoot()).toBe(key(2))
+    expect(graph.getFollowDistance(key(2))).toBe(0)
+    expect(graph.getFollowDistance(key(20))).toBe(18)
+  })
+
   it("keeps the complete graph visible while rebuilding distances", async () => {
     const graph = createGraph()
     const before = graph.size()
