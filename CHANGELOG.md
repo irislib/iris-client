@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.15
+
+- Show search results from the default network for accounts with no follows,
+  while honoring personal mutes and the unknown-user filter.
+- Use a dedicated text-search source and keep search requests and pagination
+  independent so old results cannot skip newer history.
+- Continue searching past pages of nonmatches and offer an older-post search
+  when the initial batches have no matches.
+- Update the Hashtree runtime to the v0.5.7 security release.
+
 ## 2.5.14
 
 - Speed up logout by skipping notification-worker waits when none is registered
