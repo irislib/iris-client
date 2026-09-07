@@ -1,6 +1,5 @@
 import {unsubscribeAll} from "@/utils/notifications"
 import {useUserStore} from "@/stores/user"
-// import {useUserRecordsStore} from "@/stores/userRecords" // TEMP: Removed
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useDraftStore} from "@/stores/draft"
 import {MouseEvent, useEffect, useState} from "react"
@@ -12,20 +11,28 @@ import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {SettingsButton} from "@/shared/components/settings/SettingsButton"
 import {confirm} from "@/utils/utils"
-import {revokeCurrentDevice} from "@/shared/services/PrivateChats"
+import {closePrivateMessaging, revokeCurrentDevice} from "@/shared/services/PrivateChats"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 // Helper function to add timeout to any promise
-const withTimeout = (promise: Promise<unknown>, ms: number): Promise<unknown> => {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Operation timeout after ${ms}ms`)), ms)
-    ),
-  ])
+const withTimeout = async (promise: Promise<unknown>, ms: number): Promise<unknown> => {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error(`Operation timeout after ${ms}ms`)),
+          ms
+        )
+      }),
+    ])
+  } finally {
+    clearTimeout(timeout)
+  }
 }
 
 function Logout() {
@@ -95,8 +102,6 @@ function Logout() {
       // Clear events store (clears message repository)
       await usePrivateMessagesStore.getState().clear()
 
-      // TEMP: Skip resetting userRecords store
-      // useUserRecordsStore.getState().reset()
       useDraftStore.getState().clearAll()
 
       // For stores without reset methods, we'll rely on storage clearing
@@ -110,8 +115,8 @@ function Logout() {
     if (!("serviceWorker" in navigator)) return
 
     try {
-      const reg = await navigator.serviceWorker.ready
-      const existingSub = await reg.pushManager.getSubscription()
+      const reg = await navigator.serviceWorker.getRegistration()
+      const existingSub = await reg?.pushManager?.getSubscription()
       if (existingSub) {
         await existingSub.unsubscribe()
         log("Unsubscribed from push notifications")
@@ -123,21 +128,19 @@ function Logout() {
 
   async function performLogout() {
     try {
-      // Revoke current device from messaging appkeys
-      try {
-        log("[Logout] Revoking current device from appkeys")
-        await withTimeout(revokeCurrentDevice(), 5000)
-      } catch (e) {
-        error("Error revoking device:", e)
-      }
+      // Both remote operations need the signer, but neither depends on the other.
+      // Preserve device revocation's delivery window before deleting its retry queue.
+      await Promise.all([
+        withTimeout(revokeCurrentDevice(), 5000).catch((e) =>
+          error("Error revoking device:", e)
+        ),
+        withTimeout(unsubscribeAll(), 3000).catch((e) =>
+          error("Error unsubscribing from push notifications:", e)
+        ),
+      ])
 
-      // Try to unsubscribe from notifications first, while we still have the signer
-      try {
-        log("[Logout] Unsubscribing from notifications")
-        await withTimeout(unsubscribeAll(), 3000)
-      } catch (e) {
-        error("Error unsubscribing from push notifications:", e)
-      }
+      // Stop incoming messages and publication retries before clearing their storage.
+      closePrivateMessaging()
 
       // Clean up stores first (while we still have access to data)
       try {

@@ -505,12 +505,20 @@ export const clearNotifications = async () => {
 }
 
 export const unsubscribeAll = async () => {
+  // Invalidate pending reconciliation so it cannot resubscribe during logout.
+  ++notificationSyncGeneration
+  ++dmNotificationSyncGeneration
+  scheduleNotificationSync.cancel()
+  scheduleDmNotificationSync.cancel()
+
   if (!("serviceWorker" in navigator)) {
     return
   }
 
-  const reg = await navigator.serviceWorker.ready
-  const pushSubscription = await reg.pushManager.getSubscription()
+  // `ready` can wait forever when no worker is registered. Cleanup only needs
+  // an existing registration and must not wait for a worker to be installed.
+  const reg = await navigator.serviceWorker.getRegistration()
+  const pushSubscription = await reg?.pushManager?.getSubscription()
 
   if (!pushSubscription) {
     return
