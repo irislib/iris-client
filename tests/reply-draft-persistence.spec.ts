@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {expectPersistedDraft} from "./utils/drafts"
 
 test.describe("Reply draft persistence", () => {
   test("should persist reply draft after page reload", async ({page}) => {
@@ -28,20 +29,15 @@ test.describe("Reply draft persistence", () => {
     const replyDraft = "This is my draft reply that should persist"
     await page.getByPlaceholder("Write your reply...").fill(replyDraft)
 
-    // Wait for draft to persist to localforage
-    await page.waitForTimeout(1000)
+    await expectPersistedDraft(page, replyDraft)
 
     // Reload the page
     await page.reload()
-    await page.waitForLoadState("domcontentloaded")
 
     // Wait for the feed item to load first (ensures draft store is hydrated)
     await expect(
       page.getByTestId("feed-item").filter({hasText: "Post to reply to"}).first()
     ).toBeVisible({timeout: 15000})
-
-    // Wait for draft store to hydrate from localforage
-    await page.waitForTimeout(2000)
 
     // Check that reply draft is preserved
     await expect(page.getByPlaceholder("Write your reply...")).toHaveValue(replyDraft, {
@@ -159,7 +155,6 @@ test.describe("Reply draft persistence", () => {
     const replyContent = "This reply will be published"
     await page.getByPlaceholder("Write your reply...").fill(replyContent)
     await page.getByRole("button", {name: "Reply"}).click()
-    await page.waitForTimeout(1000)
 
     // Check reply draft is cleared
     await expect(page.getByPlaceholder("Write your reply...")).toHaveValue("")

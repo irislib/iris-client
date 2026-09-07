@@ -138,6 +138,10 @@ export default function useChronologicalSubscription(
       cache.showingPosts = showingPosts.current
     })
 
+    sub.on("eose", () => {
+      if (pendingPosts.current.size > 0) markInitialDataReady()
+    })
+
     const timeout = setTimeout(() => {
       if (activeAuthorScope.current !== subscribedScope) return
       if (pendingPosts.current.size <= LOW_THRESHOLD) {

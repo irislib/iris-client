@@ -73,8 +73,6 @@ async function signUp(page, username = "Test User") {
 
   // For npub logins, just wait for the main content to load
   if (isKey) {
-    await page.waitForLoadState("networkidle")
-    // Just check that we have main content loaded
     await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
   } else {
     await expect(

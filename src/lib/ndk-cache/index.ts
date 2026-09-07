@@ -98,8 +98,8 @@ export default class NDKCacheAdapterDexie implements NDKCacheAdapter {
   public eventTags: CacheHandler<EventTagCacheEntry>
   public relayInfo: CacheHandler<RelayStatus>
   public unpublishedEvents: CacheHandler<UnpublishedEvent>
-  private warmedUp = false
-  private warmUpPromise: Promise<any>
+  private eventsWarmUpPromise: Promise<void>
+  private eventTagsWarmUpPromise: Promise<void>
   public devMode = false
   private saveSig: boolean
   public _onReady?: () => void
@@ -172,7 +172,15 @@ export default class NDKCacheAdapterDexie implements NDKCacheAdapter {
     }
 
     const startTime = Date.now()
-    this.warmUpPromise = Promise.allSettled([
+    this.eventsWarmUpPromise = profile("eventsWarmUp", () =>
+      eventsWarmUp(this.events, db.events)
+    )
+    this.eventTagsWarmUpPromise = profile("eventTagsWarmUp", () =>
+      eventTagsWarmUp(this.eventTags, db.eventTags)
+    )
+    Promise.allSettled([
+      this.eventsWarmUpPromise,
+      this.eventTagsWarmUpPromise,
       profile("profilesWarmUp", () => profilesWarmUp(this.profiles, db.profiles)),
       profile("zapperWarmUp", () => zapperWarmUp(this.zappers, db.lnurl)),
       profile("nip05WarmUp", () => nip05WarmUp(this.nip05s, db.nip05)),
@@ -180,12 +188,8 @@ export default class NDKCacheAdapterDexie implements NDKCacheAdapter {
       profile("unpublishedEventsWarmUp", () =>
         unpublishedEventsWarmUp(this.unpublishedEvents, db.unpublishedEvents)
       ),
-      profile("eventsWarmUp", () => eventsWarmUp(this.events, db.events)),
-      profile("eventTagsWarmUp", () => eventTagsWarmUp(this.eventTags, db.eventTags)),
-    ])
-    this.warmUpPromise.then(() => {
+    ]).then(() => {
       const endTime = Date.now()
-      this.warmedUp = true
       this.ready = true
       this.locking = true
       this.debug("Warm up completed, time", endTime - startTime, "ms")
@@ -200,15 +204,22 @@ export default class NDKCacheAdapterDexie implements NDKCacheAdapter {
   }
 
   public async query(subscription: NDKSubscription): Promise<NDKEvent[]> {
-    // ensure we have warmed up before processing the filter
-    if (!this.warmedUp) {
-      const startTime = Date.now()
-      await this.warmUpPromise
-      this.debug("froze query for", Date.now() - startTime, "ms", subscription.filters)
-    }
+    // Author/id queries match tags on the events themselves. Only tag-index
+    // queries need the separate tag cache; unrelated caches never gate relays.
+    const needsTagIndex = subscription.filters.some(
+      (filter) =>
+        !filter.authors &&
+        !filter.ids &&
+        Object.keys(filter).some((key) => key.length === 2 && key.startsWith("#"))
+    )
+    await Promise.allSettled(
+      needsTagIndex
+        ? [this.eventsWarmUpPromise, this.eventTagsWarmUpPromise]
+        : [this.eventsWarmUpPromise]
+    )
 
     const startTime = Date.now()
-    subscription.filters.map((filter) => this.processFilter(filter, subscription))
+    subscription.filters.forEach((filter) => this.processFilter(filter, subscription))
     const dur = Date.now() - startTime
     if (dur > 100) this.debug("query took", dur, "ms", subscription.filter)
 
@@ -579,17 +590,13 @@ export default class NDKCacheAdapterDexie implements NDKCacheAdapter {
   private byAuthors(filter: NDKFilter, subscription: NDKSubscription): boolean {
     if (!filter.authors) return false
 
-    let _total = 0
-
     for (const pubkey of filter.authors) {
-      // const eventsFromDb = await db.events.where({ pubkey }).toArray();
       let events = Array.from(this.events.getFromIndex("pubkey", pubkey))
 
       // reduce by kind if needed
       if (filter.kinds) events = events.filter((e) => filter.kinds?.includes(e.kind))
 
       foundEvents(subscription, events, filter)
-      _total += events.length
     }
 
     return true

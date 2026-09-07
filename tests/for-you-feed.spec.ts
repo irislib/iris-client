@@ -52,6 +52,103 @@ const publishEvents = async (events: VerifiedEvent[]) => {
   }
 }
 
+test("a restored low-activity for you feed displays relay posts without the five-second fallback", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const followed = createUser()
+  const content = `low-activity feed ${viewer.publicKey}`
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+    signEvent(followed, {
+      kind: 1,
+      content,
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000) - 1,
+    }),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+
+  const startedAt = Date.now()
+  await page.reload()
+  try {
+    await expect(
+      page.getByTestId("feed-item").filter({hasText: content}).first()
+    ).toBeVisible({timeout: 15000})
+    console.log(`Restored For You feed: ${Date.now() - startedAt}ms`)
+    expect(Date.now() - startedAt).toBeLessThan(4000)
+  } finally {
+    await testInfo.attach("restored-for-you-ms", {
+      body: String(Date.now() - startedAt),
+      contentType: "text/plain",
+    })
+  }
+})
+
+test("logged-in relay subscriptions recover after their worker crashes", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const target = window as typeof window & {
+      relayWorkers: Worker[]
+      relayWorkersReady: number
+    }
+    target.relayWorkers = []
+    target.relayWorkersReady = 0
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: ConstructorParameters<typeof Worker>[1]) {
+        super(url, options)
+        if (String(url).includes("relay-worker")) {
+          target.relayWorkers.push(this)
+          this.addEventListener("message", ({data}) => {
+            if (data.type === "ready") target.relayWorkersReady++
+          })
+        }
+      }
+    }
+  })
+  const viewer = createUser()
+  const before = `before recovery ${viewer.publicKey}`
+  const after = `after recovery ${viewer.publicKey}`
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  // Use a stable app subscription: UI pagination can otherwise replace a feed
+  // subscription during recovery and conceal the dropped-subscription bug.
+  await page.evaluate(async (publicKey) => {
+    const modulePath = "/src/utils/ndk.ts"
+    const {ndk} = await import(modulePath)
+    const target = window as typeof window & {recoveredEvents: string[]}
+    target.recoveredEvents = []
+    ndk()
+      .subscribe({kinds: [1], authors: [publicKey]}, {transports: ["worker-transport"]})
+      .on("event", (event: {content: string}) => {
+        target.recoveredEvents.push(event.content)
+      })
+  }, viewer.publicKey)
+  await publishEvents([signEvent(viewer, {kind: 1, content: before, tags: []})])
+  const receivedEvents = () =>
+    page.evaluate(
+      () => (window as typeof window & {recoveredEvents: string[]}).recoveredEvents
+    )
+  await expect.poll(receivedEvents).toContain(before)
+
+  await page.evaluate(() => {
+    const target = window as typeof window & {relayWorkers: Worker[]}
+    const worker = target.relayWorkers[0]
+    worker.terminate()
+    worker.dispatchEvent(new ErrorEvent("error", {message: "test worker crash"}))
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as typeof window & {relayWorkersReady: number}).relayWorkersReady
+      )
+    )
+    .toBe(2)
+  await publishEvents([signEvent(viewer, {kind: 1, content: after, tags: []})])
+  await expect.poll(receivedEvents).toContain(after)
+})
+
 test("for you filters overmuted authors and unknown engagement actors", async ({
   page,
 }) => {

@@ -15,9 +15,10 @@ export async function unpublishedEventsWarmUp(
   cacheHandler: CacheHandler<UnpublishedEvent>,
   unpublishedEvents: Table<UnpublishedEvent>
 ) {
-  await unpublishedEvents.each((unpublishedEvent) => {
+  const entries = await unpublishedEvents.limit(cacheHandler.maxSize).toArray()
+  for (const unpublishedEvent of entries) {
     cacheHandler.set(unpublishedEvent.event.id!, unpublishedEvent, false)
-  })
+  }
 }
 
 export function unpublishedEventsDump(

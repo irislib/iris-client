@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.5.11
+
+- Start feed relay requests without waiting for unrelated profile, payment, or
+  unpublished-event cache warmup, and bound unpublished-event memory loading.
+- Display low-activity recommendations when relay history arrives instead of
+  waiting for the five-second fallback.
+- Restore active subscriptions after relay worker failures and avoid duplicate
+  recovery attempts, completed-query replay, or restarting a closed runtime.
+- Update the double-ratchet runtime to 0.0.168 so slow relay acknowledgements do
+  not block incoming messages or peer discovery.
+- Replace fixed draft and cache test pauses with persisted-state checks.
+
 ## 2.5.10
 
 - Hide unknown and threshold-three overmuted identities from profile follows,

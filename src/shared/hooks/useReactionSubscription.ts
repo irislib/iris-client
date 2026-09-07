@@ -144,6 +144,10 @@ export default function useReactionSubscription(
       cache.showingReactionCounts = showingReactionCounts.current
     })
 
+    sub.on("eose", () => {
+      if (pendingReactionCounts.current.size > 0) markInitialDataReady()
+    })
+
     const timeout = setTimeout(() => {
       if (activeAuthorScope.current !== subscribedScope) return
       if (pendingReactionCounts.current.size <= LOW_THRESHOLD) {

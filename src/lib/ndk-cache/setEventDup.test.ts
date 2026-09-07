@@ -52,9 +52,6 @@ describe("setEventDup", () => {
     adapter.setEventDup(event, relay2)
     adapter.setEventDup(event, relay3)
 
-    // Wait for async operations to complete
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
     // Query the eventRelays table to verify all relays are stored
     const relays = await db.eventRelays.where({eventId: event.id}).toArray()
     expect(relays).toHaveLength(3)
@@ -84,9 +81,6 @@ describe("setEventDup", () => {
     adapter.setEventDup(event, relay)
     adapter.setEventDup(event, relay)
 
-    // Wait for async operations
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
     // Should still only have the relay once (Dexie's put with primary key handles this)
     const relays = await db.eventRelays
       .where({eventId: event.id, relayUrl: "wss://relay.example.com"})
@@ -102,9 +96,6 @@ describe("setEventDup", () => {
     // Call setEventDup without storing event first
     // Should not throw, and should create relay association anyway
     expect(() => adapter.setEventDup(event, relay)).not.toThrow()
-
-    // Wait a bit for the async db.eventRelays.put to complete
-    await new Promise((resolve) => setTimeout(resolve, 100))
 
     // Relay association should be created even if event doesn't exist
     const relays = await db.eventRelays.where({eventId: event.id}).toArray()
@@ -131,9 +122,6 @@ describe("setEventDup", () => {
     await adapter.setEvent(event, [], relay1)
     adapter.setEventDup(event, relay2)
     adapter.setEventDup(event, relay3)
-
-    // Wait for async operations
-    await new Promise((resolve) => setTimeout(resolve, 100))
 
     // Verify all relays are in database
     const relays = await db.eventRelays.where({eventId: event.id}).toArray()

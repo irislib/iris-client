@@ -34,13 +34,15 @@ export class NDKWorkerTransport {
   private disableExtraRelayUrls = false
   private subscriptions = new Map<string, Set<(event: NDKEvent) => void>>()
   private eoseHandlers = new Map<string, Set<() => void>>()
+  private subscriptionRequests = new Map<string, WorkerMessage>()
   private publishResolvers = new Map<
     string,
     {resolve: () => void; reject: (err: Error) => void}
   >()
   private ready = false
-  private readyPromise!: Promise<void>
   private restartAttempts = 0
+  private restarting = false
+  private closed = false
   private statsCallbacks = new Map<string, (stats: LocalDataStats) => void>()
   private relayStatusCallbacks = new Set<(statuses: any[]) => void>()
   private messageQueue: WorkerMessage[] = []
@@ -97,22 +99,30 @@ export class NDKWorkerTransport {
   }
 
   private setupWorker(worker: Worker) {
-    this.readyPromise = new Promise((resolve) => {
-      const handler = (e: MessageEvent<WorkerResponse>) => {
-        if (e.data.type === "ready") {
-          this.ready = true
-          worker.removeEventListener("message", handler)
-          this.restartAttempts = 0 // Reset on successful init
-          this.flushMessageQueue()
-          this.startHeartbeat()
-          resolve()
+    const handler = (e: MessageEvent<WorkerResponse>) => {
+      if (
+        e.data.type === "ready" &&
+        !this.closed &&
+        !this.restarting &&
+        worker === this.worker
+      ) {
+        this.ready = true
+        worker.removeEventListener("message", handler)
+        this.restartAttempts = 0
+        // Subscriptions are desired state, including changes made while the
+        // worker was unavailable. Replay each active request exactly once.
+        for (const request of this.subscriptionRequests.values()) {
+          worker.postMessage(request)
         }
+        this.flushMessageQueue()
+        this.startHeartbeat()
       }
-      worker.addEventListener("message", handler)
-    })
+    }
+    worker.addEventListener("message", handler)
 
     // Handle worker crashes
     worker.onerror = (error) => {
+      if (worker !== this.worker) return
       console.error("[Worker Transport] Worker error:", error)
       this.handleWorkerCrash()
     }
@@ -152,15 +162,19 @@ export class NDKWorkerTransport {
   }
 
   private async handleWorkerCrash() {
+    if (this.closed || this.restarting) return
+    this.restarting = true
     this.stopHeartbeat()
     this.restartAttempts++
     this.ready = false
+    this.searchReady = false
 
     // Check if we can restart
     if (!this.workerUrl && !this.workerFactory) {
       console.error(
         "[Worker Transport] Cannot restart worker - no URL or factory provided"
       )
+      this.restarting = false
       return
     }
 
@@ -171,13 +185,15 @@ export class NDKWorkerTransport {
     )
 
     await new Promise((resolve) => setTimeout(resolve, delay))
+    if (this.closed) return
 
     // Recreate worker
     this.worker.terminate()
     this.worker = this.createWorker()
+    this.restarting = false
 
     // Reinitialize with same config
-    if (this.ndk && this.relayUrls.length > 0) {
+    if (this.ndk) {
       try {
         await this.connect(this.ndk, this.relayUrls, {
           disableExtraRelayUrls: this.disableExtraRelayUrls,
@@ -259,6 +275,7 @@ export class NDKWorkerTransport {
   }
 
   private postMessage(msg: WorkerMessage): void {
+    if (this.closed) return
     if (this.ready) {
       this.worker.postMessage(msg)
     } else {
@@ -268,10 +285,10 @@ export class NDKWorkerTransport {
 
   private flushMessageQueue(): void {
     log(`[Worker Transport] Flushing ${this.messageQueue.length} queued messages`)
-    while (this.messageQueue.length > 0) {
-      const msg = this.messageQueue.shift()!
+    for (const msg of this.messageQueue) {
       this.worker.postMessage(msg)
     }
+    this.messageQueue = []
   }
 
   private handleOffline = () => {
@@ -399,26 +416,36 @@ export class NDKWorkerTransport {
       subscribeOpts.waitForCacheBeforeRelays = opts.waitForCacheBeforeRelays
     }
 
-    this.postMessage({
+    const request: WorkerMessage = {
       type: "subscribe",
       id: subId,
       filters,
       subscribeOpts,
-    } as WorkerMessage)
+    }
+    this.subscriptionRequests.set(subId, request)
+    if (this.ready) this.postMessage(request)
   }
 
   unsubscribe(subId: string): void {
     this.subscriptions.delete(subId)
     this.eoseHandlers.delete(subId)
+    this.subscriptionRequests.delete(subId)
 
-    this.postMessage({
-      type: "unsubscribe",
-      id: subId,
-    } as WorkerMessage)
+    if (this.ready)
+      this.postMessage({
+        type: "unsubscribe",
+        id: subId,
+      } as WorkerMessage)
   }
 
   close(): void {
+    this.closed = true
+    this.ready = false
     this.stopHeartbeat()
+    this.subscriptionRequests.clear()
+    this.subscriptions.clear()
+    this.eoseHandlers.clear()
+    this.messageQueue = []
 
     // Remove event listeners
     if (typeof window !== "undefined") {
@@ -432,7 +459,6 @@ export class NDKWorkerTransport {
       this.removeTransportPlugin(this.ndk)
     }
 
-    this.postMessage({type: "close"} as WorkerMessage)
     this.worker.terminate()
   }
 
@@ -529,32 +555,14 @@ export class NDKWorkerTransport {
     onEvent: (event: NDKEvent) => void,
     onEose?: () => void
   ): void {
-    // Register handlers same as regular subscribe
-    if (!this.subscriptions.has(subId)) {
-      this.subscriptions.set(subId, new Set())
-    }
-    this.subscriptions.get(subId)!.add(onEvent)
-
-    if (onEose) {
-      if (!this.eoseHandlers.has(subId)) {
-        this.eoseHandlers.set(subId, new Set())
-      }
-      this.eoseHandlers.get(subId)!.add(onEose)
-    }
-
-    this.postMessage({
-      type: "subscribe",
-      id: subId,
-      filters,
-      subscribeOpts: {
-        destinations: ["cache"],
-        closeOnEose: true,
-      },
-    } as WorkerMessage)
+    this.subscribe(subId, filters, onEvent, onEose, {
+      cacheUsage: NDKSubscriptionCacheUsage.ONLY_CACHE,
+    })
   }
 
   private setupMessageHandler(worker: Worker): void {
     worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      if (this.closed || this.restarting || worker !== this.worker) return
       const {type, subId, event, relay, notice, error, id} = e.data
 
       switch (type) {
@@ -574,9 +582,16 @@ export class NDKWorkerTransport {
 
         case "eose":
           if (subId) {
+            const request = this.subscriptionRequests.get(subId)
             const handlers = this.eoseHandlers.get(subId)
             if (handlers) {
               handlers.forEach((handler) => handler())
+            }
+            if (
+              request?.subscribeOpts?.closeOnEose &&
+              this.subscriptionRequests.get(subId) === request
+            ) {
+              this.unsubscribe(subId)
             }
           }
           break
