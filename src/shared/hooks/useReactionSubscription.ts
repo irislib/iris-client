@@ -7,11 +7,11 @@ import {PopularityFilters} from "./usePopularityFilters"
 import {seenEventIds} from "@/utils/memcache"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
+import useCandidateRevision from "./useCandidateRevision"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const LOW_THRESHOLD = 20
-const INITIAL_DATA_THRESHOLD = 5
 
 interface ReactionSubscriptionCache {
   authorScope?: string
@@ -27,6 +27,7 @@ export default function useReactionSubscription(
   visibilitySnapshot: AlgorithmicVisibilitySnapshot | null,
   filterSeen?: boolean
 ) {
+  const {revision, notify} = useCandidateRevision()
   const authorScope = `${currentFilters.scopeKey}:${
     currentFilters.ready ? "ready" : "loading"
   }:${currentFilters.authors.join(",")}`
@@ -132,12 +133,10 @@ export default function useReactionSubscription(
         pendingReactionCounts.current.get(originalPostId)?.add(event.pubkey)
       } else {
         pendingReactionCounts.current.set(originalPostId, new Set([event.pubkey]))
+        notify()
       }
 
-      if (
-        !hasInitialDataRef.current &&
-        pendingReactionCounts.current.size >= INITIAL_DATA_THRESHOLD
-      ) {
+      if (pendingReactionCounts.current.size > 0) {
         markInitialDataReady()
       }
       cache.pendingReactionCounts = pendingReactionCounts.current
@@ -194,5 +193,6 @@ export default function useReactionSubscription(
     getNextMostPopular,
     hasInitialData: activeAuthorScope.current === authorScope && hasInitialData,
     sourceKey: authorScope,
+    revision,
   }
 }

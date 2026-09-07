@@ -22,6 +22,11 @@ export const DEFAULT_CRAWL_DEGREE = 3
 const currentPublicKey = useUserStore.getState().publicKey
 let instance = new SocialGraph(currentPublicKey || DEFAULT_SOCIAL_GRAPH_ROOT)
 let isInitialized = false
+interface SavedSocialGraph {
+  data: Uint8Array
+  readyRoot?: string
+}
+let readyGraphRoot: string | undefined
 
 // Notify subscribers of graph changes via Zustand store
 const notifyGraphChange = () => {
@@ -54,10 +59,12 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
   isInitialized = true
 
   try {
-    const data = await localForage.getItem("socialGraph")
-    if (data) {
+    const saved = await localForage.getItem<Uint8Array | SavedSocialGraph>("socialGraph")
+    if (saved) {
       try {
-        instance = await SocialGraph.fromBinary(publicKey, data as Uint8Array)
+        const snapshot = saved instanceof Uint8Array ? {data: saved} : saved
+        instance = await SocialGraph.fromBinary(publicKey, snapshot.data)
+        readyGraphRoot = snapshot.readyRoot
         log("loaded local social graph of size", instance.size())
       } catch (err) {
         error("error deserializing", err)
@@ -83,8 +90,12 @@ const saveToLocalForage = async () => {
   }
 
   try {
+    const readyRoot =
+      useSocialGraphStore.getState().isReady && readyGraphRoot === instance.getRoot()
+        ? readyGraphRoot
+        : undefined
     const serialized = await instance.toBinary()
-    await localForage.setItem("socialGraph", serialized)
+    await localForage.setItem("socialGraph", {data: serialized, readyRoot})
     log("Saved social graph of size", instance.size())
   } catch (err) {
     error("failed to serialize SocialGraph or UniqueIds", err)
@@ -112,7 +123,9 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   const hasMuteListUpdate = events.some((e) => e.kind === KIND_MUTE_LIST)
   const hasFollowListUpdate = events.some((e) => e.kind === KIND_CONTACTS)
 
-  instance.handleEvent(evs)
+  // Relays and overlapping subscriptions often repeat the same contact list.
+  // An ignored event must not trigger another graph render, save, or traversal.
+  if (!instance.handleEvent(evs)) return false
   throttledSave()
 
   if (hasMuteListUpdate) {
@@ -123,6 +136,7 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   if (hasFollowListUpdate) {
     notifyGraphChange()
   }
+  return true
 }
 
 let sub: NDKSubscription | undefined
@@ -434,6 +448,16 @@ async function setupSubscription(publicKey: string) {
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
   notifyGraphChange()
 
+  // Returning visitors already have a complete local visibility snapshot.
+  // Refresh it over the open subscriptions below without making feed startup
+  // depend on every configured relay completing its history response.
+  if (
+    readyGraphRoot === publicKey &&
+    instance.getFollowListCreatedAt(publicKey) !== undefined
+  ) {
+    useSocialGraphStore.getState().setReady(true)
+  }
+
   // Import ndk lazily to avoid initialization race
   const {ndk: getNdk, initNDK} = await import("@/utils/ndk")
   await initNDK()
@@ -468,10 +492,11 @@ async function setupSubscription(publicKey: string) {
       return
     }
     latestTime = ev.created_at
-    handleSocialGraphEvent(ev as NostrEvent)
-    void instance.recalculateFollowDistances().then(() => {
-      if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
-    })
+    if (handleSocialGraphEvent(ev as NostrEvent)) {
+      void instance.recalculateFollowDistances().then(() => {
+        if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
+      })
+    }
 
     if (initialSyncDone) {
       queueMicrotask(() =>
@@ -586,10 +611,11 @@ async function setupSubscription(publicKey: string) {
     )
     backgroundOpinionSub.on("event", (event) => {
       if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-      handleSocialGraphEvent(event as NostrEvent)
-      void instance.recalculateFollowDistances().then(() => {
-        if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
-      })
+      if (handleSocialGraphEvent(event as NostrEvent)) {
+        void instance.recalculateFollowDistances().then(() => {
+          if (isCurrentGraphSync(syncGeneration, publicKey)) notifyGraphChange()
+        })
+      }
     })
     if (!isCurrentGraphSync(syncGeneration, publicKey)) {
       backgroundOpinionSub.stop()
@@ -599,7 +625,9 @@ async function setupSubscription(publicKey: string) {
   }
 
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  readyGraphRoot = publicKey
   useSocialGraphStore.getState().setReady(true)
+  await saveToLocalForage()
 }
 
 export const saveToFile = async () => {
@@ -628,9 +656,10 @@ export const loadFromFile = (merge = false) => {
           const data = new Uint8Array(buffer)
           SocialGraph.fromBinary(instance.getRoot(), data).then(async (newInstance) => {
             if (merge) {
-              instance.merge(newInstance)
+              await instance.merge(newInstance)
             } else {
               instance = newInstance
+              readyGraphRoot = undefined
             }
             notifyGraphChange()
             await saveToLocalForage()
@@ -720,6 +749,7 @@ export const downloadLargeGraph = (options: DownloadGraphOptions = {}) => {
     })
     .then(async (newInstance) => {
       instance = newInstance
+      readyGraphRoot = undefined
       await instance.recalculateFollowDistances()
       notifyGraphChange()
       throttledSave()
@@ -738,6 +768,7 @@ export const downloadLargeGraph = (options: DownloadGraphOptions = {}) => {
 export const loadAndMerge = () => loadFromFile(true)
 
 export const clearGraph = async () => {
+  readyGraphRoot = undefined
   instance = new SocialGraph(instance.getRoot())
   notifyGraphChange()
   await saveToLocalForage()
@@ -745,6 +776,7 @@ export const clearGraph = async () => {
 }
 
 export const resetGraph = async () => {
+  readyGraphRoot = undefined
   const root = instance.getRoot()
   instance = await loadPreCrawledGraph(root)
   notifyGraphChange()

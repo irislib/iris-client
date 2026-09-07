@@ -85,6 +85,101 @@ test("a restored low-activity for you feed displays relay posts without the five
   }
 })
 
+test("restored For You starts from its saved graph when relays never send EOSE", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const followed = createUser()
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  await page.goto("/settings/social-graph")
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const modulePath = "/src/stores/socialGraph.ts"
+        const {useSocialGraphStore} = await import(modulePath)
+        return useSocialGraphStore.getState().isReady
+      })
+    )
+    .toBe(true)
+  // Wait for the actual completed snapshot, including its viewer marker, to
+  // reach disk before testing a returning visitor with silent relays.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<string | undefined>((resolve, reject) => {
+            const open = indexedDB.open("localforage")
+            open.onerror = () => reject(open.error)
+            open.onsuccess = () => {
+              const db = open.result
+              const tx = db.transaction("keyvaluepairs", "readonly")
+              const request = tx.objectStore("keyvaluepairs").get("socialGraph")
+              request.onsuccess = () => resolve(request.result?.readyRoot)
+              request.onerror = () => reject(request.error)
+              tx.oncomplete = () => db.close()
+            }
+          })
+      )
+    )
+    .toBe(viewer.publicKey)
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: ConstructorParameters<typeof Worker>[1]) {
+        super(url, options)
+        if (String(url).includes("relay-worker")) {
+          this.addEventListener("message", (event) => {
+            if (event.data.type === "eose") event.stopImmediatePropagation()
+          })
+        }
+      }
+    }
+  })
+  const content = `no EOSE recommendation ${viewer.publicKey}`
+  await publishEvents([
+    signEvent(followed, {
+      kind: 1,
+      content,
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000) - 1,
+    }),
+  ])
+  const startedAt = Date.now()
+  await page.goto("/")
+  await expect(
+    page.getByTestId("feed-item").filter({hasText: content}).first()
+  ).toBeVisible({timeout: 4000})
+  const elapsed = Date.now() - startedAt
+  await testInfo.attach("saved-graph-no-eose-ms", {
+    body: String(elapsed),
+    contentType: "text/plain",
+  })
+  expect(elapsed).toBeLessThan(4000)
+})
+
+test("an empty For You feed displays late relay posts without another refresh", async ({
+  page,
+}) => {
+  const viewer = createUser()
+  const followed = createUser()
+  const createdAt = Math.floor(Date.now() / 1000) - 60
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  await expect(page.getByText("No posts found for you")).toBeVisible({timeout: 20000})
+  const content = `late relay recommendation ${viewer.publicKey}`
+  await publishEvents([
+    signEvent(followed, {kind: 1, content, tags: [], created_at: createdAt}),
+  ])
+  await expect(
+    page.getByTestId("feed-item").filter({hasText: content}).first()
+  ).toBeVisible({timeout: 3000})
+})
+
 test("logged-in relay subscriptions recover after their worker crashes", async ({
   page,
 }) => {

@@ -135,6 +135,10 @@ const socialGraphMock = vi.hoisted(() => {
       return new Set(follows.get(publicKey) || [])
     }
 
+    getFollowListCreatedAt(publicKey: string) {
+      return follows.has(publicKey) ? 1 : undefined
+    }
+
     getMutedByUser() {
       return new Set<string>()
     }

@@ -5,13 +5,13 @@ import {KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useUserStore} from "@/stores/user"
 import {seenEventIds} from "@/utils/memcache"
 import {getEventReplyingTo} from "@/utils/nostr"
+import useCandidateRevision from "./useCandidateRevision"
 import {
   storeOldestTimestamp,
   getStoredOldestTimestamp,
 } from "@/utils/timeRangePersistence"
 
 const LOW_THRESHOLD = 15
-const INITIAL_DATA_THRESHOLD = 5
 const TIMESTAMP_DECREMENT = 24 * 60 * 60
 const STORAGE_KEY = "ChronologicalFilterOldestTimestamp"
 
@@ -31,6 +31,7 @@ export default function useChronologicalSubscription(
   authors: string[] = [],
   graphScope = "legacy"
 ) {
+  const {revision, notify} = useCandidateRevision()
   const myPubKey = useUserStore((state) => state.publicKey)
   const authorScope = `${graphScope}:${ready ? "ready" : "loading"}:${authors.join(",")}`
   const cacheMatchesScope = cache.authorScope === authorScope
@@ -119,6 +120,7 @@ export default function useChronologicalSubscription(
 
       if (!showingPosts.current.has(event.id) && !pendingPosts.current.has(event.id)) {
         pendingPosts.current.set(event.id, event.created_at)
+        notify()
 
         if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
           oldestEventAt.current = event.created_at
@@ -127,10 +129,7 @@ export default function useChronologicalSubscription(
         expansionsWithoutNewEvents.current = 0
       }
 
-      if (
-        !hasInitialDataRef.current &&
-        pendingPosts.current.size >= INITIAL_DATA_THRESHOLD
-      ) {
+      if (pendingPosts.current.size > 0) {
         markInitialDataReady()
       }
 
@@ -213,5 +212,6 @@ export default function useChronologicalSubscription(
     getNextChronological,
     hasInitialData: activeAuthorScope.current === authorScope && hasInitialData,
     sourceKey: authorScope,
+    revision,
   }
 }

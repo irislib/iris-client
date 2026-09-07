@@ -53,6 +53,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     getNextMostPopular,
     hasInitialData: hasPopularData,
     sourceKey,
+    revision: popularRevision,
   } = useReactionSubscription(
     currentFilters,
     expandFilters,
@@ -65,6 +66,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     getNextChronological,
     hasInitialData: hasChronologicalData,
     sourceKey: chronologicalSourceKey,
+    revision: chronologicalRevision,
   } = useChronologicalSubscription(
     cache.chronologicalSubscription || {},
     filterSeen,
@@ -84,6 +86,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     hasChronologicalData: chronologicalEnabled && hasChronologicalData,
     cache: cache.combinedPostFetcher || {},
     sourceKey: `${sourceKey}|${chronologicalSourceKey}`,
+    candidateRevision: `${popularRevision}:${chronologicalRevision}`,
     ready: currentFilters.ready,
     visibilitySnapshot,
     popularRatio,

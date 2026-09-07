@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.11",
+  "version": "2.5.12",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -158,5 +158,10 @@
     "workbox-strategies": "^7.4.1",
     "workbox-window": "^7.4.1",
     "ws": "^8.21.1"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "nostr-social-graph@2.0.0": "patches/nostr-social-graph@2.0.0.patch"
+    }
   }
 }

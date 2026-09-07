@@ -19,6 +19,7 @@ interface CombinedPostFetcherProps {
   hasChronologicalData: boolean
   cache: CombinedPostFetcherCache
   sourceKey: string
+  candidateRevision?: string
   ready: boolean
   visibilitySnapshot: AlgorithmicVisibilitySnapshot | null
   popularRatio?: number
@@ -32,6 +33,7 @@ export default function useCombinedPostFetcher({
   hasChronologicalData,
   cache,
   sourceKey,
+  candidateRevision = "",
   ready,
   visibilitySnapshot,
   popularRatio = 0.5,
@@ -56,7 +58,7 @@ export default function useCombinedPostFetcher({
   const allEnabledSourcesReady =
     (!popularSourceEnabled || popularSourceReady) &&
     (!chronologicalSourceEnabled || chronologicalSourceReady)
-  const sourceReadinessKey = `${popularSourceReady}:${chronologicalSourceReady}`
+  const sourceReadinessKey = `${popularSourceReady}:${chronologicalSourceReady}:${candidateRevision}`
 
   useLayoutEffect(() => {
     if (!policyReady || !visibilitySnapshot) {
@@ -179,7 +181,7 @@ export default function useCombinedPostFetcher({
     if (
       !policyReady ||
       isLoadingRef.current ||
-      hasLoadedInitial.current ||
+      (hasLoadedInitial.current && events.length > 0) ||
       attemptedReadinessRef.current === sourceReadinessKey
     ) {
       return
@@ -218,7 +220,14 @@ export default function useCombinedPostFetcher({
         setLoading(false)
       }
     }
-  }, [allEnabledSourcesReady, cache, loadBatch, policyReady, sourceReadinessKey])
+  }, [
+    allEnabledSourcesReady,
+    cache,
+    events.length,
+    loadBatch,
+    policyReady,
+    sourceReadinessKey,
+  ])
 
   const loadMore = useCallback(async () => {
     if (!policyReady || !hasAnySourceReady || isLoadingRef.current) {
@@ -258,12 +267,17 @@ export default function useCombinedPostFetcher({
   }, [hasAnySourceReady, loadBatch, policyReady])
 
   useEffect(() => {
-    if (!policyReady || !hasAnySourceReady || hasLoadedInitial.current || loading) {
+    if (
+      !policyReady ||
+      !hasAnySourceReady ||
+      (hasLoadedInitial.current && events.length > 0) ||
+      loading
+    ) {
       return
     }
 
     void loadInitial()
-  }, [hasAnySourceReady, loadInitial, loading, policyReady])
+  }, [events.length, hasAnySourceReady, loadInitial, loading, policyReady])
 
   const isInitializing = policyReady && !hasLoadedInitial.current && hasAnySourceReady
   const waitingForDataSources =

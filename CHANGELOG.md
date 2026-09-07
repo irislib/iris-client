@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.12
+
+- Start restored For You feeds from the saved visibility graph without waiting
+  for relay history completion, and show sparse candidates as they arrive.
+- Keep social-graph distances and user counts complete during recalculation,
+  coalesce repeated traversals, and ignore duplicate graph updates.
+- Recover an initially empty For You feed when delayed relay posts arrive.
+
 ## 2.5.11
 
 - Start feed relay requests without waiting for unrelated profile, payment, or
