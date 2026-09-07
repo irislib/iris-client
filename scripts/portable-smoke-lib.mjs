@@ -22,7 +22,7 @@ function contentTypeFor(filePath) {
 
 export function shouldIgnoreConsoleError(text) {
   if (
-    /^Failed to load resource: the server responded with a status of (?:403|404|418|429)\b/.test(
+    /^Failed to load resource: the server responded with a status of (?:401|403|404|418|429)\b/.test(
       text
     )
   ) {
@@ -170,7 +170,7 @@ export async function runPortableSmoke({
       if (shouldIgnoreConsoleError(text)) {
         return
       }
-      consoleErrors.push(text)
+      consoleErrors.push(`${text} (${message.location().url})`)
     }
   })
 

@@ -63,7 +63,7 @@ describe("portable smoke console errors", () => {
   it("ignores status-only noise while URL-aware response checks remain authoritative", async () => {
     const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
 
-    for (const status of [403, 404, 418, 429]) {
+    for (const status of [401, 403, 404, 418, 429]) {
       expect(
         shouldIgnoreConsoleError(
           `Failed to load resource: the server responded with a status of ${status} ()`
