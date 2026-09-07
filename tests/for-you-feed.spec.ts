@@ -180,6 +180,56 @@ test("an empty For You feed displays late relay posts without another refresh", 
   ).toBeVisible({timeout: 3000})
 })
 
+test("a short For You feed fills with late posts and keeps paginating", async ({
+  page,
+}) => {
+  await page.setViewportSize({width: 1280, height: 1000})
+  const viewer = createUser()
+  const followed = createUser()
+  const createdAt = Math.floor(Date.now() / 1000) - 60
+  const content = `pagination ${viewer.publicKey}`
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+    ...Array.from({length: 2}, (_, index) =>
+      signEvent(followed, {
+        kind: 1,
+        content: `${content} initial ${index}`,
+        tags: [],
+        created_at: createdAt - index,
+      })
+    ),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  const posts = page.getByTestId("feed-item").filter({hasText: content})
+  await expect(posts).toHaveCount(2)
+  const initialOrder = await posts.allTextContents()
+  // Let the real browser deliver its initial intersection notification before
+  // new relay candidates arrive at a feed whose end is already in view.
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+  )
+  await publishEvents(
+    Array.from({length: 30}, (_, index) =>
+      signEvent(followed, {
+        kind: 1,
+        content: `${content} later ${index}`,
+        tags: [],
+        created_at: createdAt - index - 2,
+      })
+    )
+  )
+  await expect.poll(() => posts.count(), {timeout: 5000}).toBeGreaterThan(2)
+  // Each appended batch must leave the existing posts in their original order.
+  expect((await posts.allTextContents()).slice(0, 2)).toEqual(initialOrder)
+  await expect(async () => {
+    await posts.last().scrollIntoViewIfNeeded()
+    expect(await posts.count()).toBe(32)
+  }).toPass({timeout: 20000})
+})
+
 test("logged-in relay subscriptions recover after their worker crashes", async ({
   page,
 }) => {

@@ -7,6 +7,8 @@
 - Keep social-graph distances and user counts complete during recalculation,
   coalesce repeated traversals, and ignore duplicate graph updates.
 - Recover an initially empty For You feed when delayed relay posts arrive.
+- Resume infinite scrolling after a short first batch or delayed relay candidates,
+  and fill the viewport without reshuffling posts already shown.
 
 ## 2.5.11
 
