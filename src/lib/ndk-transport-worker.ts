@@ -19,6 +19,11 @@ import type {
 import {useSettingsStore} from "@/stores/settings"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.NDK_WORKER)
+type WorkerEventHandler = (
+  event: NDKEvent,
+  relayUrl?: string,
+  fromCache?: boolean
+) => void
 
 /**
  * NDK transport that communicates with relay worker
@@ -32,7 +37,7 @@ export class NDKWorkerTransport {
   private ndk?: NDK
   private relayUrls: string[] = []
   private disableExtraRelayUrls = false
-  private subscriptions = new Map<string, Set<(event: NDKEvent) => void>>()
+  private subscriptions = new Map<string, Set<WorkerEventHandler>>()
   private eoseHandlers = new Map<string, Set<() => void>>()
   private subscriptionRequests = new Map<string, WorkerMessage>()
   private publishResolvers = new Map<
@@ -322,10 +327,9 @@ export class NDKWorkerTransport {
     this.subscribe(
       subId,
       filters,
-      (event: NDKEvent) => {
-        // Emit event to main thread subscription
-        // Pass event as NOT from cache (3rd param = false) so it gets processed
-        subscription.eventReceived(event, undefined, false)
+      (event, relayUrl, fromCache) => {
+        const relay = relayUrl ? this.ndk?.pool.getRelay(relayUrl, false) : undefined
+        subscription.eventReceived(event, relay, fromCache ?? false)
       },
       () => {
         // Emit EOSE to main thread subscription (pass null instead of undefined)
@@ -363,7 +367,7 @@ export class NDKWorkerTransport {
   subscribe(
     subId: string,
     filters: NDKFilter[],
-    onEvent: (event: NDKEvent) => void,
+    onEvent: WorkerEventHandler,
     onEose?: () => void,
     opts?: NDKSubscriptionOptions
   ): void {
@@ -381,6 +385,8 @@ export class NDKWorkerTransport {
 
     // Convert cacheUsage enum to destinations array for worker
     const subscribeOpts: WorkerSubscribeOpts = {}
+    if (opts?.relayUrls) subscribeOpts.relayUrls = opts.relayUrls
+    if (opts?.isolated) subscribeOpts.isolated = true
     if (opts?.cacheUsage) {
       switch (opts.cacheUsage) {
         case NDKSubscriptionCacheUsage.ONLY_CACHE:
@@ -575,7 +581,7 @@ export class NDKWorkerTransport {
             const ndkEvent = new NDKEvent(this.ndk, event)
             const handlers = this.subscriptions.get(subId)
             if (handlers) {
-              handlers.forEach((handler) => handler(ndkEvent))
+              handlers.forEach((handler) => handler(ndkEvent, relay, e.data.fromCache))
             }
           }
           break

@@ -616,7 +616,7 @@ export class NDKRelaySubscription {
 
   public onstart() {}
   public onevent(event: NostrEvent | NDKEvent) {
-    this.topSubManager.dispatchEvent(event, this.relay)
+    this.topSubManager.dispatchEvent(event, this.relay, false, this.items)
   }
 
   public oneose(subId: string) {

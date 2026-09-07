@@ -22,15 +22,18 @@ interface RecommendationVisibilityState {
  * graph decisions.
  */
 export default function useRecommendationVisibilitySnapshot(
-  enabled = true
+  enabled = true,
+  options?: {useDefaultNetworkWhenEmpty?: boolean; maxFollowDistance?: number}
 ): RecommendationVisibilityState {
   const graphReady = useSocialGraphStore((state) => state.isReady)
   const graphVersion = useSocialGraphStore((state) => state.version)
   const muteListVersion = useSocialGraphStore((state) => state.muteListVersion)
   const viewer = useUserStore((state) => state.publicKey)
-  const maxFollowDistance = useSettingsStore(
+  const configuredMaxFollowDistance = useSettingsStore(
     (state) => state.content.maxFollowDistanceForReplies
   )
+  const maxFollowDistance = options?.maxFollowDistance ?? configuredMaxFollowDistance
+  const useDefaultNetworkWhenEmpty = options?.useDefaultNetworkWhenEmpty ?? false
   const expectedRoot = viewer || DEFAULT_SOCIAL_GRAPH_ROOT
 
   // Reading the root is cheap. The revision subscriptions ensure a root change
@@ -47,13 +50,30 @@ export default function useRecommendationVisibilitySnapshot(
     const graph = getSocialGraph()
     if (graph.getRoot() !== expectedRoot) return null
 
+    if (useDefaultNetworkWhenEmpty && graph.getFollowedByUser(expectedRoot).size === 0) {
+      return getOrCreateAlgorithmicVisibilitySnapshot(
+        graph,
+        maxFollowDistance,
+        graphVersion,
+        muteListVersion,
+        DEFAULT_SOCIAL_GRAPH_ROOT
+      )
+    }
+
     return getOrCreateAlgorithmicVisibilitySnapshot(
       graph,
       maxFollowDistance,
       graphVersion,
       muteListVersion
     )
-  }, [expectedRoot, graphVersion, maxFollowDistance, muteListVersion, ready])
+  }, [
+    expectedRoot,
+    graphVersion,
+    maxFollowDistance,
+    muteListVersion,
+    ready,
+    useDefaultNetworkWhenEmpty,
+  ])
 
   return {ready: ready && !!snapshot, snapshot}
 }

@@ -270,6 +270,9 @@ export interface NDKSubscriptionOptions {
    * );
    */
   exclusiveRelay?: boolean
+  /** Receive relay events only from this request, so pagination boundaries are
+   * not contaminated by matching events fetched by other subscriptions. */
+  isolated?: boolean
 
   /**
    * Use Negentropy (NIP-77) sync protocol instead of standard REQ.

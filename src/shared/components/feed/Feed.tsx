@@ -18,6 +18,7 @@ import {getTag} from "@/utils/nostr"
 import MediaFeed from "./MediaFeed"
 import {useSocialGraph, useFollowsFromGraph} from "@/utils/socialGraph"
 import {addSeenEventId} from "@/utils/memcache.ts"
+import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 interface FeedProps {
   feedConfig: FeedConfig
@@ -33,6 +34,8 @@ interface FeedProps {
   forceShowZapAll?: boolean
   subscriptionFilters?: NDKFilter[]
   injectedEvents?: NDKEvent[]
+  visibilitySnapshot?: AlgorithmicVisibilitySnapshot | null
+  enabled?: boolean
 }
 
 const DefaultEmptyPlaceholder = (
@@ -55,6 +58,8 @@ const Feed = memo(function Feed({
   forceShowZapAll = false,
   subscriptionFilters,
   injectedEvents,
+  visibilitySnapshot,
+  enabled = true,
 }: FeedProps) {
   const socialGraph = useSocialGraph()
   if (!feedConfig?.filter) {
@@ -148,6 +153,8 @@ const Feed = memo(function Feed({
     showNewEvents,
     loadMoreItems: hookLoadMoreItems,
     initialLoadDone,
+    searchLoading,
+    canSearchMore,
   } = useFeedEvents({
     filters,
     cacheKey,
@@ -159,6 +166,8 @@ const Feed = memo(function Feed({
     displayAs,
     subscriptionFilters,
     injectedEvents,
+    visibilitySnapshot,
+    enabled,
   })
 
   // Track which events we've already notified about
@@ -352,7 +361,11 @@ const Feed = memo(function Feed({
 
         <div>
           {filteredEvents.length > 0 && (
-            <InfiniteScroll onLoadMore={loadMoreItems}>
+            <InfiniteScroll
+              onLoadMore={loadMoreItems}
+              loadMoreKey={`${filteredEvents.length}:${displayCount}`}
+              loading={searchLoading}
+            >
               {displayAs === "grid" ? (
                 <MediaFeed events={gridEvents} eventsToHighlight={eventsToHighlight} />
               ) : (
@@ -382,7 +395,19 @@ const Feed = memo(function Feed({
           {filteredEvents.length === 0 &&
             newEventsFiltered.length === 0 &&
             initialLoadDone &&
+            !searchLoading &&
+            enabled &&
             emptyPlaceholder}
+          {filters.search && (
+            <div className="p-4 text-center text-base-content/50">
+              {(searchLoading || !enabled) && <span role="status">Searching posts…</span>}
+              {!searchLoading && enabled && canSearchMore && (
+                <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
+                  Search older posts
+                </button>
+              )}
+            </div>
+          )}
           {myPubKey && eventsByUnknownUsers.length > 0 && (
             <div
               className="p-4 border-t border-b border-custom text-info text-center transition-colors duration-200 ease-in-out hover:underline hover:bg-[var(--note-hover-color)] cursor-pointer"

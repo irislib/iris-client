@@ -11,6 +11,9 @@ const PRODUCTION_RELAYS = [
 
 const TEST_RELAY = ["wss://temp.iris.to/"]
 
+// Indexed text search; ordinary relays may ignore or reject NIP-50 filters.
+export const SEARCH_RELAYS = ["wss://search.nos.today/"]
+
 function stripTrailingSlash(url: string) {
   return url.replace(/\/$/, "")
 }
