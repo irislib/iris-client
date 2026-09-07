@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.16 - 2026-09-07
+
+- Update Hashtree to security runtime 0.5.7 with remote blob integrity checks.
+- Include the verified Nostr Double Ratchet security update for encrypted messaging.
+
 ## 2.5.15
 
 - Show search results from the default network for accounts with no follows,
