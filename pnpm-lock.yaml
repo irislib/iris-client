@@ -21,11 +21,11 @@ importers:
         specifier: ^1.1.12
         version: 1.1.12
       '@hashtree/core':
-        specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz
-        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz
+        specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz
+        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz
       '@hashtree/index':
-        specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz
-        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz
+        specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz
+        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz
       '@noble/curves':
         specifier: ^2.2.0
         version: 2.2.0
@@ -784,6 +784,7 @@ packages:
   '@cashu/cashu-ts@3.7.1':
     resolution: {integrity: sha512-EdUdjR6D0eY1YT6irNh/d5SBRc/ug4WNpnlLBXbRI9iOb8UNnQeGfk9CJQWL9ElQMjQ/4g582SehKXzEAZ2vnw==}
     engines: {node: '>=22.4.0'}
+    deprecated: 'v3 long-term support ends at the v5 release. v3 cannot be brought to current spec without breaking changes: upgrade with npm i @cashu/cashu-ts@^4'
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -1008,13 +1009,13 @@ packages:
   '@gandlaf21/bc-ur@1.1.12':
     resolution: {integrity: sha512-AQfbZJ1o1AdK9/W9VcTyMkwp6iZWDWQQV2SGep2ygJUkTNaafSjdWLUgpc6Uo/VLlGYaS9A28gCh+GVtAdwTpA==}
 
-  '@hashtree/core@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz':
-    resolution: {integrity: sha512-NcR9gnj3wsxCdf+FaTf4YSkWB5Yi2uptgaUlH+VqXCI/dPXyUugt/5BDnc41sdiTzRX2IWP44fvJe9Pb0P+1WA==, tarball: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz}
-    version: 0.3.1
+  '@hashtree/core@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz':
+    resolution: {integrity: sha512-DAMUpGBcRk6JgecIU5T3AS18gAiXpiwYG2mULq+mec9noWmaVUFBnkMt+ur12IjKik9G146z1cQV5y/oZ7MgFA==, tarball: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz}
+    version: 0.3.2
 
-  '@hashtree/index@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz':
-    resolution: {integrity: sha512-5/9dUXpCOJSiNs5WDgMjdy/E8lvzeNBAo/dkcBsPv/mxaa/qYL6YTaTzqd5CZVgH/usmuiefeO10LrWDRgbEXA==, tarball: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz}
-    version: 0.1.13
+  '@hashtree/index@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz':
+    resolution: {integrity: sha512-nEpHCj+l5aFs0oELah4DbeQwlNEAaAU3qtCZxiRTd2hLjFwbT/zlXaynatESzc5pUX2aVhYCO6aCUEjR9Cds1g==, tarball: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz}
+    version: 0.1.14
 
   '@humanwhocodes/config-array@0.13.0':
     resolution: {integrity: sha512-DZLEEqFWQFiyK6h5YIeynKx7JlvCYWL0cImfSRXZ9l4Sg2efkFGTuFf6vzXjK1cq6IYkU+Eg/JizXw+TD2vRNw==}
@@ -4582,15 +4583,15 @@ snapshots:
       cborg: 4.5.8
       jsbi: 3.1.5
 
-  '@hashtree/core@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz':
+  '@hashtree/core@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       '@noble/hashes': 2.2.0
       '@scure/base': 2.2.0
 
-  '@hashtree/index@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-index-0.1.13.tgz':
+  '@hashtree/index@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz':
     dependencies:
-      '@hashtree/core': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.6/hashtree-core-0.3.1.tgz
+      '@hashtree/core': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz
 
   '@humanwhocodes/config-array@0.13.0':
     dependencies:
