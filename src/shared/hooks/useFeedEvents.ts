@@ -20,6 +20,7 @@ import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
+import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
 
 interface FutureEvent {
   event: NDKEvent
@@ -56,6 +57,11 @@ export default function useFeedEvents({
   enabled = true,
 }: UseFeedEventsProps) {
   const socialGraph = useSocialGraph()
+  const matchesSearch = useMemo(
+    () => createPostSearchMatcher(filters.search || ""),
+    [filters.search]
+  )
+  const searchResultsRef = useRef<NDKEvent[]>([])
   const searchController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
   const [searchProgress, setSearchProgress] = useState<SearchProgress>({
     loading: false,
@@ -111,6 +117,23 @@ export default function useFeedEvents({
     ) {
       return
     }
+    if (
+      filters.search &&
+      previousFeedIdentityRef.current === feedIdentity &&
+      previousEventSortRef.current === eventSort
+    ) {
+      // Graph enrichment must not erase and restart an in-flight search.
+      // Recheck existing rows so changes to personal mutes still take effect.
+      previousVisibilityRef.current = visibilitySnapshot
+      for (const [id, event] of eventsRef.current.entries()) {
+        if (!shouldAcceptEventRef.current(event)) eventsRef.current.delete(id)
+      }
+      searchResultsRef.current = searchResultsRef.current.filter(
+        shouldAcceptEventRef.current
+      )
+      setEventsVersion((version) => version + 1)
+      return
+    }
     previousFeedIdentityRef.current = feedIdentity
     previousEventSortRef.current = eventSort
     previousVisibilityRef.current = visibilitySnapshot
@@ -121,6 +144,7 @@ export default function useFeedEvents({
     }
     futureEventsRef.current.clear()
     eventsRef.current = new SortedMap<string, NDKEvent>([], eventSort)
+    searchResultsRef.current = []
     oldestRef.current = undefined
     setUntilTimestamp(undefined)
     hasReceivedEventsRef.current = false
@@ -129,7 +153,7 @@ export default function useFeedEvents({
     setNewEvents(new Map())
     setNewEventsFrom(new Set())
     setEventsVersion((version) => version + 1)
-  }, [eventSort, feedIdentity, visibilitySnapshot])
+  }, [eventSort, feedIdentity, visibilitySnapshot, filters.search])
 
   const resolvedSubscriptionFilters = useMemo(() => {
     const baseFilters = subscriptionFilters?.length ? subscriptionFilters : [filters]
@@ -223,34 +247,7 @@ export default function useFeedEvents({
       if (eventFollowDistance > feedConfig.followDistance) return false
     }
 
-    // Client-side search validation for relays that don't support search filters
-    // Also validate hashtag matches
-    if (filters.search) {
-      const searchTerms = filters.search.toLowerCase().split(/\s+/)
-      const eventContent = event.content?.toLowerCase() || ""
-
-      // Get event's t tags
-      const tTags =
-        event.tags
-          ?.filter((tag) => tag[0] === "t" && tag[1])
-          ?.map((tag) => tag[1].toLowerCase()) || []
-
-      // Check if all search terms are present
-      const allTermsMatch = searchTerms.every((term) => {
-        if (term.startsWith("#")) {
-          // For hashtags, only check in t tags, not content
-          const cleanTerm = term.substring(1)
-          return tTags.includes(cleanTerm)
-        } else {
-          // For regular words, check in content
-          return eventContent.includes(term)
-        }
-      })
-
-      if (!allTermsMatch) {
-        return false
-      }
-    }
+    if (filters.search && !matchesSearch(event)) return false
 
     const inAuthors = filters.authors?.includes(event.pubkey)
 
@@ -375,10 +372,11 @@ export default function useFeedEvents({
   )
 
   const filteredEvents = useMemo((): NDKEvent[] => {
+    if (filters.search) return searchResultsRef.current
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
     return Array.from(eventsRef.current.values())
-  }, [eventsVersion])
+  }, [eventsVersion, filters.search])
 
   const eventsByUnknownUsers = useMemo(() => {
     if (visibilitySnapshot) return []
@@ -510,10 +508,19 @@ export default function useFeedEvents({
           ndk(),
           resolvedSubscriptionFilters,
           handleEvent,
-          () => eventsRef.current.size <= displayCountRef.current,
+          () => searchResultsRef.current.length <= displayCountRef.current,
           (progress) => {
             if (generation !== feedGenerationRef.current) return
             setSearchProgress(progress)
+            if (progress.oldestSearched !== undefined) {
+              searchResultsRef.current = uniqueSearchAuthors([
+                ...searchResultsRef.current,
+                ...Array.from(eventsRef.current.values()).filter(
+                  (event) => event.created_at! >= progress.oldestSearched!
+                ),
+              ])
+              setEventsVersion((version) => version + 1)
+            }
             if (!progress.loading) {
               initialLoadDoneRef.current = true
               setInitialLoadDoneState(true)
@@ -548,7 +555,7 @@ export default function useFeedEvents({
     addFutureEvent,
     addEventToMain,
     enabled,
-    visibilitySnapshot,
+    filters.search ? null : visibilitySnapshot,
     relayUrls,
   ])
 

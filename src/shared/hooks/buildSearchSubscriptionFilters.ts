@@ -101,6 +101,13 @@ export function buildSearchSubscriptionFilters(
       ...boundedBaseFilter,
       search: regularWords.join(" "),
     })
+    // Some indexes interpret multiple words as a phrase. Query individual
+    // terms too, then require every whole word in the client-side matcher.
+    if (regularWords.length > 1) {
+      for (const word of new Set(regularWords)) {
+        filterArray.push({...boundedBaseFilter, search: word})
+      }
+    }
   }
 
   return dedupeFilters(filterArray)

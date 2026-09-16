@@ -1,9 +1,15 @@
-import NDK, {NDKEvent, type NDKFilter, type NDKSubscription} from "@/lib/ndk"
+import NDK, {
+  NDKEvent,
+  NDKSubscriptionCacheUsage,
+  type NDKFilter,
+  type NDKSubscription,
+} from "@/lib/ndk"
 import {SearchPageCursor} from "./searchPagination"
 
 export interface SearchProgress {
   loading: boolean
   canLoadMore: boolean
+  oldestSearched?: number
 }
 
 /** Bounded search batches keep independent text/tag/recent-note cursors. */
@@ -43,27 +49,42 @@ export function subscribeSearch(
         if (stopped || settled) return
         settled = true
         clearTimeout(source.timer)
+        source.sub?.stop()
         if (--pending) return
         loading = false
         const canLoadMore = sources.some((source) => !!source.cursor.next())
+        // Cached/tag matches can be much older than the history searched by
+        // the text indexes. Do not present those as the next results yet.
+        const textSources = sources.filter((source) => source.cursor.current.search)
+        const oldestSearched = Math.max(
+          0,
+          ...(textSources.length ? textSources : sources).map(
+            (source) => source.cursor.next()?.until ?? 0
+          )
+        )
+        onProgress({loading: true, canLoadMore: false, oldestSearched})
         if (canLoadMore && pagesLeft > 0 && needsMore()) {
           queueMicrotask(() => run())
         } else {
-          onProgress({loading: false, canLoadMore})
+          onProgress({loading: false, canLoadMore, oldestSearched})
         }
       }
       source.sub = ndk.subscribe(source.cursor.current, {
         relayUrls,
+        // The worker routes text queries to the search index. Main-thread
+        // relay/cache EOSEs must not finish that request before it answers.
+        transports: ["worker-transport"],
+        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
         groupable: false,
         isolated: true,
       })
       source.sub.on("event", (event, relay, _sub, fromCache) => {
-        if (stopped) return
+        if (stopped || settled) return
         source.cursor.record(event, relay?.url, fromCache)
         onEvent(event)
       })
       source.sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
-        if (!stopped) source.cursor.record(event, relay?.url, fromCache)
+        if (!stopped && !settled) source.cursor.record(event, relay?.url, fromCache)
       })
       source.sub.on("eose", settle)
       source.timer = setTimeout(settle, 5000)

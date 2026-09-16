@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.17 - 2026-09-16
+
+- Match complete words in post search and find multiword queries in any order.
+- Show one matching post per author and continue looking past repeated authors.
+- Keep search rows stable during relay and network updates, and search newer
+  history before displaying old cached or hashtag matches.
+
 ## 2.5.16 - 2026-09-07
 
 - Update Hashtree to security runtime 0.5.7 with remote blob integrity checks.

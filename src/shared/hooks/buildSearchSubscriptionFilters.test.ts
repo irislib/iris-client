@@ -3,6 +3,19 @@ import {describe, expect, it} from "vitest"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 
 describe("buildSearchSubscriptionFilters", () => {
+  it("queries multiword terms independently for phrase-only indexes", () => {
+    const filters = buildSearchSubscriptionFilters({
+      kinds: [1],
+      search: "iris marketplace",
+    })
+    expect(filters).toEqual([
+      {kinds: [1], limit: 100},
+      {kinds: [1], "#t": ["iris", "marketplace"], limit: 100},
+      {kinds: [1], search: "iris marketplace", limit: 100},
+      {kinds: [1], search: "iris", limit: 100},
+      {kinds: [1], search: "marketplace", limit: 100},
+    ])
+  })
   it("bounds non-search filters that do not declare a limit", () => {
     const filters = {kinds: [1], authors: ["pubkey"]}
 
