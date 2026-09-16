@@ -3,7 +3,8 @@
 ## 2.5.17 - 2026-09-16
 
 - Match complete words in post search and find multiword queries in any order.
-- Show one matching post per author and continue looking past repeated authors.
+- Collapse additional matches under each author so prolific accounts do not
+  crowd out other results, while keeping every fetched match available to expand.
 - Keep search rows stable during relay and network updates, and search newer
   history before displaying old cached or hashtag matches.
 

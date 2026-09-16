@@ -94,7 +94,7 @@ test("search uses the starter network and does not skip between recent and old m
   await page.screenshot({path: testInfo.outputPath("search-results.png")})
 })
 
-test("post search matches whole words and shows one result per author across pages", async ({
+test("post search matches whole words and collapses repeated authors across pages", async ({
   page,
 }, testInfo) => {
   test.skip(usingBuiltDist || !!process.env.VITE_USE_TEST_RELAY, "requires local relay")
@@ -133,6 +133,15 @@ test("post search matches whole words and shows one result per author across pag
   await expect(posts.filter({hasText: "substring only"})).toHaveCount(0)
   await expect(posts.filter({hasText: "repeated match"})).toHaveCount(0)
   await expect(posts).toHaveCount(2)
+  await page.getByRole("button", {name: "Show 120 more from this author"}).click()
+  await expect(
+    page.getByText(`${token} iris repeated match 120`, {exact: true})
+  ).toBeVisible()
+  await expect(posts.filter({hasText: "repeated match"})).toHaveCount(120)
+  await page.screenshot({path: testInfo.outputPath("expanded-author-search.png")})
+  await page.getByRole("button", {name: "Hide additional posts"}).click()
+  await expect(posts.filter({hasText: "repeated match"})).toHaveCount(0)
+  await expect(posts.filter({hasText: "another author"})).toBeVisible()
   await page.screenshot({path: testInfo.outputPath("distinct-author-search.png")})
 })
 

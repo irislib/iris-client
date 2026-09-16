@@ -378,6 +378,20 @@ export default function useFeedEvents({
     return Array.from(eventsRef.current.values())
   }, [eventsVersion, filters.search])
 
+  const additionalSearchResults = useMemo(() => {
+    const groups = new Map<string, NDKEvent[]>()
+    if (!filters.search) return groups
+    const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
+    for (const event of eventsRef.current.values()) {
+      const primaryId = primaryIds.get(event.pubkey)
+      if (!primaryId || primaryId === event.id) continue
+      const matches = groups.get(event.pubkey) || []
+      matches.push(event)
+      groups.set(event.pubkey, matches)
+    }
+    return groups
+  }, [eventsVersion, filteredEvents, filters.search])
+
   const eventsByUnknownUsers = useMemo(() => {
     if (visibilitySnapshot) return []
     // Don't show unknown user events when custom authors are defined
@@ -586,6 +600,7 @@ export default function useFeedEvents({
     newEvents,
     newEventsFrom,
     filteredEvents,
+    additionalSearchResults,
     eventsByUnknownUsers,
     showNewEvents,
     loadMoreItems,

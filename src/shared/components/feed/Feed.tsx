@@ -119,6 +119,8 @@ const Feed = memo(function Feed({
   }, [feedConfig.sortType])
 
   const cacheKey = useMemo(() => getFeedCacheKey(feedConfig), [feedConfig])
+  const [expandedSearchAuthors, setExpandedSearchAuthors] = useState(new Set<string>())
+  useEffect(() => setExpandedSearchAuthors(new Set()), [cacheKey])
 
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,
@@ -149,6 +151,7 @@ const Feed = memo(function Feed({
   const {
     newEvents: newEventsMap,
     filteredEvents,
+    additionalSearchResults,
     eventsByUnknownUsers,
     showNewEvents,
     loadMoreItems: hookLoadMoreItems,
@@ -224,8 +227,13 @@ const Feed = memo(function Feed({
     return filteredEvents
   }, [filteredEvents, displayAs])
   const eventsById = useMemo(
-    () => new Map(filteredEvents.map((event) => [event.id, event])),
-    [filteredEvents]
+    () =>
+      new Map(
+        [...filteredEvents, ...Array.from(additionalSearchResults.values()).flat()].map(
+          (event) => [event.id, event]
+        )
+      ),
+    [filteredEvents, additionalSearchResults]
   )
 
   const [, setForceUpdateCount] = useState(0)
@@ -324,7 +332,7 @@ const Feed = memo(function Feed({
       cancelAnimationFrame(animationFrame)
       observer.disconnect()
     }
-  }, [displayAs, displayCount, eventsById])
+  }, [displayAs, displayCount, eventsById, expandedSearchAuthors])
 
   // Auto-show new events if enabled
   useEffect(() => {
@@ -338,6 +346,20 @@ const Feed = memo(function Feed({
       setForceUpdateCount((prev) => prev + 1)
     }
   }, [forceUpdate])
+
+  const renderFeedItem = (event: NDKEvent, first = false) => (
+    <div key={event.id} ref={first ? firstFeedItemRef : null} data-event-id={event.id}>
+      <FeedItem
+        asReply={asReply}
+        showRepliedTo={feedConfig.showRepliedTo ?? true}
+        showReplies={showReplies}
+        event={event}
+        borderTop={borderTopFirst && first}
+        highlightAsNew={eventsToHighlight.has(event.id)}
+        showAuthorInZapReceipts={feedConfig.showAuthorInZapReceipts}
+      />
+    </div>
+  )
 
   return (
     <PerfProfiler id="Feed">
@@ -370,24 +392,34 @@ const Feed = memo(function Feed({
                 <MediaFeed events={gridEvents} eventsToHighlight={eventsToHighlight} />
               ) : (
                 <>
-                  {filteredEvents.slice(0, displayCount).map((event, index) => (
-                    <div
-                      key={event.id}
-                      ref={index === 0 ? firstFeedItemRef : null}
-                      data-event-id={event.id}
-                    >
-                      <FeedItem
-                        key={event.id}
-                        asReply={asReply}
-                        showRepliedTo={feedConfig.showRepliedTo ?? true}
-                        showReplies={showReplies}
-                        event={event}
-                        borderTop={borderTopFirst && index === 0}
-                        highlightAsNew={eventsToHighlight.has(event.id)}
-                        showAuthorInZapReceipts={feedConfig.showAuthorInZapReceipts}
-                      />
-                    </div>
-                  ))}
+                  {filteredEvents.slice(0, displayCount).map((event, index) => {
+                    const additional = additionalSearchResults.get(event.pubkey) || []
+                    const expanded = expandedSearchAuthors.has(event.pubkey)
+                    return (
+                      <div key={event.id}>
+                        {renderFeedItem(event, index === 0)}
+                        {additional.length > 0 && (
+                          <button
+                            className="px-4 py-2 text-sm text-base-content/60 hover:text-base-content"
+                            aria-expanded={expanded}
+                            onClick={() =>
+                              setExpandedSearchAuthors((previous) => {
+                                const next = new Set(previous)
+                                if (next.has(event.pubkey)) next.delete(event.pubkey)
+                                else next.add(event.pubkey)
+                                return next
+                              })
+                            }
+                          >
+                            {expanded
+                              ? "Hide additional posts"
+                              : `Show ${additional.length} more from this author`}
+                          </button>
+                        )}
+                        {expanded && additional.map((match) => renderFeedItem(match))}
+                      </div>
+                    )
+                  })}
                 </>
               )}
             </InfiniteScroll>
