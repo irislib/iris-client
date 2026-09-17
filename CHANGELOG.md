@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.19 - 2026-09-17
+
+- Show multiword search matches as soon as a complete word index finds them,
+  without waiting for common terms or unrelated relays to finish.
+
 ## 2.5.18 - 2026-09-17
 
 - Retry interrupted search pages without skipping recent history or replacing

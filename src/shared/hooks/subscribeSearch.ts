@@ -26,7 +26,27 @@ export function subscribeSearch(
     sub: undefined as NDKSubscription | undefined,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     retry: false,
+    pending: true,
   }))
+  const textSources = sources.filter((source) => source.cursor.current.search)
+  // Every AND match contains each individual word. The index that has searched
+  // furthest back covers that interval on its own. A phrase index may omit
+  // different word orders, so only individual terms determine this boundary.
+  const wordSources = textSources.filter(
+    (source) => !/\s/.test(source.cursor.current.search!.trim())
+  )
+  const indexSources = wordSources.length ? wordSources : textSources
+  const boundarySources = indexSources.length ? indexSources : sources
+  const oldestSearched = () => {
+    const boundaries = boundarySources.map(
+      (source) =>
+        // Pending/interrupted pages have not proven their interval complete.
+        (source.pending || source.retry
+          ? source.cursor.current.until
+          : source.cursor.next()?.until) ?? 0
+    )
+    return textSources.length ? Math.min(...boundaries) : Math.max(0, ...boundaries)
+  }
   let stopped = false
   let loading = false
   let pagesLeft = 3
@@ -43,6 +63,7 @@ export function subscribeSearch(
     loading = true
     pagesLeft--
     let pending = active.length
+    for (const source of active) source.pending = true
     onProgress({loading: true, canLoadMore: false})
     for (const source of active) {
       source.sub?.stop()
@@ -52,32 +73,22 @@ export function subscribeSearch(
         if (stopped || settled) return
         settled = true
         source.retry = timedOut
+        source.pending = false
         clearTimeout(source.timer)
         source.sub?.stop()
+        const boundary = oldestSearched()
+        // Publish completed text intervals immediately, while other relays or
+        // less selective term indexes are still working on this batch.
+        onProgress({loading: true, canLoadMore: false, oldestSearched: boundary})
         if (--pending) return
         loading = false
         const canLoadMore = sources.some(
           (source) => source.retry || !!source.cursor.next()
         )
-        // Cached/tag matches can be much older than the history searched by
-        // the text indexes. Do not present those as the next results yet.
-        const textSources = sources.filter((source) => source.cursor.current.search)
-        const oldestSearched = Math.max(
-          0,
-          ...(textSources.length ? textSources : sources).map(
-            (source) =>
-              // A timeout is not proof that this interval was searched. Keep
-              // its boundary and retry it, even after partial event delivery.
-              (source.retry
-                ? source.cursor.current.until
-                : source.cursor.next()?.until) ?? 0
-          )
-        )
-        onProgress({loading: true, canLoadMore: false, oldestSearched})
         if (canLoadMore && pagesLeft > 0 && needsMore()) {
           queueMicrotask(() => run())
         } else {
-          onProgress({loading: false, canLoadMore, oldestSearched})
+          onProgress({loading: false, canLoadMore, oldestSearched: boundary})
         }
       }
       source.sub = ndk.subscribe(source.cursor.current, {

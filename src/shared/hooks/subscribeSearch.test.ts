@@ -7,6 +7,60 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
+it("uses the most selective word index without waiting for unrelated fallbacks", async () => {
+  vi.useFakeTimers()
+  const ndk = new NDK()
+  const relay = new NDKRelay("wss://search.example", undefined, ndk)
+  const onProgress = vi.fn()
+  const boundaries = new Map([
+    ["iris", 100],
+    ["marketplace", 900],
+    ["iris marketplace", 10],
+  ])
+  ndk.transportPlugins.push({
+    name: "worker-transport",
+    onSubscribe(subscription, filters) {
+      const term = filters[0].search
+      if (!term) return // A slow ordinary relay must not hold back text results.
+      const timer = setTimeout(() => {
+        subscription.eventReceived(
+          new NDKEvent(ndk, {
+            id: term,
+            pubkey: "a".repeat(64),
+            kind: 1,
+            created_at: boundaries.get(term)!,
+            content: term,
+            tags: [],
+          }),
+          relay
+        )
+        subscription.eoseReceived(null)
+      }, 50)
+      subscription.once("close", () => clearTimeout(timer))
+    },
+  })
+  const search = subscribeSearch(
+    ndk,
+    [undefined, "iris marketplace", "iris", "marketplace"].map((search) => ({
+      kinds: [1],
+      search,
+      until: 1000,
+    })),
+    vi.fn(),
+    () => false,
+    onProgress
+  )
+  await vi.advanceTimersByTimeAsync(100)
+  // Every match must contain "iris", so that term alone covers this interval.
+  // The phrase index can omit words in another order and cannot set the boundary.
+  expect(onProgress).toHaveBeenLastCalledWith({
+    loading: true,
+    canLoadMore: false,
+    oldestSearched: 100,
+  })
+  search.stop()
+})
+
 it("waits for indexed results instead of ordinary relay completion", async () => {
   vi.useFakeTimers()
   const ndk = new NDK()
