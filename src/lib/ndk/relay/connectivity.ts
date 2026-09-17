@@ -54,8 +54,7 @@ export class NDKRelayConnectivity {
   private lastMessageSent = Date.now()
   private wasIdle = false
 
-  // Message queues for async processing (actor pattern: inbox/outbox)
-  private inbox!: Queue<string> // Initialized in constructor after handleMessage is bound
+  // Queue outgoing messages while the socket is unavailable.
   private outbox!: Queue<string>
   private outboxProcessing = false
 
@@ -66,10 +65,7 @@ export class NDKRelayConnectivity {
     this.debug = this.ndkRelay.debug.extend(`connectivity${rand}`)
     this.ndk = ndk
 
-    // Initialize queues with processors
-    // Inbox: 200 messages (receiving is cheap, allow burst capacity)
     // Outbox: 50 messages (~50KB per relay, 1.5MB for 30 relays)
-    this.inbox = new Queue<string>(200, (msg) => this.handleMessage(msg))
     this.outbox = new Queue<string>(50, (msg) => {
       if (this.ws?.readyState === WebSocket.OPEN) {
         try {
@@ -477,8 +473,9 @@ export class NDKRelayConnectivity {
     // Record any activity from relay
     this.keepalive?.recordActivity()
 
-    // Enqueue message - queue auto-processes with yielding
-    this.inbox.enqueue(event.data as string)
+    // WebSocket messages already arrive as ordered event-loop tasks. An extra
+    // bounded queue discarded events and EOSEs during overlapping search pages.
+    this.handleMessage(event.data as string)
   }
 
   /**
@@ -502,7 +499,7 @@ export class NDKRelayConnectivity {
   }
 
   /**
-   * Handle individual message from inbox (called by Queue processor)
+   * Handle an individual WebSocket message.
    */
   private handleMessage(msg: string): void {
     // Early exit for duplicate events before JSON.parse

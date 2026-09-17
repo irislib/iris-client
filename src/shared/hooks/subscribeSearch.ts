@@ -25,6 +25,7 @@ export function subscribeSearch(
     cursor: new SearchPageCursor(filter),
     sub: undefined as NDKSubscription | undefined,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
+    retry: false,
   }))
   let stopped = false
   let loading = false
@@ -32,7 +33,9 @@ export function subscribeSearch(
 
   const run = (initial = false) => {
     if (stopped || loading) return
-    const active = sources.filter((source) => initial || source.cursor.advance())
+    const active = sources.filter(
+      (source) => initial || source.retry || source.cursor.advance()
+    )
     if (!active.length) {
       onProgress({loading: false, canLoadMore: false})
       return
@@ -45,21 +48,29 @@ export function subscribeSearch(
       source.sub?.stop()
       clearTimeout(source.timer)
       let settled = false
-      const settle = () => {
+      const settle = (timedOut = false) => {
         if (stopped || settled) return
         settled = true
+        source.retry = timedOut
         clearTimeout(source.timer)
         source.sub?.stop()
         if (--pending) return
         loading = false
-        const canLoadMore = sources.some((source) => !!source.cursor.next())
+        const canLoadMore = sources.some(
+          (source) => source.retry || !!source.cursor.next()
+        )
         // Cached/tag matches can be much older than the history searched by
         // the text indexes. Do not present those as the next results yet.
         const textSources = sources.filter((source) => source.cursor.current.search)
         const oldestSearched = Math.max(
           0,
           ...(textSources.length ? textSources : sources).map(
-            (source) => source.cursor.next()?.until ?? 0
+            (source) =>
+              // A timeout is not proof that this interval was searched. Keep
+              // its boundary and retry it, even after partial event delivery.
+              (source.retry
+                ? source.cursor.current.until
+                : source.cursor.next()?.until) ?? 0
           )
         )
         onProgress({loading: true, canLoadMore: false, oldestSearched})
@@ -86,8 +97,8 @@ export function subscribeSearch(
       source.sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
         if (!stopped && !settled) source.cursor.record(event, relay?.url, fromCache)
       })
-      source.sub.on("eose", settle)
-      source.timer = setTimeout(settle, 5000)
+      source.sub.on("eose", () => settle())
+      source.timer = setTimeout(() => settle(true), 15_000)
     }
   }
 

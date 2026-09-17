@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.18 - 2026-09-17
+
+- Retry interrupted search pages without skipping recent history or replacing
+  it with old hashtag results.
+- Preserve all relay messages when search responses arrive in a burst.
+
 ## 2.5.17 - 2026-09-16
 
 - Match complete words in post search and find multiword queries in any order.
