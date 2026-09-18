@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 
 const DEFAULT_PUBLIC_CHAT_ID =
   "1d2f13b495d7425b70298a8acd375897a632562043d461e89b63499363eaf8e7"
@@ -18,6 +19,7 @@ test.describe("Public chat direct navigation", () => {
   test("opens a public chat even when public chats are disabled", async ({page}) => {
     test.setTimeout(60000)
     await signUp(page)
+    await ensureCurrentDeviceRegistered(page)
     await ensurePublicChatsDisabled(page)
 
     await page.goto(`/chats/${DEFAULT_PUBLIC_CHAT_ID}`)

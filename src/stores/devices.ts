@@ -45,13 +45,20 @@ const computeDeviceRegistrationState = (state: {
   sessionManagerReady: boolean
   hasLocalAppKeys: boolean
 }) => {
-  return evaluateDeviceRegistrationState({
+  const registration = evaluateDeviceRegistrationState({
     currentDevicePubkey: state.identityPubkey,
     registeredDevices: state.registeredDevices,
     hasLocalAppKeys: state.hasLocalAppKeys,
     appKeysManagerReady: state.appKeysManagerReady,
     sessionManagerReady: state.sessionManagerReady,
   })
+  return {
+    ...registration,
+    canSendPrivateMessages:
+      state.appKeysManagerReady &&
+      state.sessionManagerReady &&
+      registration.isCurrentDeviceRegistered,
+  }
 }
 
 export const useDevicesStore = create<DeviceState>()((set, get) => ({

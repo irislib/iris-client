@@ -45,7 +45,7 @@ const DevicesTab = () => {
 
   if (privateMessagingBlocked) {
     return (
-      <div className="p-4 text-center text-base-content/60 md:hidden">
+      <div className="p-4 text-center text-base-content/60">
         Private messaging is active in another tab. Close it and reload this tab.
       </div>
     )

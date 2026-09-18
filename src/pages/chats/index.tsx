@@ -7,6 +7,7 @@ import {Helmet} from "react-helmet"
 import classNames from "classnames"
 import NewChat from "./NewChat"
 import GroupGroupRoutes from "./group"
+import ChatRegistrationGate from "./components/ChatRegistrationGate"
 
 function Messages() {
   const location = useLocation()
@@ -69,4 +70,10 @@ function Messages() {
   )
 }
 
-export default Messages
+export default function Chats() {
+  return (
+    <ChatRegistrationGate>
+      <Messages />
+    </ChatRegistrationGate>
+  )
+}

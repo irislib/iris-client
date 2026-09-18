@@ -66,6 +66,38 @@ describe("autoRegisterDevice", () => {
     expect(useDevicesStore.getState().pendingAutoRegistration).toBe(false)
   })
 
+  it("keeps setup pending until registration finishes and prevents duplicate attempts", async () => {
+    let finishRegistration!: () => void
+    vi.mocked(registerDevice).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRegistration = resolve
+        })
+    )
+    useDevicesStore.getState().setPendingAutoRegistration(true)
+    useUserStore.setState({publicKey: "abc123", privateKey: "def456"})
+
+    const registration = autoRegisterDevice()
+    await vi.waitFor(() => expect(registerDevice).toHaveBeenCalledOnce())
+    expect(useDevicesStore.getState().pendingAutoRegistration).toBe(true)
+    await autoRegisterDevice()
+    expect(registerDevice).toHaveBeenCalledOnce()
+
+    finishRegistration()
+    await registration
+    expect(useDevicesStore.getState().pendingAutoRegistration).toBe(false)
+  })
+
+  it("clears the pending state after failure so manual setup is available", async () => {
+    vi.mocked(registerDevice).mockRejectedValueOnce(new Error("Registration failed"))
+    useDevicesStore.getState().setPendingAutoRegistration(true)
+    useUserStore.setState({publicKey: "abc123", privateKey: "def456"})
+
+    await autoRegisterDevice()
+
+    expect(useDevicesStore.getState().pendingAutoRegistration).toBe(false)
+  })
+
   it("skips when device is already registered", async () => {
     useDevicesStore.getState().setPendingAutoRegistration(true)
     useDevicesStore.setState({isCurrentDeviceRegistered: true})

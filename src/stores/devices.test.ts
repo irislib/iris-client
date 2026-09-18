@@ -21,6 +21,29 @@ describe("devices store", () => {
     resetStore()
   })
 
+  it("requires this device to be registered before sending, even with other devices or local keys", () => {
+    const store = useDevicesStore.getState()
+    store.setIdentityPubkey("device-1")
+    store.setAppKeysManagerReady(true)
+    store.setSessionManagerReady(true)
+    store.setHasLocalAppKeys(true)
+    store.setRegisteredDevices([{identityPubkey: "device-2", createdAt: 100}], 100)
+
+    expect(useDevicesStore.getState().canSendPrivateMessages).toBe(false)
+
+    store.setRegisteredDevices(
+      [
+        {identityPubkey: "device-1", createdAt: 101},
+        {identityPubkey: "device-2", createdAt: 100},
+      ],
+      101
+    )
+    expect(useDevicesStore.getState().canSendPrivateMessages).toBe(true)
+
+    store.setRegisteredDevices([{identityPubkey: "device-2", createdAt: 100}], 102)
+    expect(useDevicesStore.getState().canSendPrivateMessages).toBe(false)
+  })
+
   it("accepts newer AppKeys updates", () => {
     useDevicesStore
       .getState()
