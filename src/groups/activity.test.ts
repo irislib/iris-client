@@ -45,9 +45,8 @@ describe("group activity visibility", () => {
     const access = {ref, isEligible: () => true}
     const original = signed()
     expect(isVisibleGroupActivity(original, access)).toBe(true)
-    expect(isVisibleGroupActivity({...original, content: "copied forged"}, access)).toBe(
-      false
-    )
+    const copiedForgery = {...original, content: "copied forged"}
+    expect(isVisibleGroupActivity(copiedForgery, access)).toBe(false)
     original.content = "mutated after verification"
     expect(isVisibleGroupActivity(original, access)).toBe(false)
     const forged = JSON.parse(JSON.stringify(signed()))
