@@ -2,6 +2,7 @@ import {sha256} from "@noble/hashes/sha2.js"
 import {
   buildFactOpDraft,
   buildFactSnapshotDraft,
+  chooseTrustedAuthors,
   FACT_OP_KIND,
   FACT_SNAPSHOT_KIND,
   parseFactOpEvent,
@@ -45,11 +46,24 @@ export type GroupMembers = {
   members: GroupMember[]
   byPubkey: Map<string, GroupMember>
   eligiblePubkeys: Set<string>
+  /** Eligible root/direct accounts; membership never delegates this authority. */
+  authorityPubkeys: Set<string>
+  /** Positive fact evidence for this observed projection, not proof of completeness. */
+  evidenceEventIds: string[]
   view: GroupView
   rootPubkey: string
   policy: GroupPolicy
   /** A traversal cap was reached; the observed trust evidence can be incomplete. */
   truncated: boolean
+}
+
+export type GroupElectorate = {
+  rootPubkey: string
+  policyEventId: string
+  policy: GroupPolicy
+  memberPubkeys: string[]
+  authorityPubkeys: string[]
+  evidenceEventIds: string[]
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -530,13 +544,58 @@ export function deriveGroupMembers({
       secondDegreeVouches: secondDegreeVouchers.length,
     }
   })
+  const evidenceEventIds = new Set([group.eventId])
+  for (const member of members) {
+    if (!member.eligible) continue
+    const joinedEvent = consent.get(member.pubkey)?.event.id
+    if (joinedEvent) evidenceEventIds.add(joinedEvent)
+    for (const author of [...member.directVouchers, ...member.secondDegreeVouchers]) {
+      const vouchEvent = vouches.get(member.pubkey)?.get(author)?.event.id
+      if (vouchEvent) evidenceEventIds.add(vouchEvent)
+    }
+  }
   return {
     members,
     byPubkey: new Map(members.map((member) => [member.pubkey, member])),
     eligiblePubkeys,
+    authorityPubkeys: chooseTrustedAuthors({
+      rootPubkey,
+      eligibleAuthors: eligiblePubkeys,
+      directFollows: network.direct,
+    }),
+    evidenceEventIds: [...evidenceEventIds].sort(),
     rootPubkey,
     view: effectiveView,
     policy: {...policy},
     truncated: network.truncated,
+  }
+}
+
+/** A poll pins the creator's declared view; the store also gates relay readiness. */
+export function deriveGroupElectorate(
+  input: Parameters<typeof deriveGroupMembers>[0]
+): GroupElectorate {
+  const state = deriveGroupMembers({
+    ...input,
+    view: "creator",
+    viewer: undefined,
+    policy: input.group.policy,
+  })
+  if (state.truncated)
+    throw new Error("Load the complete trust view before opening a poll")
+  if (
+    state.eligiblePubkeys.size > 512 ||
+    state.authorityPubkeys.size > 257 ||
+    state.evidenceEventIds.length > 2048
+  ) {
+    throw new Error("This group exceeds the supported poll snapshot size")
+  }
+  return {
+    rootPubkey: state.rootPubkey,
+    policyEventId: input.group.eventId,
+    policy: {...state.policy},
+    memberPubkeys: [...state.eligiblePubkeys].sort(),
+    authorityPubkeys: [...state.authorityPubkeys].sort(),
+    evidenceEventIds: state.evidenceEventIds,
   }
 }

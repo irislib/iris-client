@@ -5,13 +5,18 @@ import {
   createMembershipDraft,
   createVouchDraft,
   deriveGroupMembers,
+  deriveGroupElectorate,
   groupAddress,
   listGroups,
   parseGroup,
   type GroupRef,
 } from "./model"
 
-const key = (n: number) => Uint8Array.from([...Array(31).fill(0), n])
+const key = (n: number) => {
+  const bytes = new Uint8Array(32)
+  new DataView(bytes.buffer).setUint32(28, n)
+  return bytes
+}
 const pub = (n: number) => getPublicKey(key(n))
 const ref: GroupRef = {
   id: "12345678-1234-4234-8234-123456789abc",
@@ -218,5 +223,48 @@ describe("group facts and membership", () => {
     })
     expect(visited).toBeLessThan(20000)
     expect(result.truncated).toBe(true)
+    expect(() =>
+      deriveGroupElectorate({group, events: [], now: 200, getFollows: endless})
+    ).toThrow("complete trust view")
   })
+
+  it("pins eligible members and nondelegated authority in the creator's poll view", () => {
+    const events = [join(2), join(3), vouch(1, 3), vouch(3, 2)]
+    const follows = (p: string) => (p === pub(1) ? [pub(3)] : [])
+    const electorate = deriveGroupElectorate({
+      group,
+      events,
+      now: 200,
+      getFollows: follows,
+      view: "personal",
+      viewer: pub(2),
+      policy: {direct: 20, secondDegree: 20},
+    })
+    expect(electorate.memberPubkeys).toEqual([pub(1), pub(2), pub(3)].sort())
+    expect(electorate.authorityPubkeys).toEqual([pub(1), pub(3)].sort())
+    expect(electorate.rootPubkey).toBe(pub(1))
+    expect(electorate.policy).toEqual(group.policy)
+    expect(electorate.policyEventId).toBe(group.eventId)
+    expect(electorate.evidenceEventIds).toEqual(
+      [group.eventId, ...events.map((e) => e.id)].sort()
+    )
+  })
+
+  it("does not let a compromised trusted member mint authority through 1000 admissions", () => {
+    const events = [join(3), vouch(1, 3)]
+    const bots: string[] = []
+    for (let n = 100; n < 1100; n++) {
+      bots.push(pub(n))
+      events.push(join(n), vouch(3, n))
+    }
+    const getFollows = (p: string) => (p === pub(1) ? [pub(3)] : [])
+    const members = deriveGroupMembers({group, events, now: 200, getFollows})
+    // Membership fan-out remains visible; it never silently becomes authority.
+    expect(members.eligiblePubkeys.size).toBe(1002)
+    expect(members.authorityPubkeys).toEqual(new Set([pub(1), pub(3)]))
+    expect(bots.filter((p) => members.authorityPubkeys.has(p))).toHaveLength(0)
+    expect(() => deriveGroupElectorate({group, events, now: 200, getFollows})).toThrow(
+      "snapshot size"
+    )
+  }, 15_000)
 })

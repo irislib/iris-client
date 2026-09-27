@@ -45,11 +45,10 @@ keys; this group profile does **not** interpret those assertions as permission t
 merge accounts or ballots. Key rotation and verified-human uniqueness are outside
 this profile.
 
-This baseline is not sufficient for adversarial civic decisions. A compromised
-creator or a trusted member can endorse many accounts; unique routes checked
-separately for each candidate do not bound their combined voting influence.
-Stronger founding trust, admission limits, and a frozen poll electorate need a
-separate adversarial acceptance gate before a public decision-making release.
+Membership alone is not voting or ranking authority. A compromised creator or a
+trusted member can endorse many accounts; unique routes checked separately for
+each candidate do not bound their combined influence. The authority rules below
+separate those account admissions from the trusted result.
 
 For repeatable member statements, the fact subject is a deterministic UUIDv8:
 take the first 16 bytes of SHA-256 of UTF-8 `iris-group-member:<hex pubkey>`, set
@@ -123,7 +122,46 @@ and 32768 total scanned entries. The returned `truncated` flag signals that the
 network view may omit evidence. Invalid or duplicate contact entries consume the
 scan budget as well, so malformed iterables cannot cause unlimited work.
 
-Polls and engagement must use the selected view's current `eligiblePubkeys`.
-Counts may change when consent, vouches, contact lists, thresholds, or available
-relay data change. One signed account is one participant; the UI must describe
-the result as an advisory count of eligible accounts in the selected view.
+## Voting and ranking authority
+
+The shared `nostr-social-graph` `chooseTrustedAuthors` helper selects the root
+itself and its **direct** followees, intersected with currently eligible members.
+The resulting `authorityPubkeys` never includes descendants merely because they
+were vouched for. An admitted member does not gain the power to create more
+trusted voting accounts. `countDistinctTrustedAuthors` counts at most one signal
+per authorized key, including when events are repeated or relayed many times.
+
+Member ballots and the trusted result are separate visible counts. A member can
+participate without being in the selected view's authority set; that distinction
+must be explained before voting. Engagement ranking uses distinct authority
+accounts, while member activity remains visible. These are accounts, not verified
+humans, and the trusted result is not a claim to represent everyone equally.
+
+One compromised directly trusted member can admit 1000 or 10000 accounts, but
+cannot turn them into additional trusted votes. The creator choosing new trusted
+accounts and collusion among existing trusted accounts are explicit assumption
+boundaries. The helper does not protect against a compromised trust root. It also
+does not solve content-volume floods: many low-ranked posts still require normal
+feed limits, diversity, and moderation controls.
+
+## Poll electorate snapshots
+
+`deriveGroupElectorate` freezes the creator's published policy and observed
+membership view at poll opening. It supplies the metadata event ID, root, policy,
+eligible member keys, authority keys, and positive membership/vouch evidence IDs.
+It refuses a truncated graph view or snapshots above 512 members, 257 authority
+accounts (root plus 256 direct contacts), or 2048 evidence events; it never clips
+an electorate. The publisher separately checks relay loading/readiness and its
+serialized-event size limit.
+
+The signed poll commits those explicit keys. Later membership, vouch, follow, or
+threshold changes affect new views and polls, not the frozen roster. Positive
+evidence documents the author's observed projection; it cannot prove no facts
+were omitted or that a relay supplied a complete history. A known root contact
+event may be attached as additional evidence by the data store.
+
+Self-declared Nostr timestamps also do not prove receipt before a poll closes.
+An eligible key can backdate a late event. Without an independently agreed
+receipt/closure mechanism, results remain advisory and may change with late
+relay data. A frozen roster supplies stable participation rules, not certified
+election finality.
