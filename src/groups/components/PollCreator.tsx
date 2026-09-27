@@ -77,11 +77,20 @@ export default function PollCreator({
       }
       if (!proofsReady)
         throw new Error("Wait for all signed voter proofs before posting the poll.")
+      const now = Math.floor(Date.now() / 1000)
+      const latestEvidenceAt = Math.max(
+        ...evidence.events.map((event) => event.created_at ?? 0)
+      )
+      if (latestEvidenceAt > now)
+        throw new Error("The voter proofs are dated in the future. Try again later.")
+      // Seconds cannot order an opening and a later change within that same second.
+      // Verify against the earliest possible opening, then wait until after all proofs.
+      const earliestOpening = Math.max(now, latestEvidenceAt + 1)
       const verification = verifyGroupElectorateEvidence(
         group,
         electorate,
         evidence.events,
-        Math.floor(Date.now() / 1000)
+        earliestOpening
       )
       if (!verification.valid)
         throw new Error(
@@ -99,13 +108,15 @@ export default function PollCreator({
           ...buildPollEvidenceTags(electorate, evidence.events),
           ...buildPollTags({
             options,
-            endsAt: Math.floor(Date.now() / 1000) + duration,
+            endsAt: earliestOpening + duration,
             relays,
           }),
         ],
       }
       assertPollSize(draft)
-      const event = await publishGroupEvent(draft, relays)
+      const event = await publishGroupEvent(draft, relays, {
+        afterTimestamp: latestEvidenceAt,
+      })
       onPublished(event)
       onClose()
     } catch (reason) {

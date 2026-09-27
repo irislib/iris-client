@@ -208,4 +208,16 @@ describe("acknowledged group publishing", () => {
     await rejected
     expectUnpublished()
   })
+
+  it("signs a poll in a later second than its newest committed evidence", async () => {
+    const publishing = publishGroupEvent({...draft(), kind: 1068}, undefined, {
+      afterTimestamp: 1000,
+    })
+    await vi.advanceTimersByTimeAsync(999)
+    expectUnpublished()
+    await vi.advanceTimersByTimeAsync(1)
+    const event = await publishing
+    expect(event.created_at).toBe(1001)
+    expect(verifyEvent(event.rawEvent())).toBe(true)
+  })
 })

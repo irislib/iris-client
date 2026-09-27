@@ -187,7 +187,7 @@ function parsePollEvidence(
     if (
       !expected.has(proof.id) ||
       ids.has(proof.id) ||
-      proof.created_at > event.created_at!
+      proof.created_at >= event.created_at!
     )
       throw new Error("Voter evidence does not match the poll commitment")
     ids.add(proof.id)
@@ -514,7 +514,7 @@ export function verifyPollAuthority(
       event.kind !== 3 ||
       event.pubkey !== snapshot.rootPubkey ||
       !isTimestamp(event.created_at) ||
-      event.created_at > poll.createdAt ||
+      event.created_at >= poll.createdAt ||
       !event.sig
     )
       continue
@@ -582,13 +582,13 @@ export function rememberPollRootEvidence(
   previous: SignedEvent | undefined,
   incoming: Iterable<PollEvent & {sig?: string}>
 ): SignedEvent | undefined {
-  let latest = previous
+  let latest = previous && previous.created_at < poll.createdAt ? previous : undefined
   for (const event of incoming) {
     if (
       event.kind !== 3 ||
       event.pubkey !== poll.electorate?.rootPubkey ||
       !isTimestamp(event.created_at) ||
-      event.created_at > poll.createdAt
+      event.created_at >= poll.createdAt
     )
       continue
     try {

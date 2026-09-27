@@ -15,7 +15,12 @@ export default function usePollAuthority(poll: Poll | null) {
     snapshot
       ? [
           ...(missingIds.length ? [{ids: missingIds, limit: missingIds.length}] : []),
-          {kinds: [3], authors: [snapshot.rootPubkey], until: poll!.createdAt, limit: 1},
+          {
+            kinds: [3],
+            authors: [snapshot.rootPubkey],
+            until: poll!.createdAt - 1,
+            limit: 1,
+          },
         ]
       : [],
     (snapshot?.evidenceEventIds.length ?? 0) + 2,

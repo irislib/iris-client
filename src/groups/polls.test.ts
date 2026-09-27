@@ -426,6 +426,17 @@ describe("signed direct-authority proofs", () => {
     const later = finalizeEvent({kind: 3, created_at: 150, content: "", tags: []}, secret)
     expect(verifyPollAuthority(poll, [proof, later]).valid).toBe(true)
   })
+  it("ignores contact changes in the poll's opening second when checking rollback", () => {
+    const {poll, proof, secret} = signedElectorate()
+    const sameSecond = finalizeEvent(
+      {kind: 3, created_at: poll.createdAt, content: "", tags: []},
+      secret
+    )
+    expect(verifyPollAuthority(poll, [proof, sameSecond])).toEqual({valid: true})
+    expect(rememberPollRootEvidence(poll, proof, [sameSecond])?.id).toBe(proof.id)
+    expect(rememberPollRootEvidence(poll, undefined, [sameSecond])).toBeUndefined()
+    expect(isPollVoter(poll, hex(4), true, false)).toBe(true)
+  })
   it("the poll signature commits the exact roster and evidence", () => {
     const {draft, secret} = signedElectorate()
     const signed = finalizeEvent(
@@ -523,6 +534,11 @@ function archivedPoll() {
 }
 
 describe("immutable signed proof archive", () => {
+  it("rejects committed evidence from the poll's opening second", () => {
+    const {event, rootKey} = archivedPoll()
+    const openedTooEarly = finalizeEvent({...event, created_at: 83}, rootKey)
+    expect(parsePoll(openedTooEarly)).toBeNull()
+  })
   it("replays membership and authority using only the signed poll after relay history disappears", () => {
     const {event, ref} = archivedPoll()
     const parsed = parsePoll(event)!
@@ -561,6 +577,25 @@ describe("immutable signed proof archive", () => {
       verifyGroupElectorateEvidence(ref, parsed.electorate!, available, parsed.createdAt)
         .valid
     ).toBe(true)
+  })
+  it("retains verified voters after a same-second post-opening creator unfollow", () => {
+    const {event, ref, rootKey} = archivedPoll()
+    const parsed = parsePoll(event)!
+    const unfollow = finalizeEvent(
+      {kind: 3, content: "", tags: [], created_at: event.created_at},
+      rootKey
+    )
+    const available = [...parsed.evidenceEvents!, unfollow]
+    const verified = verifyGroupElectorateEvidence(
+      ref,
+      parsed.electorate!,
+      available,
+      parsed.createdAt
+    )
+    expect(verifyPollAuthority(parsed, available)).toEqual({valid: true})
+    expect(verified).toEqual({valid: true})
+    const member = parsed.electorate!.memberPubkeys.find((key) => key !== ref.creator)!
+    expect(isPollVoter(parsed, member, verified.valid, false)).toBe(true)
   })
   it("rejects missing, forged and duplicate archived proofs", () => {
     const {event} = archivedPoll()
