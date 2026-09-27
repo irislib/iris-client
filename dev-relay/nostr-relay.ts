@@ -19,6 +19,8 @@ type NostrRelayMessage =
   | ["COUNT", string, {count: number}]
 
 export interface NostrRelayOptions {
+  /** Optional relay policy for deterministic publish-failure integration tests. */
+  rejectEvent?: (event: NostrEvent) => string | undefined
   host?: string
   port?: number
   /**
@@ -296,6 +298,11 @@ export async function startNostrRelay(
 
       if (type === "EVENT") {
         const [_t, event] = parsed as ["EVENT", NostrEvent]
+        const rejection = opts.rejectEvent?.(event)
+        if (rejection) {
+          safeSend(ws, ["OK", event?.id ?? "", false, rejection])
+          return
+        }
         const {stored, notice} = store.acceptEvent(event)
         if (notice) safeSend(ws, ["NOTICE", notice])
         safeSend(ws, ["OK", event?.id ?? "", true, ""])

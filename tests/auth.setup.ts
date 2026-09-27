@@ -1,6 +1,13 @@
 import {expect} from "@playwright/test"
 
 async function openLoginDialog(page) {
+  // Previewing a built artifact cannot change its compile-time relay defaults.
+  // Pin local runs before any navigation, while preserving a test's custom relay.
+  if (process.env.IRIS_E2E_LOCAL_RELAY === "true") {
+    await page.addInitScript(() => {
+      window.__HTREE_SERVER_URL__ ??= "http://127.0.0.1:7777"
+    })
+  }
   await page.goto("/")
   await page.waitForLoadState("domcontentloaded")
   await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})

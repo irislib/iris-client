@@ -1,4 +1,6 @@
 import {useState, useRef} from "react"
+import {getEventGroup, useGroupAccess} from "@/groups/GroupContext"
+import {groupAddress, type GroupRef} from "@/groups/model"
 import {NDKEvent} from "@/lib/ndk"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {ProfileLink} from "@/shared/components/user/ProfileLink"
@@ -35,9 +37,10 @@ interface BaseNoteCreatorProps {
   onPublish?: (event: NDKEvent) => void
   expandOnFocus?: boolean
   alwaysExpanded?: boolean
+  group?: GroupRef
 }
 
-export function BaseNoteCreator({
+function NoteCreatorBody({
   onClose,
   replyingTo,
   quotedEvent,
@@ -49,11 +52,28 @@ export function BaseNoteCreator({
   onPublish: onPublishCallback,
   expandOnFocus = false,
   alwaysExpanded = false,
+  group,
 }: BaseNoteCreatorProps) {
   const myPubKey = usePublicKey()
   const ndkInstance = ndk()
+  const access = useGroupAccess()
+  const destination = replyingTo
+    ? getEventGroup(replyingTo)
+    : quotedEvent
+      ? getEventGroup(quotedEvent)
+      : group
+  const canPublish =
+    !destination ||
+    !!(access?.canParticipate && groupAddress(access.ref) === groupAddress(destination))
 
-  const draftKey = replyingTo?.id || (quotedEvent ? `quote-${quotedEvent.id}` : "") || ""
+  const draftKey =
+    (replyingTo?.id &&
+      (destination ? `${myPubKey}:group-reply-${replyingTo.id}` : replyingTo.id)) ||
+    (destination
+      ? `${myPubKey}:group-${groupAddress(destination)}${quotedEvent ? `-quote-${quotedEvent.id}` : ""}`
+      : quotedEvent
+        ? `quote-${quotedEvent.id}`
+        : "")
 
   const [state, dispatch] = useNoteCreatorState()
   const {clearDraft, draftStore} = useNoteDraft(draftKey, state, dispatch, quotedEvent)
@@ -81,6 +101,8 @@ export function BaseNoteCreator({
     quotedEvent,
     draftKey,
     gTags: draft?.gTags,
+    group: destination ?? undefined,
+    canPublish,
     onPublishSuccess: () => {
       clearDraft() // Clear draft BEFORE reset to prevent useEffect re-persistence
       dispatch({type: "RESET"})
@@ -119,6 +141,7 @@ export function BaseNoteCreator({
     replyingTo,
     onClose,
     onPublishCallback,
+    navigateOnPublish: !destination,
   })
 
   useNoteCreatorEffects({
@@ -131,7 +154,7 @@ export function BaseNoteCreator({
     setIsFocused,
   })
 
-  if (!myPubKey) return null
+  if (!myPubKey || !canPublish) return null
 
   const effectiveEventKind = replyingTo ? KIND_TEXT_NOTE : state.eventKind
   const shouldExpand = Boolean(
@@ -175,7 +198,7 @@ export function BaseNoteCreator({
               Preview
             </button>
           </div>
-          {!replyingTo && (
+          {!replyingTo && !destination && (
             <select
               value={state.eventKind}
               onChange={(e) =>
@@ -278,4 +301,9 @@ export function BaseNoteCreator({
       )}
     </div>
   )
+}
+
+export function BaseNoteCreator(props: BaseNoteCreatorProps) {
+  const publicKey = usePublicKey()
+  return <NoteCreatorBody key={publicKey} {...props} />
 }

@@ -1,4 +1,6 @@
-import {useState} from "react"
+import {useState, useRef} from "react"
+import {groupAddress, type GroupRef} from "@/groups/model"
+import {publishGroupEvent} from "@/groups/publish"
 import NDK, {NDKEvent, NDKKind} from "@/lib/ndk"
 import {NoteCreatorState} from "./useNoteCreatorState"
 import {buildEventTags} from "../utils/eventTags"
@@ -12,22 +14,33 @@ interface UseNotePublisherParams {
   quotedEvent?: NDKEvent
   draftKey: string
   gTags?: string[]
+  group?: GroupRef
+  canPublish?: boolean
   onPublishSuccess: () => void
 }
 
 export function useNotePublisher(params: UseNotePublisherParams) {
   const [publishing, setPublishing] = useState(false)
+  const inFlight = useRef(false)
 
   const publish = async (state: NoteCreatorState) => {
     const {myPubKey, ndkInstance} = params
 
-    if (!myPubKey || !ndkInstance || !state.text.trim() || publishing) {
+    if (
+      !myPubKey ||
+      !ndkInstance ||
+      !state.text.trim() ||
+      inFlight.current ||
+      params.canPublish === false
+    ) {
       return false
     }
 
+    inFlight.current = true
     setPublishing(true)
     try {
-      const effectiveEventKind = params.replyingTo ? NDKKind.Text : state.eventKind
+      const effectiveEventKind =
+        params.replyingTo || params.group ? NDKKind.Text : state.eventKind
       const replyingTo = params.replyingTo
       if (replyingTo) {
         replyingTo.ndk ??= ndkInstance
@@ -55,22 +68,29 @@ export function useNotePublisher(params: UseNotePublisherParams) {
         myPubKey,
       })
 
+      if (params.group) {
+        event.tags = event.tags.filter(
+          (tag) => tag[0] !== "h" && !(tag[0] === "a" && tag[1]?.startsWith("37368:"))
+        )
+        event.tags.push(["h", params.group.id], ["a", groupAddress(params.group)])
+      }
+
       // Validate tags are all valid arrays
       event.tags = event.tags.filter(
         (tag) => Array.isArray(tag) && tag.every((item) => typeof item === "string")
       )
 
-      await event.sign()
-
-      // Add to hot cache immediately for instant detail page loading
-      cacheEvent(event)
-
-      // Fire and forget - event is already cached for offline-first behavior
-      // Don't await relay responses as that causes spinner to hang
-      event.publish().catch((error) => {
-        console.error("Failed to publish note:", error)
-      })
-
+      if (params.group) {
+        await publishGroupEvent(event)
+      } else {
+        await event.sign()
+        cacheEvent(event)
+        // Fire and forget - event is already cached for offline-first behavior
+        // Don't await relay responses as that causes spinner to hang
+        event.publish().catch((error) => {
+          console.error("Failed to publish note:", error)
+        })
+      }
       setPublishing(false)
       params.onPublishSuccess()
 
@@ -98,6 +118,9 @@ export function useNotePublisher(params: UseNotePublisherParams) {
         event: null,
         eventId: null,
       }
+    } finally {
+      inFlight.current = false
+      setPublishing(false)
     }
   }
 

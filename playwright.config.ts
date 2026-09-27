@@ -9,7 +9,8 @@ const usingBuiltDist =
   process.env.IRIS_E2E_BUILT === "1"
 
 // Default to local relay for E2E runs unless explicitly told to use the test relay.
-const usingLocalRelay = !usingBuiltDist && !usingTestRelay
+const usingLocalRelay =
+  process.env.IRIS_E2E_LOCAL_RELAY === "true" || (!usingBuiltDist && !usingTestRelay)
 
 const vitePort = (() => {
   const raw = process.env.IRIS_E2E_PORT

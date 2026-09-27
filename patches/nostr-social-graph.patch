@@ -1,0 +1,215 @@
+diff --git a/dist/index-with-trusted-authors.cjs b/dist/index-with-trusted-authors.cjs
+new file mode 100644
+index 00000000..aea17510
+--- /dev/null
++++ b/dist/index-with-trusted-authors.cjs
+@@ -0,0 +1 @@
++module.exports = {...require('./nostr-social-graph.cjs'), ...require('./trustedAuthors.cjs')};
+diff --git a/dist/index-with-trusted-authors.js b/dist/index-with-trusted-authors.js
+new file mode 100644
+index 00000000..39e2ef1a
+--- /dev/null
++++ b/dist/index-with-trusted-authors.js
+@@ -0,0 +1,2 @@
++export * from './nostr-social-graph.es.js';
++export { chooseTrustedAuthors, countDistinctTrustedAuthors } from './trustedAuthors.js';
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 66fa5e3d..8cf61d9f 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -12,4 +12,5 @@ export * from './nostrIdentityEvents';
+ export * from './nostrIdentityNormalize';
+ export * from './nostrIdentityProjection';
+ export * from './nostrIdentityValidation';
+-//# sourceMappingURL=index.d.ts.map
+\ No newline at end of file
++//# sourceMappingURL=index.d.ts.map
++export * from './trustedAuthors';
+diff --git a/dist/trustedAuthors.cjs b/dist/trustedAuthors.cjs
+new file mode 100644
+index 00000000..f763a293
+--- /dev/null
++++ b/dist/trustedAuthors.cjs
+@@ -0,0 +1,36 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.chooseTrustedAuthors = chooseTrustedAuthors;
++exports.countDistinctTrustedAuthors = countDistinctTrustedAuthors;
++const HEX_PUBKEY = /^[0-9a-f]{64}$/;
++/**
++ * Select nondelegated signing authority: eligible root/direct authors only.
++ *
++ * Admission and authority are deliberately separate. An admitted author cannot
++ * mint additional authority by following or endorsing other accounts. Inputs
++ * must come from authenticated application state; this function does not verify
++ * events or establish that distinct keys represent distinct people. Runtime is
++ * linear in eligibleAuthors and retained state is bounded by the trust set.
++ */
++function chooseTrustedAuthors({ rootPubkey, eligibleAuthors, directFollows, mutedAuthors, }) {
++    if (!HEX_PUBKEY.test(rootPubkey))
++        throw new Error('Invalid root public key');
++    const trusted = new Set();
++    for (const author of eligibleAuthors) {
++        if (HEX_PUBKEY.test(author) &&
++            (author === rootPubkey || directFollows.has(author)) &&
++            !mutedAuthors?.has(author)) {
++            trusted.add(author);
++        }
++    }
++    return new Set([...trusted].sort());
++}
++/** Count at most one signal per authorized signing key, regardless of replays. */
++function countDistinctTrustedAuthors(authors, trustedAuthors) {
++    const seen = new Set();
++    for (const author of authors) {
++        if (trustedAuthors.has(author))
++            seen.add(author);
++    }
++    return seen.size;
++}
+diff --git a/dist/trustedAuthors.d.ts b/dist/trustedAuthors.d.ts
+new file mode 100644
+index 00000000..653b70ba
+--- /dev/null
++++ b/dist/trustedAuthors.d.ts
+@@ -0,0 +1,21 @@
++export type TrustedAuthorSelection = {
++    /** The explicitly selected perspective, never inferred from incoming claims. */
++    rootPubkey: string;
++    /** Authors independently admitted by the application's membership policy. */
++    eligibleAuthors: Iterable<string>;
++    /** The root's own direct trust choices; descendants do not grant authority. */
++    directFollows: ReadonlySet<string>;
++    mutedAuthors?: ReadonlySet<string>;
++};
++/**
++ * Select nondelegated signing authority: eligible root/direct authors only.
++ *
++ * Admission and authority are deliberately separate. An admitted author cannot
++ * mint additional authority by following or endorsing other accounts. Inputs
++ * must come from authenticated application state; this function does not verify
++ * events or establish that distinct keys represent distinct people. Runtime is
++ * linear in eligibleAuthors and retained state is bounded by the trust set.
++ */
++export declare function chooseTrustedAuthors({ rootPubkey, eligibleAuthors, directFollows, mutedAuthors, }: TrustedAuthorSelection): Set<string>;
++/** Count at most one signal per authorized signing key, regardless of replays. */
++export declare function countDistinctTrustedAuthors(authors: Iterable<string>, trustedAuthors: ReadonlySet<string>): number;
+diff --git a/dist/trustedAuthors.js b/dist/trustedAuthors.js
+new file mode 100644
+index 00000000..c82326a6
+--- /dev/null
++++ b/dist/trustedAuthors.js
+@@ -0,0 +1,32 @@
++const HEX_PUBKEY = /^[0-9a-f]{64}$/;
++/**
++ * Select nondelegated signing authority: eligible root/direct authors only.
++ *
++ * Admission and authority are deliberately separate. An admitted author cannot
++ * mint additional authority by following or endorsing other accounts. Inputs
++ * must come from authenticated application state; this function does not verify
++ * events or establish that distinct keys represent distinct people. Runtime is
++ * linear in eligibleAuthors and retained state is bounded by the trust set.
++ */
++export function chooseTrustedAuthors({ rootPubkey, eligibleAuthors, directFollows, mutedAuthors, }) {
++    if (!HEX_PUBKEY.test(rootPubkey))
++        throw new Error('Invalid root public key');
++    const trusted = new Set();
++    for (const author of eligibleAuthors) {
++        if (HEX_PUBKEY.test(author) &&
++            (author === rootPubkey || directFollows.has(author)) &&
++            !mutedAuthors?.has(author)) {
++            trusted.add(author);
++        }
++    }
++    return new Set([...trusted].sort());
++}
++/** Count at most one signal per authorized signing key, regardless of replays. */
++export function countDistinctTrustedAuthors(authors, trustedAuthors) {
++    const seen = new Set();
++    for (const author of authors) {
++        if (trustedAuthors.has(author))
++            seen.add(author);
++    }
++    return seen.size;
++}
+diff --git a/package.json b/package.json
+index 32d7d14a..20067099 100644
+--- a/package.json
++++ b/package.json
+@@ -4,14 +4,14 @@
+   "type": "module",
+   "packageManager": "pnpm@10.28.2",
+   "description": "Nostr social graph library",
+-  "main": "dist/nostr-social-graph.cjs",
+-  "module": "dist/nostr-social-graph.es.js",
++  "main": "dist/index-with-trusted-authors.cjs",
++  "module": "dist/index-with-trusted-authors.js",
+   "types": "dist/index.d.ts",
+   "exports": {
+     ".": {
+       "types": "./dist/index.d.ts",
+-      "import": "./dist/nostr-social-graph.es.js",
+-      "require": "./dist/nostr-social-graph.cjs"
++      "import": "./dist/index-with-trusted-authors.js",
++      "require": "./dist/index-with-trusted-authors.cjs"
+     },
+     "./data/socialGraph.bin": "./data/socialGraph.bin",
+     "./data/profileData.json": "./data/profileData.json",
+diff --git a/src/trustedAuthors.ts b/src/trustedAuthors.ts
+new file mode 100644
+index 00000000..7dddcfd9
+--- /dev/null
++++ b/src/trustedAuthors.ts
+@@ -0,0 +1,52 @@
++export type TrustedAuthorSelection = {
++  /** The explicitly selected perspective, never inferred from incoming claims. */
++  rootPubkey: string;
++  /** Authors independently admitted by the application's membership policy. */
++  eligibleAuthors: Iterable<string>;
++  /** The root's own direct trust choices; descendants do not grant authority. */
++  directFollows: ReadonlySet<string>;
++  mutedAuthors?: ReadonlySet<string>;
++};
++
++const HEX_PUBKEY = /^[0-9a-f]{64}$/;
++
++/**
++ * Select nondelegated signing authority: eligible root/direct authors only.
++ *
++ * Admission and authority are deliberately separate. An admitted author cannot
++ * mint additional authority by following or endorsing other accounts. Inputs
++ * must come from authenticated application state; this function does not verify
++ * events or establish that distinct keys represent distinct people. Runtime is
++ * linear in eligibleAuthors and retained state is bounded by the trust set.
++ */
++export function chooseTrustedAuthors({
++  rootPubkey,
++  eligibleAuthors,
++  directFollows,
++  mutedAuthors,
++}: TrustedAuthorSelection): Set<string> {
++  if (!HEX_PUBKEY.test(rootPubkey)) throw new Error("Invalid root public key");
++  const trusted = new Set<string>();
++  for (const author of eligibleAuthors) {
++    if (
++      HEX_PUBKEY.test(author) &&
++      (author === rootPubkey || directFollows.has(author)) &&
++      !mutedAuthors?.has(author)
++    ) {
++      trusted.add(author);
++    }
++  }
++  return new Set([...trusted].sort());
++}
++
++/** Count at most one signal per authorized signing key, regardless of replays. */
++export function countDistinctTrustedAuthors(
++  authors: Iterable<string>,
++  trustedAuthors: ReadonlySet<string>,
++): number {
++  const seen = new Set<string>();
++  for (const author of authors) {
++    if (trustedAuthors.has(author)) seen.add(author);
++  }
++  return seen.size;
++}

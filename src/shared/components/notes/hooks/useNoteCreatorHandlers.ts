@@ -32,6 +32,7 @@ interface UseNoteCreatorHandlersParams {
   isFocused: boolean
   setIsFocused: (focused: boolean) => void
   replyingTo?: NDKEvent
+  navigateOnPublish?: boolean
   onClose?: () => void
   onPublishCallback?: (event: NDKEvent) => void
 }
@@ -51,7 +52,7 @@ export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
     if (result && result.success) {
       // No delay needed - cache operations are properly awaited in publish()
       // Navigate before closing modal (if not a reply)
-      if (result.eventId && !params.replyingTo) {
+      if (result.eventId && !params.replyingTo && params.navigateOnPublish !== false) {
         navigate(`/${nip19.noteEncode(result.eventId)}`)
       }
       // Close modal and call callback after navigation

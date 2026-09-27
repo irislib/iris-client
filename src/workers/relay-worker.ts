@@ -23,7 +23,8 @@ self.onunhandledrejection = (event: PromiseRejectionEvent) => {
   event.preventDefault()
 }
 
-import NDK, {nip19} from "../lib/ndk"
+import NDK, {nip19, NDKRelaySet} from "../lib/ndk"
+import {publishConfirmedEvent} from "../lib/publishConfirmedEvent"
 import {
   getRemoteProfileSearchDebounceMs,
   initSearchIndex,
@@ -571,24 +572,11 @@ async function handlePublish(
 
     log("[Relay Worker] Publishing event:", eventData.id)
 
-    // Publish to specified relays or all connected relays
-    let relays: any = undefined
-    if (relayUrls && relayUrls.length > 0) {
-      relays = ndk.pool?.relays
-        ? Array.from(ndk.pool.relays.values()).filter((r) => relayUrls.includes(r.url))
-        : undefined
-      log(
-        "[Relay Worker] Publishing to specific relays:",
-        relayUrls,
-        "found:",
-        relays?.length
-      )
-    } else {
-      log("[Relay Worker] Publishing to all relays, pool size:", ndk.pool?.relays.size)
-    }
-
-    // Increase timeout to allow relays to connect (10s)
-    await event.publish(relays, 10_000)
+    const relaySet = relayUrls?.length
+      ? NDKRelaySet.fromRelayUrls(relayUrls, ndk)
+      : undefined
+    if (opts?.requireAck) await publishConfirmedEvent(event, relaySet)
+    else await event.publish(relaySet, 10_000, 1)
 
     log("[Relay Worker] Event published successfully:", eventData.id)
     self.postMessage({

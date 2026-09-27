@@ -54,3 +54,5 @@ nvim-config
 dev-relay/*.jsonl
 dev-relay/*.jsonl.bz2
 keystore.properties
+
+/work/

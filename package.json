@@ -162,5 +162,10 @@
     "workbox-strategies": "^7.4.1",
     "workbox-window": "^7.4.1",
     "ws": "^8.21.1"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "nostr-social-graph": "patches/nostr-social-graph.patch"
+    }
   }
 }

@@ -16,6 +16,7 @@ export interface WorkerSubscribeOpts {
 }
 
 export interface WorkerPublishOpts {
+  requireAck?: boolean
   publishTo?: ("cache" | "relay" | "subscriptions")[]
   verifySignature?: boolean
   source?: string

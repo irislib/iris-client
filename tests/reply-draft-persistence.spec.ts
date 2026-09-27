@@ -154,7 +154,7 @@ test.describe("Reply draft persistence", () => {
     // Type and publish reply
     const replyContent = "This reply will be published"
     await page.getByPlaceholder("Write your reply...").fill(replyContent)
-    await page.getByRole("button", {name: "Reply"}).click()
+    await page.getByRole("button", {name: "Reply", exact: true}).last().click()
 
     // Check reply draft is cleared
     await expect(page.getByPlaceholder("Write your reply...")).toHaveValue("")

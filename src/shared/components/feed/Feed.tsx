@@ -1,6 +1,11 @@
+import {useGroupAccess, useGroupVisibility} from "@/groups/GroupContext"
 import {useRef, useState, ReactNode, useEffect, useMemo, memo, useCallback} from "react"
 import {NDKEvent, NDKFilter} from "@/lib/ndk"
 
+import {useGroupEvents} from "@/groups/useGroupEvents"
+import {groupTags} from "@/groups/model"
+import {ndk} from "@/utils/ndk"
+import {getEventReplyReference} from "@/utils/threadReferences"
 import {PerfProfiler} from "@/utils/reactProfiler"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import useHistoryState from "@/shared/hooks/useHistoryState"
@@ -36,6 +41,8 @@ interface FeedProps {
   injectedEvents?: NDKEvent[]
   visibilitySnapshot?: AlgorithmicVisibilitySnapshot | null
   enabled?: boolean
+  eventSource?: {events: NDKEvent[]; loading: boolean}
+  selectEvents?: (events: readonly NDKEvent[], displayCount: number) => NDKEvent[]
 }
 
 const DefaultEmptyPlaceholder = (
@@ -58,9 +65,14 @@ const Feed = memo(function Feed({
   forceShowZapAll = false,
   subscriptionFilters,
   injectedEvents,
-  visibilitySnapshot,
+  visibilitySnapshot: suppliedVisibilitySnapshot,
   enabled = true,
+  eventSource: suppliedEventSource,
+  selectEvents,
 }: FeedProps) {
+  const groupAccess = useGroupAccess()
+  const groupVisibility = useGroupVisibility()
+  const visibilitySnapshot = suppliedVisibilitySnapshot ?? groupVisibility
   const socialGraph = useSocialGraph()
   if (!feedConfig?.filter) {
     throw new Error("Feed component requires feedConfig with filter")
@@ -99,6 +111,62 @@ const Feed = memo(function Feed({
     // followDistance > 1 or undefined: fetch all, filter client-side
     return baseFilters
   }, [feedConfig.filter, feedConfig.followDistance, follows, myPubKey])
+
+  // Thread replies use the same member boundary and per-author query budgets.
+  const groupAuthors = groupAccess
+    ? [
+        ...new Set([
+          ...(groupAccess.membership?.authorityPubkeys ?? []),
+          ...(myPubKey && groupAccess.isEligible(myPubKey) ? [myPubKey] : []),
+          ...(groupAccess.membership?.eligiblePubkeys ?? []),
+        ]),
+      ].slice(0, 512)
+    : []
+  const groupFilters: NDKFilter[] =
+    groupAccess && !suppliedEventSource && enabled
+      ? (subscriptionFilters?.length ? subscriptionFilters : [filters]).map((filter) => ({
+          ...filter,
+          ...Object.fromEntries(
+            groupTags(groupAccess.ref).map(([key, value]) => [`#${key}`, [value]])
+          ),
+          authors: groupAuthors,
+        }))
+      : []
+  const groupEvents = useGroupEvents(
+    groupAuthors.length
+      ? groupFilters.flatMap((filter) =>
+          groupAuthors.map((author) => ({
+            ...filter,
+            authors: [author],
+            limit: 16,
+          }))
+        )
+      : [],
+    Math.max(1, groupAuthors.length * 32),
+    {liveFilters: groupFilters, perAuthorCap: 32}
+  )
+  const groupSource = useMemo(() => {
+    if (!groupAccess || suppliedEventSource) return undefined
+    const events = new Map<string, NDKEvent>()
+    for (const event of [
+      ...groupEvents.events.map((raw) => new NDKEvent(ndk(), raw)),
+      ...(injectedEvents ?? []),
+    ]) {
+      const reply = getEventReplyReference(event)
+      if (
+        (feedConfig.hideReplies && reply) ||
+        (feedConfig.requiresReplies && !reply) ||
+        (feedConfig.repliesTo && reply !== feedConfig.repliesTo)
+      )
+        continue
+      events.set(event.id, event)
+    }
+    return {
+      events: [...events.values()],
+      loading: groupAccess.loading || groupEvents.loading,
+    }
+  }, [groupAccess, suppliedEventSource, groupEvents, injectedEvents, feedConfig])
+  const eventSource = suppliedEventSource ?? groupSource
 
   const sortFn = useMemo(() => {
     switch (feedConfig.sortType) {
@@ -150,13 +218,13 @@ const Feed = memo(function Feed({
 
   const {
     newEvents: newEventsMap,
-    filteredEvents,
+    filteredEvents: subscribedEvents,
     additionalSearchResults,
     eventsByUnknownUsers,
     showNewEvents,
     loadMoreItems: hookLoadMoreItems,
-    initialLoadDone,
-    searchLoading,
+    initialLoadDone: subscribedLoadDone,
+    searchLoading: subscribedSearchLoading,
     canSearchMore,
   } = useFeedEvents({
     filters,
@@ -168,10 +236,25 @@ const Feed = memo(function Feed({
     bottomVisibleEventTimestamp,
     displayAs,
     subscriptionFilters,
-    injectedEvents,
+    injectedEvents: eventSource ? undefined : injectedEvents,
     visibilitySnapshot,
-    enabled,
+    enabled: enabled && !eventSource,
   })
+
+  // A bounded source can reuse the full Iris presentation without another relay query.
+  const allEvents = useMemo(() => {
+    const candidates = eventSource?.events ?? subscribedEvents
+    const visible = groupVisibility
+      ? candidates.filter((event) => !groupVisibility.shouldHideAlgorithmicEvent(event))
+      : candidates
+    return eventSource && sortFn ? [...visible].sort(sortFn) : visible
+  }, [eventSource, subscribedEvents, groupVisibility, sortFn])
+  const filteredEvents = useMemo(
+    () => (selectEvents ? selectEvents(allEvents, displayCount) : allEvents),
+    [allEvents, displayCount, selectEvents]
+  )
+  const initialLoadDone = eventSource ? !eventSource.loading : subscribedLoadDone
+  const searchLoading = eventSource?.loading ?? subscribedSearchLoading
 
   // Track which events we've already notified about
   const notifiedEventIds = useRef(new Set<string>())
@@ -189,16 +272,20 @@ const Feed = memo(function Feed({
   }, [filteredEvents, onEvent])
 
   const loadMoreItems = () => {
-    const hasMore = hookLoadMoreItems()
+    const hasMore = eventSource
+      ? selectEvents
+        ? filteredEvents.length < allEvents.length
+        : displayCount < allEvents.length
+      : hookLoadMoreItems()
     if (hasMore) {
-      setDisplayCount((prev: number) => prev + DISPLAY_INCREMENT)
+      setDisplayCount((prev: number) => prev + (selectEvents ? 20 : DISPLAY_INCREMENT))
     }
     return hasMore
   }
 
   const newEventsFiltered = useMemo(() => {
-    return Array.from(newEventsMap.values())
-  }, [newEventsMap])
+    return eventSource ? [] : Array.from(newEventsMap.values())
+  }, [newEventsMap, eventSource])
 
   const newEventsFromFiltered = useMemo(() => {
     return new Set(newEventsFiltered.map((event) => event.pubkey))
@@ -384,7 +471,7 @@ const Feed = memo(function Feed({
         <div>
           {filteredEvents.length > 0 && (
             <InfiniteScroll
-              onLoadMore={loadMoreItems}
+              onLoadMore={selectEvents ? () => false : loadMoreItems}
               loadMoreKey={`${filteredEvents.length}:${displayCount}`}
               loading={searchLoading}
             >
@@ -423,6 +510,16 @@ const Feed = memo(function Feed({
                 </>
               )}
             </InfiniteScroll>
+          )}
+          {selectEvents && filteredEvents.length < allEvents.length && (
+            <button className="btn btn-ghost w-full" onClick={loadMoreItems}>
+              Show more posts
+            </button>
+          )}
+          {eventSource?.loading && (
+            <p role="status" className="p-4 text-center text-sm text-base-content/55">
+              Loading posts…
+            </p>
           )}
           {filteredEvents.length === 0 &&
             newEventsFiltered.length === 0 &&

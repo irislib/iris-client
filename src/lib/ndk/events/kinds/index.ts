@@ -42,6 +42,11 @@ export enum NDKKind {
 
     GenericReply = 1111,
 
+    PollResponse = 1018,
+    Poll = 1068,
+    FactOperation = 7368,
+    FactSnapshot = 37368,
+
     Media = 1063,
 
     // NIP-A0: Voice Messages

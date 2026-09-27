@@ -13,6 +13,7 @@ import type {
   WorkerMessage,
   WorkerResponse,
   WorkerSubscribeOpts,
+  WorkerPublishOpts,
   LocalDataStats,
   SearchResult,
 } from "./ndk-transport-types"
@@ -340,7 +341,11 @@ export class NDKWorkerTransport {
     )
   }
 
-  async publish(event: NDKEvent, relays?: NDKRelay[]): Promise<void> {
+  async publish(
+    event: NDKEvent,
+    relays?: NDKRelay[],
+    publishOpts?: WorkerPublishOpts
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const id =
         Math.random().toString(36).substring(2, 15) +
@@ -352,6 +357,7 @@ export class NDKWorkerTransport {
         id,
         event: event.rawEvent(),
         relays: relays?.map((r) => r.url),
+        publishOpts,
       } as WorkerMessage)
 
       // Timeout after 10s

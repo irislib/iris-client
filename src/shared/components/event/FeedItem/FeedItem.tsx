@@ -1,3 +1,4 @@
+import {GroupEventScope} from "@/groups/GroupContext"
 import {useEffect, useMemo, useState, useRef, memo} from "react"
 import {NDKEvent, NDKSubscription} from "@/lib/ndk"
 import classNames from "classnames"
@@ -270,200 +271,204 @@ function FeedItem({
   }
 
   return (
-    <ErrorBoundary>
-      {showThreadRoot && (
-        <div className="px-4 py-2 text-sm text-base-content/70">
-          <Link
-            to={rootRoute!}
-            onClick={(e) => e.stopPropagation()}
-            className="hover:underline"
-          >
-            View thread root →
-          </Link>
-        </div>
-      )}
-      {showRepliedTo && repliedToEventId && (
-        <>
-          <FeedItem
-            borderTop={borderTop}
-            asRepliedTo={true}
-            eventId={repliedToEventId}
-            truncate={truncate}
-            onEvent={onEvent}
-          />
-        </>
-      )}
-      <div className={wrapperClasses}>
-        <div
-          ref={feedItemRef}
-          className={classNames(
-            "flex flex-col border-custom pt-3 pb-0 transition-colors duration-200 ease-in-out relative",
-            {
-              "cursor-pointer": !standalone,
-              "border-b": !asRepliedTo && !asEmbed && !(asReply && hasActualReplies),
-              "border-t":
-                !asReply &&
-                borderTop &&
-                (asRepliedTo || !(showRepliedTo && repliedToEventId)),
-              "border pt-3 pb-3 my-2 rounded": asEmbed,
-              "hover:bg-[var(--note-hover-color)]": !standalone,
+    <GroupEventScope event={referredEvent || event}>
+      <ErrorBoundary>
+        {showThreadRoot && (
+          <div className="px-4 py-2 text-sm text-base-content/70">
+            <Link
+              to={rootRoute!}
+              onClick={(e) => e.stopPropagation()}
+              className="hover:underline"
+            >
+              View thread root →
+            </Link>
+          </div>
+        )}
+        {showRepliedTo && repliedToEventId && (
+          <>
+            <FeedItem
+              borderTop={borderTop}
+              asRepliedTo={true}
+              eventId={repliedToEventId}
+              truncate={truncate}
+              onEvent={onEvent}
+            />
+          </>
+        )}
+        <div className={wrapperClasses}>
+          <div
+            ref={feedItemRef}
+            className={classNames(
+              "flex flex-col border-custom pt-3 pb-0 transition-colors duration-200 ease-in-out relative",
+              {
+                "cursor-pointer": !standalone,
+                "border-b": !asRepliedTo && !asEmbed && !(asReply && hasActualReplies),
+                "border-t":
+                  !asReply &&
+                  borderTop &&
+                  (asRepliedTo || !(showRepliedTo && repliedToEventId)),
+                "border pt-3 pb-3 my-2 rounded": asEmbed,
+                "hover:bg-[var(--note-hover-color)]": !standalone,
+              }
+            )}
+            data-testid="feed-item"
+            data-event-id={event.id}
+            onClick={(e) =>
+              !standalone && onClick(e, event, referredEvent, eventId, navigate)
             }
-          )}
-          data-testid="feed-item"
-          data-event-id={event.id}
-          onClick={(e) =>
-            !standalone && onClick(e, event, referredEvent, eventId, navigate)
-          }
-        >
-          {asRepliedTo && (
-            <div className="h-full w-0.5 bg-base-300 absolute top-12 left-9" />
-          )}
-          {asReply && hasActualReplies && (
-            <div className="h-full w-0.5 bg-base-300 absolute top-12 left-9" />
-          )}
-          {isRepost(event) && (
-            <div className="flex flex-row select-none mb-2 px-4">
-              <RepostHeader event={event} />
-            </div>
-          )}
-          {event.kind === KIND_REACTION && (
-            <div className="flex flex-row select-none mb-2 px-4">
-              <LikeHeader event={event} />
-            </div>
-          )}
-          {event.kind === KIND_ZAP_RECEIPT && (
-            <div className="flex flex-row select-none mb-2 px-4">
-              <ZapReceiptHeader
-                event={event}
-                referredEvent={referredEvent}
-                showAuthor={showAuthorInZapReceipts}
-              />
-            </div>
-          )}
-          {!standalone &&
-            !asReply &&
-            repliedToEventId &&
-            !(showRepliedTo && repliedToEventId) && (
+          >
+            {asRepliedTo && (
+              <div className="h-full w-0.5 bg-base-300 absolute top-12 left-9" />
+            )}
+            {asReply && hasActualReplies && (
+              <div className="h-full w-0.5 bg-base-300 absolute top-12 left-9" />
+            )}
+            {isRepost(event) && (
               <div className="flex flex-row select-none mb-2 px-4">
-                <ReplyHeader repliedToEventId={repliedToEventId} />
+                <RepostHeader event={event} />
               </div>
             )}
-          <div className={classNames("flex-1 w-full", {"text-lg": standalone})}>
-            <FeedItemHeader
-              event={event}
-              referredEvent={referredEvent}
-              tight={asReply || asRepliedTo}
-            />
-            {(() => {
-              const targetEvent = referredEvent || event
-              const hasGeohash = targetEvent.tags.some((tag) => tag[0] === "g" && tag[1])
-              const hasLocation = targetEvent.tags.some(
-                (tag) => tag[0] === "location" && tag[1]
-              )
-              const hasExpiration = targetEvent.tags.some(
-                (tag) => tag[0] === "expiration" && tag[1]
-              )
-
-              if (!hasGeohash && !hasLocation && !hasExpiration) return null
-
-              return (
-                <div
-                  className={classNames(
-                    "flex items-center justify-between px-4 -mt-1 mb-2",
-                    {
-                      "pl-16": asReply || asRepliedTo,
-                    }
-                  )}
-                >
-                  {hasGeohash || hasLocation ? (
-                    <GeohashLocation event={targetEvent} className="" />
-                  ) : (
-                    <div />
-                  )}
-                  <ExpirationDisplay event={targetEvent} className="" />
+            {event.kind === KIND_REACTION && (
+              <div className="flex flex-row select-none mb-2 px-4">
+                <LikeHeader event={event} />
+              </div>
+            )}
+            {event.kind === KIND_ZAP_RECEIPT && (
+              <div className="flex flex-row select-none mb-2 px-4">
+                <ZapReceiptHeader
+                  event={event}
+                  referredEvent={referredEvent}
+                  showAuthor={showAuthorInZapReceipts}
+                />
+              </div>
+            )}
+            {!standalone &&
+              !asReply &&
+              repliedToEventId &&
+              !(showRepliedTo && repliedToEventId) && (
+                <div className="flex flex-row select-none mb-2 px-4">
+                  <ReplyHeader repliedToEventId={repliedToEventId} />
                 </div>
-              )
-            })()}
-            <div className={classNames({"pl-12": asReply || asRepliedTo})}>
-              <FeedItemContent
+              )}
+            <div className={classNames("flex-1 w-full", {"text-lg": standalone})}>
+              <FeedItemHeader
                 event={event}
                 referredEvent={referredEvent}
-                standalone={standalone}
-                truncate={truncate}
+                tight={asReply || asRepliedTo}
               />
+              {(() => {
+                const targetEvent = referredEvent || event
+                const hasGeohash = targetEvent.tags.some(
+                  (tag) => tag[0] === "g" && tag[1]
+                )
+                const hasLocation = targetEvent.tags.some(
+                  (tag) => tag[0] === "location" && tag[1]
+                )
+                const hasExpiration = targetEvent.tags.some(
+                  (tag) => tag[0] === "expiration" && tag[1]
+                )
+
+                if (!hasGeohash && !hasLocation && !hasExpiration) return null
+
+                return (
+                  <div
+                    className={classNames(
+                      "flex items-center justify-between px-4 -mt-1 mb-2",
+                      {
+                        "pl-16": asReply || asRepliedTo,
+                      }
+                    )}
+                  >
+                    {hasGeohash || hasLocation ? (
+                      <GeohashLocation event={targetEvent} className="" />
+                    ) : (
+                      <div />
+                    )}
+                    <ExpirationDisplay event={targetEvent} className="" />
+                  </div>
+                )
+              })()}
+              <div className={classNames({"pl-12": asReply || asRepliedTo})}>
+                <FeedItemContent
+                  event={event}
+                  referredEvent={referredEvent}
+                  standalone={standalone}
+                  truncate={truncate}
+                />
+              </div>
+            </div>
+            <div
+              className={classNames("px-4", {
+                "pl-14": asRepliedTo || asReply,
+              })}
+            >
+              {showActions &&
+                ((event.kind !== KIND_REACTION &&
+                  event.kind !== KIND_ZAP_RECEIPT &&
+                  !isRepost(event)) ||
+                  referredEvent) && (
+                  <>
+                    {standalone && content.showReactionsBar && (
+                      <>
+                        {content.showZaps && !content.hideZapsBarInStandalone && (
+                          <ZapsBar event={referredEvent || event} />
+                        )}
+                        {content.showLikes && !content.hideReactionsBarInStandalone && (
+                          <ReactionsBar event={referredEvent || event} />
+                        )}
+                      </>
+                    )}
+                    <FeedItemActions
+                      feedItemRef={feedItemRef}
+                      event={referredEvent ? undefined : event}
+                      eventId={referredEvent?.id}
+                      standalone={standalone}
+                    />
+                  </>
+                )}
             </div>
           </div>
-          <div
-            className={classNames("px-4", {
-              "pl-14": asRepliedTo || asReply,
-            })}
-          >
-            {showActions &&
-              ((event.kind !== KIND_REACTION &&
-                event.kind !== KIND_ZAP_RECEIPT &&
-                !isRepost(event)) ||
-                referredEvent) && (
-                <>
-                  {standalone && content.showReactionsBar && (
-                    <>
-                      {content.showZaps && !content.hideZapsBarInStandalone && (
-                        <ZapsBar event={referredEvent || event} />
-                      )}
-                      {content.showLikes && !content.hideReactionsBarInStandalone && (
-                        <ReactionsBar event={referredEvent || event} />
-                      )}
-                    </>
-                  )}
-                  <FeedItemActions
-                    feedItemRef={feedItemRef}
-                    event={referredEvent ? undefined : event}
-                    eventId={referredEvent?.id}
-                    standalone={standalone}
-                  />
-                </>
-              )}
+          {expandOverlay}
+        </div>
+        {showReplies > 0 && (eventId || event?.id) && (
+          <div className="flex flex-col justify-center">
+            {standalone && myPubKey && event && (
+              <InlineNoteCreator
+                repliedEvent={event}
+                placeholder="Reply to this post..."
+                onPublish={(publishedEvent) => {
+                  setOptimisticReplies((prev) =>
+                    prev.some((existingEvent) => existingEvent.id === publishedEvent.id)
+                      ? prev
+                      : [...prev, publishedEvent]
+                  )
+                  setHasActualReplies(true)
+                  onEvent?.(publishedEvent)
+                }}
+              />
+            )}
+            {replyFeedConfig && (
+              <Feed
+                asReply={true}
+                feedConfig={replyFeedConfig}
+                subscriptionFilters={replySubscriptionFilters}
+                injectedEvents={optimisticReplies}
+                onEvent={(e) => {
+                  onEvent?.(e)
+                  setHasActualReplies(true)
+                }}
+                borderTopFirst={false}
+                emptyPlaceholder={null}
+                showReplies={showReplies}
+                showDisplayAsSelector={false}
+                displayAs="list"
+              />
+            )}
+            <FeedItemTitle event={event} />
           </div>
-        </div>
-        {expandOverlay}
-      </div>
-      {showReplies > 0 && (eventId || event?.id) && (
-        <div className="flex flex-col justify-center">
-          {standalone && myPubKey && event && (
-            <InlineNoteCreator
-              repliedEvent={event}
-              placeholder="Reply to this post..."
-              onPublish={(publishedEvent) => {
-                setOptimisticReplies((prev) =>
-                  prev.some((existingEvent) => existingEvent.id === publishedEvent.id)
-                    ? prev
-                    : [...prev, publishedEvent]
-                )
-                setHasActualReplies(true)
-                onEvent?.(publishedEvent)
-              }}
-            />
-          )}
-          {replyFeedConfig && (
-            <Feed
-              asReply={true}
-              feedConfig={replyFeedConfig}
-              subscriptionFilters={replySubscriptionFilters}
-              injectedEvents={optimisticReplies}
-              onEvent={(e) => {
-                onEvent?.(e)
-                setHasActualReplies(true)
-              }}
-              borderTopFirst={false}
-              emptyPlaceholder={null}
-              showReplies={showReplies}
-              showDisplayAsSelector={false}
-              displayAs="list"
-            />
-          )}
-          <FeedItemTitle event={event} />
-        </div>
-      )}
-    </ErrorBoundary>
+        )}
+      </ErrorBoundary>
+    </GroupEventScope>
   )
 }
 

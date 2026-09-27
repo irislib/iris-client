@@ -1,3 +1,4 @@
+import GroupPoll from "@/groups/components/GroupPoll"
 import MarketListing from "../../market/MarketListing"
 import ChannelCreation from "../ChannelCreation.tsx"
 import {NDKEvent} from "@/lib/ndk"
@@ -28,6 +29,8 @@ type ContentProps = {
 const FeedItemContent = ({event, referredEvent, standalone, truncate}: ContentProps) => {
   if (!event) {
     return ""
+  } else if ((referredEvent || event).kind === 1068) {
+    return <GroupPoll event={referredEvent || event} />
   } else if (event.kind === KIND_ZAP_RECEIPT) {
     // For zap receipts, zap info is shown in FeedItemHeader
     // Only show the referred event if it exists
