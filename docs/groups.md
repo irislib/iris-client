@@ -154,6 +154,14 @@ boundaries. The helper does not protect against a compromised trust root. It als
 does not solve content-volume floods: many low-ranked posts still require normal
 feed limits, diversity, and moderation controls.
 
+Group activity, replies, and zap counts are observed bounded samples. Activity
+sources retain up to 8192 events overall and 32 per member. Zap retrieval requires
+the sender's `P` index, and attribution requires a verified signed zap request.
+These limits bound ingestion; they do not establish a complete history. The
+Groups interface restricts actions to eligible members and readers filter group
+activity, but external clients can still publish nonmember Nostr events. This is
+an application policy, not a relay access-control list.
+
 ## Poll electorate snapshots
 
 `deriveGroupElectorate` freezes the creator's published policy and observed

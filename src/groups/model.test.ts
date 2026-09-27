@@ -534,4 +534,21 @@ describe("poll electorate evidence", () => {
         .valid
     ).toBe(true)
   })
+
+  it("withdraws implicit creator bootstrap on a known first leave before opening", () => {
+    const {snapshot, events} = fixture()
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [...events, join(1, 150, false)], 200)
+        .valid
+    ).toBe(false)
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [...events, join(1, 201, false)], 200)
+        .valid
+    ).toBe(true)
+    const otherRef = {...ref, id: "12345678-1234-4234-8234-123456789abd"}
+    const unrelatedLeave = sign(createMembershipDraft(otherRef, pub(1), false), 1, 150)
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [...events, unrelatedLeave], 200).valid
+    ).toBe(true)
+  })
 })

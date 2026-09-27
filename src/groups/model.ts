@@ -902,7 +902,15 @@ export function verifyGroupElectorateEvidence(
     if (event.kind === GROUP_FACT_KIND) {
       const state = parseGroupEventState(event, pollCreatedAt)
       const previous = state && factStates.get(state.key)
-      if (state && previous && newer(event, previous)) factStates.set(state.key, event)
+      // Creation bootstraps creator consent, so its first explicit leave may
+      // have no committed predecessor. It still withdraws the only seed.
+      const creatorConsent =
+        state?.category === "membership" &&
+        state.memberPubkey === groupRef.creator &&
+        exactTag(event, "a", groupAddress(groupRef))
+      if (state && (previous || creatorConsent) && newer(event, previous)) {
+        factStates.set(state.key, event)
+      }
     } else if (
       event.kind === 3 &&
       follows.has(event.pubkey) &&
