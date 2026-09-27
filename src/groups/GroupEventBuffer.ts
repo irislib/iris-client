@@ -83,6 +83,17 @@ export class GroupEventBuffer {
   }
 
   add(event: Event): boolean {
+    // An unknown author cannot replace any retained state once capacity is full.
+    // Reject before signature work; custom policies may retain by a different
+    // author (for example a zap request sender rather than the receipt signer).
+    if (
+      !this.admission &&
+      this.records.size >= this.capacity &&
+      !this.authors.has(event.pubkey)
+    ) {
+      this.limited = true
+      return false
+    }
     const stateKey = this.stateKey(event)
     if (!stateKey) return false
     const admission = this.admission?.(event)

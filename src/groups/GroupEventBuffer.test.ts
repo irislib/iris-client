@@ -18,6 +18,22 @@ const buffer = (capacity = 8, perAuthorCap = capacity, factTargets?: string[]) =
   new GroupEventBuffer({capacity, perAuthorCap, factTargets, now: () => 1000})
 
 describe("bounded group event retention", () => {
+  it("rejects unknown authors at saturation before reading signed fields", () => {
+    const store = buffer(1)
+    store.add(note(1, 100))
+    const newcomer = note(2, 200)
+    Object.defineProperty(newcomer, "content", {
+      get: () => {
+        throw new Error("must not verify rejected newcomer")
+      },
+    })
+    expect(store.add(newcomer)).toBe(false)
+    expect(store.limited).toBe(true)
+    const update = note(1, 300)
+    expect(store.add(update)).toBe(true)
+    expect(store.getEvents().map((event) => event.id)).toEqual([update.id])
+  })
+
   it("collapses current fact states, including a latest expired withdrawal", () => {
     const store = buffer(2)
     const active = sign(createMembershipAttestationDraft(ref, pub(2), true))
