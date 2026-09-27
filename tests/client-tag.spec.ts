@@ -19,6 +19,7 @@ test("public activity uses the standard iris tag and honors the persisted opt-ou
     signedEvents.push(event)
   })
   await page.addInitScript(() => {
+    window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
     const pubkey = "1".repeat(64)
     if (!localStorage.getItem("user-storage")) {
       localStorage.setItem(
@@ -88,7 +89,7 @@ test("public activity uses the standard iris tag and honors the persisted opt-ou
   ])
 
   await page.getByPlaceholder("Write your reply...").fill("Attributed reply")
-  await page.getByRole("button", {name: "Reply", exact: true}).click()
+  await page.getByRole("button", {name: "Reply", exact: true}).last().click()
   await expect
     .poll(() => signedEvents.some((event) => event.content === "Attributed reply"))
     .toBe(true)
