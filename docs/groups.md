@@ -36,7 +36,7 @@ also index the UUID with `i`, following the shared envelope's subject/index
 distinction. Relay result limits and partial histories must not be presented as
 complete membership records.
 
-## Member identity, consent, and vouches
+## Member identity, consent, and attestations
 
 The first profile version has one voting identity per signing public key. It
 uses the same `controls` vocabulary and shared fact envelopes as Iris Contacts.
@@ -57,30 +57,30 @@ subject is an envelope identifier, not an independent source of identity
 authority. Parsers require it to match the single `controls` key, and decisions
 remain keyed by the complete public key.
 
-Both consent and vouches use the shared `buildFactOpDraft` and
+Both consent and attestations use the shared `buildFactOpDraft` and
 `parseFactOpEvent` envelope, kind `7368`, and empty content:
 
-| Predicate   | Consent                 | Vouch                   |
-| ----------- | ----------------------- | ----------------------- |
-| `type`      | `iris_group_membership` | `iris_group_vouch`      |
-| `schema`    | `1`                     | `1`                     |
-| `controls`  | Member public key       | Member public key       |
-| `member_of` | Group UUID, creator key | Group UUID, creator key |
+| Predicate   | Consent                 | Attestation              |
+| ----------- | ----------------------- | ------------------------ |
+| `type`      | `iris_group_membership` | `iris_group_attestation` |
+| `schema`    | `1`                     | `1`                      |
+| `controls`  | Member public key       | Member public key        |
+| `member_of` | Group UUID, creator key | Group UUID, creator key  |
 
 An inactive state substitutes `not_member_of` for `member_of`; containing both
-is invalid. Consent must be signed by the member's own key. A vouch is signed by
-its issuer and cannot provide consent on behalf of the member. Self-vouches do
+is invalid. Consent must be signed by the member's own key. An attestation is signed by
+its issuer and cannot provide consent on behalf of the member. Self-attestations do
 not count. A withdrawal applies only to its own signer and target; fact `replace`
-or `dispute` links cannot withdraw somebody else's consent or vouch.
+or `dispute` links cannot withdraw somebody else's consent or attestation.
 
 Creation supplies initial consent and eligibility for the creator, allowing the
 group to begin. Any explicit creator consent state overrides that bootstrap;
 metadata updates never undo a leave. A member's leave suppresses their eligibility
-and their ability to provide counted vouches. Rejoining re-enables currently
-active vouches; leaving does not publish withdrawals on other people's behalf.
+and their ability to provide counted attestations. Rejoining re-enables currently
+active attestations; leaving does not publish withdrawals on other people's behalf.
 
 For each group and member, keep the latest consent. For each group, member, and
-vouch issuer, keep the latest vouch. Larger `created_at` wins; at equal timestamps
+attestation issuer, keep the latest attestation. Larger `created_at` wins; at equal timestamps
 the lexicographically smaller event ID wins, matching NIP-01 replacement order.
 Metadata uses the same order. Draft callers should avoid making consecutive
 state changes in the same second if they need predictable user-intended ordering.
@@ -88,7 +88,7 @@ state changes in the same second if they need predictable user-intended ordering
 Parsers verify signatures and reject malformed envelopes, ambiguous required
 facts, wrong owner addresses, oversized tags, and future timestamps. A valid
 `expiration` is evaluated **after** selecting the latest state: an expired latest
-join/vouch is inactive, rather than restoring an older active claim. An expired
+join/attestation is inactive, rather than restoring an older active claim. An expired
 latest metadata event likewise does not restore older metadata. Stores must
 refresh projections as time advances and treat received event objects as
 immutable so signature-verification caching remains valid.
@@ -100,22 +100,26 @@ The optional personal view uses the viewer's network and chosen thresholds. The
 same events, graph snapshot, time, and policy yield the same membership result;
 different views or incomplete relay histories can yield different results.
 
-Direct vouches come from the trust root itself or its direct followees. A
-second-degree vouch must come from a followee of a direct contact. Direct vouchers
+Direct attestations come from the trust root itself or its direct followees. A
+second-degree attestation must come from a followee of a direct contact. Direct attestation issuers
 are excluded from the second-degree count. Maximum bipartite matching pairs each
-counted second-degree voucher with a different direct contact: one contact's large
+counted second-degree issuer with a different direct contact: one contact's large
 fan-out cannot create many independent votes of confidence. The prospective
 member cannot serve as their own bridge. The default acceptance threshold is one
-direct vouch **or** three independent second-degree vouches, plus active consent.
+direct attestation **or** three independent second-degree attestations, plus active consent.
 
-Only already eligible members supply counted vouches. Eligibility is the least
+Only already eligible members supply counted attestations. Eligibility is the least
 fixed point starting from the consenting creator: repeatedly admit consenting
 members who meet a threshold through existing eligible members. Recompute this
-closure after every relevant state change; a mutually vouching pending cluster
+closure after every relevant state change; a mutually confirming pending cluster
 cannot admit itself, and withdrawal can remove downstream eligibility. With this
 initial single-founder rule, the creator leaving removes the only seed. Likewise,
-setting both thresholds above one before admitting any other members prevents
-growth. These are explicit baseline limitations, not a hardened founding policy.
+setting both thresholds above one leaves no path beyond that single seed, even
+if accounts were eligible under an earlier policy. Creation therefore uses the
+default policy (one direct or three second-degree attestations); the initial UI does
+not offer custom thresholds. Multi-confirmation policies need a future explicit
+founding-set design. These are explicit baseline limitations, not a hardened
+founding policy.
 
 Trust traversal is bounded to 256 direct contacts, 2048 scanned entries per contact,
 and 32768 total scanned entries. The returned `truncated` flag signals that the
@@ -127,7 +131,7 @@ scan budget as well, so malformed iterables cannot cause unlimited work.
 The shared `nostr-social-graph` `chooseTrustedAuthors` helper selects the root
 itself and its **direct** followees, intersected with currently eligible members.
 The resulting `authorityPubkeys` never includes descendants merely because they
-were vouched for. An admitted member does not gain the power to create more
+received membership attestations. An admitted member does not gain the power to create more
 trusted voting accounts. `countDistinctTrustedAuthors` counts at most one signal
 per authorized key, including when events are repeated or relayed many times.
 
@@ -154,7 +158,7 @@ feed limits, diversity, and moderation controls.
 
 `deriveGroupElectorate` freezes the creator's published policy and observed
 membership view at poll opening. It supplies the metadata event ID, root, policy,
-eligible member keys, authority keys, and positive membership/vouch evidence IDs.
+eligible member keys, authority keys, and positive membership/attestation evidence IDs.
 It refuses a truncated graph view, more than 257 authority accounts (root plus
 256 direct contacts), or more than 2048 required evidence events. The member
 roster is an explicitly observed subset capped at 512: it preserves every known
@@ -164,15 +168,27 @@ discovery or this roster bound omitted accounts. The publisher separately checks
 protected-evidence readiness and its serialized-event size limit. An overflowing
 untrusted join inbox must not block retrieval of known trusted accounts.
 
-The signed poll commits those explicit keys. Later membership, vouch, follow, or
+The signed poll commits those explicit keys. Later membership, attestation, follow, or
 threshold changes affect new views and polls, not the frozen roster. Positive
 evidence documents the author's observed projection; it cannot prove no facts
 were omitted or that a relay supplied a complete history. The signed root contact
 event is required for non-root authority, and second-degree contact events are
 included when membership depends on those paths. Receivers fetch and replay the
 committed evidence through the same membership rules before enabling counts or
-voting. Missing consent, forged vouches, unrelated policy, unsupported authority,
+voting. Missing consent, forged attestations, unrelated policy, unsupported authority,
 and known preopening root-list rollback fail closed.
+
+The live group view reads the latest signed creator and bridge contact lists
+directly, independently of the viewer's personal graph cache. Admission proofs
+retain only the required attestations and their earlier admission dependencies;
+only the root and bridges used by those proofs add contact-list evidence. A
+direct admission does not embed every contact's follow list in the poll.
+
+Known creator/direct-member evidence has stable per-author subscriptions and
+bounded semantic state slots. Open join discovery and its expanding candidate
+queries use separate bounds, so outsider request floods do not restart trusted
+queries or consume their retained consent and withdrawal slots. Discovery can
+still miss members; the displayed roster and poll remain observed subsets.
 
 Self-declared Nostr timestamps also do not prove receipt before a poll closes.
 An eligible key can backdate a late event. Without an independently agreed

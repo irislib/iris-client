@@ -41,6 +41,9 @@ export type GroupMember = {
   vouchers: string[]
   directVouchers: string[]
   secondDegreeVouchers: string[]
+  /** Minimal acyclic admission proof, chosen when this member became eligible. */
+  proofVouchers: string[]
+  proofBridges: string[]
   evidenceEventIds: string[]
 }
 export type GroupMembers = {
@@ -67,6 +70,8 @@ export type GroupElectorate = {
   evidenceEventIds: string[]
   memberSnapshotLimited: boolean
   rootFollowEventId?: string
+  /** Local authoring hint; the signed contact events remain the proof. */
+  followProofPubkeys?: string[]
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -100,6 +105,37 @@ function signedEventIsValid(event: NostrEvent): boolean {
   } catch {
     return false
   }
+}
+
+/** Latest signed contact lists for this view, independent of a personal graph cache. */
+export function deriveGroupFollowLists(
+  events: Iterable<NostrEvent>,
+  now = Math.floor(Date.now() / 1000)
+): Map<string, Set<string>> {
+  const latest = new Map<string, NostrEvent>()
+  for (const event of events) {
+    if (
+      event.kind !== 3 ||
+      !Number.isSafeInteger(event.created_at) ||
+      event.created_at < 0 ||
+      event.created_at > now ||
+      !signedEventIsValid(event)
+    )
+      continue
+    if (newer(event, latest.get(event.pubkey))) latest.set(event.pubkey, event)
+  }
+  return new Map(
+    [...latest].map(([author, event]) => [
+      author,
+      new Set(
+        expired(event, now)
+          ? []
+          : event.tags
+              .filter((tag) => tag[0] === "p" && PUBKEY.test(tag[1] ?? ""))
+              .map((tag) => tag[1])
+      ),
+    ])
+  )
 }
 
 function validPolicy(policy: GroupPolicy): boolean {
@@ -172,7 +208,7 @@ function memberDraft(
   group: GroupRef,
   memberPubkey: string,
   active: boolean,
-  type: "iris_group_membership" | "iris_group_vouch"
+  type: "iris_group_membership" | "iris_group_attestation"
 ): FactEventDraft {
   assertRef(group)
   const draft = buildFactOpDraft(
@@ -199,13 +235,13 @@ export function createMembershipDraft(
   return memberDraft(group, memberPubkey, joined, "iris_group_membership")
 }
 
-/** Must be signed by the person giving or withdrawing this vouch. */
-export function createVouchDraft(
+/** Must be signed by the person giving or withdrawing this attestation. */
+export function createMembershipAttestationDraft(
   group: GroupRef,
   memberPubkey: string,
   active: boolean
 ): FactEventDraft {
-  return memberDraft(group, memberPubkey, active, "iris_group_vouch")
+  return memberDraft(group, memberPubkey, active, "iris_group_attestation")
 }
 
 function oneTag(event: NostrEvent, key: string): string[] | undefined {
@@ -367,7 +403,7 @@ function parseClaim(event: NostrEvent, group: GroupRef, now: number): MemberClai
     const facts = parsed.facts
     const type = value(facts, "type")
     if (
-      (type !== "iris_group_membership" && type !== "iris_group_vouch") ||
+      (type !== "iris_group_membership" && type !== "iris_group_attestation") ||
       value(facts, "schema") !== "1"
     )
       return null
@@ -478,7 +514,8 @@ function trustNetwork(
         break
       }
       if (PUBKEY.test(contact) && contact !== pubkey) contacts.add(contact)
-      if (contacts.size >= limit) {
+      if (contacts.size > limit) {
+        contacts.delete(contact)
         network.truncated = true
         break
       }
@@ -507,7 +544,7 @@ function independentVouchers(
   vouchers: string[],
   member: string,
   routes: Map<string, string[]>
-): string[] {
+): Array<{voucher: string; bridge: string}> {
   const matched = new Map<string, string>()
   const assign = (voucher: string, seen: Set<string>): boolean => {
     for (const bridge of routes.get(voucher) ?? []) {
@@ -522,7 +559,9 @@ function independentVouchers(
     return false
   }
   for (const voucher of vouchers) assign(voucher, new Set())
-  return [...matched.values()].sort()
+  return [...matched.entries()]
+    .map(([bridge, voucher]) => ({bridge, voucher}))
+    .sort((a, b) => a.voucher.localeCompare(b.voucher))
 }
 
 export function deriveGroupMembers({
@@ -586,17 +625,20 @@ export function deriveGroupMembers({
     }
   }
   const eligiblePubkeys = new Set<string>()
+  const admissionProof = new Map<string, {vouchers: string[]; bridges: string[]}>()
   const scores = (pubkey: string) => {
     const eligibleVouchers = (activeVouches.get(pubkey) ?? []).filter((author) =>
       eligiblePubkeys.has(author)
     )
+    const routes = independentVouchers(
+      eligibleVouchers.filter((author) => !network.direct.has(author)),
+      pubkey,
+      network.routes
+    )
     return {
       directVouchers: eligibleVouchers.filter((author) => network.direct.has(author)),
-      secondDegreeVouchers: independentVouchers(
-        eligibleVouchers.filter((author) => !network.direct.has(author)),
-        pubkey,
-        network.routes
-      ),
+      secondDegreeVouchers: routes.map((route) => route.voucher),
+      secondDegreeBridges: routes.map((route) => route.bridge),
     }
   }
   // Least fixed point: a mutually vouching pending cluster cannot bootstrap
@@ -604,13 +646,22 @@ export function deriveGroupMembers({
   const queue = joined(group.creator) ? [group.creator] : []
   for (const seed of queue) eligiblePubkeys.add(seed)
   for (let index = 0; index < queue.length; index++) {
-    for (const target of vouchedFor.get(queue[index]) ?? []) {
+    for (const target of (vouchedFor.get(queue[index]) ?? []).sort()) {
       if (!joined(target) || eligiblePubkeys.has(target)) continue
       const score = scores(target)
       if (
         score.directVouchers.length >= policy.direct ||
         score.secondDegreeVouchers.length >= policy.secondDegree
       ) {
+        const directEnough = score.directVouchers.length >= policy.direct
+        admissionProof.set(target, {
+          vouchers: directEnough
+            ? score.directVouchers.slice(0, policy.direct)
+            : score.secondDegreeVouchers.slice(0, policy.secondDegree),
+          bridges: directEnough
+            ? []
+            : score.secondDegreeBridges.slice(0, policy.secondDegree),
+        })
         eligiblePubkeys.add(target)
         queue.push(target)
       }
@@ -621,17 +672,18 @@ export function deriveGroupMembers({
     const {directVouchers, secondDegreeVouchers} = scores(pubkey)
     const hasConsent = joined(pubkey)
     const eligible = eligiblePubkeys.has(pubkey)
-    let reason = "Waiting for trusted vouches"
+    let reason = "Waiting for trusted confirmations"
     if (!hasConsent) reason = "Not currently joined"
     else if (pubkey === group.creator) reason = "Group creator"
     else if (directVouchers.length >= policy.direct)
-      reason = "Meets direct vouch threshold"
+      reason = "Meets direct confirmation threshold"
     else if (secondDegreeVouchers.length >= policy.secondDegree)
       reason = "Meets independent second-degree threshold"
     const evidenceEventIds: string[] = []
+    const proof = admissionProof.get(pubkey) ?? {vouchers: [], bridges: []}
     const joinedEvent = consent.get(pubkey)?.event.id
     if (joinedEvent) evidenceEventIds.push(joinedEvent)
-    for (const author of [...directVouchers, ...secondDegreeVouchers]) {
+    for (const author of proof.vouchers) {
       const vouchEvent = vouches.get(pubkey)?.get(author)?.event.id
       if (vouchEvent) evidenceEventIds.push(vouchEvent)
     }
@@ -643,6 +695,8 @@ export function deriveGroupMembers({
       vouchers,
       directVouchers,
       secondDegreeVouchers,
+      proofVouchers: proof.vouchers,
+      proofBridges: proof.bridges,
       evidenceEventIds,
       directVouches: directVouchers.length,
       secondDegreeVouches: secondDegreeVouchers.length,
@@ -690,6 +744,7 @@ export function deriveGroupElectorate(
     selected.add(member)
   }
   const evidence = new Set([input.group.eventId])
+  const followProofPubkeys = new Set([input.group.creator])
   const seen = new Set<string>()
   const queue = [...selected]
   for (let index = 0; index < queue.length; index++) {
@@ -699,7 +754,8 @@ export function deriveGroupElectorate(
     const member = state.byPubkey.get(pubkey)
     if (!member?.eligible) continue
     member.evidenceEventIds.forEach((id) => evidence.add(id))
-    queue.push(...member.directVouchers, ...member.secondDegreeVouchers)
+    queue.push(...member.proofVouchers)
+    member.proofBridges.forEach((key) => followProofPubkeys.add(key))
   }
   if (state.authorityPubkeys.size > 257 || evidence.size > 2048) {
     throw new Error("This group exceeds the supported poll snapshot size")
@@ -712,6 +768,7 @@ export function deriveGroupElectorate(
     authorityPubkeys: [...state.authorityPubkeys].sort(),
     evidenceEventIds: [...evidence].sort(),
     memberSnapshotLimited: selected.size < state.eligiblePubkeys.size,
+    followProofPubkeys: [...followProofPubkeys].sort(),
   }
 }
 
@@ -728,6 +785,7 @@ export function verifyGroupElectorateEvidence(
     !Array.isArray(snapshot.memberPubkeys) ||
     !Array.isArray(snapshot.authorityPubkeys) ||
     !Array.isArray(snapshot.evidenceEventIds) ||
+    typeof snapshot.memberSnapshotLimited !== "boolean" ||
     !Number.isSafeInteger(pollCreatedAt) ||
     pollCreatedAt < 0 ||
     snapshot.rootPubkey !== groupRef.creator ||
@@ -785,6 +843,7 @@ export function verifyGroupElectorateEvidence(
     return invalid("The signed group policy does not match this poll")
   }
   const follows = new Map<string, NostrEvent>()
+  const factStates = new Map<string, NostrEvent>()
   for (const event of committed) {
     if (event.kind === 3) {
       if (newer(event, follows.get(event.pubkey))) follows.set(event.pubkey, event)
@@ -792,6 +851,9 @@ export function verifyGroupElectorateEvidence(
       const state = parseGroupEventState(event, pollCreatedAt)
       if (!state || !exactTag(event, "a", groupAddress(groupRef))) {
         return invalid("The poll includes unrelated or invalid membership evidence")
+      }
+      if (event.kind === GROUP_FACT_KIND && newer(event, factStates.get(state.key))) {
+        factStates.set(state.key, event)
       }
     } else return invalid("The poll includes unsupported membership evidence")
   }
@@ -828,6 +890,28 @@ export function verifyGroupElectorateEvidence(
       }
     }
   }
+  // A positive proof cannot hide a newer withdrawal already known to the
+  // receiver. Later-than-opening changes still leave a frozen poll unchanged.
+  for (const event of received.values()) {
+    if (
+      !Number.isSafeInteger(event.created_at) ||
+      event.created_at < 0 ||
+      event.created_at > pollCreatedAt
+    )
+      continue
+    if (event.kind === GROUP_FACT_KIND) {
+      const state = parseGroupEventState(event, pollCreatedAt)
+      const previous = state && factStates.get(state.key)
+      if (state && previous && newer(event, previous)) factStates.set(state.key, event)
+    } else if (
+      event.kind === 3 &&
+      follows.has(event.pubkey) &&
+      newer(event, follows.get(event.pubkey)) &&
+      signedEventIsValid(event)
+    ) {
+      follows.set(event.pubkey, event)
+    }
+  }
   const getFollows = (pubkey: string): string[] => {
     const event = follows.get(pubkey)
     if (!event || expired(event, pollCreatedAt)) return []
@@ -837,14 +921,16 @@ export function verifyGroupElectorateEvidence(
   }
   const projected = deriveGroupMembers({
     group,
-    events: committed,
+    events: [...factStates.values()],
     getFollows,
     now: pollCreatedAt,
   })
   if (projected.truncated)
     return invalid("The signed trust graph exceeds the supported snapshot size")
   if ([...members].some((key) => !projected.eligiblePubkeys.has(key))) {
-    return invalid("A declared member is not supported by signed consent and vouches")
+    return invalid(
+      "A declared member is not supported by signed consent and attestations"
+    )
   }
   if ([...authority].some((key) => !projected.authorityPubkeys.has(key))) {
     return invalid("A declared trusted voter is not an eligible direct contact")

@@ -3,8 +3,9 @@ import {describe, expect, it} from "vitest"
 import {
   createGroupDraft,
   createMembershipDraft,
-  createVouchDraft,
+  createMembershipAttestationDraft,
   deriveGroupMembers,
+  deriveGroupFollowLists,
   deriveGroupElectorate,
   groupAddress,
   listGroups,
@@ -32,13 +33,39 @@ const group = parseGroup(metadata, 200)!
 const join = (n: number, time = 100, joined = true) =>
   sign(createMembershipDraft(ref, pub(n), joined), n, time)
 const vouch = (author: number, member: number, time = 100, active = true) =>
-  sign(createVouchDraft(ref, pub(member), active), author, time)
+  sign(createMembershipAttestationDraft(ref, pub(member), active), author, time)
 const derive = (
   events: ReturnType<typeof sign>[],
   follows: Record<string, string[]> = {}
 ) => deriveGroupMembers({group, events, now: 200, getFollows: (p) => follows[p] ?? []})
 
 describe("group facts and membership", () => {
+  it("builds the same signed group network without a viewer's personal graph", () => {
+    const rootContacts = sign({kind: 3, content: "", tags: [["p", pub(3)]]})
+    const bridgeContacts = sign({kind: 3, content: "", tags: [["p", pub(4)]]}, 3)
+    const forged = {...rootContacts, tags: [["p", pub(2)]]}
+    const future = sign({kind: 3, content: "", tags: []}, 1, 201)
+    const events = [join(2), join(3), vouch(1, 3), vouch(3, 2)]
+    for (const contacts of [
+      [rootContacts, bridgeContacts, forged, future],
+      [future, forged, bridgeContacts, rootContacts],
+    ]) {
+      const network = deriveGroupFollowLists(contacts, 200)
+      expect(network.get(pub(1))).toEqual(new Set([pub(3)]))
+      const members = deriveGroupMembers({
+        group,
+        events,
+        now: 200,
+        getFollows: (author) => network.get(author) ?? [],
+      })
+      expect(members.eligiblePubkeys).toEqual(new Set([pub(1), pub(2), pub(3)]))
+    }
+    const revoked = sign({kind: 3, content: "", tags: []}, 1, 150)
+    expect(deriveGroupFollowLists([rootContacts, revoked], 200).get(pub(1))).toEqual(
+      new Set()
+    )
+  })
+
   it("round trips signed metadata and scopes it to a creator address", () => {
     expect(group).toMatchObject({...ref, name: "Garden"})
     expect(groupAddress(group)).toBe(`37368:${pub(1)}:${ref.id}`)
@@ -119,11 +146,11 @@ describe("group facts and membership", () => {
 
   it("ignores future facts and prevents expired latest claims resurrecting old claims", () => {
     expect(derive([join(2), vouch(1, 2, 201)]).byPubkey.get(pub(2))?.eligible).toBe(false)
-    const expiring = createVouchDraft(ref, pub(2), true)
+    const expiring = createMembershipAttestationDraft(ref, pub(2), true)
     expiring.tags.push(["expiration", "180"])
     const events = [join(2), vouch(1, 2), sign(expiring, 1, 150)]
     expect(derive(events).byPubkey.get(pub(2))?.eligible).toBe(false)
-    const invalid = createVouchDraft(ref, pub(2), true)
+    const invalid = createMembershipAttestationDraft(ref, pub(2), true)
     invalid.tags.push(["expiration", "not-a-date"])
     expect(derive([join(2), sign(invalid)]).byPubkey.get(pub(2))?.eligible).toBe(false)
   })
@@ -171,9 +198,9 @@ describe("group facts and membership", () => {
 
   it("isolates a reused group UUID and validates contradictory or malformed facts", () => {
     const other = {...ref, creator: pub(3)}
-    const wrongGroup = sign(createVouchDraft(other, pub(2), true), 1)
+    const wrongGroup = sign(createMembershipAttestationDraft(other, pub(2), true), 1)
     expect(derive([join(2), wrongGroup]).byPubkey.get(pub(2))?.eligible).toBe(false)
-    const contradictory = createVouchDraft(ref, pub(2), true)
+    const contradictory = createMembershipAttestationDraft(ref, pub(2), true)
     contradictory.tags.push(["not_member_of", ref.id, ref.creator])
     expect(derive([join(2), sign(contradictory)]).byPubkey.get(pub(2))?.eligible).toBe(
       false
@@ -249,6 +276,7 @@ describe("group facts and membership", () => {
     expect(electorate.rootPubkey).toBe(pub(1))
     expect(electorate.policy).toEqual(group.policy)
     expect(electorate.policyEventId).toBe(group.eventId)
+    expect(electorate.followProofPubkeys).toEqual([pub(1)])
     expect(electorate.evidenceEventIds).toEqual(
       [group.eventId, ...events.map((e) => e.id)].sort()
     )
@@ -290,7 +318,7 @@ describe("group facts and membership", () => {
     expect(parseGroupEventState(join(2), 200)?.key).not.toBe(
       parseGroupEventState(active, 200)?.key
     )
-    const expiring = createVouchDraft(ref, pub(2), true)
+    const expiring = createMembershipAttestationDraft(ref, pub(2), true)
     expiring.tags.push(["expiration", "160"])
     expect(parseGroupEventState(sign(expiring, 1, 150), 200)?.key).toBe(
       parseGroupEventState(active, 200)?.key
@@ -326,6 +354,75 @@ describe("poll electorate evidence", () => {
     expect(verifyGroupElectorateEvidence(ref, snapshot, events, 200)).toEqual({
       valid: true,
     })
+  })
+
+  it("needs only the root follow proof for direct admissions, regardless of other contact lists", () => {
+    const facts = [join(2), vouch(1, 2)]
+    const unrelatedContacts = Array.from({length: 50}, (_, index) => pub(index + 10))
+    const contacts = sign({
+      kind: 3,
+      content: "",
+      tags: [pub(2), ...unrelatedContacts].map((p) => ["p", p]),
+    })
+    const snapshot = deriveGroupElectorate({
+      group,
+      events: facts,
+      now: 200,
+      getFollows: (p) =>
+        p === pub(1)
+          ? [pub(2), ...unrelatedContacts]
+          : Array.from({length: 100}, (_, index) => pub(index + 100)),
+    })
+    expect(snapshot.followProofPubkeys).toEqual([pub(1)])
+    snapshot.rootFollowEventId = contacts.id
+    snapshot.evidenceEventIds.push(contacts.id)
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [metadata, ...facts, contacts], 200)
+    ).toEqual({valid: true})
+  })
+
+  it("preserves exactly the second-degree bridge proofs required by the admission closure", () => {
+    const facts = [
+      join(2),
+      ...[5, 6, 7].flatMap((n) => [join(n), vouch(1, n), vouch(n, 2)]),
+    ]
+    const links = {
+      [pub(1)]: [pub(3), pub(4), pub(8), pub(9)],
+      [pub(3)]: [pub(5)],
+      [pub(4)]: [pub(6)],
+      [pub(8)]: [pub(7)],
+      [pub(9)]: [pub(20)],
+    }
+    const contacts = [1, 3, 4, 8, 9].map((n) =>
+      sign({kind: 3, content: "", tags: links[pub(n)].map((p) => ["p", p])}, n)
+    )
+    const snapshot = deriveGroupElectorate({
+      group,
+      events: facts,
+      now: 200,
+      getFollows: (p) => links[p] ?? [],
+    })
+    expect(snapshot.followProofPubkeys).toEqual([1, 3, 4, 8].map(pub).sort())
+    const used = contacts.filter((event) =>
+      snapshot.followProofPubkeys!.includes(event.pubkey)
+    )
+    snapshot.rootFollowEventId = used.find((event) => event.pubkey === pub(1))!.id
+    snapshot.evidenceEventIds.push(...used.map((event) => event.id))
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [metadata, ...facts, ...used], 200)
+    ).toEqual({valid: true})
+    const missing = used.find((event) => event.pubkey === pub(8))!.id
+    expect(
+      verifyGroupElectorateEvidence(
+        ref,
+        {
+          ...snapshot,
+          evidenceEventIds: snapshot.evidenceEventIds.filter((id) => id !== missing),
+        },
+        [metadata, ...facts, ...used],
+        200
+      ).valid
+    ).toBe(false)
   })
 
   it("rejects an invented member and an unrelated signed group policy", () => {
@@ -415,6 +512,26 @@ describe("poll electorate evidence", () => {
         [...events, sign({kind: 3, content: "", tags: []}, 1, 201)],
         200
       ).valid
+    ).toBe(true)
+  })
+
+  it("does not hide known preopening consent or vouch withdrawals behind positive proofs", () => {
+    const {snapshot, events} = fixture()
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [...events, join(2, 150, false)], 200)
+        .valid
+    ).toBe(false)
+    expect(
+      verifyGroupElectorateEvidence(
+        ref,
+        snapshot,
+        [...events, vouch(3, 2, 150, false)],
+        200
+      ).valid
+    ).toBe(false)
+    expect(
+      verifyGroupElectorateEvidence(ref, snapshot, [...events, join(2, 201, false)], 200)
+        .valid
     ).toBe(true)
   })
 })
