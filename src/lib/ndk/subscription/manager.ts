@@ -83,7 +83,12 @@ export class NDKSubscriptionManager {
    * @param relay Relay that sent the event
    * @param optimisticPublish Whether the event is coming from an optimistic publish
    */
-  public dispatchEvent(event: NostrEvent | NDKEvent, relay?: NDKRelay, optimisticPublish = false) {
+  public dispatchEvent(
+    event: NostrEvent | NDKEvent,
+    relay?: NDKRelay,
+    optimisticPublish = false,
+    sourceSubscriptions?: ReadonlyMap<string, unknown>
+  ) {
     const eventId = event.id!
     let ndkEvent: NDKEvent
     const seenData = this.seenEvents.get(eventId)
@@ -121,6 +126,9 @@ export class NDKSubscriptionManager {
 
     // First pass: Filter matching
     for (const sub of subscriptions) {
+      if (sub.opts.isolated && relay && !sourceSubscriptions?.has(sub.internalId)) {
+        continue
+      }
       if (matchFilters(sub.filters, ndkEvent.rawEvent() as VerifiedEvent)) {
         matchingSubs.push(sub)
       }

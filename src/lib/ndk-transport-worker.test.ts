@@ -219,13 +219,27 @@ describe("NDKWorkerTransport lifecycle", () => {
       transport.subscribe(
         "ordered-subscription",
         [{kinds: [3]}],
-        () => order.push("event"),
-        () => order.push("eose")
+        (_event, relay, fromCache) => {
+          expect(relay).toBe("wss://relay.example/")
+          expect(fromCache).toBe(false)
+          order.push("event")
+        },
+        () => order.push("eose"),
+        {isolated: true, relayUrls: ["wss://relay.example/"]}
       )
+      expect(
+        worker.postedMessages.find((message) => message.id === "ordered-subscription")
+          ?.subscribeOpts
+      ).toMatchObject({
+        isolated: true,
+        relayUrls: ["wss://relay.example/"],
+      })
 
       worker.dispatchMessage({
         type: "event",
         subId: "ordered-subscription",
+        relay: "wss://relay.example/",
+        fromCache: false,
         event: {
           id: "event-id",
           pubkey: "a".repeat(64),

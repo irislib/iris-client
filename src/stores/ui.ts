@@ -4,6 +4,7 @@ import {create} from "zustand"
 interface UIState {
   newPostOpen: boolean
   showLoginDialog: boolean
+  loginDialogInitialView?: "signin" | "signup" | "link"
   goToNotifications: number
   hidePWAPrompt: boolean
   isMediaModalSidebarVisible: boolean
@@ -14,7 +15,10 @@ interface UIState {
   mapDisplayAs: "list" | "grid"
 
   setNewPostOpen: (isOpen: boolean) => void
-  setShowLoginDialog: (isOpen: boolean) => void
+  setShowLoginDialog: (
+    isOpen: boolean,
+    initialView?: UIState["loginDialogInitialView"]
+  ) => void
   incrementGoToNotifications: () => void
   setHidePWAPrompt: (hide: boolean) => void
   setMediaModalSidebarVisible: (isVisible: boolean) => void
@@ -43,7 +47,10 @@ export const useUIStore = create<UIState>()(
 
       const actions = {
         setNewPostOpen: (newPostOpen: boolean) => set({newPostOpen}),
-        setShowLoginDialog: (showLoginDialog: boolean) => set({showLoginDialog}),
+        setShowLoginDialog: (
+          showLoginDialog: boolean,
+          loginDialogInitialView?: UIState["loginDialogInitialView"]
+        ) => set({showLoginDialog, loginDialogInitialView}),
         incrementGoToNotifications: () =>
           set({goToNotifications: get().goToNotifications + 1}),
         setHidePWAPrompt: (hidePWAPrompt: boolean) => set({hidePWAPrompt}),

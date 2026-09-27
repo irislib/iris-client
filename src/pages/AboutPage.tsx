@@ -5,10 +5,9 @@ import {
   RiRefreshLine,
   RiUserFollowLine,
   RiFileTextLine,
-  RiAppleFill,
-  RiGooglePlayFill,
-  RiAndroidFill,
-  RiMacbookFill,
+  RiChat3Fill,
+  RiShieldFill,
+  RiHardDrive2Fill,
   RiArrowDownSLine,
   RiArrowUpSLine,
 } from "@remixicon/react"
@@ -117,61 +116,41 @@ export const AboutPage = () => {
                 </Link>
               </p>
 
-              <h2>Download</h2>
+              <h2>More from Iris</h2>
               <p>
                 <a
-                  href="https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
+                  href="https://irischat.org"
                   onClick={(e) => {
                     e.preventDefault()
-                    openExternalLink(
-                      "https://apps.apple.com/en/app/iris-the-nostr-client/id1665849007"
-                    )
+                    openExternalLink("https://irischat.org")
                   }}
                   className="flex items-center gap-1 w-fit"
                 >
-                  <RiAppleFill className="inline" /> iOS App Store
+                  <RiChat3Fill className="inline" /> Iris Chat
                 </a>
               </p>
               <p>
                 <a
-                  href="https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
+                  href="https://nostrvpn.org"
                   onClick={(e) => {
                     e.preventDefault()
-                    openExternalLink(
-                      "https://zapstore.dev/apps/naddr1qvzqqqr7pvpzq3frhevd89d3kxt2nwxg9vpck6y4evptdq7scff6j4gx3kapltxsqqrhgmewd9exjucxe8nj5"
-                    )
+                    openExternalLink("https://nostrvpn.org")
                   }}
                   className="flex items-center gap-1 w-fit"
                 >
-                  <RiAndroidFill className="inline" /> Android Zapstore
+                  <RiShieldFill className="inline" /> Nostr VPN
                 </a>
               </p>
               <p>
                 <a
-                  href="https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
+                  href="https://getdrive.iris.to"
                   onClick={(e) => {
                     e.preventDefault()
-                    openExternalLink(
-                      "https://play.google.com/store/apps/details?id=to.iris.twa&pcampaignid=web_share"
-                    )
+                    openExternalLink("https://getdrive.iris.to")
                   }}
                   className="flex items-center gap-1 w-fit"
                 >
-                  <RiGooglePlayFill className="inline" /> Google Play Store
-                </a>
-              </p>
-              <p>
-                <a
-                  href="https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client?tab=releases"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    openExternalLink(
-                      "https://git.iris.to/#/npub1xdhnr9mrv47kkrn95k6cwecearydeh8e895990n3acntwvmgk2dsdeeycm/iris-client?tab=releases"
-                    )
-                  }}
-                  className="flex items-center gap-1 w-fit"
-                >
-                  <RiMacbookFill className="inline" /> Desktop
+                  <RiHardDrive2Fill className="inline" /> Iris Drive
                 </a>
               </p>
 

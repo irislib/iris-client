@@ -2,7 +2,11 @@ import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from
 import {eventComparator} from "../components/feed/utils"
 import {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
-import {shouldHideUser, shouldHideEvent} from "@/utils/visibility"
+import {
+  shouldHideUser,
+  shouldHideEvent,
+  type AlgorithmicVisibilitySnapshot,
+} from "@/utils/visibility"
 import {useSocialGraph} from "@/utils/socialGraph"
 import {seenEventIds} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
@@ -15,6 +19,8 @@ import DebugManager from "@/utils/DebugManager"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 import {getEventReplyReference} from "@/utils/threadReferences"
+import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
+import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
 
 interface FutureEvent {
   event: NDKEvent
@@ -32,6 +38,8 @@ interface UseFeedEventsProps {
   displayAs?: "list" | "grid"
   subscriptionFilters?: NDKFilter[]
   injectedEvents?: NDKEvent[]
+  visibilitySnapshot?: AlgorithmicVisibilitySnapshot | null
+  enabled?: boolean
 }
 
 export default function useFeedEvents({
@@ -45,8 +53,22 @@ export default function useFeedEvents({
   displayAs = "list",
   subscriptionFilters,
   injectedEvents,
+  visibilitySnapshot,
+  enabled = true,
 }: UseFeedEventsProps) {
   const socialGraph = useSocialGraph()
+  const matchesSearch = useMemo(
+    () => createPostSearchMatcher(filters.search || ""),
+    [filters.search]
+  )
+  const searchResultsRef = useRef<NDKEvent[]>([])
+  const searchController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
+  const [searchProgress, setSearchProgress] = useState<SearchProgress>({
+    loading: false,
+    canLoadMore: false,
+  })
+  const displayCountRef = useRef(displayCount)
+  displayCountRef.current = displayCount
   const bottomVisibleEventTimestampRef = useRef(bottomVisibleEventTimestamp)
   bottomVisibleEventTimestampRef.current = bottomVisibleEventTimestamp
   const myPubKey = useUserStore((state) => state.publicKey)
@@ -84,17 +106,37 @@ export default function useFeedEvents({
   const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}`
   const previousFeedIdentityRef = useRef(feedIdentity)
   const previousEventSortRef = useRef(eventSort)
+  const previousVisibilityRef = useRef(visibilitySnapshot)
   const feedGenerationRef = useRef(0)
 
   useLayoutEffect(() => {
     if (
       previousFeedIdentityRef.current === feedIdentity &&
+      previousEventSortRef.current === eventSort &&
+      previousVisibilityRef.current === visibilitySnapshot
+    ) {
+      return
+    }
+    if (
+      filters.search &&
+      previousFeedIdentityRef.current === feedIdentity &&
       previousEventSortRef.current === eventSort
     ) {
+      // Graph enrichment must not erase and restart an in-flight search.
+      // Recheck existing rows so changes to personal mutes still take effect.
+      previousVisibilityRef.current = visibilitySnapshot
+      for (const [id, event] of eventsRef.current.entries()) {
+        if (!shouldAcceptEventRef.current(event)) eventsRef.current.delete(id)
+      }
+      searchResultsRef.current = searchResultsRef.current.filter(
+        shouldAcceptEventRef.current
+      )
+      setEventsVersion((version) => version + 1)
       return
     }
     previousFeedIdentityRef.current = feedIdentity
     previousEventSortRef.current = eventSort
+    previousVisibilityRef.current = visibilitySnapshot
     feedGenerationRef.current += 1
 
     for (const [, futureEvent] of futureEventsRef.current.entries()) {
@@ -102,6 +144,7 @@ export default function useFeedEvents({
     }
     futureEventsRef.current.clear()
     eventsRef.current = new SortedMap<string, NDKEvent>([], eventSort)
+    searchResultsRef.current = []
     oldestRef.current = undefined
     setUntilTimestamp(undefined)
     hasReceivedEventsRef.current = false
@@ -110,7 +153,7 @@ export default function useFeedEvents({
     setNewEvents(new Map())
     setNewEventsFrom(new Set())
     setEventsVersion((version) => version + 1)
-  }, [eventSort, feedIdentity])
+  }, [eventSort, feedIdentity, visibilitySnapshot, filters.search])
 
   const resolvedSubscriptionFilters = useMemo(() => {
     const baseFilters = subscriptionFilters?.length ? subscriptionFilters : [filters]
@@ -118,13 +161,13 @@ export default function useFeedEvents({
     return baseFilters.flatMap((filter) => {
       const builtFilters = buildSearchSubscriptionFilters(
         filter,
-        untilTimestamp,
-        Math.max(displayCount, 100)
+        filter.search ? undefined : untilTimestamp,
+        100
       )
 
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
-  }, [filters, subscriptionFilters, untilTimestamp, displayCount])
+  }, [filters, subscriptionFilters, untilTimestamp])
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -195,39 +238,16 @@ export default function useFeedEvents({
 
     // Follow distance filtering
     // Skip followDistance entirely when custom authors are defined
-    if (feedConfig.followDistance !== undefined && !hasCustomAuthors) {
+    if (
+      feedConfig.followDistance !== undefined &&
+      !hasCustomAuthors &&
+      !visibilitySnapshot
+    ) {
       const eventFollowDistance = socialGraph.getFollowDistance(event.pubkey)
       if (eventFollowDistance > feedConfig.followDistance) return false
     }
 
-    // Client-side search validation for relays that don't support search filters
-    // Also validate hashtag matches
-    if (filters.search) {
-      const searchTerms = filters.search.toLowerCase().split(/\s+/)
-      const eventContent = event.content?.toLowerCase() || ""
-
-      // Get event's t tags
-      const tTags =
-        event.tags
-          ?.filter((tag) => tag[0] === "t" && tag[1])
-          ?.map((tag) => tag[1].toLowerCase()) || []
-
-      // Check if all search terms are present
-      const allTermsMatch = searchTerms.every((term) => {
-        if (term.startsWith("#")) {
-          // For hashtags, only check in t tags, not content
-          const cleanTerm = term.substring(1)
-          return tTags.includes(cleanTerm)
-        } else {
-          // For regular words, check in content
-          return eventContent.includes(term)
-        }
-      })
-
-      if (!allTermsMatch) {
-        return false
-      }
-    }
+    if (filters.search && !matchesSearch(event)) return false
 
     const inAuthors = filters.authors?.includes(event.pubkey)
 
@@ -235,6 +255,7 @@ export default function useFeedEvents({
     if (isCustomAuthor) {
       return true
     }
+    if (visibilitySnapshot) return !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
 
     // Check if event should be hidden based on mute/overmute
     // Skip follow distance check since it's already done above
@@ -351,12 +372,28 @@ export default function useFeedEvents({
   )
 
   const filteredEvents = useMemo((): NDKEvent[] => {
+    if (filters.search) return searchResultsRef.current
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
     return Array.from(eventsRef.current.values())
-  }, [eventsVersion])
+  }, [eventsVersion, filters.search])
+
+  const additionalSearchResults = useMemo(() => {
+    const groups = new Map<string, NDKEvent[]>()
+    if (!filters.search) return groups
+    const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
+    for (const event of eventsRef.current.values()) {
+      const primaryId = primaryIds.get(event.pubkey)
+      if (!primaryId || primaryId === event.id) continue
+      const matches = groups.get(event.pubkey) || []
+      matches.push(event)
+      groups.set(event.pubkey, matches)
+    }
+    return groups
+  }, [eventsVersion, filteredEvents, filters.search])
 
   const eventsByUnknownUsers = useMemo(() => {
+    if (visibilitySnapshot) return []
     // Don't show unknown user events when custom authors are defined
     const customAuthors = feedConfig.filter?.authors || []
     if (customAuthors.length > 0) {
@@ -379,6 +416,7 @@ export default function useFeedEvents({
     feedConfig.followDistance,
     feedConfig.filter?.authors,
     filters.authors,
+    visibilitySnapshot,
   ])
 
   useEffect(() => {
@@ -396,6 +434,7 @@ export default function useFeedEvents({
   }, [injectedEvents, addEventToMain])
 
   useEffect(() => {
+    if (!enabled) return
     if (filters.authors && filters.authors.length === 0) {
       hasReceivedEventsRef.current = false
       initialLoadDoneRef.current = true
@@ -404,10 +443,6 @@ export default function useFeedEvents({
     }
 
     const generation = feedGenerationRef.current
-
-    const subs = resolvedSubscriptionFilters.map((subscriptionFilter) =>
-      ndk().subscribe(subscriptionFilter, relayUrls ? {relayUrls} : undefined)
-    )
 
     // Reset these flags when subscription changes
     hasReceivedEventsRef.current = eventsRef.current.size > 0
@@ -447,6 +482,13 @@ export default function useFeedEvents({
         addFutureEvent(event)
         return
       }
+      // Historical search results can arrive out of order from independent
+      // indexes. Insert them in date order rather than hiding them as new posts.
+      if (filters.search) {
+        addEventToMain(event)
+        markLoadDoneIfHasEvents()
+        return
+      }
       const addNew = () => {
         setNewEvents((prev) => new Map([...prev, [event.id, event]]))
         setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
@@ -475,8 +517,46 @@ export default function useFeedEvents({
       markLoadDoneIfHasEvents()
     }
 
-    subs.forEach((sub) => sub.on("event", handleEvent))
+    const controller = filters.search
+      ? subscribeSearch(
+          ndk(),
+          resolvedSubscriptionFilters,
+          handleEvent,
+          () => searchResultsRef.current.length <= displayCountRef.current,
+          (progress) => {
+            if (generation !== feedGenerationRef.current) return
+            setSearchProgress(progress)
+            if (progress.oldestSearched !== undefined) {
+              searchResultsRef.current = uniqueSearchAuthors([
+                ...searchResultsRef.current,
+                ...Array.from(eventsRef.current.values()).filter(
+                  (event) => event.created_at! >= progress.oldestSearched!
+                ),
+              ])
+              setEventsVersion((version) => version + 1)
+            }
+            if (!progress.loading) {
+              initialLoadDoneRef.current = true
+              setInitialLoadDoneState(true)
+            }
+          },
+          relayUrls
+        )
+      : null
+    searchController.current = controller
+    const subs = controller
+      ? []
+      : resolvedSubscriptionFilters.map((subscriptionFilter) => {
+          const sub = ndk().subscribe(
+            subscriptionFilter,
+            relayUrls ? {relayUrls} : undefined
+          )
+          sub.on("event", handleEvent)
+          return sub
+        })
     return () => {
+      controller?.stop()
+      if (searchController.current === controller) searchController.current = null
       subs.forEach((sub) => sub.stop())
       clearTimeout(initialLoadTimeout)
       markLoadDoneIfHasEvents.cancel()
@@ -488,6 +568,9 @@ export default function useFeedEvents({
     eventSort,
     addFutureEvent,
     addEventToMain,
+    enabled,
+    filters.search ? null : visibilitySnapshot,
+    relayUrls,
   ])
 
   // Cleanup future event timers on unmount
@@ -504,6 +587,8 @@ export default function useFeedEvents({
   const loadMoreItems = () => {
     if (filteredEvents.length > displayCount) {
       return true
+    } else if (searchController.current) {
+      searchController.current.loadMore()
     } else if (untilTimestamp !== oldestRef.current) {
       setUntilTimestamp(oldestRef.current)
     }
@@ -515,9 +600,12 @@ export default function useFeedEvents({
     newEvents,
     newEventsFrom,
     filteredEvents,
+    additionalSearchResults,
     eventsByUnknownUsers,
     showNewEvents,
     loadMoreItems,
     initialLoadDone: initialLoadDoneState,
+    searchLoading: !!filters.search && searchProgress.loading,
+    canSearchMore: !!filters.search && searchProgress.canLoadMore,
   }
 }

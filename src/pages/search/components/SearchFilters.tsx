@@ -9,6 +9,7 @@ import SearchInput from "@/shared/components/ui/SearchInput"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
 import {getFeedCacheKey} from "@/stores/feed"
+import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 
 interface SearchFiltersProps {
   showTabSelector?: boolean
@@ -86,6 +87,10 @@ const SearchFilters = memo(function SearchFilters({
   // Memoize the feed config to prevent unnecessary re-renders
   // Use the actual query being displayed (from URL or store)
   const activeQuery = decodedQuery || searchQuery
+  const visibility = useRecommendationVisibilitySnapshot(
+    !!activeQuery && !showEventsByUnknownUsers,
+    {useDefaultNetworkWhenEmpty: true, maxFollowDistance: 5}
+  )
   const feedConfig = useMemo(() => {
     if (!activeQuery) return null
     return {
@@ -140,6 +145,7 @@ const SearchFilters = memo(function SearchFilters({
         <div className="flex items-center gap-2 p-2">
           <input
             type="checkbox"
+            aria-label="Show posts from unknown users"
             className="toggle toggle-sm"
             checked={showEventsByUnknownUsers}
             onChange={(e) => setShowEventsByUnknownUsers(e.target.checked)}
@@ -150,7 +156,17 @@ const SearchFilters = memo(function SearchFilters({
 
       <div className="flex-1 w-full">
         {feedConfig ? (
-          <Feed key={getFeedCacheKey(feedConfig)} feedConfig={feedConfig} />
+          <Feed
+            key={getFeedCacheKey(feedConfig)}
+            feedConfig={feedConfig}
+            visibilitySnapshot={visibility.snapshot}
+            enabled={showEventsByUnknownUsers || visibility.ready}
+            emptyPlaceholder={
+              <div className="p-8 text-center text-base-content/50">
+                No matching posts found
+              </div>
+            }
+          />
         ) : (
           <div className="mt-4">
             <AlgorithmicFeed

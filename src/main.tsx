@@ -168,6 +168,11 @@ initializeApp()
 
 // Store subscriptions
 const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
+  // Stop the previous account's publication retries before asynchronous setup,
+  // including switches into read-only mode or logout.
+  if (state.publicKey !== prevState.publicKey || !hasWriteAccess()) {
+    closePrivateMessaging()
+  }
   if (useDevicesStore.getState().privateMessagingBlocked) return
   // Only proceed if public key actually changed
   if (state.publicKey && state.publicKey !== prevState.publicKey) {

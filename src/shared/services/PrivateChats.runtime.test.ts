@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-import type {NostrPublish} from "nostr-double-ratchet"
+import type {NdrRuntimeOptions, NostrPublish} from "nostr-double-ratchet"
 
 const mocks = vi.hoisted(() => {
   const ownerPubkey = "a".repeat(64)
@@ -16,11 +16,13 @@ const mocks = vi.hoisted(() => {
 
   return {
     ownerPubkey,
+    writeAccess: true,
+    publisherStart: vi.fn(),
     runtimeState,
     order: [] as string[],
     hydrationPromise: Promise.resolve() as Promise<void>,
     resolveHydration: undefined as (() => void) | undefined,
-    runtimeOptions: undefined as {nostrPublish: NostrPublish} | undefined,
+    runtimeOptions: undefined as NdrRuntimeOptions | undefined,
     publishFailures: new Set<string>(),
     messageEvents: new Map<string, Map<string, Record<string, unknown>>>(),
     initForOwner: vi.fn<(ownerPubkey: string) => Promise<void>>(),
@@ -40,7 +42,7 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
   const actual = await importOriginal<typeof import("nostr-double-ratchet")>()
 
   class MockNdrRuntime {
-    constructor(options: {nostrPublish: NostrPublish}) {
+    constructor(options: NdrRuntimeOptions) {
       mocks.runtimeOptions = options
     }
 
@@ -119,6 +121,8 @@ vi.mock("@/stores/privateMessages", () => ({
   },
 }))
 
+vi.mock("@/utils/auth", () => ({hasWriteAccess: () => mocks.writeAccess}))
+
 vi.mock("@/utils/ndk", () => ({
   ndk: () => ({
     pool: {
@@ -138,6 +142,17 @@ vi.mock("@/utils/groupMessageHandler", () => ({
   cleanupGroupMessageListener: mocks.cleanupGroup,
 }))
 
+vi.mock("./runtimePublish", () => ({
+  createRuntimePublish: (options: {
+    publish: (...args: unknown[]) => Promise<unknown>
+  }) => ({
+    enqueue: vi.fn(async () => {}),
+    publish: options.publish,
+    start: mocks.publisherStart,
+    close: vi.fn(),
+  }),
+}))
+
 vi.mock("./runtimeSubscribe", () => ({
   createRuntimeSubscribe: vi.fn(() => vi.fn()),
 }))
@@ -151,8 +166,20 @@ vi.mock("@/lib/ndk", () => {
   class MockNDKEvent {
     id: string
 
-    constructor(_ndk: unknown, event: {id?: string}) {
+    constructor(
+      _ndk: unknown,
+      private event: {id?: string; sig?: string}
+    ) {
       this.id = event.id || "unsigned-event"
+    }
+
+    async sign() {
+      this.id = "signed-event"
+      this.event = {...this.event, id: this.id, sig: "signature"}
+    }
+
+    rawEvent() {
+      return this.event
     }
 
     async publish() {
@@ -176,6 +203,8 @@ describe("PrivateChats runtime startup", () => {
     vi.useFakeTimers()
     mocks.order.length = 0
     mocks.runtimeOptions = undefined
+    mocks.writeAccess = true
+    mocks.publisherStart.mockReset()
     mocks.publishFailures.clear()
     mocks.messageEvents.clear()
     mocks.resolveHydration = undefined
@@ -261,6 +290,68 @@ describe("PrivateChats runtime startup", () => {
       "group:cleanup",
       "runtime:close",
     ])
+  })
+
+  it("does not retry or enqueue from read-only sessions and restarts after write access returns", async () => {
+    mocks.writeAccess = false
+    const {getNdrRuntime} = await import("./PrivateChats")
+    getNdrRuntime()
+    expect(mocks.publisherStart).not.toHaveBeenCalled()
+    const event = {id: "outer", sig: "signature"} as Parameters<NostrPublish>[0]
+    await expect(mocks.runtimeOptions!.nostrPublish(event)).rejects.toThrow(
+      "writable account"
+    )
+    await expect(mocks.runtimeOptions!.nostrEnqueue!(event as never)).rejects.toThrow(
+      "writable account"
+    )
+    mocks.writeAccess = true
+    getNdrRuntime()
+    expect(mocks.publisherStart).toHaveBeenCalledOnce()
+    mocks.writeAccess = false
+    await expect(mocks.runtimeOptions!.nostrPublish(event)).rejects.toThrow(
+      "writable account"
+    )
+  })
+
+  it("waits for saved messages before applying an acknowledgement after reload", async () => {
+    let hydrate!: () => void
+    mocks.hydrationPromise = new Promise<void>((resolve) => {
+      hydrate = resolve
+    })
+    const {getNdrRuntime} = await import("./PrivateChats")
+    getNdrRuntime()
+    const published = mocks.runtimeOptions!.nostrPublish(
+      {id: "restored-outer", sig: "signature"} as Parameters<NostrPublish>[0],
+      "restored-inner"
+    )
+    await vi.waitFor(() => expect(mocks.awaitHydration).toHaveBeenCalled())
+    expect(mocks.updateMessage).not.toHaveBeenCalled()
+    const messages = new Map([["restored-inner", {sentToRelays: false}]])
+    mocks.messageEvents.set("chat", messages)
+    hydrate()
+    await published
+    expect(messages.get("restored-inner")).toMatchObject({
+      sentToRelays: true,
+      nostrEventId: "restored-outer",
+    })
+  })
+
+  it("signs owner events without publishing them or waiting for relay receipt", async () => {
+    const {getNdrRuntime} = await import("./PrivateChats")
+    getNdrRuntime()
+    const unsigned = {
+      pubkey: mocks.ownerPubkey,
+      kind: 30078,
+      created_at: 1,
+      tags: [["d", "appkeys"]],
+      content: "owner roster",
+    }
+    await expect(mocks.runtimeOptions!.nostrSign!(unsigned)).resolves.toEqual({
+      ...unsigned,
+      id: "signed-event",
+      sig: "signature",
+    })
+    expect(mocks.order.some((entry) => entry.startsWith("publish:"))).toBe(false)
   })
 
   it("uses the callback inner event id and keeps its first successful outer id", async () => {

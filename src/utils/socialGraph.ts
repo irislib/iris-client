@@ -52,7 +52,7 @@ async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
 async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
   if (isInitialized) {
     log("setting root", publicKey)
-    instance.setRoot(publicKey)
+    await instance.setRoot(publicKey)
     notifyGraphChange()
     return
   }
@@ -256,7 +256,7 @@ export const initializeSocialGraph = async () => {
     // Reconcile the current state instead of trusting the captured key.
     const currentPublicKey = useUserStore.getState().publicKey
     if (!currentPublicKey) {
-      instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
+      await instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
     }
     resolveLoaded?.(true)
   }
@@ -394,7 +394,6 @@ async function resetSubscriptionToDefault() {
   stopGraphSyncSubscriptions()
 
   await instance.setRoot(DEFAULT_SOCIAL_GRAPH_ROOT)
-  await instance.recalculateFollowDistances()
   if (syncGeneration !== graphSyncGeneration || useUserStore.getState().publicKey) {
     return
   }
@@ -444,7 +443,6 @@ async function setupSubscription(publicKey: string) {
   stopGraphSyncSubscriptions()
 
   await instance.setRoot(publicKey)
-  await instance.recalculateFollowDistances()
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
   notifyGraphChange()
 

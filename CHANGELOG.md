@@ -1,5 +1,60 @@
 # Changelog
 
+## 2.5.19 - 2026-09-17
+
+- Show multiword search matches as soon as a complete word index finds them,
+  without waiting for common terms or unrelated relays to finish.
+
+## 2.5.18 - 2026-09-17
+
+- Retry interrupted search pages without skipping recent history or replacing
+  it with old hashtag results.
+- Preserve all relay messages when search responses arrive in a burst.
+
+## 2.5.17 - 2026-09-16
+
+- Match complete words in post search and find multiword queries in any order.
+- Collapse additional matches under each author so prolific accounts do not
+  crowd out other results, while keeping every fetched match available to expand.
+- Keep search rows stable during relay and network updates, and search newer
+  history before displaying old cached or hashtag matches.
+
+## 2.5.16 - 2026-09-07
+
+- Update Hashtree to security runtime 0.5.7 with remote blob integrity checks.
+- Include the verified Nostr Double Ratchet security update for encrypted messaging.
+
+## 2.5.15
+
+- Show search results from the default network for accounts with no follows,
+  while honoring personal mutes and the unknown-user filter.
+- Use a dedicated text-search source and keep search requests and pagination
+  independent so old results cannot skip newer history.
+- Continue searching past pages of nonmatches and offer an older-post search
+  when the initial batches have no matches.
+- Update the Hashtree runtime to the v0.5.7 security release.
+
+## 2.5.14
+
+- Speed up logout by skipping notification-worker waits when none is registered
+  and running independent cleanup in parallel, while preserving device revocation
+  and private-data cleanup.
+- Show For You posts and recommendations from the default network before the
+  first follow, honor personal mutes, and switch to the personal network when
+  following someone.
+- Remove the empty-follow prompt above recommendation feeds.
+
+## 2.5.13
+
+- Update nostr-double-ratchet to 0.0.169: send private messages after signing and
+  saving locally. Relay delivery and retries run in the background, with queued
+  encrypted messages preserved across reloads.
+- Update nostr-social-graph to 2.0.1 for coalesced distance calculations and faster
+  binary processing, remove the temporary graph patch, and avoid duplicate
+  startup traversals.
+- Fill short feeds and continue pagination when more relay candidates arrive,
+  while keeping existing post order stable.
+
 ## 2.5.12
 
 - Start restored For You feeds from the saved visibility graph without waiting

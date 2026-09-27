@@ -1,4 +1,4 @@
-import {useState, useRef, useEffect} from "react"
+import {useState, useRef, useEffect, useId} from "react"
 import {useDevicesStore} from "@/stores/devices"
 import {useUserStore} from "@/stores/user"
 import {
@@ -9,7 +9,6 @@ import {
 import {RiAddLine, RiComputerLine} from "@remixicon/react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import Icon from "@/shared/components/Icons/Icon"
 import {
   describeManagedDevice,
   getStoredManagedDeviceLabels,
@@ -18,13 +17,15 @@ import {
 const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const RegisterDevice = () => {
-  const {isCurrentDeviceRegistered, registeredDevices} = useDevicesStore()
+  const {isCurrentDeviceRegistered} = useDevicesStore()
   const isLinkedDevice = useUserStore((s) => s.linkedDevice)
   const [isRegistering, setIsRegistering] = useState(false)
+  const [registrationError, setRegistrationError] = useState("")
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [preparedRegistration, setPreparedRegistration] =
     useState<PreparedRegistration | null>(null)
   const modalRef = useRef<HTMLDialogElement>(null)
+  const modalTitleId = useId()
 
   useEffect(() => {
     if (showConfirmModal) {
@@ -35,37 +36,35 @@ const RegisterDevice = () => {
   }, [showConfirmModal])
 
   const handleRegisterClick = async () => {
-    // If there are other devices, prepare first then show confirmation modal
-    if (registeredDevices.length > 0) {
-      setIsRegistering(true)
-      try {
-        const prepared = await prepareRegistration()
-        setPreparedRegistration(prepared)
-        setShowConfirmModal(true)
-      } catch (err) {
-        error("Failed to prepare registration:", err)
-      } finally {
-        setIsRegistering(false)
-      }
-    } else {
-      // No confirmation needed - prepare and publish immediately
-      handleRegister()
-    }
-  }
-
-  const handleRegister = async () => {
-    setShowConfirmModal(false)
+    setRegistrationError("")
     setIsRegistering(true)
     try {
-      if (preparedRegistration) {
-        await publishPreparedRegistration(preparedRegistration)
+      const prepared = await prepareRegistration()
+      // Use the freshly fetched roster, which may include devices not yet cached.
+      if (prepared.baseDevices.length > 0) {
+        setPreparedRegistration(prepared)
+        setShowConfirmModal(true)
       } else {
-        // First device - prepare and publish in one step
-        const prepared = await prepareRegistration()
         await publishPreparedRegistration(prepared)
       }
     } catch (err) {
       error("Failed to register device:", err)
+      setRegistrationError("Couldn’t register this device. Please try again.")
+    } finally {
+      setIsRegistering(false)
+    }
+  }
+
+  const handleRegister = async () => {
+    if (!preparedRegistration) return
+    setShowConfirmModal(false)
+    setRegistrationError("")
+    setIsRegistering(true)
+    try {
+      await publishPreparedRegistration(preparedRegistration)
+    } catch (err) {
+      error("Failed to register device:", err)
+      setRegistrationError("Couldn’t register this device. Please try again.")
     } finally {
       setIsRegistering(false)
       setPreparedRegistration(null)
@@ -88,17 +87,30 @@ const RegisterDevice = () => {
         ) : (
           <RiAddLine className="w-5 h-5" />
         )}
-        Register this device
+        {isRegistering ? "Registering…" : "Register this device"}
       </button>
-      <dialog ref={modalRef} className="modal" onClose={() => setShowConfirmModal(false)}>
+      {registrationError && (
+        <p role="alert" className="text-sm text-error mt-3">
+          {registrationError}
+        </p>
+      )}
+      <dialog
+        ref={modalRef}
+        className="modal text-left"
+        aria-labelledby={modalTitleId}
+        onClose={() => {
+          setShowConfirmModal(false)
+          setPreparedRegistration(null)
+        }}
+      >
         <div className="modal-box">
-          <h3 className="font-bold text-lg flex items-center gap-2">
-            <Icon name="warning" size={20} className="text-warning" />
-            Confirm Device Registration
+          <h3 id={modalTitleId} className="font-bold text-lg">
+            Register this device?
           </h3>
           <div className="py-4">
             <p className="text-sm text-base-content/70 mb-3">
-              The following devices will be published to appkeys:
+              This device will be able to send and receive encrypted messages alongside
+              your other devices.
             </p>
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {preparedRegistration?.devices.map((device) => {
@@ -145,11 +157,9 @@ const RegisterDevice = () => {
               })}
             </div>
           </div>
-          <div className="bg-warning/10 border border-warning/30 rounded-lg p-3 text-sm">
-            <strong>Warning:</strong> If you&apos;re adding devices from multiple places
-            at the same time, only the most recent change will be kept. Make sure no other
-            device is currently being registered.
-          </div>
+          <p className="text-sm text-base-content/70">
+            Add devices one at a time so each registration is saved.
+          </p>
           <div className="modal-action">
             <button className="btn btn-ghost" onClick={() => setShowConfirmModal(false)}>
               Cancel

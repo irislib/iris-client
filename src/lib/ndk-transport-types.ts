@@ -6,6 +6,8 @@ import type {SearchHitSource} from "../workers/profile-search"
 export type {SearchResult} from "../utils/profileSearchData"
 
 export interface WorkerSubscribeOpts {
+  relayUrls?: string[]
+  isolated?: boolean
   destinations?: ("cache" | "relay")[]
   closeOnEose?: boolean
   groupable?: boolean
@@ -78,6 +80,7 @@ export interface WorkerResponse {
   subId?: string
   event?: unknown
   relay?: string
+  fromCache?: boolean
   notice?: string
   error?: string
   id?: string

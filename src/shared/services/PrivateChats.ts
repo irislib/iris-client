@@ -2,6 +2,7 @@ import {hexToBytes} from "@noble/hashes/utils.js"
 import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {
   AppKeysManager,
+  APP_KEYS_EVENT_KIND,
   DelegateManager,
   Invite,
   INVITE_RESPONSE_KIND,
@@ -9,7 +10,6 @@ import {
   decryptInviteResponse,
   type NdrRuntimeState,
   type NostrFetch,
-  type NostrPublish,
   type NostrSubscribe,
   type PreparedRegistration,
   type PreparedRevocation,
@@ -17,6 +17,7 @@ import {
 import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
 import type {VerifiedEvent} from "nostr-tools"
 import {ndk} from "@/utils/ndk"
+import {hasWriteAccess} from "@/utils/auth"
 import {useUserStore} from "../../stores/user"
 import {useDevicesStore} from "../../stores/devices"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
@@ -35,6 +36,7 @@ import {
   getLinkedDeviceRegistrationLabels,
 } from "./deviceLabels"
 import {createRuntimeSubscribe} from "./runtimeSubscribe"
+import {createRuntimePublish} from "./runtimePublish"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -45,6 +47,9 @@ const RUNTIME_USER_SETUP_SYNC_MS = 500
 let runtime: NdrRuntime | null = null
 let runtimeCleanup: (() => void) | null = null
 let runtimeOwnerIdentityKeyHex: string | null = null
+let runtimeOwnerPubkey: string | null = null
+let runtimeWriteAccess = false
+let runtimePublisher: ReturnType<typeof createRuntimePublish> | null = null
 let runtimeUserSetupPoller: ReturnType<typeof setInterval> | null = null
 let privateMessagingAvailable = true
 const runtimeUserSetupInFlight = new Set<string>()
@@ -80,10 +85,15 @@ const createFetch = (ndkInstance: NDK): NostrFetch => {
   }
 }
 
-const createPublish = (ndkInstance: NDK): NostrPublish => {
-  return (async (event, innerEventId) => {
+const createPublish = (ndkInstance: NDK, requireAccess: () => void) => {
+  return async (event: VerifiedEvent, innerEventId?: string, signal?: AbortSignal) => {
+    requireAccess()
+    signal?.throwIfAborted()
     const e = new NDKEvent(ndkInstance, event)
     await e.publish()
+    if (innerEventId) await usePrivateMessagesStore.getState().awaitHydration()
+    requireAccess()
+    signal?.throwIfAborted()
 
     if (innerEventId) {
       const {events, updateMessage} = usePrivateMessagesStore.getState()
@@ -102,7 +112,7 @@ const createPublish = (ndkInstance: NDK): NostrPublish => {
     }
 
     return event
-  }) as NostrPublish
+  }
 }
 
 const getOwnerIdentityKeyHex = (): string | null => {
@@ -121,9 +131,13 @@ const closeRuntime = (): void => {
   runtimeUserSetupInFlight.clear()
   runtimeCleanup?.()
   runtimeCleanup = null
+  runtimePublisher?.close()
+  runtimePublisher = null
   runtime?.close()
   runtime = null
   runtimeOwnerIdentityKeyHex = null
+  runtimeOwnerPubkey = null
+  runtimeWriteAccess = false
 }
 
 export const closePrivateMessaging = (): void => {
@@ -137,16 +151,56 @@ const getRuntime = (): NdrRuntime => {
     throw new Error("Private messaging is active in another tab")
   }
   const ownerIdentityKeyHex = getOwnerIdentityKeyHex()
+  const ownerPubkey = useUserStore.getState().publicKey
+  const writeAccess = hasWriteAccess()
 
-  if (runtime && runtimeOwnerIdentityKeyHex === ownerIdentityKeyHex) {
+  if (
+    runtime &&
+    runtimeOwnerIdentityKeyHex === ownerIdentityKeyHex &&
+    runtimeOwnerPubkey === ownerPubkey &&
+    runtimeWriteAccess === writeAccess
+  ) {
     return runtime
   }
 
   closeRuntime()
 
+  const ndkInstance = ndk()
+  const requirePublicationAccess = () => {
+    if (
+      !privateMessagingAvailable ||
+      !hasWriteAccess() ||
+      useUserStore.getState().publicKey !== ownerPubkey
+    ) {
+      throw new Error("Private message publication requires the active writable account")
+    }
+  }
+  const publisher = createRuntimePublish({
+    owner: ownerPubkey,
+    publish: createPublish(ndkInstance, requirePublicationAccess),
+    onError: (error) => log("Message publication queued for retry:", error),
+  })
+  runtimePublisher = publisher
   runtime = new NdrRuntime({
-    nostrSubscribe: createSubscribe(ndk()),
-    nostrPublish: createPublish(ndk()),
+    nostrSubscribe: createSubscribe(ndkInstance),
+    nostrSign: async (event) => {
+      requirePublicationAccess()
+      const signed = new NDKEvent(ndkInstance, event)
+      await signed.sign()
+      return signed.rawEvent() as VerifiedEvent
+    },
+    nostrEnqueue: async (event, innerEventId) => {
+      requirePublicationAccess()
+      await publisher.enqueue(event, innerEventId)
+    },
+    nostrPublish: async (event, innerEventId) => {
+      if (!("sig" in event) || !event.sig) {
+        throw new Error("Runtime publication requires a signed event")
+      }
+      await publisher.publish(event as VerifiedEvent, innerEventId)
+      return event as VerifiedEvent
+    },
+    onPublishError: ({error}) => log("Message publication queued for retry:", error),
     nostrFetch: createFetch(ndk()),
     storage: new LocalForageStorageAdapter(),
     appKeysFetchTimeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
@@ -154,6 +208,9 @@ const getRuntime = (): NdrRuntime => {
     ...(ownerIdentityKeyHex ? {ownerIdentityKey: hexToBytes(ownerIdentityKeyHex)} : {}),
   })
   runtimeOwnerIdentityKeyHex = ownerIdentityKeyHex
+  runtimeOwnerPubkey = ownerPubkey
+  runtimeWriteAccess = writeAccess
+  if (writeAccess) publisher.start()
 
   runtimeCleanup = runtime.onStateChange((state) => {
     syncDeviceStoreFromRuntime(state)
@@ -329,18 +386,19 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
   log("Device registered:", getRuntime().getState().currentDevicePubkey)
 }
 
-export const revokeDevice = async (identityPubkey: string): Promise<void> => {
+export const revokeDevice = async (identityPubkey: string): Promise<number> => {
   const publicKey = requireOwnerPublicKey()
 
   await ensureNdkConnected()
   await getRuntime().initForOwner(publicKey)
-  await getRuntime().revokeDevice({
+  const createdAt = await getRuntime().revokeDevice({
     ownerPubkey: publicKey,
     identityPubkey,
     timeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
   })
 
   log("Device revoked:", identityPubkey)
+  return createdAt
 }
 
 export type {PreparedRegistration, PreparedRevocation}
@@ -409,7 +467,18 @@ export const revokeCurrentDevice = async (): Promise<void> => {
     return
   }
 
-  await revokeDevice(manager.getIdentityPublicKey())
+  const publisher = runtimePublisher
+  const owner = useUserStore.getState().publicKey
+  const createdAt = await revokeDevice(manager.getIdentityPublicKey())
+  // Logout destroys local retry storage. Give this revocation its previous
+  // bounded confirmation window before that cleanup; ordinary sends stay local.
+  await publisher?.waitForDelivery(
+    (event) =>
+      event.pubkey === owner &&
+      event.kind === APP_KEYS_EVENT_KIND &&
+      event.created_at === createdAt,
+    5000
+  )
 }
 
 export const startAppKeysSubscription = (ownerPubkey: string): void => {

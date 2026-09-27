@@ -214,7 +214,9 @@ function HomeFeed() {
             />
           </div>
         )}
-        {showNoFollows && myPubKey && <NoFollows myPubKey={myPubKey} />}
+        {showNoFollows && myPubKey && !activeFeedConfig?.feedStrategy && (
+          <NoFollows myPubKey={myPubKey} />
+        )}
         {(() => {
           if (!myPubKey) return <AlgorithmicFeed type="popular" />
 

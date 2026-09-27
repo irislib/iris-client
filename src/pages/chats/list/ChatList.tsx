@@ -11,7 +11,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {comparator} from "@/pages/chats/utils/messageGrouping"
 import {getMillisecondTimestamp, isTyping} from "nostr-double-ratchet"
 import {MessageType} from "@/pages/chats/message/Message"
-import EncryptedMessagingOnboardingPrompt from "@/shared/components/EncryptedMessagingOnboardingPrompt"
+import {useDevicesStore} from "@/stores/devices"
 import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "@/stores/user"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
@@ -35,6 +35,9 @@ const ChatList = ({className}: ChatListProps) => {
   const setActiveTab = useUIStore((state) => state.setChatsListActiveTab)
   const acceptedChats = useMessageRequestsStore((state) => state.acceptedChats)
   const rejectedChats = useMessageRequestsStore((state) => state.rejectedChats)
+  const canUseChats = useDevicesStore(
+    (state) => state.canSendPrivateMessages && !state.privateMessagingBlocked
+  )
 
   // Subscribe only to events Map keys (chat IDs) to minimize rerenders
   const events = usePrivateMessagesStore((state) => state.events)
@@ -174,6 +177,8 @@ const ChatList = ({className}: ChatListProps) => {
         : "text-base-content/70 hover:text-base-content border-b-2 border-transparent"
     )
 
+  if (!canUseChats) return null
+
   return (
     <nav className={classNames("flex flex-col h-full", className)}>
       <div className="md:hidden">
@@ -181,7 +186,6 @@ const ChatList = ({className}: ChatListProps) => {
       </div>
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-          <EncryptedMessagingOnboardingPrompt />
           <NavLink
             to="/chats/new"
             end

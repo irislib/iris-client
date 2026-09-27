@@ -49,12 +49,13 @@ import type {
   WorkerPublishOpts,
 } from "../lib/ndk-transport-types"
 import type {SettingsState} from "../stores/settings"
-import {DEFAULT_WORKER_RELAYS} from "../shared/constants/relays"
+import {DEFAULT_WORKER_RELAYS, SEARCH_RELAYS} from "../shared/constants/relays"
 import {verifyRelayEvent, type WasmEventVerifier} from "./relay-signature-verifier"
 
 // WASM sig verification - nostr-wasm Nostr interface
 let wasmVerifier: WasmEventVerifier | null = null
 let wasmLoading = false
+let allowSearchRelays = false
 
 async function loadWasm() {
   if (wasmVerifier || wasmLoading) return
@@ -294,6 +295,7 @@ async function initialize(
 ) {
   try {
     log("[Relay Worker] Starting initialization with relays:", relayUrls)
+    allowSearchRelays = !disableExtraRelayUrls && !import.meta.env.VITE_USE_TEST_RELAY
 
     // Store settings
     if (initialSettings) {
@@ -428,6 +430,12 @@ function handleSubscribe(
   const groupableDelay = shouldGroup ? (opts?.groupableDelay ?? 100) : undefined
 
   const sub = ndk.subscribe(filters, {
+    isolated: opts?.isolated,
+    relayUrls:
+      opts?.relayUrls ??
+      (allowSearchRelays && filters.some((filter) => !!filter.search)
+        ? SEARCH_RELAYS
+        : undefined),
     closeOnEose: opts?.closeOnEose ?? cacheOnly,
     groupable: shouldGroup,
     groupableDelay,
@@ -435,12 +443,14 @@ function handleSubscribe(
     waitForCacheBeforeRelays: opts?.waitForCacheBeforeRelays,
   })
 
-  sub.on("event", (event: NDKEvent) => {
+  sub.on("event", (event: NDKEvent, relay, _sub, fromCache) => {
     const rawEvent = event.rawEvent()
     self.postMessage({
       type: "event",
       subId,
       event: rawEvent,
+      relay: relay?.url,
+      fromCache,
     } as WorkerResponse)
 
     // Index profile events (kind 0) for search
@@ -460,6 +470,20 @@ function handleSubscribe(
       }
     }
   })
+
+  // Pagination needs each source's boundary even when another relay or the
+  // local cache delivered the same event first.
+  if (opts?.isolated) {
+    sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
+      self.postMessage({
+        type: "event",
+        subId,
+        event: event instanceof NDKEvent ? event.rawEvent() : event,
+        relay: relay?.url,
+        fromCache,
+      } as WorkerResponse)
+    })
+  }
 
   sub.on("eose", () => {
     self.postMessage({

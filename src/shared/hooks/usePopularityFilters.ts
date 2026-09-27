@@ -52,50 +52,47 @@ export default function usePopularityFilters(filterSeen?: boolean) {
     [graphReady, graphVersion, muteListVersion]
   )
   const rootReady = graphReady && graphRoot === expectedRoot
+  const recommendationRoot = useMemo(() => {
+    if (!rootReady) return expectedRoot
+    return getSocialGraph().getFollowedByUser(expectedRoot).size > 0
+      ? expectedRoot
+      : DEFAULT_SOCIAL_GRAPH_ROOT
+  }, [expectedRoot, graphVersion, rootReady])
   // For You is intentionally stable after loading. Popular, including its
   // sidebar widgets, re-captures policy when the live graph or setting changes.
   const policyRevision = filterSeen
-    ? "mounted"
+    ? `mounted:${recommendationRoot}`
     : `${graphVersion}/${muteListVersion}/${maxFollowDistance ?? "unlimited"}`
   // A mounted For You feed uses one graph snapshot. Live follow/mute events still
   // update the rest of the app, but they cannot reshuffle a feed the user is
   // already reading. Refreshing/remounting the feed intentionally takes a new
-  // snapshot.
+  // snapshot. The first follow (or removing the last one) switches between
+  // discovery and the personal network immediately.
   const snapshot = useMemo<FeedGraphSnapshot | null>(() => {
     if (!rootReady) return null
     const socialGraph = getSocialGraph()
     if (socialGraph.getRoot() !== expectedRoot) return null
 
     const viewer = myPubKey || `anonymous:${socialGraph.getRoot()}`
-    const directFollows = myPubKey
-      ? Array.from(socialGraph.getFollowedByUser(myPubKey, false))
-      : []
+    const reactionAuthors = Array.from(socialGraph.getFollowedByUser(recommendationRoot))
     const chronologicalAuthors = myPubKey
-      ? Array.from(socialGraph.getFollowedByUser(myPubKey, true))
+      ? Array.from(socialGraph.getFollowedByUser(recommendationRoot, true))
       : []
-
-    let reactionAuthors = directFollows
-    if (reactionAuthors.length === 0) {
-      const rootFollows = Array.from(socialGraph.getFollowedByUser(socialGraph.getRoot()))
-      reactionAuthors =
-        rootFollows.length > 0
-          ? rootFollows
-          : Array.from(socialGraph.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT))
-    }
 
     return {
       viewer,
       reactionAuthors: reactionAuthors.sort(),
       chronologicalAuthors: chronologicalAuthors.sort(),
-      policyKey: `graph=${graphVersion}/${muteListVersion}:distance=${maxFollowDistance ?? "unlimited"}`,
+      policyKey: `graph=${graphVersion}/${muteListVersion}:root=${recommendationRoot}:distance=${maxFollowDistance ?? "unlimited"}`,
       visibility: getOrCreateAlgorithmicVisibilitySnapshot(
         socialGraph,
         maxFollowDistance,
         graphVersion,
-        muteListVersion
+        muteListVersion,
+        recommendationRoot
       ),
     }
-  }, [expectedRoot, myPubKey, policyRevision, rootReady])
+  }, [expectedRoot, myPubKey, policyRevision, rootReady, recommendationRoot])
   const authors = snapshot?.reactionAuthors || []
   const chronologicalAuthors = snapshot?.chronologicalAuthors || []
   const scopeKey = snapshot

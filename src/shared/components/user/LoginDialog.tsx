@@ -2,11 +2,13 @@ import SignUp from "@/shared/components/user/SignUp"
 import SignIn from "@/shared/components/user/SignIn"
 import LinkDevice from "@/shared/components/user/LinkDevice"
 import {useState} from "react"
+import {useUIStore} from "@/stores/ui"
 import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 export default function LoginDialog() {
+  const initialView = useUIStore((state) => state.loginDialogInitialView)
   const [view, setView] = useState<"signin" | "signup" | "link">(
-    window.nostr ? "signin" : "signup"
+    initialView ?? (window.nostr ? "signin" : "signup")
   )
   const navLogoUrl = resolveAppAssetUrl(CONFIG.navLogo)
 

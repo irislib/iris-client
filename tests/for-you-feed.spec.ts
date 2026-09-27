@@ -8,6 +8,7 @@ import {
   type VerifiedEvent,
 } from "nostr-tools"
 import {Relay} from "nostr-tools/relay"
+import {SocialGraph} from "nostr-social-graph"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
@@ -18,6 +19,7 @@ const usingLocalRelay = !usingBuiltDist && !usingTestRelay
 test.skip(!usingLocalRelay, "requires deterministic local-relay recommendation data")
 
 const LOCAL_RELAY = "ws://127.0.0.1:7777"
+const DEFAULT_ROOT = "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
 
 interface TestUser {
   privateKey: Uint8Array
@@ -51,6 +53,93 @@ const publishEvents = async (events: VerifiedEvent[]) => {
     relay.close()
   }
 }
+
+test("For You uses the default network until the viewer follows someone", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const starter = createUser()
+  const recommended = createUser()
+  const muted = createUser()
+  const personal = createUser()
+  const graph = new SocialGraph(DEFAULT_ROOT)
+  graph.addFollower(DEFAULT_ROOT, starter.publicKey)
+  graph.addFollower(DEFAULT_ROOT, muted.publicKey)
+  graph.addFollower(starter.publicKey, recommended.publicKey)
+  await graph.recalculateFollowDistances()
+  const snapshot = Buffer.from(await graph.toBinary())
+  let snapshotRequests = 0
+  await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) => {
+    // Vite first imports a JS module containing the asset URL, then fetches it.
+    if (route.request().resourceType() === "script") return route.continue()
+    snapshotRequests++
+    return route.fulfill({contentType: "application/octet-stream", body: snapshot})
+  })
+
+  const now = Math.floor(Date.now() / 1000) - 5
+  const starterContent = `Starter network post ${viewer.publicKey}`
+  const recommendedContent = `Starter recommendation ${viewer.publicKey}`
+  const mutedContent = `Muted starter post ${viewer.publicKey}`
+  const personalContent = `Personal network post ${viewer.publicKey}`
+  const recommendedPost = signEvent(recommended, {
+    kind: 1,
+    content: recommendedContent,
+    tags: [],
+    created_at: now,
+  })
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [], created_at: now}),
+    signEvent(viewer, {
+      kind: 10000,
+      content: "",
+      tags: [["p", muted.publicKey]],
+      created_at: now,
+    }),
+    signEvent(starter, {kind: 1, content: starterContent, tags: [], created_at: now}),
+    recommendedPost,
+    signEvent(starter, {
+      kind: 7,
+      content: "+",
+      tags: [["e", recommendedPost.id]],
+      created_at: now,
+    }),
+    signEvent(muted, {kind: 1, content: mutedContent, tags: [], created_at: now}),
+    signEvent(personal, {kind: 1, content: personalContent, tags: [], created_at: now}),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  expect(snapshotRequests).toBe(1)
+
+  const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
+  await expect(posts.filter({hasText: starterContent}).first()).toBeVisible({
+    timeout: 15000,
+  })
+  await expect(posts.filter({hasText: recommendedContent}).first()).toBeVisible()
+  await expect(posts.filter({hasText: mutedContent})).toHaveCount(0)
+  await expect(posts.filter({hasText: personalContent})).toHaveCount(0)
+  await expect(page.getByText("Follow someone to see content from them")).toBeHidden()
+  expect(
+    await page.evaluate(async () => {
+      const modulePath = "/src/utils/socialGraph.ts"
+      const {getSocialGraph} = await import(modulePath)
+      const graph = getSocialGraph()
+      return {
+        root: graph.getRoot(),
+        follows: [...graph.getFollowedByUser(graph.getRoot())],
+      }
+    })
+  ).toEqual({root: viewer.publicKey, follows: []})
+  await page.screenshot({path: testInfo.outputPath("starter-for-you.png")})
+
+  // A follow-list update must switch the mounted feed without a page reload.
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", personal.publicKey]]}),
+  ])
+  await expect(posts.filter({hasText: personalContent}).first()).toBeVisible({
+    timeout: 10000,
+  })
+  await expect(posts.filter({hasText: starterContent})).toHaveCount(0)
+  await expect(posts.filter({hasText: recommendedContent})).toHaveCount(0)
+})
 
 test("a restored low-activity for you feed displays relay posts without the five-second fallback", async ({
   page,

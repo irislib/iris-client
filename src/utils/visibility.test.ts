@@ -177,6 +177,99 @@ describe("graphConsidersUserOvermuted", () => {
 })
 
 describe("createAlgorithmicVisibilitySnapshot", () => {
+  it("uses discovery distances and moderation without changing the viewer's graph", async () => {
+    const viewer = key("0")
+    const discoveryRoot = key("1")
+    const recommender = key("2")
+    const muter = key("3")
+    const recommended = key("4")
+    const overmuted = key("5")
+    const distant = key("6")
+    const viewerMuted = key("7")
+    const unknown = key("8")
+    const graph = new SocialGraph(viewer)
+    graph.addFollower(discoveryRoot, recommender)
+    graph.addFollower(discoveryRoot, muter)
+    graph.addFollower(discoveryRoot, viewerMuted)
+    graph.addFollower(recommender, recommended)
+    graph.addFollower(recommender, overmuted)
+    graph.addFollower(recommended, distant)
+    graph.handleEvent(
+      [
+        {
+          id: key("a"),
+          sig: key("b") + key("b"),
+          pubkey: viewer,
+          kind: 10000,
+          created_at: 1,
+          tags: [["p", viewerMuted]],
+          content: "",
+        },
+        {
+          id: key("c"),
+          sig: key("d") + key("d"),
+          pubkey: muter,
+          kind: 10000,
+          created_at: 1,
+          tags: [["p", overmuted]],
+          content: "",
+        },
+      ],
+      true
+    )
+    await graph.recalculateFollowDistances()
+
+    const personal = getOrCreateAlgorithmicVisibilitySnapshot(graph, 2, 1, 1)
+    const discovery = getOrCreateAlgorithmicVisibilitySnapshot(
+      graph,
+      2,
+      1,
+      1,
+      discoveryRoot
+    )
+    expect(discovery).not.toBe(personal)
+    expect(getOrCreateAlgorithmicVisibilitySnapshot(graph, 2, 1, 1, discoveryRoot)).toBe(
+      discovery
+    )
+    expect(personal.shouldHideRecommendationUser(recommended)).toBe(true)
+    for (const pubkey of [viewer, discoveryRoot, recommender, recommended]) {
+      expect(discovery.shouldHideRecommendationUser(pubkey)).toBe(false)
+      expect(discovery.shouldHideAlgorithmicEvent({pubkey, tags: []})).toBe(false)
+    }
+    for (const pubkey of [overmuted, distant, viewerMuted, unknown]) {
+      expect(discovery.shouldHideRecommendationUser(pubkey)).toBe(true)
+      expect(discovery.shouldHideAlgorithmicEvent({pubkey, tags: []})).toBe(true)
+    }
+    expect(
+      discovery.shouldHideAlgorithmicEvent({
+        pubkey: recommended,
+        tags: [["p", overmuted]],
+      })
+    ).toBe(true)
+    expect(graph.getRoot()).toBe(viewer)
+    expect(graph.getFollowedByUser(viewer).size).toBe(0)
+    expect(graph.getFollowDistance(recommender)).toBe(1000)
+
+    graph.handleEvent({
+      id: key("e"),
+      sig: key("f") + key("f"),
+      pubkey: viewer,
+      kind: 10000,
+      created_at: 2,
+      tags: [["p", discoveryRoot]],
+      content: "",
+    })
+    const refreshed = getOrCreateAlgorithmicVisibilitySnapshot(
+      graph,
+      2,
+      1,
+      2,
+      discoveryRoot
+    )
+    expect(refreshed.shouldHideRecommendationUser(discoveryRoot)).toBe(true)
+    expect(discovery.shouldHideRecommendationUser(discoveryRoot)).toBe(false)
+  })
+
   it("shares one expensive build per graph policy revision", async () => {
     const root = key("0")
     const known = key("1")

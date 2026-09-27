@@ -2,13 +2,19 @@ import {describe, expect, it} from "vitest"
 
 async function importPortableSmokeModule(): Promise<{
   isTopLevelDocumentResponse: (page: unknown, response: unknown) => boolean
-  shouldIgnoreConsoleError: (text: string) => boolean
+  shouldIgnoreConsoleError: (
+    text: string,
+    request?: {url: string; resourceType: string; origin: string}
+  ) => boolean
   shouldIgnorePageError: (text: string) => boolean
 }> {
   // @ts-expect-error local node script is imported dynamically for runtime config testing
   return (await import("../scripts/portable-smoke-lib.mjs")) as {
     isTopLevelDocumentResponse: (page: unknown, response: unknown) => boolean
-    shouldIgnoreConsoleError: (text: string) => boolean
+    shouldIgnoreConsoleError: (
+      text: string,
+      request?: {url: string; resourceType: string; origin: string}
+    ) => boolean
     shouldIgnorePageError: (text: string) => boolean
   }
 }
@@ -60,6 +66,26 @@ describe("portable smoke page errors", () => {
 })
 
 describe("portable smoke console errors", () => {
+  it("tolerates failed external media while keeping app and unknown requests fatal", async () => {
+    const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
+    const error = "Failed to load resource: net::ERR_FAILED"
+    const origin = "http://127.0.0.1:1234"
+    const request = {url: "https://example.com/post.webp", resourceType: "image", origin}
+
+    expect(shouldIgnoreConsoleError(error, request)).toBe(true)
+    expect(shouldIgnoreConsoleError(error, {...request, resourceType: "media"})).toBe(
+      true
+    )
+    expect(shouldIgnoreConsoleError(error, {...request, resourceType: "script"})).toBe(
+      false
+    )
+    expect(
+      shouldIgnoreConsoleError(error, {...request, url: `${origin}/logo.webp`})
+    ).toBe(false)
+    expect(shouldIgnoreConsoleError(error)).toBe(false)
+    expect(shouldIgnoreConsoleError("Uncaught TypeError: boom", request)).toBe(false)
+  })
+
   it("ignores status-only noise while URL-aware response checks remain authoritative", async () => {
     const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
 

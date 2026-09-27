@@ -187,12 +187,37 @@ export const shouldHideUnsolicitedEvent = (
  */
 export const createAlgorithmicVisibilitySnapshot = (
   graph: SocialGraph,
-  maxFollowDistance: number | undefined
+  maxFollowDistance: number | undefined,
+  recommendationRoot = graph.getRoot()
 ): AlgorithmicVisibilitySnapshot => {
-  const root = graph.getRoot()
-  const directMutes = new Set(graph.getMutedByUser(root))
+  const viewer = graph.getRoot()
+  const root = recommendationRoot
+  const directMutes = new Set([
+    ...graph.getMutedByUser(root),
+    ...graph.getMutedByUser(viewer),
+  ])
   const overmutedUsers = new Set(directMutes)
-  const {followersByUser, userMutedBy, ids, str} = graph.getInternalData()
+  const {followedByUser, followersByUser, userMutedBy, ids, str} = graph.getInternalData()
+
+  // Discovery can use another root without changing the account's graph or
+  // follows. Capture its distances locally alongside the immutable policy.
+  const distances = root === viewer ? null : new Map<number, number>()
+  if (distances && ids.has(root)) {
+    const rootId = ids.id(root)
+    const queue = [rootId]
+    distances.set(rootId, 0)
+    for (let head = 0; head < queue.length; head++) {
+      const user = queue[head]
+      const distance = distances.get(user)! + 1
+      for (const followed of followedByUser.get(user) || []) {
+        if (distances.has(followed)) continue
+        distances.set(followed, distance)
+        queue.push(followed)
+      }
+    }
+  }
+  const getDistance = (id: number) =>
+    distances ? (distances.get(id) ?? 1000) : graph.getFollowDistance(str(id))
 
   for (const [targetId, targetPubKey] of ids) {
     if (targetPubKey === root || overmutedUsers.has(targetPubKey)) continue
@@ -205,7 +230,7 @@ export const createAlgorithmicVisibilitySnapshot = (
     let nearestMuters = 0
 
     const recordOpinion = (opinionUserId: number, isMute: boolean) => {
-      const distance = graph.getFollowDistance(str(opinionUserId))
+      const distance = getDistance(opinionUserId)
       // SocialGraph uses 1000 as its unknown/unreachable sentinel. Its stats()
       // implementation likewise excludes opinions from unreachable users.
       if (distance >= 1000) return
@@ -237,20 +262,27 @@ export const createAlgorithmicVisibilitySnapshot = (
   }
 
   const allowedRecommendationUsers = new Set<string>()
-  for (const pubKey of graph.userIterator(maxFollowDistance)) {
-    if (!overmutedUsers.has(pubKey)) allowedRecommendationUsers.add(pubKey)
+  for (const [id, pubKey] of ids) {
+    const distance = getDistance(id)
+    if (
+      distance < 1000 &&
+      (maxFollowDistance === undefined || distance <= maxFollowDistance) &&
+      !overmutedUsers.has(pubKey)
+    ) {
+      allowedRecommendationUsers.add(pubKey)
+    }
   }
 
   const explicitAuthors = new Set([root, ...graph.getFollowedByUser(root)])
   const snapshot: AlgorithmicVisibilitySnapshot = {
     shouldHideRecommendationUser: (pubKey) => {
-      if (pubKey === root) return false
+      if (pubKey === viewer) return false
       if (directMutes.has(pubKey)) return true
       if (explicitAuthors.has(pubKey)) return false
       return !allowedRecommendationUsers.has(pubKey)
     },
     shouldHideAlgorithmicEvent: (event) => {
-      if (event.pubkey === root) return false
+      if (event.pubkey === viewer) return false
       if (directMutes.has(event.pubkey)) return true
       if (explicitAuthors.has(event.pubkey)) return false
       if (!allowedRecommendationUsers.has(event.pubkey)) return true
@@ -274,10 +306,12 @@ export const getOrCreateAlgorithmicVisibilitySnapshot = (
   graph: SocialGraph,
   maxFollowDistance: number | undefined,
   graphVersion: number,
-  muteListVersion: number
+  muteListVersion: number,
+  recommendationRoot = graph.getRoot()
 ): AlgorithmicVisibilitySnapshot => {
   const key = [
     graph.getRoot(),
+    recommendationRoot,
     graphVersion,
     muteListVersion,
     maxFollowDistance ?? "unlimited",
@@ -285,7 +319,11 @@ export const getOrCreateAlgorithmicVisibilitySnapshot = (
   const cached = recommendationSnapshotCache.get(graph)
   if (cached?.key === key) return cached.snapshot
 
-  const snapshot = createAlgorithmicVisibilitySnapshot(graph, maxFollowDistance)
+  const snapshot = createAlgorithmicVisibilitySnapshot(
+    graph,
+    maxFollowDistance,
+    recommendationRoot
+  )
   recommendationSnapshotCache.set(graph, {key, snapshot})
   return snapshot
 }
