@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.5.21 - 2026-09-27
+
+- Identify Iris with the standard lowercase client tag on public posts, replies,
+  reposts, reactions, and public zap requests by default. Turn this off in
+  Settings → Content → “Show Iris on my public activity”. Profiles, follow lists,
+  private messages, and other unselected events remain untagged.
+
 ## 2.5.20 - 2026-09-27
 
 - Show cached recommendation posts promptly when other posts in the same batch
