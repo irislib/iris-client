@@ -13,6 +13,7 @@ export interface SettingsState {
   }
   // Content settings
   content: {
+    showClientTag: boolean
     blurNSFW: boolean
     maxFollowDistanceForReplies: number | undefined // 1=followed, 2=friends of friends, 3-5=extended network, undefined=unlimited
     hidePostsByMutedMoreThanFollowed: boolean
@@ -88,6 +89,7 @@ export const useSettingsStore = create<SettingsState>()(
         limitedMaxWidth: false,
       },
       content: {
+        showClientTag: true,
         blurNSFW: true,
         maxFollowDistanceForReplies: 5, // Default to 5
         hidePostsByMutedMoreThanFollowed: true,
@@ -174,6 +176,9 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: "settings-storage",
       onRehydrateStorage: () => (state) => {
+        if (state?.content && state.content.showClientTag === undefined) {
+          state.content.showClientTag = true
+        }
         if (state?.imgproxy) {
           localforage.setItem("imgproxy-settings", state.imgproxy)
         }

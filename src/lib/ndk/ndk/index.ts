@@ -138,6 +138,9 @@ export interface NDKConstructorParams {
    */
   clientNip89?: string
 
+  /** Optional application policy overriding automatic client-tag eligibility. */
+  clientTagFilter?: (event: NDKEvent) => boolean
+
   /**
    * Default relay-auth policy
    */
@@ -357,6 +360,7 @@ export class NDK extends EventEmitter<{
   public relayConnectionFilter?: (relayUrl: string) => boolean
   public clientName?: string
   public clientNip89?: string
+  public clientTagFilter?: (event: NDKEvent) => boolean
   public queuesZapConfig: Queue<NDKLnUrlData | undefined>
   public queuesNip05: Queue<ProfilePointer | null>
   public asyncSigVerification = false
@@ -473,6 +477,7 @@ export class NDK extends EventEmitter<{
 
     this.clientName = opts.clientName
     this.clientNip89 = opts.clientNip89
+    this.clientTagFilter = opts.clientTagFilter
 
     this.relayAuthDefaultPolicy = opts.relayAuthDefaultPolicy
 

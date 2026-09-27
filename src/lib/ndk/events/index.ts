@@ -631,6 +631,12 @@ export class NDKEvent extends EventEmitter {
       }
     }
 
+    // An application policy owns attribution on events it is preparing to sign.
+    // Replace inherited tags, and remove them when the user opts out.
+    if (this.ndk?.clientTagFilter) {
+      tags = tags.filter((tag) => tag[0] !== "client")
+    }
+
     if (this.shouldAddClientTag) {
       const clientTag: NDKTag = ["client", this.ndk?.clientName ?? ""]
       if (this.ndk?.clientNip89) clientTag.push(this.ndk?.clientNip89)
@@ -644,6 +650,7 @@ export class NDKEvent extends EventEmitter {
 
   get shouldAddClientTag(): boolean {
     if (!this.ndk?.clientName && !this.ndk?.clientNip89) return false
+    if (this.ndk.clientTagFilter) return this.ndk.clientTagFilter(this)
     if (skipClientTagOnKinds.has(this.kind!)) return false
     if (this.isEphemeral()) return false
     if (this.isReplaceable() && !this.isParamReplaceable()) return false

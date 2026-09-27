@@ -21,6 +21,7 @@ export function SettingToggle({
         <span className={disabled ? "opacity-50" : ""}>{label}</span>
         <input
           type="checkbox"
+          aria-label={label}
           checked={checked}
           onChange={onChange}
           disabled={disabled}

@@ -15,6 +15,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 import {resolveRelayRuntimeConfig, type RelayRuntimeConfig} from "@/utils/relayRuntime"
+import {irisClientTagOptions} from "@/utils/clientTag"
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.NDK_RELAY)
 
 let ndkInstance: NDK | null = null
@@ -80,6 +81,7 @@ export async function initNDK(opts?: NDKConstructorParams): Promise<NDK> {
 
   // Create instance immediately so ndk() returns it synchronously
   ndkInstance = new NDK({
+    ...irisClientTagOptions,
     ...opts,
     explicitRelayUrls: relayRuntime.explicitRelayUrls,
     enableOutboxModel: relayRuntime.enableOutboxModel,

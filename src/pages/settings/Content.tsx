@@ -33,6 +33,14 @@ function Content() {
     <div className="bg-base-200 min-h-full">
       <div className="p-4">
         <div className="space-y-6">
+          <SettingsGroup title="Publishing">
+            <SettingToggle
+              checked={content.showClientTag}
+              onChange={() => handleToggleChange("showClientTag")}
+              label="Show Iris on my public activity"
+              isLast
+            />
+          </SettingsGroup>
           <SettingsGroup>
             <SettingsGroupItem>
               <div className="w-full">
