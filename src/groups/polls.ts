@@ -1,3 +1,5 @@
+import {verifyEvent, type Event as SignedEvent} from "nostr-tools"
+
 /** NIP-88 poll semantics. Callers supply signature-verified events. */
 export const KIND_POLL = 1068
 export const KIND_POLL_RESPONSE = 1018
@@ -20,11 +22,151 @@ export interface Poll {
   type: PollType
   endsAt?: number
   relays: string[]
+  electorate?: PollElectorate
+  groupId?: string
 }
 
 const isHex = (value: string) => /^[0-9a-f]{64}$/.test(value)
 const isTimestamp = (value: number | undefined): value is number =>
   value !== undefined && Number.isSafeInteger(value) && value >= 0
+
+export interface PollElectorate {
+  rootPubkey: string
+  policyEventId: string
+  policy: {direct: number; secondDegree: number}
+  memberPubkeys: string[]
+  authorityPubkeys: string[]
+  evidenceEventIds: string[]
+  rootFollowEventId?: string
+  memberSnapshotLimited: boolean
+}
+
+export const MAX_POLL_MEMBERS = 512
+export const MAX_POLL_AUTHORITIES = 257
+export const MAX_POLL_EVIDENCE = 2048
+const MAX_POLL_BYTES = 64 * 1024
+
+function canonicalElectorate(snapshot: PollElectorate): PollElectorate {
+  const validList = (values: string[], max: number) =>
+    values.length > 0 &&
+    values.length <= max &&
+    values.every(isHex) &&
+    new Set(values).size === values.length
+  if (
+    typeof snapshot.memberSnapshotLimited !== "boolean" ||
+    !isHex(snapshot.rootPubkey) ||
+    !isHex(snapshot.policyEventId) ||
+    ![snapshot.policy.direct, snapshot.policy.secondDegree].every(
+      (n) => Number.isInteger(n) && n >= 1 && n <= 20
+    ) ||
+    !validList(snapshot.memberPubkeys, MAX_POLL_MEMBERS) ||
+    !validList(snapshot.authorityPubkeys, MAX_POLL_AUTHORITIES) ||
+    !validList(snapshot.evidenceEventIds, MAX_POLL_EVIDENCE) ||
+    !snapshot.evidenceEventIds.includes(snapshot.policyEventId) ||
+    (snapshot.rootFollowEventId !== undefined &&
+      (!isHex(snapshot.rootFollowEventId) ||
+        !snapshot.evidenceEventIds.includes(snapshot.rootFollowEventId))) ||
+    (snapshot.authorityPubkeys.some((key) => key !== snapshot.rootPubkey) &&
+      !snapshot.rootFollowEventId) ||
+    !snapshot.authorityPubkeys.includes(snapshot.rootPubkey) ||
+    snapshot.authorityPubkeys.some((key) => !snapshot.memberPubkeys.includes(key))
+  ) {
+    throw new Error(
+      "The voter snapshot is invalid or too large. Refresh the group before creating a poll."
+    )
+  }
+  return {
+    ...snapshot,
+    policy: {...snapshot.policy},
+    memberPubkeys: [...snapshot.memberPubkeys].sort(),
+    authorityPubkeys: [...snapshot.authorityPubkeys].sort(),
+    evidenceEventIds: [...snapshot.evidenceEventIds].sort(),
+  }
+}
+
+/** The ordinary signed poll event commits these author-observed sets and evidence IDs. */
+export function buildPollElectorateTags(input: PollElectorate): string[][] {
+  const snapshot = canonicalElectorate(input)
+  const trusted = new Set(snapshot.authorityPubkeys)
+  return [
+    [
+      "iris-electorate",
+      "1",
+      snapshot.rootPubkey,
+      snapshot.policyEventId,
+      String(snapshot.policy.direct),
+      String(snapshot.policy.secondDegree),
+      snapshot.rootFollowEventId ?? "",
+      snapshot.memberSnapshotLimited ? "partial" : "observed",
+    ],
+    ...snapshot.memberPubkeys.map((key) => [
+      "iris-voter",
+      key,
+      trusted.has(key) ? "trusted" : "member",
+    ]),
+    ...snapshot.evidenceEventIds.map((id) => ["iris-evidence", id]),
+  ]
+}
+
+function parsePollElectorate(event: PollEvent): PollElectorate | undefined {
+  const header = event.tags.filter((tag) => tag[0] === "iris-electorate")
+  const voters = event.tags.filter((tag) => tag[0] === "iris-voter")
+  const evidence = event.tags.filter((tag) => tag[0] === "iris-evidence")
+  if (!header.length && !voters.length && !evidence.length) return undefined
+  if (
+    header.length !== 1 ||
+    header[0].length !== 8 ||
+    header[0][1] !== "1" ||
+    (header[0][7] !== "partial" && header[0][7] !== "observed") ||
+    !/^\d+$/.test(header[0][4]) ||
+    !/^\d+$/.test(header[0][5]) ||
+    voters.some(
+      (tag) => tag.length !== 3 || (tag[2] !== "trusted" && tag[2] !== "member")
+    ) ||
+    evidence.some((tag) => tag.length !== 2)
+  )
+    throw new Error("Invalid voter snapshot")
+  const snapshot = canonicalElectorate({
+    rootPubkey: header[0][2],
+    policyEventId: header[0][3],
+    policy: {direct: Number(header[0][4]), secondDegree: Number(header[0][5])},
+    memberPubkeys: voters.map((tag) => tag[1]),
+    authorityPubkeys: voters.filter((tag) => tag[2] === "trusted").map((tag) => tag[1]),
+    evidenceEventIds: evidence.map((tag) => tag[1]),
+    ...(header[0][6] ? {rootFollowEventId: header[0][6]} : {}),
+    memberSnapshotLimited: header[0][7] === "partial",
+  })
+  const groups = event.tags.filter((tag) => tag[0] === "h")
+  const addresses = event.tags.filter(
+    (tag) => tag[0] === "a" && tag[1]?.startsWith("37368:")
+  )
+  if (
+    groups.length !== 1 ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+      groups[0][1] ?? ""
+    ) ||
+    addresses.length !== 1 ||
+    addresses[0][1] !== `37368:${snapshot.rootPubkey}:${groups[0][1]}` ||
+    !snapshot.memberPubkeys.includes(event.pubkey)
+  )
+    throw new Error("Voter snapshot does not match this group or author")
+  assertPollSize(event)
+  return snapshot
+}
+
+export function assertPollSize(draft: {content: string; tags: string[][]}): void {
+  // Reserve space for the event envelope and signature; never silently clip a roster.
+  if (
+    new TextEncoder().encode(JSON.stringify({content: draft.content, tags: draft.tags}))
+      .byteLength +
+      1024 >
+    MAX_POLL_BYTES
+  ) {
+    throw new Error(
+      "This group's voter snapshot is too large for a poll. No members were excluded."
+    )
+  }
+}
 
 export function pollRelayUrls(values: readonly string[]): string[] {
   const urls = new Set<string>()
@@ -77,9 +219,17 @@ export function parsePoll(event: PollEvent): Poll | null {
         endsAt < event.created_at))
   )
     return null
+  let electorate: PollElectorate | undefined
+  try {
+    electorate = parsePollElectorate(event)
+  } catch {
+    return null
+  }
   return {
     id: event.id,
     question: event.content,
+    electorate,
+    groupId: electorate ? event.tags.find((tag) => tag[0] === "h")?.[1] : undefined,
     createdAt: event.created_at,
     options,
     type,
@@ -200,4 +350,137 @@ export function buildPollResponseTags(
   )
     throw new Error("Choose a valid poll option.")
   return [["e", poll.id], ...ids.map((id) => ["response", id])]
+}
+
+/** Both advisory totals use the immutable author-signed snapshot, never today's graph. */
+export function tallyPollElectorate(
+  poll: Poll,
+  events: Iterable<PollEvent>,
+  now = Math.floor(Date.now() / 1000)
+) {
+  if (!poll.electorate) throw new Error("This poll has no frozen voter snapshot")
+  const all = [...events]
+  const members = new Set(poll.electorate.memberPubkeys)
+  const trusted = new Set(poll.electorate.authorityPubkeys)
+  return {
+    members: tallyPollResponses(poll, all, {now, isEligible: (key) => members.has(key)}),
+    trusted: tallyPollResponses(poll, all, {now, isEligible: (key) => trusted.has(key)}),
+  }
+}
+
+export interface PollResponseFilter {
+  kinds: number[]
+  "#e": string[]
+  authors?: string[]
+  since: number
+  until?: number
+  limit: number
+}
+export const POLL_RESPONSES_PER_KEY = 32
+
+/** Per-key historical filters stop one prolific voter from hiding everyone else's votes. */
+export function pollResponseQueries(poll: Poll) {
+  const base = {
+    kinds: [KIND_POLL_RESPONSE],
+    "#e": [poll.id],
+    since: poll.createdAt,
+    ...(poll.endsAt !== undefined ? {until: poll.endsAt} : {}),
+  }
+  const keys = poll.electorate ? [...poll.electorate.memberPubkeys] : undefined
+  const history: PollResponseFilter[][] = []
+  if (keys) {
+    for (let i = 0; i < keys.length; i += 16) {
+      history.push(
+        keys
+          .slice(i, i + 16)
+          .map((key) => ({...base, authors: [key], limit: POLL_RESPONSES_PER_KEY}))
+      )
+    }
+  } else history.push([{...base, limit: 5000}])
+  return {history, live: {...base, ...(keys ? {authors: keys} : {}), limit: 0}}
+}
+
+export interface PollAuthorityVerification {
+  valid: boolean
+  reason?: string
+}
+
+/** Require the root's own signature for any delegated authority, not the poll author's claim. */
+export function verifyPollAuthority(
+  poll: Poll,
+  events: Iterable<PollEvent & {sig?: string}>
+): PollAuthorityVerification {
+  const snapshot = poll.electorate
+  if (!snapshot) return {valid: false, reason: "This poll has no fixed voter snapshot."}
+  if (!snapshot.rootFollowEventId) {
+    return snapshot.authorityPubkeys.every((key) => key === snapshot.rootPubkey)
+      ? {valid: true}
+      : {valid: false, reason: "The creator's signed contact list is missing."}
+  }
+  const signedLists: SignedEvent[] = []
+  for (const event of events) {
+    if (
+      event.kind !== 3 ||
+      event.pubkey !== snapshot.rootPubkey ||
+      !isTimestamp(event.created_at) ||
+      event.created_at > poll.createdAt ||
+      !event.sig
+    )
+      continue
+    // Copy protocol fields so a cached verification symbol cannot authenticate mutated data.
+    const raw: SignedEvent = {
+      id: event.id,
+      pubkey: event.pubkey,
+      kind: event.kind,
+      created_at: event.created_at,
+      content: event.content,
+      tags: event.tags,
+      sig: event.sig,
+    }
+    try {
+      if (verifyEvent(raw)) signedLists.push(raw)
+    } catch {
+      /* malformed proof */
+    }
+  }
+  const proof = signedLists.find((event) => event.id === snapshot.rootFollowEventId)
+  if (!proof)
+    return {
+      valid: false,
+      reason: "The creator's signed contact-list proof is unavailable.",
+    }
+  const latest = signedLists.sort(
+    (a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id)
+  )[0]
+  if (latest.id !== proof.id)
+    return {
+      valid: false,
+      reason:
+        "A newer creator contact list predates this poll; its trust snapshot is outdated.",
+    }
+  const direct = new Set(proof.tags.filter((tag) => tag[0] === "p").map((tag) => tag[1]))
+  if (
+    snapshot.authorityPubkeys.some(
+      (key) => key !== snapshot.rootPubkey && !direct.has(key)
+    )
+  ) {
+    return {
+      valid: false,
+      reason: "The trusted voter list does not match the creator's signed contacts.",
+    }
+  }
+  return {valid: true}
+}
+
+/** Frozen membership prevents later graph edits from removing an admitted voter's control. */
+export function isPollVoter(
+  poll: Poll,
+  pubkey: string | undefined,
+  snapshotVerified: boolean,
+  liveEligible: boolean
+): boolean {
+  if (!pubkey) return false
+  return poll.electorate
+    ? snapshotVerified && poll.electorate.memberPubkeys.includes(pubkey)
+    : liveEligible
 }

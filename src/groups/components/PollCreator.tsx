@@ -6,16 +6,33 @@ import {ProfileLink} from "@/shared/components/user/ProfileLink"
 import {usePublicKey} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
 import {groupAddress, type GroupRef} from "../model"
-import {buildPollTags, KIND_POLL, pollRelayUrls} from "../polls"
+import {
+  assertPollSize,
+  buildPollElectorateTags,
+  buildPollTags,
+  KIND_POLL,
+  pollRelayUrls,
+  type PollElectorate,
+} from "../polls"
 import {publishGroupEvent} from "../publish"
 
 interface PollCreatorProps {
   group: GroupRef
+  electorate: PollElectorate | null
+  snapshotLoading?: boolean
+  snapshotError?: string
   onClose: () => void
   onPublished: (event: NDKEvent) => void
 }
 
-export default function PollCreator({group, onClose, onPublished}: PollCreatorProps) {
+export default function PollCreator({
+  group,
+  electorate,
+  snapshotLoading = false,
+  snapshotError,
+  onClose,
+  onPublished,
+}: PollCreatorProps) {
   const publicKey = usePublicKey()
   const [question, setQuestion] = useState("")
   const [options, setOptions] = useState(["", ""])
@@ -32,24 +49,34 @@ export default function PollCreator({group, onClose, onPublished}: PollCreatorPr
     setError("")
     try {
       if (!question.trim()) throw new Error("Add a question.")
+      if (snapshotLoading || snapshotError || !electorate)
+        throw new Error(snapshotError || "Wait for the group voter snapshot to load.")
+      if (
+        electorate.rootPubkey !== group.creator ||
+        !electorate.memberPubkeys.includes(publicKey)
+      ) {
+        throw new Error(
+          "Polls use the group creator's membership view. You are not included in that snapshot."
+        )
+      }
       const relays = pollRelayUrls(ndk().explicitRelayUrls)
       if (!relays.length) throw new Error("Connect to a relay before creating a poll.")
-      const event = await publishGroupEvent(
-        {
-          kind: KIND_POLL,
-          content: question.trim(),
-          tags: [
-            ["h", group.id],
-            ["a", groupAddress(group)],
-            ...buildPollTags({
-              options,
-              endsAt: Math.floor(Date.now() / 1000) + duration,
-              relays,
-            }),
-          ],
-        },
-        relays
-      )
+      const draft = {
+        kind: KIND_POLL,
+        content: question.trim(),
+        tags: [
+          ["h", group.id],
+          ["a", groupAddress(group)],
+          ...buildPollElectorateTags(electorate),
+          ...buildPollTags({
+            options,
+            endsAt: Math.floor(Date.now() / 1000) + duration,
+            relays,
+          }),
+        ],
+      }
+      assertPollSize(draft)
+      const event = await publishGroupEvent(draft, relays)
       onPublished(event)
       onClose()
     } catch (reason) {
@@ -150,8 +177,31 @@ export default function PollCreator({group, onClose, onPublished}: PollCreatorPr
               </select>
             </label>
             <p className="text-xs text-base-content/60">
-              Votes are public. Eligible members can choose one option.
+              Votes are public. Choose one option.
             </p>
+            {electorate && !snapshotLoading && (
+              <p className="text-xs text-base-content/60">
+                Fixed at posting: {electorate.memberPubkeys.length} observed members ·{" "}
+                {electorate.authorityPubkeys.length} trusted voters. Trusted voters are
+                the creator and eligible direct contacts in the observed group view.
+              </p>
+            )}
+            {electorate?.memberSnapshotLimited && (
+              <p className="text-xs text-base-content/60">
+                The member snapshot is partial. Trusted voting authority is fixed
+                separately.
+              </p>
+            )}
+            {snapshotLoading && (
+              <p role="status" className="text-xs text-base-content/60">
+                Loading the observed voter snapshot…
+              </p>
+            )}
+            {snapshotError && (
+              <p role="alert" className="text-sm text-error">
+                {snapshotError}
+              </p>
+            )}
             {error && (
               <p role="alert" className="text-sm text-error">
                 {error}
@@ -163,6 +213,9 @@ export default function PollCreator({group, onClose, onPublished}: PollCreatorPr
                 className="btn btn-primary rounded-full"
                 disabled={
                   publishing ||
+                  snapshotLoading ||
+                  !!snapshotError ||
+                  !electorate ||
                   !publicKey ||
                   !question.trim() ||
                   options.some((option) => !option.trim())

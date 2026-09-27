@@ -1,12 +1,18 @@
 import {useCallback, useEffect, useState} from "react"
 import {verifyEvent, type Event} from "nostr-tools"
-import {NDKSubscriptionCacheUsage} from "@/lib/ndk"
+import {NDKSubscriptionCacheUsage, type NDKEvent, type NDKSubscription} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
-import {KIND_POLL_RESPONSE, parsePollResponse, type Poll, type PollEvent} from "../polls"
+import {
+  parsePollResponse,
+  pollResponseQueries,
+  POLL_RESPONSES_PER_KEY,
+  type Poll,
+  type PollEvent,
+} from "../polls"
 
 const LIMIT = 5000
 
-/** Bounded, batched results with one stored valid response per key. */
+/** Batch per-key history, then keep one live query; memory stores one valid vote per key. */
 export default function usePollResponses(poll: Poll | null, closed: boolean) {
   const [revision, setRevision] = useState(0)
   const [responses, setResponses] = useState<PollEvent[]>([])
@@ -22,6 +28,9 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
     if (!poll) return
     setLoading(true)
     const latest = new Map<string, PollEvent>()
+    const receivedByKey = new Map<string, number>()
+    const subscriptions = new Set<NDKSubscription>()
+    const timers = new Set<ReturnType<typeof setTimeout>>()
     let received = 0
     let batch: ReturnType<typeof setTimeout> | undefined
     let active = true
@@ -30,27 +39,27 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
       batch = undefined
       if (active) setResponses([...latest.values()])
     }
-    // Limit untrusted relay hints as well as the result set.
     if (poll.relays.length > 8) setLimited(true)
-    const sub = ndk().subscribe(
-      {
-        kinds: [KIND_POLL_RESPONSE],
-        "#e": [poll.id],
-        since: poll.createdAt,
-        ...(poll.endsAt !== undefined ? {until: poll.endsAt} : {}),
-        limit: LIMIT,
-      },
-      {
-        closeOnEose: closed,
-        cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
-        ...(poll.relays.length ? {relayUrls: poll.relays.slice(0, 8)} : {}),
-      },
-      false
-    )
-    sub.on("event", (event) => {
+    const options = {
+      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+      ...(poll.relays.length ? {relayUrls: poll.relays.slice(0, 8)} : {}),
+    }
+    const {history, live} = pollResponseQueries(poll)
+    const allowed = live.authors ? new Set(live.authors) : undefined
+    const onEvent = (event: NDKEvent, historical: boolean) => {
+      if (!active) return
       const raw = event.rawEvent() as Event
-      received++
-      if (received >= LIMIT) setLimited(true)
+      if (allowed && !allowed.has(raw.pubkey)) return
+      if (historical) {
+        received++
+        const perKey = (receivedByKey.get(raw.pubkey) ?? 0) + 1
+        receivedByKey.set(raw.pubkey, perKey)
+        if (
+          (poll.electorate && perKey >= POLL_RESPONSES_PER_KEY) ||
+          (!poll.electorate && received >= LIMIT)
+        )
+          setLimited(true)
+      }
       if (!parsePollResponse(poll, raw) || !verifyEvent(raw)) return
       const previous = latest.get(raw.pubkey)
       if (
@@ -65,25 +74,59 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
       }
       latest.set(raw.pubkey, raw)
       if (!batch) batch = setTimeout(flush, 50)
-    })
-    const timeout = setTimeout(() => {
+    }
+    // Start live delivery before the historical scan so votes cast during it are retained.
+    if (!closed) {
+      const subscription = ndk().subscribe(
+        {...live, since: Math.floor(Date.now() / 1000)},
+        {...options, closeOnEose: false},
+        false
+      )
+      subscriptions.add(subscription)
+      subscription.on("event", (event) => onEvent(event, false))
+      subscription.start()
+    }
+    let next = 0
+    let running = 0
+    const runNext = () => {
       if (!active) return
-      setLoading(false)
-      setError("Some relays have not responded. Results may be incomplete.")
-    }, 12_000)
-    sub.on("eose", () => {
-      clearTimeout(timeout)
-      if (!active) return
-      setLoading(false)
-      setError("")
-      flush()
-    })
-    sub.start()
+      while (running < 2 && next < history.length) {
+        const filters = history[next++]
+        running++
+        const subscription = ndk().subscribe(
+          filters,
+          {...options, closeOnEose: true},
+          false
+        )
+        subscriptions.add(subscription)
+        let finished = false
+        const finish = (timedOut: boolean) => {
+          if (finished || !active) return
+          finished = true
+          clearTimeout(timeout)
+          timers.delete(timeout)
+          subscription.stop()
+          subscriptions.delete(subscription)
+          running--
+          if (timedOut)
+            setError("Some relays have not responded. Results may be incomplete.")
+          flush()
+          if (next === history.length && !running) setLoading(false)
+          runNext()
+        }
+        const timeout = setTimeout(() => finish(true), 12_000)
+        timers.add(timeout)
+        subscription.on("event", (event) => onEvent(event, true))
+        subscription.on("eose", () => finish(false))
+        subscription.start()
+      }
+    }
+    runNext()
     return () => {
       active = false
-      clearTimeout(timeout)
+      for (const timer of timers) clearTimeout(timer)
       clearTimeout(batch)
-      sub.stop()
+      for (const subscription of subscriptions) subscription.stop()
     }
     // Signed poll content is immutable; identity plus relay hints scopes this subscription.
     // eslint-disable-next-line react-hooks/exhaustive-deps

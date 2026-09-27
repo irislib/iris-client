@@ -7,10 +7,13 @@ import {
   buildPollResponseTags,
   KIND_POLL_RESPONSE,
   parsePoll,
+  isPollVoter,
   tallyPollResponses,
+  tallyPollElectorate,
 } from "../polls"
 import {publishGroupEvent} from "../publish"
 import usePollResponses from "./usePollResponses"
+import usePollAuthority from "./usePollAuthority"
 
 interface PollCardProps {
   event: NDKEvent
@@ -30,6 +33,7 @@ export default function PollCard({
 }: PollCardProps) {
   const publicKey = usePublicKey()
   const poll = useMemo(() => parsePoll(event), [event])
+  const authority = usePollAuthority(poll)
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const [selected, setSelected] = useState<string[] | null>(null)
   const [confirmed, setConfirmed] = useState<NDKEvent | null>(null)
@@ -37,6 +41,7 @@ export default function PollCard({
   const busy = useRef(false)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
+  const [resultView, setResultView] = useState<"trusted" | "members">("trusted")
   const closed = poll?.endsAt !== undefined && now > poll.endsAt
   const {
     responses,
@@ -45,19 +50,41 @@ export default function PollCard({
     error: queryError,
     refresh,
   } = usePollResponses(poll, closed)
-  const tally = useMemo(
-    () =>
-      poll
-        ? tallyPollResponses(poll, confirmed ? [...responses, confirmed] : responses, {
-            isEligible,
-            now,
-          })
-        : null,
-    [poll, responses, confirmed, isEligible, now]
+  const allResponses = useMemo(
+    () => (confirmed ? [...responses, confirmed] : responses),
+    [responses, confirmed]
   )
-  const mine = publicKey ? tally?.responsesByPubkey.get(publicKey) : undefined
+  const totals = useMemo(() => {
+    if (!poll) return null
+    const currentTime = Math.floor(Date.now() / 1000)
+    if (poll.electorate) return tallyPollElectorate(poll, allResponses, currentTime)
+    return {
+      members: tallyPollResponses(poll, allResponses, {isEligible, now: currentTime}),
+      trusted: null,
+    }
+  }, [poll, allResponses, isEligible, now])
+  const tally = totals?.members
+  const trusted = authority.valid ? totals?.trusted : null
+  const mine = useMemo(
+    () =>
+      poll && publicKey
+        ? tallyPollResponses(poll, allResponses, {
+            isEligible: (key) => key === publicKey,
+            now: Math.floor(Date.now() / 1000),
+          }).responsesByPubkey.get(publicKey)
+        : undefined,
+    [poll, publicKey, allResponses, now]
+  )
   const choices = selected ?? mine?.selections ?? []
-  const eligibleToVote = Boolean(canVote && publicKey && isEligible(publicKey))
+  const snapshotReady = !poll?.electorate || authority.valid
+  const eligibleToVote =
+    !!poll &&
+    isPollVoter(
+      poll,
+      publicKey,
+      authority.valid,
+      Boolean(canVote && publicKey && isEligible(publicKey))
+    )
 
   useEffect(() => {
     setSelected(null)
@@ -86,10 +113,6 @@ export default function PollCard({
       setError("This poll has closed.")
       return
     }
-    if (mine && mine.event.created_at! >= timestamp) {
-      setError("Wait a second before changing your vote.")
-      return
-    }
     busy.current = true
     setPublishing(true)
     setError("")
@@ -109,7 +132,8 @@ export default function PollCard({
               : []),
           ],
         },
-        poll.relays.length ? poll.relays.slice(0, 8) : undefined
+        poll.relays.length ? poll.relays.slice(0, 8) : undefined,
+        {afterTimestamp: mine?.event.created_at, beforeTimestamp: poll.endsAt}
       )
       setConfirmed(vote)
       setNow(Math.floor(Date.now() / 1000))
@@ -152,12 +176,57 @@ export default function PollCard({
         })
       : ""
 
+  const displayed = resultView === "trusted" && trusted ? trusted : tally
+  const frozenMember = !!publicKey && !!poll.electorate?.memberPubkeys.includes(publicKey)
+  const frozenAuthority =
+    !!publicKey && !!poll.electorate?.authorityPubkeys.includes(publicKey)
+  let participationLabel = "You are not in this poll’s fixed voter snapshot."
+  if (frozenMember)
+    participationLabel = authority.valid
+      ? "Your ballot counts in Member ballots. It does not add a trusted vote."
+      : "The fixed voter snapshot must be verified before you can vote."
+  if (frozenAuthority)
+    participationLabel = authority.valid
+      ? "Your vote counts in both Trusted votes and Member ballots."
+      : "The fixed voter snapshot must be verified before you can vote."
   const voteLabel = mine ? "Update vote" : "Vote"
   const endLabel = deadline ? `Ends ${deadline}` : "No deadline"
 
   return (
     <section className="space-y-3" aria-label="Poll" onClick={(e) => e.stopPropagation()}>
       <TextNote event={event} />
+      {poll.electorate && (
+        <div className="flex flex-wrap gap-2" aria-label="Poll result views">
+          <button
+            type="button"
+            aria-pressed={resultView === "trusted" && !!trusted}
+            disabled={!trusted}
+            className={`btn btn-sm rounded-full ${resultView === "trusted" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setResultView("trusted")}
+          >
+            Trusted votes · {trusted ? trusted.total : "unavailable"}
+          </button>
+          <button
+            type="button"
+            aria-pressed={(resultView === "members" || !trusted) && snapshotReady}
+            disabled={!snapshotReady}
+            className={`btn btn-sm rounded-full ${resultView === "members" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => setResultView("members")}
+          >
+            Member ballots · {snapshotReady ? tally.total : "unavailable"}
+          </button>
+        </div>
+      )}
+      {poll.electorate && !authority.valid && (
+        <p className="text-xs text-base-content/70" role="status">
+          {authority.loading
+            ? "Checking the signed voter snapshot…"
+            : authority.reason || "Voter snapshot proof is unavailable."}
+        </p>
+      )}
+      {poll.electorate && publicKey && !closed && (
+        <p className="text-xs text-base-content/70">{participationLabel}</p>
+      )}
       <fieldset className="space-y-2" disabled={!eligibleToVote || closed || publishing}>
         <legend className="sr-only">
           {poll.type === "multiplechoice"
@@ -165,8 +234,10 @@ export default function PollCard({
             : "Choose one option"}
         </legend>
         {poll.options.map((option) => {
-          const count = tally.counts[option.id]
-          const percent = tally.total ? Math.round((count / tally.total) * 100) : 0
+          const count = snapshotReady ? displayed.counts[option.id] : 0
+          const percent = displayed.total
+            ? Math.round((count / displayed.total) * 100)
+            : 0
           const chosen = choices.includes(option.id)
           return (
             <label
@@ -197,9 +268,19 @@ export default function PollCard({
               <span className="relative min-w-0 flex-1 break-words">{option.label}</span>
               <span
                 className="relative shrink-0 text-sm tabular-nums"
-                aria-label={`${count} votes, ${percent} percent`}
+                aria-label={
+                  snapshotReady
+                    ? `${count} votes, ${percent} percent`
+                    : "Results unavailable"
+                }
               >
-                {percent}% <span className="text-base-content/50">({count})</span>
+                {snapshotReady ? (
+                  <>
+                    {percent}% <span className="text-base-content/50">({count})</span>
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
             </label>
           )
@@ -223,8 +304,12 @@ export default function PollCard({
       <div className="space-y-1 text-xs text-base-content/60">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span>
-            {tally.total} {tally.total === 1 ? "vote" : "votes"} ·{" "}
-            {closed ? "Closed" : endLabel}
+            {!poll.electorate && (
+              <>
+                {tally.total} {tally.total === 1 ? "vote" : "votes"} ·{" "}
+              </>
+            )}
+            {closed ? "Voting closed" : endLabel}
           </span>
           <button
             type="button"
@@ -235,9 +320,31 @@ export default function PollCard({
             {loading ? "Loading…" : "Refresh results"}
           </button>
         </div>
-        <p>Current view · {policyLabel}. One response per public key.</p>
-        {!eligibleToVote && !closed && (
+        {poll.electorate ? (
+          <details>
+            <summary className="cursor-pointer">
+              Author’s observed snapshot · {poll.electorate.memberPubkeys.length} members
+              · {poll.electorate.authorityPubkeys.length} trusted
+            </summary>
+            <p className="mt-1">
+              Trusted voters are the creator and eligible direct contacts observed by the
+              poll author. Joining or gaining vouches does not grant a trusted vote in
+              this poll. One response per public key, not per person.
+            </p>
+            <p className="mt-1">
+              Advisory results from observed votes. Missing or backdated votes can change
+              totals after closing.
+            </p>
+          </details>
+        ) : (
+          <p>Current view · {policyLabel}. One response per public key.</p>
+        )}
+        {!eligibleToVote && !closed && !poll.electorate && (
           <p>{publicKey ? "Only eligible members can vote." : "Sign in to vote."}</p>
+        )}
+        {!publicKey && poll.electorate && !closed && <p>Sign in to vote.</p>}
+        {poll.electorate?.memberSnapshotLimited && (
+          <p>Partial member snapshot: member ballots cover only the recorded accounts.</p>
         )}
         {limited && <p>Showing a limited relay sample; totals may be incomplete.</p>}
         {queryError && <p role="status">{queryError}</p>}
