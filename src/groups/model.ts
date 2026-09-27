@@ -818,10 +818,10 @@ export function verifyGroupElectorateEvidence(
     if (!event) return invalid("Some signed membership evidence is missing")
     if (
       !Number.isSafeInteger(event.created_at) ||
-      event.created_at > pollCreatedAt ||
+      event.created_at >= pollCreatedAt ||
       event.created_at < 0
     ) {
-      return invalid("Membership evidence was created after this poll")
+      return invalid("Membership evidence must predate this poll")
     }
     try {
       if (!signedEventIsValid(event))
@@ -878,7 +878,7 @@ export function verifyGroupElectorateEvidence(
       if (
         event.kind !== 3 ||
         event.pubkey !== groupRef.creator ||
-        event.created_at > pollCreatedAt ||
+        event.created_at >= pollCreatedAt ||
         !newer(event, rootFollowEvent)
       )
         continue
@@ -891,17 +891,18 @@ export function verifyGroupElectorateEvidence(
     }
   }
   // A positive proof cannot hide a newer withdrawal already known to the
-  // receiver. Later-than-opening changes still leave a frozen poll unchanged.
+  // receiver. The opening second is excluded because timestamps cannot order
+  // events within that second; the publisher waits until its proofs predate it.
   for (const event of received.values()) {
     if (
       !Number.isSafeInteger(event.created_at) ||
       event.created_at < 0 ||
-      event.created_at > pollCreatedAt
+      event.created_at >= pollCreatedAt
     )
       continue
     if (event.kind === GROUP_FACT_KIND) {
       const state = parseGroupEventState(event, pollCreatedAt)
-      const previous = state && factStates.get(state.key)
+      const previous = state ? factStates.get(state.key) : undefined
       // Creation bootstraps creator consent, so its first explicit leave may
       // have no committed predecessor. It still withdraws the only seed.
       const creatorConsent =

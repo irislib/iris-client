@@ -356,6 +356,58 @@ describe("poll electorate evidence", () => {
     })
   })
 
+  it("requires every committed proof to strictly predate the poll opening", () => {
+    const {snapshot, events} = fixture()
+    for (const original of events) {
+      const author = [1, 2, 3].find((n) => pub(n) === original.pubkey)!
+      const replacement = sign(
+        {kind: original.kind, content: original.content, tags: original.tags},
+        author,
+        200
+      )
+      const committed = {
+        ...snapshot,
+        evidenceEventIds: snapshot.evidenceEventIds.map((id) =>
+          id === original.id ? replacement.id : id
+        ),
+        policyEventId:
+          snapshot.policyEventId === original.id
+            ? replacement.id
+            : snapshot.policyEventId,
+        rootFollowEventId:
+          snapshot.rootFollowEventId === original.id
+            ? replacement.id
+            : snapshot.rootFollowEventId,
+      }
+      const proof = events.map((event) =>
+        event.id === original.id ? replacement : event
+      )
+      expect(verifyGroupElectorateEvidence(ref, committed, proof, 200)).toEqual({
+        valid: false,
+        reason: "Membership evidence must predate this poll",
+      })
+      expect(verifyGroupElectorateEvidence(ref, committed, proof, 201)).toEqual({
+        valid: true,
+      })
+    }
+  })
+
+  it("freezes membership against withdrawals in the opening second", () => {
+    const {snapshot, events} = fixture()
+    for (const time of [199, 200, 201]) {
+      for (const withdrawal of [
+        join(1, time, false),
+        join(2, time, false),
+        vouch(3, 2, time, false),
+        sign({kind: 3, content: "", tags: []}, 1, time),
+      ]) {
+        expect(
+          verifyGroupElectorateEvidence(ref, snapshot, [...events, withdrawal], 200).valid
+        ).toBe(time >= 200)
+      }
+    }
+  })
+
   it("needs only the root follow proof for direct admissions, regardless of other contact lists", () => {
     const facts = [join(2), vouch(1, 2)]
     const unrelatedContacts = Array.from({length: 50}, (_, index) => pub(index + 10))

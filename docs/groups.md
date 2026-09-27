@@ -181,10 +181,18 @@ threshold changes affect new views and polls, not the frozen roster. Positive
 evidence documents the author's observed projection; it cannot prove no facts
 were omitted or that a relay supplied a complete history. The signed root contact
 event is required for non-root authority, and second-degree contact events are
-included when membership depends on those paths. Receivers fetch and replay the
-committed evidence through the same membership rules before enabling counts or
-voting. Missing consent, forged attestations, unrelated policy, unsupported authority,
-and known preopening root-list rollback fail closed.
+included when membership depends on those paths. The signed poll embeds the
+original signed evidence within a 64 KiB event limit, preserving replay even when
+relays replace historical contact lists or metadata. Receivers verify and replay
+this evidence through the same membership rules before enabling counts or voting;
+committed-ID retrieval also supports older snapshots. Missing consent, forged
+attestations, unrelated policy, unsupported authority, and known preopening
+root-list rollback fail closed.
+
+Every committed proof must have a timestamp strictly before the poll's opening
+second. Publishing waits until that boundary is satisfied. Known withdrawals and
+contact-list updates affect replay only when they also predate the opening second;
+same-second events cannot be ordered reliably and do not rewrite the frozen view.
 
 The live group view reads the latest signed creator and bridge contact lists
 directly, independently of the viewer's personal graph cache. Admission proofs

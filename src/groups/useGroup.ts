@@ -224,7 +224,13 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
         ]),
       ].sort()
       const proofEvents = [...events, ...followProofEvents]
-      const verified = verifyGroupElectorateEvidence(ref, electorate, proofEvents, now)
+      // Publishing waits until its evidence strictly predates the opening.
+      const verified = verifyGroupElectorateEvidence(
+        ref,
+        electorate,
+        proofEvents,
+        now + 1
+      )
       if (!verified.valid) throw new Error(verified.reason)
       return {electorate, error: undefined}
     } catch (reason) {
