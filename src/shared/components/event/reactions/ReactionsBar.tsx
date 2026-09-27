@@ -6,6 +6,7 @@ import {useUserStore} from "@/stores/user"
 import {useReactions, ReactionInfo} from "@/shared/hooks/useReactions"
 import {getReactionPublishErrorMessage, reactWithExpiration} from "@/utils/reaction"
 import {useToastStore} from "@/stores/toast"
+import {useGroupAccess} from "@/groups/GroupContext"
 
 interface ReactionsBarProps {
   event: NDKEvent
@@ -77,6 +78,8 @@ interface ReactionItemProps {
 }
 
 function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
+  const group = useGroupAccess()
+  const canParticipate = !group || group.canParticipate
   const [showTooltip, setShowTooltip] = useState(false)
   const [tooltipPosition, setTooltipPosition] = useState({top: 0, left: 0})
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -99,7 +102,7 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
   }
 
   const handleClick = async () => {
-    if (!myPubKey) return
+    if (!myPubKey || !canParticipate) return
 
     try {
       // Send reaction with the same emoji
@@ -115,11 +118,10 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
           )
           if (emojiTag) {
             // Create a new event with custom emoji tags
-            const reactionEvent = await reactWithExpiration(event, reaction.emoji)
-            if (reactionEvent && emojiTag[2]) {
-              // Add emoji tag to the reaction event
-              reactionEvent.tags.push(["emoji", shortcode, emojiTag[2]])
-              await reactionEvent.publish()
+            if (emojiTag[2]) {
+              await reactWithExpiration(event, reaction.emoji, [
+                ["emoji", shortcode, emojiTag[2]],
+              ])
               return
             }
           }
@@ -131,7 +133,10 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
     } catch (error) {
       console.warn(`Could not publish reaction: ${error}`)
       const message = getReactionPublishErrorMessage(error)
-      if (message) useToastStore.getState().addToast(message, "error")
+      if (message || group)
+        useToastStore
+          .getState()
+          .addToast(message || "Could not publish reaction. Please try again.", "error")
     }
   }
 
@@ -145,7 +150,7 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
     <>
       <button
         ref={buttonRef}
-        className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm cursor-pointer transition-all ${
+        className={`disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm cursor-pointer transition-all ${
           hasReacted
             ? "bg-primary/20 border-primary/30 text-primary"
             : "bg-base-content/5 border-base-content/10 hover:bg-base-content/10"
@@ -153,7 +158,8 @@ function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onClick={handleClick}
-        disabled={!myPubKey}
+        title={canParticipate ? undefined : "Members only"}
+        disabled={!myPubKey || !canParticipate}
       >
         <span className="text-base align-middle">{renderEmoji(reaction)}</span>
         <span className="font-semibold">{reaction.pubkeys.size}</span>

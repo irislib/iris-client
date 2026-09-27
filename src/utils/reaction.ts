@@ -1,6 +1,8 @@
 import {NDKEvent, NDKPublishError, NostrEvent} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {KIND_REACTION, KIND_TEXT_NOTE} from "./constants"
+import {getEventGroup, inheritGroupTags} from "@/groups/activity"
+import {publishGroupEvent} from "@/groups/publish"
 
 export function isRelayPublishFailure(error: unknown): boolean {
   if (error instanceof NDKPublishError) return true
@@ -28,7 +30,8 @@ export function getReactionPublishErrorMessage(error: unknown): string | null {
  */
 export async function reactWithExpiration(
   event: NDKEvent,
-  content: string
+  content: string,
+  extraTags: string[][] = []
 ): Promise<NDKEvent> {
   const eventNdk = event.ndk ?? ndk()
   eventNdk.assertSigner()
@@ -53,8 +56,11 @@ export async function reactWithExpiration(
     reactionEvent.tags.push(["expiration", expirationTag[1]])
   }
 
-  // Sign and publish
-  await reactionEvent.publish()
+  reactionEvent.tags.push(...extraTags)
+  reactionEvent.tags = inheritGroupTags(event, reactionEvent.tags)
+  // Group writes wait for a relay acknowledgment before appearing successful.
+  if (getEventGroup(event)) await publishGroupEvent(reactionEvent)
+  else await reactionEvent.publish()
 
   return reactionEvent
 }

@@ -7,6 +7,8 @@ import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {bech32} from "@scure/base"
 import {NDKSubscriptionCacheUsage} from "@/lib/ndk/subscription"
 import debug from "debug"
+import {getEventGroup, inheritGroupTags} from "@/groups/activity"
+import {publishGroupEvent} from "@/groups/publish"
 
 const log = debug("iris:zapUtils")
 
@@ -132,6 +134,8 @@ async function createZapInvoiceInternal(
     })
   }
 
+  if ("event" in target) zapRequest.tags = inheritGroupTags(target.event, zapRequest.tags)
+
   // Add donation tag if this is a donation zap
   if (isDonation) {
     if (!zapRequest.tags) {
@@ -143,6 +147,8 @@ async function createZapInvoiceInternal(
   // Sign the zap request
   const zapRequestEvent = new NDKEvent(ndk(), zapRequest)
   await zapRequestEvent.sign(signer)
+  if ("event" in target && getEventGroup(target.event))
+    await publishGroupEvent(zapRequestEvent)
 
   // Get the invoice from the LNURL endpoint
   const invoiceUrl = new URL(lnurlData.callback)
@@ -229,13 +235,18 @@ export async function createAndPublishZapInvoice(
     relays: relaysToUse.slice(0, 4), // Use first 4 relays as per NIP-57
   })
 
+  zapRequest.tags = inheritGroupTags(event, zapRequest.tags)
+
   // Sign and PUBLISH the zap request
   const zapRequestEvent = new NDKEvent(ndk(), zapRequest)
   await zapRequestEvent.sign(signer)
-  // Fire and forget - don't await relay confirmation for zap requests
-  zapRequestEvent.publish().catch((err) => {
-    console.warn("Zap request publish warning (non-fatal):", err)
-  })
+  if (getEventGroup(event)) {
+    await publishGroupEvent(zapRequestEvent)
+  } else {
+    zapRequestEvent.publish().catch((err) => {
+      console.warn("Zap request publish warning (non-fatal):", err)
+    })
+  }
 
   // Get the invoice from the LNURL endpoint
   const invoiceUrl = new URL(lnurlData.callback)

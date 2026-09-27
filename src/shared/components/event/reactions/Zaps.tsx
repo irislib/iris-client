@@ -2,11 +2,14 @@ import {parseZapReceipt, groupZapsByUser, type ZapInfo} from "@/utils/nostr.ts"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {ReactionContent} from "./ReactionContent"
 import {NDKEvent} from "@/lib/ndk"
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {ndk} from "@/utils/ndk"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
+import {useGroupAccess} from "@/groups/GroupContext"
+import {isVisibleGroupZap} from "@/groups/activity"
 
 export default function Zaps({event}: {event: NDKEvent}) {
+  const group = useGroupAccess()
   const [zapsByUser, setZapsByUser] = useState(
     new Map<string, {totalAmount: number; zaps: ZapInfo[]}>()
   )
@@ -42,10 +45,20 @@ export default function Zaps({event}: {event: NDKEvent}) {
     }
   }, [event.id])
 
+  const visibleZaps = useMemo(
+    () =>
+      groupZapsByUser(
+        [...zapsByUser.values()].flatMap((user) =>
+          user.zaps.filter((zap) => isVisibleGroupZap(zap, event.id, group))
+        )
+      ),
+    [zapsByUser, event.id, group]
+  )
+
   return (
     <div className="flex flex-col gap-4">
-      {zapsByUser.size === 0 && <p>No zaps yet</p>}
-      {Array.from(zapsByUser.entries())
+      {visibleZaps.size === 0 && <p>No zaps yet</p>}
+      {Array.from(visibleZaps.entries())
         .sort(([, a], [, b]) => b.totalAmount - a.totalAmount)
         .map(([pubKey, data]) => {
           // Get the latest comment from the user's zaps

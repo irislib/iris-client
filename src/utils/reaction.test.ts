@@ -1,6 +1,8 @@
 import NDK, {NDKEvent, NDKPublishError} from "@/lib/ndk"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 import {ndk} from "./ndk"
+import {publishGroupEvent} from "@/groups/publish"
+import {groupTags} from "@/groups/model"
 import {
   getReactionPublishErrorMessage,
   isRelayPublishFailure,
@@ -10,6 +12,7 @@ import {
 vi.mock("./ndk", () => ({
   ndk: vi.fn(),
 }))
+vi.mock("@/groups/publish", () => ({publishGroupEvent: vi.fn()}))
 
 const createTargetEvent = (eventNdk?: NDK) =>
   new NDKEvent(eventNdk, {
@@ -25,6 +28,7 @@ const createTargetEvent = (eventNdk?: NDK) =>
 describe("reactWithExpiration", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   it("uses the app NDK when a cached target event has no attached instance", async () => {
@@ -50,6 +54,29 @@ describe("reactWithExpiration", () => {
 
     expect(ndk).not.toHaveBeenCalled()
     expect(reaction.ndk).toBe(attachedNdk)
+  })
+
+  it("preserves group and custom emoji tags and propagates missing relay acknowledgment", async () => {
+    const attachedNdk = new NDK()
+    vi.spyOn(attachedNdk, "assertSigner").mockImplementation(() => undefined)
+    const publish = vi.spyOn(NDKEvent.prototype, "publish").mockResolvedValue(new Set())
+    const event = createTargetEvent(attachedNdk)
+    const tags = groupTags({
+      creator: "a".repeat(64),
+      id: "00000000-0000-4000-8000-000000000001",
+    })
+    event.tags.push(...tags)
+    vi.mocked(publishGroupEvent).mockRejectedValueOnce(new Error("No relay acknowledged"))
+    await expect(
+      reactWithExpiration(event, ":wave:", [
+        ["emoji", "wave", "https://example.com/wave.png"],
+      ])
+    ).rejects.toThrow("No relay acknowledged")
+    const reaction = vi.mocked(publishGroupEvent).mock.calls[0][0] as NDKEvent
+    expect(reaction.tags).toEqual(
+      expect.arrayContaining([...tags, ["emoji", "wave", "https://example.com/wave.png"]])
+    )
+    expect(publish).not.toHaveBeenCalled()
   })
 })
 

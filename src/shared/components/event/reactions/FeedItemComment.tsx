@@ -1,7 +1,6 @@
 import {NDKEvent, NDKFilter} from "@/lib/ndk"
 import {shouldHideEvent} from "@/utils/visibility"
-import {useEffect, useState} from "react"
-import debounce from "lodash/debounce"
+import {useEffect, useMemo, useState} from "react"
 import {ndk} from "@/utils/ndk"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
@@ -11,6 +10,8 @@ import Icon from "../../Icons/Icon"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import {LRUCache} from "typescript-lru-cache"
+import {useGroupAccess} from "@/groups/GroupContext"
+import {isAuthenticGroupActivity, isVisibleGroupActivity} from "@/groups/activity"
 import {
   buildReplySubscriptionFilters,
   getEventReplyReference,
@@ -22,78 +23,91 @@ interface FeedItemCommentProps {
   showReactionCounts?: boolean
 }
 
-const replyCountByEventCache = new LRUCache({maxSize: 100})
+const repliesByEventCache = new LRUCache<string, Map<string, NDKEvent>>({maxSize: 100})
 
 function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProps) {
+  const group = useGroupAccess()
+  const canParticipate = !group || group.canParticipate
   const myPubKey = useUserStore((state) => state.publicKey)
   const threadReference = event.tagId()
-  const [replyCount, setReplyCount] = useState(
-    replyCountByEventCache.get(threadReference) || 0
+  const [replies, setReplies] = useState<Map<string, NDKEvent>>(
+    () => repliesByEventCache.get(threadReference) || new Map()
+  )
+  const replyCount = useMemo(
+    () =>
+      [...replies.values()].filter((reply) => isVisibleGroupActivity(reply, group))
+        .length,
+    [replies, group]
   )
 
   const [isPopupOpen, setPopupOpen] = useState(false)
 
   const handleCommentClick = () => {
-    myPubKey && setPopupOpen(!isPopupOpen)
+    myPubKey && canParticipate && setPopupOpen(!isPopupOpen)
   }
 
   const handlePopupClose = () => {
     setPopupOpen(false)
   }
 
+  useEffect(() => {
+    if (!canParticipate) setPopupOpen(false)
+  }, [canParticipate])
+
   // refetch when location.pathname changes
   // to refetch count when switching display profile
   useEffect(() => {
     if (!showReactionCounts) return
 
-    const replies = new Set<string>()
-    setReplyCount(replyCountByEventCache.get(threadReference) || 0)
+    setReplies(repliesByEventCache.get(threadReference) || new Map())
     const filters: NDKFilter[] = buildReplySubscriptionFilters(event)
 
-    const debouncedSetReplyCount = debounce((count) => {
-      setReplyCount(count)
-      replyCountByEventCache.set(threadReference, count)
-    }, 300)
-
     try {
-      // Closed on eose because NDK will otherwise send too many concurrent REQs for all the feed item reaction subscriptions
-      const subs = filters.map((filter) => ndk().subscribe(filter, {closeOnEose: true}))
+      // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
+      const subs = filters.map((filter) => ndk().subscribe(filter, {closeOnEose: !group}))
 
       subs.forEach((sub) =>
         sub?.on("event", (e: NDKEvent) => {
           if (shouldHideEvent(e)) return
+          if (group && !isAuthenticGroupActivity(e, group.ref)) return
           if (
             getEventRootReference(e) !== threadReference &&
             getEventReplyReference(e) !== threadReference
           )
             return
 
-          replies.add(e.id)
-          debouncedSetReplyCount(replies.size)
+          setReplies((previous) => {
+            if (previous.has(e.id)) return previous
+            const next = new Map(previous)
+            next.set(e.id, e)
+            repliesByEventCache.set(threadReference, next)
+            return next
+          })
         })
       )
 
       return () => {
         subs.forEach((sub) => sub.stop())
-        debouncedSetReplyCount.cancel()
       }
     } catch (error) {
       console.warn(error)
     }
-  }, [event, showReactionCounts, threadReference])
+  }, [event, showReactionCounts, threadReference, group?.ref.id, group?.ref.creator])
 
   return (
     <>
       <button
-        title="Reply"
-        className="flex flex-row items-center min-w-[50px] md:min-w-[80px] items-center gap-1 cursor-pointer hover:text-info transition-colors duration-200 ease-in-out"
+        title={canParticipate ? "Reply" : "Members only"}
+        aria-label="Reply"
+        disabled={!canParticipate}
+        className="disabled:opacity-40 disabled:cursor-not-allowed flex flex-row items-center min-w-[50px] md:min-w-[80px] items-center gap-1 cursor-pointer hover:text-info transition-colors duration-200 ease-in-out"
         onClick={handleCommentClick}
       >
         <Icon name="reply" size={16} />
         {showReactionCounts ? formatAmount(replyCount) : ""}
       </button>
 
-      {isPopupOpen && (
+      {isPopupOpen && canParticipate && (
         <Modal onClose={handlePopupClose} hasBackground={false}>
           <div
             className="w-[600px] max-w-[90vw] rounded-2xl bg-base-100"

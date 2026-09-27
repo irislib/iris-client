@@ -14,15 +14,15 @@ export default function Likes({event}: {event: NDKEvent}) {
       {Array.from(reactions.values())
         .sort((a, b) => {
           return (
-            socialGraph.getFollowDistance(a.author.pubkey) -
-            socialGraph.getFollowDistance(b.author.pubkey)
+            socialGraph.getFollowDistance(a.pubkey) -
+            socialGraph.getFollowDistance(b.pubkey)
           )
         })
         .map((reactionEvent) => (
           <UserRow
             showHoverCard={true}
             key={reactionEvent.id}
-            pubKey={reactionEvent.author.pubkey}
+            pubKey={reactionEvent.pubkey}
             description={
               <ReactionContent content={reactionEvent.content} event={reactionEvent} />
             }

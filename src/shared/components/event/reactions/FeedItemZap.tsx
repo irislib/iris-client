@@ -1,7 +1,7 @@
 import {NDKEvent} from "@/lib/ndk"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
-import {MouseEvent, RefObject, useEffect, useState} from "react"
+import {MouseEvent, RefObject, useEffect, useMemo, useState} from "react"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import {parseZapReceipt, calculateTotalZapAmount, type ZapInfo} from "@/utils/nostr.ts"
 import {LRUCache} from "typescript-lru-cache"
@@ -10,9 +10,10 @@ import {usePublicKey, useUserStore} from "@/stores/user"
 import {useScrollAwareLongPress} from "@/shared/hooks/useScrollAwareLongPress"
 import Icon from "../../Icons/Icon.tsx"
 import ZapModal from "../ZapModal"
-import debounce from "lodash/debounce"
 import {ndk} from "@/utils/ndk"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
+import {useGroupAccess} from "@/groups/GroupContext"
+import {isVisibleGroupZap} from "@/groups/activity"
 
 const zapsByEventCache = new LRUCache<string, Map<string, ZapInfo[]>>({
   maxSize: 100,
@@ -25,6 +26,8 @@ interface FeedItemZapProps {
 }
 
 function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZapProps) {
+  const group = useGroupAccess()
+  const canParticipate = !group || group.canParticipate
   const myPubKey = usePublicKey()
   const {
     defaultZapAmount,
@@ -41,7 +44,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
     handleMouseUp: handleLongPressUp,
     isLongPress,
   } = useScrollAwareLongPress({
-    onLongPress: () => setShowZapModal(true),
+    onLongPress: () => canParticipate && setShowZapModal(true),
   })
 
   const profile = useProfile(event.pubkey)
@@ -55,14 +58,27 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
 
   // Quick zap is only enabled if there's a default zap amount AND a wallet is available
   const hasWallet = activeProviderType !== "disabled" && activeProviderType !== undefined
-  const canQuickZap = !!defaultZapAmount && defaultZapAmount > 0 && hasWallet
+  const canQuickZap = !group && !!defaultZapAmount && defaultZapAmount > 0 && hasWallet
 
-  const calculateZappedAmount = async (zaps: Map<string, ZapInfo[]>): Promise<number> => {
-    const total = calculateTotalZapAmount(zaps)
-    return total
-  }
-
-  const [zappedAmount, setZappedAmount] = useState<number>(0)
+  const visibleZaps = useMemo(
+    () =>
+      new Map(
+        [...zapsByAuthor]
+          .map(
+            ([pubkey, zaps]) =>
+              [
+                pubkey,
+                zaps.filter((zap) => isVisibleGroupZap(zap, event.id, group)),
+              ] as const
+          )
+          .filter(([, zaps]) => zaps.length)
+      ),
+    [zapsByAuthor, event.id, group]
+  )
+  const zappedAmount = calculateTotalZapAmount(visibleZaps)
+  useEffect(() => {
+    if (!canParticipate) setShowZapModal(false)
+  }, [canParticipate])
 
   const flashElement = () => {
     if (!feedItemRef.current) return
@@ -113,6 +129,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
   }
 
   const handleZapClick = async () => {
+    if (!canParticipate) return
     if (canQuickZap) {
       await handleOneClickZap()
     } else {
@@ -123,6 +140,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
   }
 
   const handleOneClickZap = async () => {
+    if (!canParticipate) return
     const amount = Number(defaultZapAmount) * 1000
 
     // Check if profile has lightning address
@@ -155,9 +173,6 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
       const myZaps = newMap.get(myPubKey || "") || []
       newMap.set(myPubKey || "", [...myZaps, optimisticZap])
       zapsByEventCache.set(event.id, newMap)
-      // Immediately update amount display
-      const newTotal = calculateTotalZapAmount(newMap)
-      setZappedAmount(newTotal)
       return newMap
     })
 
@@ -235,9 +250,6 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
           }
 
           zapsByEventCache.set(event.id, newMap)
-          // Revert amount display
-          const newTotal = calculateTotalZapAmount(newMap)
-          setZappedAmount(newTotal)
           return newMap
         })
 
@@ -255,13 +267,14 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
   }
 
   const handleClick = (e: MouseEvent<HTMLButtonElement>) => {
-    if (!isLongPress) {
+    if (canParticipate && !isLongPress) {
       e.currentTarget.blur()
       handleZapClick()
     }
   }
 
   useEffect(() => {
+    setZapsByAuthor(zapsByEventCache.get(event.id) || new Map())
     if (!showReactionCounts) return
 
     const filter = {
@@ -270,12 +283,8 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
     }
 
     try {
-      // Closed on eose because NDK will otherwise send too many concurrent REQs for all the feed item reaction subscriptions
-      const sub = ndk().subscribe(filter, {closeOnEose: true})
-      const debouncedUpdateAmount = debounce(async (zapsByAuthor) => {
-        const amount = await calculateZappedAmount(zapsByAuthor)
-        setZappedAmount(amount)
-      }, 300)
+      // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
+      const sub = ndk().subscribe(filter, {closeOnEose: !group})
 
       sub?.on("event", async (zapEvent: NDKEvent) => {
         // if (shouldHideEvent(zapEvent)) return // blah. disabling this check enables fake receipts but what can we do
@@ -295,7 +304,6 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
               authorZaps.push(zapInfo)
               newMap.set(zapInfo.pubkey, authorZaps)
               zapsByEventCache.set(event.id, newMap)
-              debouncedUpdateAmount(newMap)
             }
 
             return newMap
@@ -304,21 +312,14 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
       })
 
       return () => {
-        debouncedUpdateAmount.cancel()
         sub.stop()
       }
     } catch (error) {
       console.warn(error)
     }
-  }, [showReactionCounts])
+  }, [event.id, showReactionCounts])
 
-  useEffect(() => {
-    calculateZappedAmount(zapsByAuthor).then((amount) => {
-      setZappedAmount(amount)
-    })
-  }, [zapsByAuthor])
-
-  const zapped = zapsByAuthor.has(myPubKey)
+  const zapped = visibleZaps.has(myPubKey)
 
   const isOnline = useOnlineStatus()
 
@@ -337,7 +338,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
 
   return (
     <>
-      {showZapModal && (
+      {showZapModal && canParticipate && (
         <ZapModal
           onClose={() => {
             setShowZapModal(false)
@@ -354,8 +355,10 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
         />
       )}
       <button
-        title="Zap"
-        className={`${
+        title={canParticipate ? "Zap" : "Members only"}
+        aria-label="Zap"
+        disabled={!canParticipate}
+        className={`disabled:opacity-40 disabled:cursor-not-allowed ${
           zapped ? "cursor-pointer text-accent" : "cursor-pointer hover:text-accent"
         } flex flex-row items-center gap-1 transition duration-200 ease-in-out min-w-[50px] md:min-w-[80px]`}
         onClick={handleClick}

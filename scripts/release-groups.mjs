@@ -16,6 +16,8 @@ export const releaseSteps = [
       "src/groups",
       "src/groupsBuildConfig.test.ts",
       "src/portableBuildConfig.test.ts",
+      "src/utils/reaction.test.ts",
+      "src/shared/hooks/useReactions.group.test.tsx",
     ],
   },
   {command: ["pnpm", "run", "build:groups"]},

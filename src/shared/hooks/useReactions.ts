@@ -1,7 +1,9 @@
 import {NDKEvent} from "@/lib/ndk"
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {shouldHideUser} from "@/utils/visibility"
 import {ndk} from "@/utils/ndk"
+import {useGroupAccess} from "@/groups/GroupContext"
+import {isAuthenticGroupActivity, isVisibleGroupActivity} from "@/groups/activity"
 
 export interface ReactionInfo {
   emoji: string
@@ -17,21 +19,24 @@ export interface ReactionInfo {
  * Returns a map of author pubkey to their latest reaction event
  */
 export function useReactionsByAuthor(eventId: string) {
+  const group = useGroupAccess()
   const [reactionsByAuthor, setReactionsByAuthor] = useState<Map<string, NDKEvent>>(
     new Map()
   )
 
   useEffect(() => {
+    setReactionsByAuthor(new Map())
     const filter = {
       kinds: [7],
       ["#e"]: [eventId],
     }
 
-    // Closed on eose because NDK will otherwise send too many concurrent REQs for all the feed item reaction subscriptions
-    const sub = ndk().subscribe(filter, {closeOnEose: true})
+    // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
+    const sub = ndk().subscribe(filter, {closeOnEose: !group})
 
     sub?.on("event", (reactionEvent: NDKEvent) => {
-      if (shouldHideUser(reactionEvent.author.pubkey)) return
+      if (shouldHideUser(reactionEvent.pubkey)) return
+      if (group && !isAuthenticGroupActivity(reactionEvent, group.ref)) return
 
       const authorPubkey = reactionEvent.pubkey
 
@@ -52,9 +57,15 @@ export function useReactionsByAuthor(eventId: string) {
     return () => {
       sub.stop()
     }
-  }, [eventId])
+  }, [eventId, group?.ref.id, group?.ref.creator])
 
-  return reactionsByAuthor
+  return useMemo(
+    () =>
+      new Map(
+        [...reactionsByAuthor].filter(([, event]) => isVisibleGroupActivity(event, group))
+      ),
+    [reactionsByAuthor, group]
+  )
 }
 
 /**
@@ -62,11 +73,10 @@ export function useReactionsByAuthor(eventId: string) {
  * Only keeps the latest reaction per author
  */
 export function useReactions(eventId: string) {
-  const [reactions, setReactions] = useState<Map<string, ReactionInfo>>(new Map())
   const reactionsByAuthor = useReactionsByAuthor(eventId)
 
-  // Process reactions by author into grouped reactions by emoji
-  useEffect(() => {
+  // Derive directly so a membership change cannot leave stale grouped counts.
+  return useMemo(() => {
     const newReactions = new Map<string, ReactionInfo>()
 
     for (const reactionEvent of reactionsByAuthor.values()) {
@@ -105,8 +115,6 @@ export function useReactions(eventId: string) {
       newReactions.set(key, existing)
     }
 
-    setReactions(newReactions)
+    return newReactions
   }, [reactionsByAuthor])
-
-  return reactions
 }

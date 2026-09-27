@@ -1,5 +1,5 @@
 import {NDKEvent} from "@/lib/ndk"
-import {useEffect, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {formatAmount} from "@/utils/utils"
 import {parseZapReceipt, type ZapInfo} from "@/utils/nostr"
 import {Name} from "@/shared/components/user/Name"
@@ -8,15 +8,24 @@ import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {shouldHideUser} from "@/utils/visibility"
+import {useGroupAccess} from "@/groups/GroupContext"
+import {isVisibleGroupZap} from "@/groups/activity"
 
 interface ZapsBarProps {
   event: NDKEvent
 }
 
 export default function ZapsBar({event}: ZapsBarProps) {
+  const group = useGroupAccess()
   const [zaps, setZaps] = useState<ZapInfo[]>([])
 
+  const visibleZaps = useMemo(
+    () => zaps.filter((zap) => isVisibleGroupZap(zap, event.id, group)),
+    [zaps, event.id, group]
+  )
+
   useEffect(() => {
+    setZaps([])
     const filter = {
       kinds: [KIND_ZAP_RECEIPT],
       ["#e"]: [event.id],
@@ -52,13 +61,13 @@ export default function ZapsBar({event}: ZapsBarProps) {
 
   return (
     <div className="flex gap-2 overflow-x-auto py-2 scrollbar-thin min-h-[38px]">
-      {zaps.length === 0 ? (
+      {visibleZaps.length === 0 ? (
         // Invisible placeholder with same height as actual elements
         <div className="flex-shrink-0 px-3 py-1.5 opacity-0">
           <span className="text-sm">⚡ 0</span>
         </div>
       ) : (
-        zaps.map((zap) => (
+        visibleZaps.map((zap) => (
           <Link
             key={zap.id}
             to={`/${nip19.npubEncode(zap.pubkey)}`}
