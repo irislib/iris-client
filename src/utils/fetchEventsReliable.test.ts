@@ -35,16 +35,47 @@ vi.mock("./eventCache", () => ({
 }))
 
 import {fetchEventsReliable} from "./fetchEventsReliable"
+import {getEvent, getEventSync} from "./eventCache"
+import type {NDKEvent} from "@/lib/ndk"
 
 describe("fetchEventsReliable", () => {
   beforeEach(() => {
     mocks.reset()
+    vi.mocked(getEvent).mockReset().mockResolvedValue(null)
+    vi.mocked(getEventSync).mockReset().mockReturnValue(null)
     vi.useFakeTimers()
   })
 
   afterEach(() => {
     vi.useRealTimers()
   })
+
+  it.each(["memory", "disk"])(
+    "displays a partial %s cache hit without waiting for the missing post timeout",
+    async (source) => {
+      const cached = {id: "cached"} as NDKEvent
+      if (source === "memory") {
+        vi.mocked(getEventSync).mockImplementation((id) =>
+          id === cached.id ? cached : null
+        )
+      } else {
+        vi.mocked(getEvent).mockImplementation(async (id) =>
+          id === cached.id ? cached : null
+        )
+      }
+
+      const result = fetchEventsReliable(
+        {ids: [cached.id, "missing"]},
+        {timeout: 4000, settleAfterMs: 300}
+      )
+      let received: NDKEvent[] | undefined
+      void result.promise.then((events) => (received = events))
+
+      await vi.advanceTimersByTimeAsync(300)
+      expect(received).toEqual([cached])
+      expect(mocks.stop).toHaveBeenCalledOnce()
+    }
+  )
 
   it("settles an incomplete ID batch after the received events go idle", async () => {
     const result = fetchEventsReliable(

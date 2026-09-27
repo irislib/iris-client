@@ -112,6 +112,18 @@ export function fetchEventsReliable(
   })
 
   function startSubscription(resolve: (value: NDKEvent[]) => void) {
+    const scheduleSettle = () => {
+      if (
+        requestedIds.size === 0 ||
+        events.size === 0 ||
+        opts?.settleAfterMs === undefined
+      ) {
+        return
+      }
+      if (settleHandle) clearTimeout(settleHandle)
+      settleHandle = setTimeout(() => finalize(resolve), opts.settleAfterMs)
+    }
+
     // Use groupable subscriptions for ID queries to batch them together
     const isIdQuery = requestedIds.size > 0
     sub = ndk().subscribe(filterArray, {
@@ -133,12 +145,15 @@ export function fetchEventsReliable(
             `[fetchEventsReliable] Got all ${requestedIds.size} requested events, resolving`
           )
           finalize(resolve)
-        } else if (opts?.settleAfterMs !== undefined) {
-          if (settleHandle) clearTimeout(settleHandle)
-          settleHandle = setTimeout(() => finalize(resolve), opts.settleAfterMs)
+        } else {
+          scheduleSettle()
         }
       }
     })
+
+    // Cached posts are useful partial results too. A missing/deleted post must
+    // not hold an otherwise cached feed batch until the full network timeout.
+    scheduleSettle()
 
     sub.on("eose", () => {
       // Don't auto-resolve on EOSE - wait for timeout or ID completion

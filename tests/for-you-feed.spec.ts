@@ -269,6 +269,100 @@ test("an empty For You feed displays late relay posts without another refresh", 
   ).toBeVisible({timeout: 3000})
 })
 
+test("For You shows cached recommendations while other recommended posts are unavailable", async ({
+  page,
+}) => {
+  const viewer = createUser()
+  const followed = createUser()
+  // Deliver the five recommendation signals as one burst so the initial batch
+  // contains both cached and unavailable IDs, rather than just its first event.
+  await page.addInitScript((author) => {
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: ConstructorParameters<typeof Worker>[1]) {
+        super(url, options)
+        if (!String(url).includes("relay-worker")) return
+        const pending = new Map<string, unknown[]>()
+        const delivered = new Set<string>()
+        let replaying = false
+        this.addEventListener("message", (event) => {
+          const data = event.data
+          if (
+            replaying ||
+            data.type !== "event" ||
+            data.event?.kind !== 7 ||
+            data.event?.pubkey !== author ||
+            delivered.has(data.subId)
+          ) {
+            return
+          }
+          event.stopImmediatePropagation()
+          const batch = pending.get(data.subId) ?? []
+          batch.push(data)
+          pending.set(data.subId, batch)
+          if (batch.length === 5) {
+            delivered.add(data.subId)
+            pending.delete(data.subId)
+            queueMicrotask(() => {
+              replaying = true
+              for (const message of batch) {
+                this.dispatchEvent(new MessageEvent("message", {data: message}))
+              }
+              replaying = false
+            })
+          }
+        })
+      }
+    }
+  }, followed.publicKey)
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  await page.goto("/about")
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const modulePath = "/src/stores/socialGraph.ts"
+        const {useSocialGraphStore} = await import(modulePath)
+        return useSocialGraphStore.getState().isReady
+      })
+    )
+    .toBe(true)
+
+  const cachedPost = signEvent(followed, {
+    kind: 1,
+    content: `Cached recommendation ${viewer.publicKey}`,
+    tags: [],
+    created_at: Math.floor(Date.now() / 1000) - 5,
+  })
+  // This post was recently viewed, but is no longer available on a relay.
+  // Keep it in the real hot cache without publishing it to the test relay.
+  await page.evaluate(async (event) => {
+    const cachePath = "/src/utils/eventCache.ts"
+    const ndkPath = "/src/lib/ndk/index.ts"
+    const [{cacheEvent}, {NDKEvent}] = await Promise.all([
+      import(cachePath),
+      import(ndkPath),
+    ])
+    cacheEvent(new NDKEvent(undefined, event))
+  }, cachedPost)
+  await publishEvents(
+    [cachedPost.id, ...Array.from({length: 4}, () => createUser().publicKey)].map((id) =>
+      signEvent(followed, {kind: 7, content: "+", tags: [["e", id]]})
+    )
+  )
+
+  const startedAt = Date.now()
+  await page.getByRole("link", {name: "Home", exact: true}).click()
+  await expect(
+    page.locator('#main-content [data-testid="feed-item"]').filter({
+      hasText: cachedPost.content,
+    })
+  ).toBeVisible({timeout: 2500})
+  expect(Date.now() - startedAt).toBeLessThan(2500)
+})
+
 test("a short For You feed fills with late posts and keeps paginating", async ({
   page,
 }) => {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.20 - 2026-09-27
+
+- Show cached recommendation posts promptly when other posts in the same batch
+  are unavailable, instead of holding the whole feed for the network timeout.
+
 ## 2.5.19 - 2026-09-17
 
 - Show multiword search matches as soon as a complete word index finds them,
