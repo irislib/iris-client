@@ -339,8 +339,8 @@ export default function PollCard({
             </summary>
             <p className="mt-1">
               Trusted voters are the creator and eligible direct contacts observed by the
-              poll author. Joining or gaining vouches does not grant a trusted vote in
-              this poll. One response per public key, not per person.
+              poll author. Joining or gaining membership confirmations does not grant a
+              trusted vote in this poll. One response per public key, not per person.
             </p>
             {authority.trustListCreatedAt !== undefined && (
               <p className="mt-1">

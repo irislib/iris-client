@@ -1,6 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {finalizeEvent, getPublicKey, type Event} from "nostr-tools"
 import type {NDKFilter, NDKSubscription} from "@/lib/ndk"
+import {groupTags} from "./model"
 import {consolidateGroupLiveFilters, GroupEventCollection} from "./useGroupEvents"
 
 vi.mock("@/lib/ndk", () => ({NDKSubscriptionCacheUsage: {PARALLEL: "PARALLEL"}}))
@@ -63,6 +64,65 @@ afterEach(() => {
 })
 
 describe("group collection lifecycle", () => {
+  it("verifies zap request membership before retention and caps by sender rather than service", () => {
+    const {subs, source} = harness()
+    const otherKey = Uint8Array.from({length: 32}, () => 2)
+    const other = getPublicKey(otherKey)
+    const service = Uint8Array.from({length: 32}, () => 3)
+    const ref = {creator: pub, id: "00000000-0000-4000-8000-000000000001"}
+    const targetId = "f".repeat(64)
+    const request = (secret: Uint8Array, time: number) =>
+      finalizeEvent(
+        {
+          kind: 9734,
+          content: "",
+          created_at: time,
+          tags: [["e", targetId], ...groupTags(ref)],
+        },
+        secret
+      )
+    const receipt = (request: Event, time: number, indexed = request.pubkey) =>
+      finalizeEvent(
+        {
+          kind: 9735,
+          content: "",
+          created_at: time,
+          tags: [
+            ["e", targetId],
+            ["P", indexed],
+            ["description", JSON.stringify(request)],
+          ],
+        },
+        service
+      )
+    const collection = new GroupEventCollection(
+      [{kinds: [9735], "#e": [targetId], "#P": [pub, other]}],
+      2,
+      {perAuthorCap: 1, zap: {ref, targetId, authors: [pub, other]}},
+      source
+    )
+    const stop = collection.subscribe(() => {})
+    const valid = request(key, 100)
+    const forged = {...valid, content: "tampered"}
+    subs[0].event(receipt(forged, 110))
+    subs[0].event(receipt(request(service, 100), 120, pub))
+    vi.advanceTimersByTime(50)
+    expect(collection.getSnapshot().events).toHaveLength(0)
+    const quiet = receipt(request(otherKey, 100), 130)
+    subs[0].event(quiet)
+    subs[0].event(receipt(valid, 140))
+    subs[0].event(receipt(valid, 141))
+    vi.advanceTimersByTime(50)
+    expect(collection.getSnapshot().events).toHaveLength(2)
+    expect(collection.getSnapshot().limited).toBe(false)
+    for (let i = 200; i < 204; i++) subs[0].event(receipt(request(key, i), i + 20))
+    vi.advanceTimersByTime(50)
+    expect(collection.getSnapshot().events.map((value) => value.id)).toContain(quiet.id)
+    expect(collection.getSnapshot().events).toHaveLength(2)
+    expect(collection.getSnapshot().limited).toBe(true)
+    stop()
+  })
+
   it("starts live before bounded history batches, with at most two history reads", () => {
     const {subs, source} = harness()
     const collection = new GroupEventCollection(filters(40), 200, {}, source)

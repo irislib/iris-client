@@ -13,6 +13,7 @@ import ZapModal from "../ZapModal"
 import {ndk} from "@/utils/ndk"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
+import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
 
 const zapsByEventCache = new LRUCache<string, Map<string, ZapInfo[]>>({
@@ -27,6 +28,7 @@ interface FeedItemZapProps {
 
 function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZapProps) {
   const group = useGroupAccess()
+  const memberZaps = useGroupZaps(event.id, showReactionCounts)
   const canParticipate = !group || group.canParticipate
   const myPubKey = usePublicKey()
   const {
@@ -63,7 +65,14 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
   const visibleZaps = useMemo(
     () =>
       new Map(
-        [...zapsByAuthor]
+        [
+          ...(group
+            ? memberZaps.reduce((map, zap) => {
+                map.set(zap.pubkey, [...(map.get(zap.pubkey) ?? []), zap])
+                return map
+              }, new Map<string, ZapInfo[]>())
+            : zapsByAuthor),
+        ]
           .map(
             ([pubkey, zaps]) =>
               [
@@ -73,7 +82,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
           )
           .filter(([, zaps]) => zaps.length)
       ),
-    [zapsByAuthor, event.id, group]
+    [zapsByAuthor, memberZaps, event.id, group]
   )
   const zappedAmount = calculateTotalZapAmount(visibleZaps)
   useEffect(() => {
@@ -275,7 +284,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
 
   useEffect(() => {
     setZapsByAuthor(zapsByEventCache.get(event.id) || new Map())
-    if (!showReactionCounts) return
+    if (!showReactionCounts || group) return
 
     const filter = {
       kinds: [KIND_ZAP_RECEIPT],
@@ -317,7 +326,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
     } catch (error) {
       console.warn(error)
     }
-  }, [event.id, showReactionCounts])
+  }, [event.id, showReactionCounts, group?.ref.id, group?.ref.creator])
 
   const zapped = visibleZaps.has(myPubKey)
 

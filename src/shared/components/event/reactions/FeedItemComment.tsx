@@ -11,7 +11,8 @@ import Icon from "../../Icons/Icon"
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import {LRUCache} from "typescript-lru-cache"
 import {useGroupAccess} from "@/groups/GroupContext"
-import {isAuthenticGroupActivity, isVisibleGroupActivity} from "@/groups/activity"
+import {isVisibleGroupActivity} from "@/groups/activity"
+import {useGroupActivity} from "@/groups/useGroupActivity"
 import {
   buildReplySubscriptionFilters,
   getEventReplyReference,
@@ -30,14 +31,24 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
   const canParticipate = !group || group.canParticipate
   const myPubKey = useUserStore((state) => state.publicKey)
   const threadReference = event.tagId()
+  const memberReplies = useGroupActivity(
+    buildReplySubscriptionFilters(event),
+    32,
+    showReactionCounts
+  )
   const [replies, setReplies] = useState<Map<string, NDKEvent>>(
     () => repliesByEventCache.get(threadReference) || new Map()
   )
   const replyCount = useMemo(
     () =>
-      [...replies.values()].filter((reply) => isVisibleGroupActivity(reply, group))
-        .length,
-    [replies, group]
+      (group ? memberReplies : [...replies.values()]).filter(
+        (reply) =>
+          !shouldHideEvent(reply) &&
+          isVisibleGroupActivity(reply, group) &&
+          (getEventRootReference(reply) === threadReference ||
+            getEventReplyReference(reply) === threadReference)
+      ).length,
+    [replies, memberReplies, group, threadReference]
   )
 
   const [isPopupOpen, setPopupOpen] = useState(false)
@@ -57,7 +68,7 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
   // refetch when location.pathname changes
   // to refetch count when switching display profile
   useEffect(() => {
-    if (!showReactionCounts) return
+    if (!showReactionCounts || group) return
 
     setReplies(repliesByEventCache.get(threadReference) || new Map())
     const filters: NDKFilter[] = buildReplySubscriptionFilters(event)
@@ -69,7 +80,6 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
       subs.forEach((sub) =>
         sub?.on("event", (e: NDKEvent) => {
           if (shouldHideEvent(e)) return
-          if (group && !isAuthenticGroupActivity(e, group.ref)) return
           if (
             getEventRootReference(e) !== threadReference &&
             getEventReplyReference(e) !== threadReference

@@ -3,6 +3,26 @@ import {groupAddress, groupTags, type GroupRef} from "./model"
 
 type TaggedEvent = {pubkey: string; tags: string[][]; rawEvent?: () => unknown}
 export type GroupActivityAccess = {ref: GroupRef; isEligible: (pubkey: string) => boolean}
+const signatures = new WeakMap<object, {fingerprint: string; valid: boolean}>()
+
+function validSignature(event: TaggedEvent, raw: Event): boolean {
+  const protocol = {
+    id: raw.id,
+    pubkey: raw.pubkey,
+    sig: raw.sig,
+    kind: raw.kind,
+    created_at: raw.created_at,
+    content: raw.content,
+    tags: raw.tags,
+  }
+  const fingerprint = JSON.stringify(protocol)
+  const cached = signatures.get(event)
+  if (cached?.fingerprint === fingerprint) return cached.valid
+  // Exclude nostr-tools' cached symbol; a copied or mutated object must be verified.
+  const valid = verifyEvent(protocol)
+  signatures.set(event, {fingerprint, valid})
+  return valid
+}
 
 export function getEventGroup(event?: {tags: string[][]}): GroupRef | null {
   if (!event) return null
@@ -55,7 +75,7 @@ export function isAuthenticGroupActivity(event: TaggedEvent, group: GroupRef): b
     return (
       raw.created_at <= now &&
       (!expiration || Number(expiration) > now) &&
-      verifyEvent(raw)
+      validSignature(event, raw)
     )
   } catch {
     return false
@@ -75,7 +95,6 @@ export function isVisibleGroupZap(
     return (
       request.kind === 9734 &&
       request.pubkey === zap.pubkey &&
-      verifyEvent(request) &&
       request.tags.some((tag) => tag[0] === "e" && tag[1] === targetId) &&
       isVisibleGroupActivity(request, access)
     )

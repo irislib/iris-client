@@ -6,6 +6,8 @@ export interface GroupEventBufferOptions {
   perAuthorCap?: number
   factTargets?: string[]
   now?: () => number
+  // Some events (zap receipts) retain history by their verified request author.
+  admission?: (event: Event) => {author: string; key?: string} | null
 }
 
 const newer = (candidate: Event, current: Event) =>
@@ -22,6 +24,7 @@ export class GroupEventBuffer {
   private readonly perAuthorCap: number
   private readonly targets?: Set<string>
   private readonly now: () => number
+  private readonly admission?: GroupEventBufferOptions["admission"]
   limited = false
 
   constructor(options: GroupEventBufferOptions) {
@@ -32,6 +35,7 @@ export class GroupEventBuffer {
     )
     this.targets = options.factTargets ? new Set(options.factTargets) : undefined
     this.now = options.now ?? (() => Math.floor(Date.now() / 1000))
+    this.admission = options.admission
   }
 
   get size() {
@@ -79,8 +83,12 @@ export class GroupEventBuffer {
   }
 
   add(event: Event): boolean {
-    const key = this.stateKey(event)
-    if (!key) return false
+    const stateKey = this.stateKey(event)
+    if (!stateKey) return false
+    const admission = this.admission?.(event)
+    if (this.admission && !admission) return false
+    const key = admission?.key ?? stateKey
+    const authorKey = admission?.author ?? event.pubkey
     // Own the retained protocol fields so later caller mutation cannot change a
     // verified record (or its replacement identity) inside this collection.
     event = copyEvent(event)
@@ -88,12 +96,12 @@ export class GroupEventBuffer {
     if (current) {
       if (!newer(event, current)) return false
       this.records.set(key, event)
-      this.authors.get(event.pubkey)!.set(key, event)
+      this.authors.get(authorKey)!.set(key, event)
       this.dirty = true
       return true
     }
 
-    const author = this.authors.get(event.pubkey) ?? new Map<string, Event>()
+    const author = this.authors.get(authorKey) ?? new Map<string, Event>()
     if (author.size >= this.perAuthorCap) {
       // Only this author's own oldest record may be displaced by a new record.
       let oldestKey: string | undefined
@@ -113,7 +121,7 @@ export class GroupEventBuffer {
       return false
     }
     author.set(key, event)
-    this.authors.set(event.pubkey, author)
+    this.authors.set(authorKey, author)
     this.records.set(key, event)
     this.dirty = true
     return true

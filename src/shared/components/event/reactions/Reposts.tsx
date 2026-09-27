@@ -6,16 +6,22 @@ import {useEffect, useMemo, useState} from "react"
 import {ndk} from "@/utils/ndk"
 import {KIND_REPOST} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
-import {isAuthenticGroupActivity, isVisibleGroupActivity} from "@/groups/activity"
+import {isVisibleGroupActivity} from "@/groups/activity"
+import {useGroupActivity} from "@/groups/useGroupActivity"
 
 export default function Reposts({event}: {event: NDKEvent}) {
   const group = useGroupAccess()
+  const memberReposts = useGroupActivity(
+    [{kinds: [KIND_REPOST, 16], "#e": [event.id]}],
+    1
+  )
   const socialGraph = useSocialGraph()
   const [reactions, setReactions] = useState<Map<string, NDKEvent>>(new Map())
 
   useEffect(() => {
     try {
       setReactions(new Map())
+      if (group) return
       const filter = {
         kinds: [KIND_REPOST, 16],
         ["#e"]: [event.id],
@@ -24,7 +30,6 @@ export default function Reposts({event}: {event: NDKEvent}) {
 
       sub?.on("event", (event: NDKEvent) => {
         if (shouldHideUser(event.pubkey)) return
-        if (group && !isAuthenticGroupActivity(event, group.ref)) return
         setReactions((prev) => {
           const existing = prev.get(event.pubkey)
           if (existing) {
@@ -47,10 +52,11 @@ export default function Reposts({event}: {event: NDKEvent}) {
 
   const visibleReactions = useMemo(
     () =>
-      [...reactions.values()].filter((reaction) =>
-        isVisibleGroupActivity(reaction, group)
+      (group ? memberReposts : [...reactions.values()]).filter(
+        (reaction) =>
+          !shouldHideUser(reaction.pubkey) && isVisibleGroupActivity(reaction, group)
       ),
-    [reactions, group]
+    [reactions, memberReposts, group]
   )
 
   return (

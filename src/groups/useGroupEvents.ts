@@ -3,6 +3,8 @@ import {matchFilters, type Event} from "nostr-tools"
 import {NDKSubscriptionCacheUsage, type NDKFilter, type NDKSubscription} from "@/lib/ndk"
 import {ndk} from "@/utils/ndk"
 import {GroupEventBuffer} from "./GroupEventBuffer"
+import {isVisibleGroupZap} from "./activity"
+import type {GroupRef} from "./model"
 
 export type GroupEventSnapshot = {
   events: Event[]
@@ -15,6 +17,7 @@ export interface GroupEventOptions {
   perAuthorCap?: number
   factTargets?: string[]
   refreshKey?: string | number
+  zap?: {ref: GroupRef; targetId: string; authors: string[]}
 }
 const EMPTY: GroupEventSnapshot = {events: [], loading: false, limited: false}
 const LOADING: GroupEventSnapshot = {events: [], loading: true, limited: false}
@@ -102,10 +105,30 @@ export class GroupEventCollection {
   ) {
     this.filters = possibleFilters(filters)
     this.liveAdmission = possibleFilters(options.liveFilters ?? filters)
+    const zapAuthors = new Set(options.zap?.authors)
     this.buffer = new GroupEventBuffer({
       capacity: cap,
       perAuthorCap: options.perAuthorCap,
       factTargets: options.factTargets,
+      admission: options.zap
+        ? (event) => {
+            if (event.kind !== 9735) return null
+            const senders = event.tags.filter((tag) => tag[0] === "P")
+            if (senders.length !== 1 || senders[0].length !== 2) return null
+            const author = senders[0][1]
+            if (
+              !isVisibleGroupZap({pubkey: author, event}, options.zap!.targetId, {
+                ref: options.zap!.ref,
+                isEligible: (pubkey) => zapAuthors.has(pubkey),
+              })
+            )
+              return null
+            const request = JSON.parse(
+              event.tags.find((tag) => tag[0] === "description")![1]
+            ) as Event
+            return {author, key: `zap:${request.id}`}
+          }
+        : undefined,
     })
   }
 

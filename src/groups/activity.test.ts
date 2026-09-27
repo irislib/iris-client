@@ -43,6 +43,13 @@ describe("group activity visibility", () => {
 
   it("rejects forged signatures, a different group, and ambiguous group references", () => {
     const access = {ref, isEligible: () => true}
+    const original = signed()
+    expect(isVisibleGroupActivity(original, access)).toBe(true)
+    expect(isVisibleGroupActivity({...original, content: "copied forged"}, access)).toBe(
+      false
+    )
+    original.content = "mutated after verification"
+    expect(isVisibleGroupActivity(original, access)).toBe(false)
     const forged = JSON.parse(JSON.stringify(signed()))
     forged.content = "forged"
     expect(isVisibleGroupActivity(forged, access)).toBe(false)

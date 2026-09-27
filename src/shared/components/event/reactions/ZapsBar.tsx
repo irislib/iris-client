@@ -9,6 +9,7 @@ import {nip19} from "nostr-tools"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {shouldHideUser} from "@/utils/visibility"
 import {useGroupAccess} from "@/groups/GroupContext"
+import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
 
 interface ZapsBarProps {
@@ -17,15 +18,20 @@ interface ZapsBarProps {
 
 export default function ZapsBar({event}: ZapsBarProps) {
   const group = useGroupAccess()
+  const memberZaps = useGroupZaps(event.id)
   const [zaps, setZaps] = useState<ZapInfo[]>([])
 
   const visibleZaps = useMemo(
-    () => zaps.filter((zap) => isVisibleGroupZap(zap, event.id, group)),
-    [zaps, event.id, group]
+    () =>
+      (group ? memberZaps : zaps).filter(
+        (zap) => !shouldHideUser(zap.pubkey) && isVisibleGroupZap(zap, event.id, group)
+      ),
+    [zaps, memberZaps, event.id, group]
   )
 
   useEffect(() => {
     setZaps([])
+    if (group) return
     const filter = {
       kinds: [KIND_ZAP_RECEIPT],
       ["#e"]: [event.id],
@@ -57,7 +63,7 @@ export default function ZapsBar({event}: ZapsBarProps) {
     return () => {
       sub.stop()
     }
-  }, [event.id])
+  }, [event.id, group?.ref.id, group?.ref.creator])
 
   return (
     <div className="flex gap-2 overflow-x-auto py-2 scrollbar-thin min-h-[38px]">

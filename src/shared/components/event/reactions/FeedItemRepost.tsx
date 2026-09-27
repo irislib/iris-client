@@ -13,11 +13,8 @@ import {shouldHideUser} from "@/utils/visibility"
 import {useUserStore} from "@/stores/user"
 import {KIND_REPOST} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
-import {
-  inheritGroupTags,
-  isAuthenticGroupActivity,
-  isVisibleGroupActivity,
-} from "@/groups/activity"
+import {inheritGroupTags, isVisibleGroupActivity} from "@/groups/activity"
+import {useGroupActivity} from "@/groups/useGroupActivity"
 import {publishGroupEvent} from "@/groups/publish"
 import {useToastStore} from "@/stores/toast"
 
@@ -32,6 +29,11 @@ const repostCache = new LRUCache<string, Map<string, NDKEvent>>({
 
 function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps) {
   const group = useGroupAccess()
+  const memberReposts = useGroupActivity(
+    [{kinds: [KIND_REPOST, 16], "#e": [event.id]}],
+    1,
+    showReactionCounts
+  )
   const canParticipate = !group || group.canParticipate
   const myPubKey = useUserStore((state) => state.publicKey)
 
@@ -40,8 +42,15 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
   )
   const repostsByAuthor = useMemo(
     () =>
-      new Map([...reposts].filter(([, repost]) => isVisibleGroupActivity(repost, group))),
-    [reposts, group]
+      new Map(
+        (group
+          ? memberReposts
+              .filter((event) => !shouldHideUser(event.pubkey))
+              .map((event) => [event.pubkey, event] as const)
+          : [...reposts]
+        ).filter(([, repost]) => isVisibleGroupActivity(repost, group))
+      ),
+    [reposts, memberReposts, group]
   )
   const repostCount = repostsByAuthor.size
   const [showButtons, setShowButtons] = useState(false)
@@ -57,6 +66,7 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
         repost.tags = inheritGroupTags(event, repost.tags)
         await publishGroupEvent(repost)
       }
+      if (group) return
       setReposts((previous) => {
         const next = new Map(previous)
         next.set(myPubKey, repost)
@@ -86,7 +96,7 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
 
   useEffect(() => {
     setReposts(repostCache.get(event.id) || new Map())
-    if (!showReactionCounts) return
+    if (!showReactionCounts || group) return
 
     const filter = {
       kinds: [KIND_REPOST, 16],
@@ -99,7 +109,6 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
 
       sub?.on("event", (repostEvent: NDKEvent) => {
         if (shouldHideUser(repostEvent.pubkey)) return
-        if (group && !isAuthenticGroupActivity(repostEvent, group.ref)) return
         setReposts((previous) => {
           const next = new Map(previous)
           next.set(repostEvent.pubkey, repostEvent)

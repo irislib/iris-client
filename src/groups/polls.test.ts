@@ -3,7 +3,7 @@ import {finalizeEvent, getPublicKey} from "nostr-tools"
 import {
   createGroupDraft,
   createMembershipDraft,
-  createVouchDraft,
+  createMembershipAttestationDraft,
   groupAddress,
   verifyGroupElectorateEvidence,
 } from "./model"
@@ -494,7 +494,7 @@ function archivedPoll() {
     memberKey
   )
   const vouch = finalizeEvent(
-    {...createVouchDraft(ref, member, true), created_at: 83},
+    {...createMembershipAttestationDraft(ref, member, true), created_at: 83},
     rootKey
   )
   const events = [metadata, contacts, join, vouch]

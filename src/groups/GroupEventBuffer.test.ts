@@ -1,7 +1,11 @@
 import {finalizeEvent, getPublicKey, type EventTemplate} from "nostr-tools"
 import {describe, expect, it} from "vitest"
 import {GroupEventBuffer} from "./GroupEventBuffer"
-import {createGroupDraft, createMembershipDraft, createVouchDraft} from "./model"
+import {
+  createGroupDraft,
+  createMembershipDraft,
+  createMembershipAttestationDraft,
+} from "./model"
 
 const key = (n: number) => Uint8Array.from({length: 32}, () => n)
 const pub = (n: number) => getPublicKey(key(n))
@@ -16,8 +20,8 @@ const buffer = (capacity = 8, perAuthorCap = capacity, factTargets?: string[]) =
 describe("bounded group event retention", () => {
   it("collapses current fact states, including a latest expired withdrawal", () => {
     const store = buffer(2)
-    const active = sign(createVouchDraft(ref, pub(2), true))
-    const expired = createVouchDraft(ref, pub(2), false)
+    const active = sign(createMembershipAttestationDraft(ref, pub(2), true))
+    const expired = createMembershipAttestationDraft(ref, pub(2), false)
     expired.tags.push(["expiration", "250"])
     const latest = sign(expired, 1, 200)
     expect(store.add(active)).toBe(true)
@@ -68,10 +72,12 @@ describe("bounded group event retention", () => {
 
   it("matches the parsed subject, not an extra tag claiming a protected target", () => {
     const store = buffer(4, 4, [pub(2)])
-    const mismatch = createVouchDraft(ref, pub(3), true)
+    const mismatch = createMembershipAttestationDraft(ref, pub(3), true)
     mismatch.tags.push(["p", pub(2)])
     expect(store.add(sign(mismatch))).toBe(false)
-    expect(store.add(sign(createVouchDraft(ref, pub(2), true)))).toBe(true)
+    expect(store.add(sign(createMembershipAttestationDraft(ref, pub(2), true)))).toBe(
+      true
+    )
     expect(store.add(sign(createMembershipDraft(ref, pub(2), true), 2))).toBe(true)
     expect(store.size).toBe(2)
   })

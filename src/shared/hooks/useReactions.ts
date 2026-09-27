@@ -3,7 +3,8 @@ import {useEffect, useMemo, useState} from "react"
 import {shouldHideUser} from "@/utils/visibility"
 import {ndk} from "@/utils/ndk"
 import {useGroupAccess} from "@/groups/GroupContext"
-import {isAuthenticGroupActivity, isVisibleGroupActivity} from "@/groups/activity"
+import {isVisibleGroupActivity} from "@/groups/activity"
+import {useGroupActivity} from "@/groups/useGroupActivity"
 
 export interface ReactionInfo {
   emoji: string
@@ -20,12 +21,14 @@ export interface ReactionInfo {
  */
 export function useReactionsByAuthor(eventId: string) {
   const group = useGroupAccess()
+  const memberReactions = useGroupActivity([{kinds: [7], "#e": [eventId]}], 1)
   const [reactionsByAuthor, setReactionsByAuthor] = useState<Map<string, NDKEvent>>(
     new Map()
   )
 
   useEffect(() => {
     setReactionsByAuthor(new Map())
+    if (group) return
     const filter = {
       kinds: [7],
       ["#e"]: [eventId],
@@ -36,7 +39,6 @@ export function useReactionsByAuthor(eventId: string) {
 
     sub?.on("event", (reactionEvent: NDKEvent) => {
       if (shouldHideUser(reactionEvent.pubkey)) return
-      if (group && !isAuthenticGroupActivity(reactionEvent, group.ref)) return
 
       const authorPubkey = reactionEvent.pubkey
 
@@ -62,9 +64,14 @@ export function useReactionsByAuthor(eventId: string) {
   return useMemo(
     () =>
       new Map(
-        [...reactionsByAuthor].filter(([, event]) => isVisibleGroupActivity(event, group))
+        (group
+          ? memberReactions
+              .filter((event) => !shouldHideUser(event.pubkey))
+              .map((event) => [event.pubkey, event] as const)
+          : [...reactionsByAuthor]
+        ).filter(([, event]) => isVisibleGroupActivity(event, group))
       ),
-    [reactionsByAuthor, group]
+    [reactionsByAuthor, memberReactions, group]
   )
 }
 

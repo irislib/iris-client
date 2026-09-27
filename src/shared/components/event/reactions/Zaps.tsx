@@ -6,10 +6,12 @@ import {useEffect, useMemo, useState} from "react"
 import {ndk} from "@/utils/ndk"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
+import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
 
 export default function Zaps({event}: {event: NDKEvent}) {
   const group = useGroupAccess()
+  const memberZaps = useGroupZaps(event.id)
   const [zapsByUser, setZapsByUser] = useState(
     new Map<string, {totalAmount: number; zaps: ZapInfo[]}>()
   )
@@ -18,6 +20,7 @@ export default function Zaps({event}: {event: NDKEvent}) {
     try {
       // Clear previous state when event changes
       setZapsByUser(new Map())
+      if (group) return
 
       const filter = {
         kinds: [KIND_ZAP_RECEIPT],
@@ -43,16 +46,17 @@ export default function Zaps({event}: {event: NDKEvent}) {
     } catch (error) {
       console.warn(error)
     }
-  }, [event.id])
+  }, [event.id, group?.ref.id, group?.ref.creator])
 
   const visibleZaps = useMemo(
     () =>
       groupZapsByUser(
-        [...zapsByUser.values()].flatMap((user) =>
-          user.zaps.filter((zap) => isVisibleGroupZap(zap, event.id, group))
-        )
+        (group
+          ? memberZaps
+          : [...zapsByUser.values()].flatMap((user) => user.zaps)
+        ).filter((zap) => isVisibleGroupZap(zap, event.id, group))
       ),
-    [zapsByUser, event.id, group]
+    [zapsByUser, memberZaps, event.id, group]
   )
 
   return (

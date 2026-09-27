@@ -3,98 +3,117 @@ import {act} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 import {finalizeEvent, getPublicKey} from "nostr-tools"
-import {NDKEvent} from "@/lib/ndk"
+import {NDKEvent, type NDKFilter} from "@/lib/ndk"
 import {groupTags} from "@/groups/model"
 import type {GroupActivityAccess} from "@/groups/activity"
 import {useReactionsByAuthor} from "./useReactions"
 
 const state = vi.hoisted(() => ({
-  access: null as GroupActivityAccess | null,
+  access: null as
+    (GroupActivityAccess & {membership: {eligiblePubkeys: Set<string>}}) | null,
   listeners: new Set<(event: NDKEvent) => void>(),
-  subscriptions: 0,
+  filters: [] as NDKFilter[][],
 }))
 vi.mock("@/groups/GroupContext", () => ({useGroupAccess: () => state.access}))
 vi.mock("@/utils/visibility", () => ({shouldHideUser: () => false}))
 vi.mock("@/utils/ndk", () => ({
   ndk: () => ({
-    subscribe: () => {
-      state.subscriptions++
+    subscribe: (filters: NDKFilter[]) => {
+      state.filters.push(filters)
       let listener: (event: NDKEvent) => void
       return {
-        on: (_name: string, callback: typeof listener) => {
-          listener = callback
-          state.listeners.add(callback)
+        on: (name: string, callback: typeof listener) => {
+          if (name === "event") {
+            listener = callback
+            state.listeners.add(callback)
+          }
         },
+        start: () => {},
         stop: () => state.listeners.delete(listener),
       }
     },
   }),
 }))
-
 const key = Uint8Array.from({length: 32}, () => 1)
 const otherKey = Uint8Array.from({length: 32}, () => 2)
 const author = getPublicKey(key)
 const outsider = getPublicKey(otherKey)
 const ref = {creator: author, id: "00000000-0000-4000-8000-000000000001"}
 const targetId = "f".repeat(64)
-const reaction = (secret: Uint8Array) =>
+const reaction = (secret: Uint8Array, time = 100) =>
   new NDKEvent(
     undefined,
     finalizeEvent(
       {
         kind: 7,
         content: "+",
-        created_at: Math.floor(Date.now() / 1000) - 1,
+        created_at: time,
         tags: [["e", targetId], ...groupTags(ref)],
       },
       secret
     )
   )
-
+const access = (...authors: string[]) => ({
+  ref,
+  membership: {eligiblePubkeys: new Set(authors)},
+  isEligible: (pubkey: string) => authors.includes(pubkey),
+})
 function Counter() {
   const reactions = useReactionsByAuthor(targetId)
-  return <output>{[...reactions.keys()].join(",")}</output>
+  return <output>{[...reactions.keys()].sort().join(",")}</output>
 }
-
 afterEach(() => {
   state.listeners.clear()
-  state.subscriptions = 0
+  state.filters = []
   state.access = null
+  vi.useRealTimers()
 })
 
 describe("group reaction subscriptions", () => {
-  it("recomputes previously received reactions after a policy change without a relay reload", async () => {
+  it("rejects outsider floods at admission and reloads per member when eligibility changes", async () => {
     ;(
       globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}
     ).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useFakeTimers()
+    vi.setSystemTime(1_000_000)
     const host = document.createElement("div")
     const root = createRoot(host)
-    state.access = {ref, isEligible: (pubkey) => pubkey === author}
+    state.access = access(author)
     await act(async () => root.render(<Counter />))
+    expect(state.filters.flat().every((filter) => filter.authors?.includes(author))).toBe(
+      true
+    )
+    expect(state.filters[1][0].limit).toBe(1)
     await act(async () => {
       for (const listener of state.listeners) {
+        for (let i = 200; i < 230; i++) listener(reaction(otherKey, i))
         listener(reaction(key))
-        listener(reaction(otherKey))
       }
+      vi.advanceTimersByTime(50)
     })
     expect(host.textContent).toBe(author)
-
-    state.access = {ref, isEligible: (pubkey) => pubkey === outsider}
-    await act(async () => root.render(<Counter />))
-    expect(host.textContent).toBe(outsider)
-    expect(state.subscriptions).toBe(1)
-
-    const forged = reaction(otherKey)
-    forged.content = "forged"
-    forged.created_at! += 1
-    await act(async () => {
-      for (const listener of state.listeners) listener(forged)
-    })
-    expect(host.textContent).toBe(outsider)
-
-    state.access = {ref, isEligible: () => false}
+    const stale = [...state.listeners]
+    state.access = access(outsider)
     await act(async () => root.render(<Counter />))
     expect(host.textContent).toBe("")
+    expect(state.filters.at(-1)?.[0].authors).toEqual([outsider])
+    await act(async () => {
+      for (const listener of stale) listener(reaction(key, 400))
+      for (const listener of state.listeners) listener(reaction(otherKey, 300))
+      vi.advanceTimersByTime(50)
+    })
+    expect(host.textContent).toBe(outsider)
+    const forged = reaction(otherKey, 400)
+    forged.content = "forged"
+    await act(async () => {
+      for (const listener of state.listeners) listener(forged)
+      vi.advanceTimersByTime(50)
+    })
+    expect(host.textContent).toBe(outsider)
+    state.access = access()
+    await act(async () => root.render(<Counter />))
+    expect(host.textContent).toBe("")
+    expect(state.listeners.size).toBe(0)
     await act(async () => root.unmount())
   })
 })
