@@ -1,0 +1,222 @@
+import {finalizeEvent, getPublicKey, type EventTemplate} from "nostr-tools"
+import {describe, expect, it} from "vitest"
+import {
+  createGroupDraft,
+  createMembershipDraft,
+  createVouchDraft,
+  deriveGroupMembers,
+  groupAddress,
+  listGroups,
+  parseGroup,
+  type GroupRef,
+} from "./model"
+
+const key = (n: number) => Uint8Array.from([...Array(31).fill(0), n])
+const pub = (n: number) => getPublicKey(key(n))
+const ref: GroupRef = {
+  id: "12345678-1234-4234-8234-123456789abc",
+  creator: pub(1),
+}
+const sign = (draft: Omit<EventTemplate, "created_at">, n = 1, time = 100) =>
+  finalizeEvent({...draft, created_at: time}, key(n))
+const metadata = sign(createGroupDraft({...ref, name: "Garden"}))
+const group = parseGroup(metadata, 200)!
+const join = (n: number, time = 100, joined = true) =>
+  sign(createMembershipDraft(ref, pub(n), joined), n, time)
+const vouch = (author: number, member: number, time = 100, active = true) =>
+  sign(createVouchDraft(ref, pub(member), active), author, time)
+const derive = (
+  events: ReturnType<typeof sign>[],
+  follows: Record<string, string[]> = {}
+) => deriveGroupMembers({group, events, now: 200, getFollows: (p) => follows[p] ?? []})
+
+describe("group facts and membership", () => {
+  it("round trips signed metadata and scopes it to a creator address", () => {
+    expect(group).toMatchObject({...ref, name: "Garden"})
+    expect(groupAddress(group)).toBe(`37368:${pub(1)}:${ref.id}`)
+    const impersonation = sign(createGroupDraft({...ref, name: "Fake"}), 2, 110)
+    expect(parseGroup(impersonation, 200)).toBeNull()
+    expect(listGroups([metadata, impersonation], 200)).toEqual([group])
+    expect(parseGroup({...metadata, content: "tampered"}, 200)).toBeNull()
+    const badSignature = JSON.parse(JSON.stringify(metadata))
+    badSignature.sig = "0".repeat(128)
+    expect(parseGroup(badSignature, 200)).toBeNull()
+  })
+
+  it("bootstraps creator consent but metadata edits do not undo a leave", () => {
+    expect(derive([]).byPubkey.get(pub(1))?.eligible).toBe(true)
+    const edited = sign(createGroupDraft({...ref, name: "New name"}), 1, 190)
+    const afterLeave = deriveGroupMembers({
+      group: parseGroup(edited, 200)!,
+      events: [join(1, 110, false)],
+      now: 200,
+      getFollows: () => [],
+    })
+    expect(afterLeave.byPubkey.get(pub(1))).toMatchObject({
+      joined: false,
+      eligible: false,
+    })
+  })
+
+  it("requires member consent and direct trust, and never counts self vouches", () => {
+    const follows = {[pub(1)]: [pub(2), pub(3)]}
+    expect(derive([vouch(1, 2)], follows).byPubkey.get(pub(2))?.eligible).toBe(false)
+    expect(derive([join(2), vouch(2, 2)], follows).byPubkey.get(pub(2))?.eligible).toBe(
+      false
+    )
+    expect(derive([join(2), vouch(1, 2)], follows).byPubkey.get(pub(2))?.eligible).toBe(
+      true
+    )
+    const states = derive([join(2), join(3), vouch(1, 3), vouch(3, 2)], follows)
+    expect(states.byPubkey.get(pub(2))).toMatchObject({eligible: true, directVouches: 1})
+    expect(
+      derive([join(2), join(2, 150, false), vouch(1, 2)], follows).byPubkey.get(pub(2))
+    ).toMatchObject({joined: false, eligible: false})
+  })
+
+  it("does not accept consent signed by somebody else or alias unrelated keys", () => {
+    const forgedConsent = sign(createMembershipDraft(ref, pub(2), true), 3)
+    expect(derive([forgedConsent, vouch(1, 2)]).byPubkey.get(pub(2))?.joined).toBe(false)
+    const aliased = createMembershipDraft(ref, pub(2), true)
+    aliased.tags = aliased.tags.map((tag) =>
+      tag[0] === "controls" ? ["controls", pub(3)] : tag
+    )
+    expect(derive([sign(aliased, 3), vouch(1, 3)]).byPubkey.get(pub(3))?.joined).toBe(
+      false
+    )
+  })
+
+  it("uses deterministic withdrawals independent of delivery order", () => {
+    const grant = vouch(1, 2)
+    const revoke = vouch(1, 2, 150, false)
+    for (const events of [
+      [join(2), grant, revoke],
+      [revoke, grant, join(2)],
+    ]) {
+      expect(derive(events).byPubkey.get(pub(2))).toMatchObject({
+        eligible: false,
+        vouchers: [],
+      })
+    }
+    const tieGrant = vouch(1, 2, 150)
+    const expected = tieGrant.id < revoke.id
+    expect(derive([join(2), revoke, tieGrant]).byPubkey.get(pub(2))?.eligible).toBe(
+      expected
+    )
+    expect(derive([join(2), tieGrant, revoke]).byPubkey.get(pub(2))?.eligible).toBe(
+      expected
+    )
+  })
+
+  it("ignores future facts and prevents expired latest claims resurrecting old claims", () => {
+    expect(derive([join(2), vouch(1, 2, 201)]).byPubkey.get(pub(2))?.eligible).toBe(false)
+    const expiring = createVouchDraft(ref, pub(2), true)
+    expiring.tags.push(["expiration", "180"])
+    const events = [join(2), vouch(1, 2), sign(expiring, 1, 150)]
+    expect(derive(events).byPubkey.get(pub(2))?.eligible).toBe(false)
+    const invalid = createVouchDraft(ref, pub(2), true)
+    invalid.tags.push(["expiration", "not-a-date"])
+    expect(derive([join(2), sign(invalid)]).byPubkey.get(pub(2))?.eligible).toBe(false)
+  })
+
+  it("counts independent second-degree routes, not a Sybil fan-out through one contact", () => {
+    const events = [
+      join(2),
+      join(5),
+      join(6),
+      join(7),
+      vouch(1, 5),
+      vouch(1, 6),
+      vouch(1, 7),
+      vouch(5, 2),
+      vouch(6, 2),
+      vouch(7, 2),
+    ]
+    const shared = {[pub(1)]: [pub(3)], [pub(3)]: [pub(5), pub(6), pub(7)]}
+    expect(derive(events, shared).byPubkey.get(pub(2))).toMatchObject({
+      eligible: false,
+      secondDegreeVouches: 1,
+    })
+    const independent = {
+      [pub(1)]: [pub(3), pub(4), pub(8)],
+      [pub(3)]: [pub(5), pub(6)],
+      [pub(4)]: [pub(5)],
+      [pub(8)]: [pub(7)],
+    }
+    expect(derive(events, independent).byPubkey.get(pub(2))).toMatchObject({
+      eligible: true,
+      secondDegreeVouches: 3,
+    })
+  })
+
+  it("does not count a member as their own trust bridge or count a departed voucher", () => {
+    const follows = {[pub(1)]: [pub(2)], [pub(2)]: [pub(3), pub(4), pub(5)]}
+    const events = [join(2), ...[3, 4, 5].flatMap((n) => [join(n), vouch(n, 2)])]
+    expect(derive(events, follows).byPubkey.get(pub(2))?.secondDegreeVouches).toBe(0)
+    expect(
+      derive([join(2), join(3), join(3, 150, false), vouch(3, 2)], {
+        [pub(1)]: [pub(3)],
+      }).byPubkey.get(pub(2))?.eligible
+    ).toBe(false)
+  })
+
+  it("isolates a reused group UUID and validates contradictory or malformed facts", () => {
+    const other = {...ref, creator: pub(3)}
+    const wrongGroup = sign(createVouchDraft(other, pub(2), true), 1)
+    expect(derive([join(2), wrongGroup]).byPubkey.get(pub(2))?.eligible).toBe(false)
+    const contradictory = createVouchDraft(ref, pub(2), true)
+    contradictory.tags.push(["not_member_of", ref.id, ref.creator])
+    expect(derive([join(2), sign(contradictory)]).byPubkey.get(pub(2))?.eligible).toBe(
+      false
+    )
+  })
+
+  it("uses the chosen personal root without changing the creator's default policy", () => {
+    const events = [join(2), join(3), vouch(1, 3), vouch(3, 2)]
+    const result = deriveGroupMembers({
+      group,
+      events,
+      view: "personal",
+      viewer: pub(4),
+      now: 200,
+      getFollows: (p) => (p === pub(4) ? [pub(1), pub(3)] : []),
+    })
+    expect(result.rootPubkey).toBe(pub(4))
+    expect(result.byPubkey.get(pub(2))?.eligible).toBe(true)
+    expect(derive(events).byPubkey.get(pub(2))?.eligible).toBe(false)
+  })
+
+  it("requires eligible vouchers and recomputes from the creator after withdrawals", () => {
+    const events = [join(2), join(3), vouch(2, 3), vouch(3, 2)]
+    const follows = {[pub(1)]: [pub(2), pub(3)]}
+    expect(derive(events, follows).eligiblePubkeys).toEqual(new Set([pub(1)]))
+    expect(derive([...events, vouch(1, 2)], follows).eligiblePubkeys).toEqual(
+      new Set([pub(1), pub(2), pub(3)])
+    )
+    expect(
+      derive([...events, vouch(1, 2), vouch(1, 2, 150, false)], follows).eligiblePubkeys
+    ).toEqual(new Set([pub(1)]))
+    expect(
+      derive([...events, vouch(1, 2), join(1, 150, false)], follows).eligiblePubkeys.size
+    ).toBe(0)
+  })
+
+  it("bounds graph traversal and reports incomplete network data", () => {
+    let visited = 0
+    const repeated = pub(3)
+    function* endless() {
+      for (;;) {
+        visited++
+        yield repeated
+      }
+    }
+    const result = deriveGroupMembers({
+      group,
+      events: [join(2)],
+      now: 200,
+      getFollows: endless,
+    })
+    expect(visited).toBeLessThan(20000)
+    expect(result.truncated).toBe(true)
+  })
+})
