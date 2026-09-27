@@ -1,4 +1,5 @@
 import {MouseEventHandler} from "react"
+import {RiGroupFill} from "@remixicon/react"
 
 import IconsSvg from "./icons.svg"
 
@@ -12,6 +13,9 @@ export interface IconProps {
 
 const Icon = (props: IconProps) => {
   const size = props.size || 20
+  if (props.name === "groups-solid" || props.name === "groups-outline") {
+    return <RiGroupFill size={size} className={props.className} onClick={props.onClick} />
+  }
   const href = `${IconsSvg}#` + props.name
 
   return (

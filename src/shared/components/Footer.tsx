@@ -31,29 +31,47 @@ const Footer = () => {
   const {balance} = useWalletBalance()
   const {showBalanceInNav} = useWalletStore()
   const myPubKey = useUserStore((state) => state.publicKey)
+  const isGroups = CONFIG.appVariant === "groups"
 
-  const MENU_ITEMS: MenuItem[] = [
-    {link: "/", icon: "home"},
-    {
-      link: "/wallet",
-      icon: "wallet",
-      loggedInOnly: true,
-      badge:
-        showBalanceInNav && balance !== null ? (
-          <span className="select-none">
-            {formatAmount(balance)}
-            <span className="text-[0.85em]">₿</span>
-          </span>
-        ) : undefined,
-    },
-    {
-      link: "/new",
-      activeIcon: "RiAddCircleFill",
-      inactiveIcon: "RiAddCircleLine",
-      loggedInOnly: true,
-      requireSigner: true,
-    },
-  ]
+  const MENU_ITEMS: MenuItem[] = isGroups
+    ? [
+        {link: "/", icon: "groups", label: "Groups"},
+        {
+          link: "/chats",
+          icon: "mail",
+          label: "Chats",
+          loggedInOnly: true,
+          requireSigner: true,
+        },
+        {
+          link: "/notifications",
+          icon: "notifications",
+          label: "Notifications",
+          loggedInOnly: true,
+        },
+      ]
+    : [
+        {link: "/", icon: "home"},
+        {
+          link: "/wallet",
+          icon: "wallet",
+          loggedInOnly: true,
+          badge:
+            showBalanceInNav && balance !== null ? (
+              <span className="select-none">
+                {formatAmount(balance)}
+                <span className="text-[0.85em]">₿</span>
+              </span>
+            ) : undefined,
+        },
+        {
+          link: "/new",
+          activeIcon: "RiAddCircleFill",
+          inactiveIcon: "RiAddCircleLine",
+          loggedInOnly: true,
+          requireSigner: true,
+        },
+      ]
 
   if (location.pathname.startsWith("/chats/") && !location.pathname.endsWith("/new")) {
     return null
@@ -118,6 +136,7 @@ const FooterNavItem = ({item}: {item: MenuItem}) => {
   return (
     <NavLink
       to={item.link ?? "/"}
+      aria-label={item.label}
       onClick={handleClick}
       className={({isActive}) =>
         classNames(

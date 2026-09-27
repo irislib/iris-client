@@ -5,5 +5,5 @@ export function useIsTwoColumnLayout() {
   const {appearance} = useSettingsStore()
   const isLargeScreen = useIsLargeScreen()
 
-  return !appearance.singleColumnLayout && isLargeScreen
+  return CONFIG.appVariant !== "groups" && !appearance.singleColumnLayout && isLargeScreen
 }

@@ -2,11 +2,44 @@ import react from "@vitejs/plugin-react"
 import {VitePWA} from "vite-plugin-pwa"
 import {defineConfig} from "vite"
 import config from "config"
+import {readFileSync} from "node:fs"
+
+const isGroups = config.get("appVariant") === "groups"
+const appName = config.get<string>("appNameCapitalized")
+const aboutText = config.get<string>("aboutText")
+const groupsManifest = isGroups
+  ? {
+      ...JSON.parse(
+        readFileSync(new URL("./public/manifest.json", import.meta.url), "utf8")
+      ),
+      name: appName,
+      short_name: config.get<string>("appName"),
+      description: aboutText,
+      icons: [{src: "./groups.svg", sizes: "any", type: "image/svg+xml", purpose: "any"}],
+    }
+  : false
 
 // https://vitejs.dev/config/
 export default defineConfig({
   base: "./",
   plugins: [
+    {
+      name: "app-branding",
+      transformIndexHtml: {
+        order: "pre",
+        handler(html) {
+          if (!isGroups) return html
+          return html
+            .replace("<title></title>", `<title>${appName}</title>`)
+            .replace(
+              'name="description" content=""',
+              `name="description" content="${aboutText}"`
+            )
+            .replace('href="./favicon.svg"', 'href="./groups.svg"')
+            .replace('<link rel="manifest" href="./manifest.json" />', "")
+        },
+      },
+    },
     react({
       fastRefresh: true,
     }),
@@ -34,7 +67,8 @@ export default defineConfig({
       },
       strategies: "injectManifest",
       injectRegister: "script",
-      manifest: false,
+      manifest: groupsManifest,
+      manifestFilename: "manifest.json",
       srcDir: "src",
       filename: "service-worker.ts",
       registerType: "autoUpdate",
@@ -59,6 +93,7 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: isGroups ? "dist-groups" : "dist",
     reportCompressedSize: true,
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
@@ -167,7 +202,7 @@ export default defineConfig({
     copyPublicDir: true,
   },
   define: {
-    CONFIG: config,
+    CONFIG: JSON.stringify(config.util.toObject()),
     global: {}, // needed for custom-event lib
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.npm_package_version),
     "import.meta.env.VITE_BUILD_TIME": JSON.stringify(new Date().toISOString()),

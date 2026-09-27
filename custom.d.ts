@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 declare const CONFIG: {
+  appVariant: "iris" | "groups"
   appName: string
   appNameCapitalized: string
   appTitle: string
@@ -9,7 +10,7 @@ declare const CONFIG: {
   icon: string
   navLogo: string
   defaultTheme: string
-  navItems: string[]
+  navItems?: string[]
   aboutText: string
   repository: string
   features: {

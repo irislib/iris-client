@@ -1,0 +1,10 @@
+{
+  "appVariant": "groups",
+  "appName": "Groups",
+  "appNameCapitalized": "Iris Groups",
+  "hostname": "groups.iris.to",
+  "icon": "/groups.svg",
+  "navLogo": "/groups.svg",
+  "navItems": ["groups", "search", "messages", "notifications", "settings", "about"],
+  "aboutText": "Iris Groups — communities shaped by the people you trust."
+}

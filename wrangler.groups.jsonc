@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "iris-groups",
+  "workers_dev": true,
+  "preview_urls": true,
+  "compatibility_date": "2026-09-27",
+  "routes": [{"pattern": "groups.iris.to", "custom_domain": true}],
+  "assets": {
+    "directory": "./dist-groups",
+    "not_found_handling": "single-page-application",
+  },
+}

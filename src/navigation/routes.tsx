@@ -21,9 +21,17 @@ const MarketPage = lazy(() => import("@/pages/market"))
 const UserSearchPage = lazy(() => import("@/pages/user-search"))
 const CashuWallet = lazy(() => import("@/pages/wallet/CashuWallet"))
 const OldWallet = lazy(() => import("@/pages/wallet/OldWallet"))
+const GroupsPage = lazy(() => import("@/pages/groups"))
+const GroupPage = lazy(() => import("@/pages/groups/GroupPage"))
 
 export const routes: RouteDefinition[] = [
-  {path: "/", component: HomePage, alwaysKeep: true},
+  {
+    path: "/",
+    component: CONFIG.appVariant === "groups" ? GroupsPage : HomePage,
+    alwaysKeep: true,
+  },
+  {path: "/groups", component: GroupsPage},
+  {path: "/groups/:owner/:groupId", component: GroupPage},
   {path: "/new", component: NewNote},
   {path: "/notifications", component: Notifications},
   {path: "/wallet", component: CashuWallet},

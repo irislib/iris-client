@@ -100,7 +100,9 @@ const NavSideBar = () => {
               )
             })}
           </ul>
-          {myPubKey && ndk().signer && <PublishButton />}
+          {CONFIG.appVariant !== "groups" && myPubKey && ndk().signer && (
+            <PublishButton />
+          )}
           {!myPubKey && (
             <div className="ml-2 md:ml-0 xl:px-2 md:mt-2 hidden md:block xl:w-full">
               <button
@@ -116,10 +118,22 @@ const NavSideBar = () => {
         {myPubKey && (
           <>
             <div className="flex flex-col p-4 gap-2">
-              <div className="hidden lg:flex xl:hidden justify-center mb-2">
+              <div
+                className={
+                  CONFIG.appVariant === "groups"
+                    ? "hidden"
+                    : "hidden lg:flex xl:hidden justify-center mb-2"
+                }
+              >
                 <ColumnLayoutToggle compact />
               </div>
-              <div className="hidden xl:flex justify-start mb-2">
+              <div
+                className={
+                  CONFIG.appVariant === "groups"
+                    ? "hidden"
+                    : "hidden xl:flex justify-start mb-2"
+                }
+              >
                 <ColumnLayoutToggle />
               </div>
               <div className="hidden md:flex md:flex-col xl:flex-row items-center xl:items-center gap-1 mb-2">

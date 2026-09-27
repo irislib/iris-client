@@ -8,6 +8,7 @@ import {
   RiChat3Fill,
   RiShieldFill,
   RiHardDrive2Fill,
+  RiGroupFill,
   RiArrowDownSLine,
   RiArrowUpSLine,
 } from "@remixicon/react"
@@ -117,6 +118,18 @@ export const AboutPage = () => {
               </p>
 
               <h2>More from Iris</h2>
+              <p>
+                <a
+                  href="https://groups.iris.to"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternalLink("https://groups.iris.to")
+                  }}
+                  className="flex items-center gap-1 w-fit"
+                >
+                  <RiGroupFill className="inline" /> Iris Groups
+                </a>
+              </p>
               <p>
                 <a
                   href="https://irischat.org"

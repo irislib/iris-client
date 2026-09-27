@@ -55,6 +55,8 @@ describe("portable build config", () => {
     for (const html of [indexHtml, debugHtml]) {
       expect(html).toContain('"iris.to"')
       expect(html).toContain('"iris-client.irisapp.workers.dev"')
+      expect(html).toContain('"groups.iris.to"')
+      expect(html).toContain('"iris-groups.irisapp.workers.dev"')
       expect(html).toContain('"127.0.0.1"')
       expect(html).toContain('"localhost"')
       expect(html).toContain(`document.write('<base href="/">')`)
