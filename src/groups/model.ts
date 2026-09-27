@@ -11,7 +11,7 @@ import {
   type FactEventDraft,
   type NostrEvent,
 } from "nostr-social-graph"
-import {verifyEvent} from "nostr-tools"
+import {verifyEvent, type Filter} from "nostr-tools"
 
 export const GROUP_FACT_KIND = FACT_OP_KIND
 export const GROUP_METADATA_KIND = FACT_SNAPSHOT_KIND
@@ -41,6 +41,7 @@ export type GroupMember = {
   vouchers: string[]
   directVouchers: string[]
   secondDegreeVouchers: string[]
+  evidenceEventIds: string[]
 }
 export type GroupMembers = {
   members: GroupMember[]
@@ -64,6 +65,8 @@ export type GroupElectorate = {
   memberPubkeys: string[]
   authorityPubkeys: string[]
   evidenceEventIds: string[]
+  memberSnapshotLimited: boolean
+  rootFollowEventId?: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -74,8 +77,33 @@ const MAX_DIRECT_CONTACTS = 256
 const MAX_FOLLOWS_SCANNED = 2048
 const MAX_GRAPH_EDGES = 32768
 const encoder = new TextEncoder()
+const signatureCache = new WeakMap<NostrEvent, {fingerprint: string; valid: boolean}>()
+
+function signedEventIsValid(event: NostrEvent): boolean {
+  try {
+    // Do not inherit nostr-tools' verified symbol from a copied or mutated event.
+    const plain = {
+      id: event.id,
+      pubkey: event.pubkey,
+      created_at: event.created_at,
+      kind: event.kind,
+      tags: event.tags,
+      content: event.content,
+      sig: event.sig,
+    }
+    const fingerprint = JSON.stringify(plain)
+    const cached = signatureCache.get(event)
+    if (cached?.fingerprint === fingerprint) return cached.valid
+    const valid = verifyEvent(plain)
+    signatureCache.set(event, {fingerprint, valid})
+    return valid
+  } catch {
+    return false
+  }
+}
 
 function validPolicy(policy: GroupPolicy): boolean {
+  if (!policy) return false
   return [policy.direct, policy.secondDegree].every(
     (n) => Number.isInteger(n) && n >= 1 && n <= MAX_GROUP_THRESHOLD
   )
@@ -210,8 +238,8 @@ function expiration(event: NostrEvent): number | undefined | null {
 }
 
 function validEvent(event: NostrEvent, now: number): boolean {
-  // Validate bounds before parsing or verifying relay input. nostr-tools caches
-  // signature verification on the immutable event object supplied by the store.
+  // Validate bounds before parsing or verifying relay input. Cached verification
+  // is invalidated whenever a protocol field changes.
   if (
     !Number.isSafeInteger(event.created_at) ||
     event.created_at < 0 ||
@@ -230,7 +258,7 @@ function validEvent(event: NostrEvent, now: number): boolean {
   )
     return false
   try {
-    return verifyEvent(event)
+    return signedEventIsValid(event)
   } catch {
     return false
   }
@@ -363,6 +391,74 @@ function parseClaim(event: NostrEvent, group: GroupRef, now: number): MemberClai
   } catch {
     return null
   }
+}
+
+/** Validate before retaining relay data; distinct event IDs may update one state. */
+export function parseGroupEventState(
+  event: NostrEvent,
+  now = Math.floor(Date.now() / 1000)
+): {
+  key: string
+  category: "membership" | "vouch" | "metadata"
+  memberPubkey?: string
+} | null {
+  if (event.kind === GROUP_METADATA_KIND) {
+    const group = parseGroupMetadata(event, now)
+    return group ? {key: groupAddress(group), category: "metadata"} : null
+  }
+  if (event.kind !== GROUP_FACT_KIND || !validEvent(event, now)) return null
+  const address = oneTag(event, "a")
+  if (address?.length !== 1) return null
+  const [kind, creator, id, extra] = address[0].split(":")
+  if (
+    kind !== String(GROUP_METADATA_KIND) ||
+    extra !== undefined ||
+    !PUBKEY.test(creator ?? "") ||
+    !UUID.test(id ?? "")
+  )
+    return null
+  const claim = parseClaim(event, {id, creator}, now)
+  if (!claim) return null
+  const category = claim.membership ? "membership" : "vouch"
+  return {
+    key: JSON.stringify([address[0], event.pubkey, category, claim.member]),
+    category,
+    memberPubkey: claim.member,
+  }
+}
+
+/** Each known author gets its own relay limit, separate from the open join inbox. */
+export function protectedGroupFactFilters(
+  group: GroupRef,
+  memberKeys: Iterable<string>,
+  voucherKeys?: Iterable<string>
+): Filter[] {
+  const members = [...new Set(memberKeys)].filter((key) => PUBKEY.test(key)).sort()
+  const authors = [...new Set(voucherKeys ?? members)]
+    .filter((key) => PUBKEY.test(key))
+    .sort()
+  const address = groupAddress(group)
+  const filters: Filter[] = members.map((author) => ({
+    kinds: [GROUP_FACT_KIND],
+    authors: [author],
+    "#a": [address],
+    "#i": [memberSubject(author)],
+    limit: 16,
+  }))
+  // The creator is already the seed and occurs in every group's p indexes.
+  const targets = members.filter((key) => key !== group.creator)
+  if (targets.length) {
+    for (const author of authors) {
+      filters.push({
+        kinds: [GROUP_FACT_KIND],
+        authors: [author],
+        "#a": [address],
+        "#p": targets,
+        limit: 128,
+      })
+    }
+  }
+  return filters
 }
 
 type Network = {direct: Set<string>; routes: Map<string, string[]>; truncated: boolean}
@@ -532,6 +628,13 @@ export function deriveGroupMembers({
       reason = "Meets direct vouch threshold"
     else if (secondDegreeVouchers.length >= policy.secondDegree)
       reason = "Meets independent second-degree threshold"
+    const evidenceEventIds: string[] = []
+    const joinedEvent = consent.get(pubkey)?.event.id
+    if (joinedEvent) evidenceEventIds.push(joinedEvent)
+    for (const author of [...directVouchers, ...secondDegreeVouchers]) {
+      const vouchEvent = vouches.get(pubkey)?.get(author)?.event.id
+      if (vouchEvent) evidenceEventIds.push(vouchEvent)
+    }
     return {
       pubkey,
       joined: hasConsent,
@@ -540,6 +643,7 @@ export function deriveGroupMembers({
       vouchers,
       directVouchers,
       secondDegreeVouchers,
+      evidenceEventIds,
       directVouches: directVouchers.length,
       secondDegreeVouches: secondDegreeVouchers.length,
     }
@@ -547,12 +651,7 @@ export function deriveGroupMembers({
   const evidenceEventIds = new Set([group.eventId])
   for (const member of members) {
     if (!member.eligible) continue
-    const joinedEvent = consent.get(member.pubkey)?.event.id
-    if (joinedEvent) evidenceEventIds.add(joinedEvent)
-    for (const author of [...member.directVouchers, ...member.secondDegreeVouchers]) {
-      const vouchEvent = vouches.get(member.pubkey)?.get(author)?.event.id
-      if (vouchEvent) evidenceEventIds.add(vouchEvent)
-    }
+    member.evidenceEventIds.forEach((id) => evidenceEventIds.add(id))
   }
   return {
     members,
@@ -583,19 +682,172 @@ export function deriveGroupElectorate(
   })
   if (state.truncated)
     throw new Error("Load the complete trust view before opening a poll")
-  if (
-    state.eligiblePubkeys.size > 512 ||
-    state.authorityPubkeys.size > 257 ||
-    state.evidenceEventIds.length > 2048
-  ) {
+  const selected = new Set(state.authorityPubkeys)
+  if (state.eligiblePubkeys.has(input.group.creator)) selected.add(input.group.creator)
+  if (input.viewer && state.eligiblePubkeys.has(input.viewer)) selected.add(input.viewer)
+  for (const member of [...state.eligiblePubkeys].sort()) {
+    if (selected.size >= 512) break
+    selected.add(member)
+  }
+  const evidence = new Set([input.group.eventId])
+  const seen = new Set<string>()
+  const queue = [...selected]
+  for (let index = 0; index < queue.length; index++) {
+    const pubkey = queue[index]
+    if (seen.has(pubkey)) continue
+    seen.add(pubkey)
+    const member = state.byPubkey.get(pubkey)
+    if (!member?.eligible) continue
+    member.evidenceEventIds.forEach((id) => evidence.add(id))
+    queue.push(...member.directVouchers, ...member.secondDegreeVouchers)
+  }
+  if (state.authorityPubkeys.size > 257 || evidence.size > 2048) {
     throw new Error("This group exceeds the supported poll snapshot size")
   }
   return {
     rootPubkey: state.rootPubkey,
     policyEventId: input.group.eventId,
     policy: {...state.policy},
-    memberPubkeys: [...state.eligiblePubkeys].sort(),
+    memberPubkeys: [...selected].sort(),
     authorityPubkeys: [...state.authorityPubkeys].sort(),
-    evidenceEventIds: state.evidenceEventIds,
+    evidenceEventIds: [...evidence].sort(),
+    memberSnapshotLimited: selected.size < state.eligiblePubkeys.size,
   }
+}
+
+/** Replay a signed poll author's evidence. This proves support, not completeness. */
+export function verifyGroupElectorateEvidence(
+  groupRef: GroupRef,
+  snapshot: GroupElectorate,
+  events: Iterable<NostrEvent>,
+  pollCreatedAt: number
+): {valid: boolean; reason?: string} {
+  const invalid = (reason: string) => ({valid: false, reason})
+  if (
+    !snapshot ||
+    !Array.isArray(snapshot.memberPubkeys) ||
+    !Array.isArray(snapshot.authorityPubkeys) ||
+    !Array.isArray(snapshot.evidenceEventIds) ||
+    !Number.isSafeInteger(pollCreatedAt) ||
+    pollCreatedAt < 0 ||
+    snapshot.rootPubkey !== groupRef.creator ||
+    !validPolicy(snapshot.policy)
+  ) {
+    return invalid("The poll's group policy is invalid")
+  }
+  const members = new Set(snapshot.memberPubkeys)
+  const authority = new Set(snapshot.authorityPubkeys)
+  const evidenceIds = new Set(snapshot.evidenceEventIds)
+  if (
+    !members.size ||
+    members.size > 512 ||
+    authority.size > 257 ||
+    evidenceIds.size > 2048 ||
+    members.size !== snapshot.memberPubkeys.length ||
+    authority.size !== snapshot.authorityPubkeys.length ||
+    evidenceIds.size !== snapshot.evidenceEventIds.length ||
+    [...members].some((key) => !PUBKEY.test(key)) ||
+    [...authority].some((key) => !members.has(key)) ||
+    !evidenceIds.has(snapshot.policyEventId)
+  ) {
+    return invalid("The poll's electorate is malformed")
+  }
+  const received = new Map<string, NostrEvent>()
+  for (const event of events) received.set(event.id, event)
+  const committed: NostrEvent[] = []
+  for (const id of evidenceIds) {
+    const event = received.get(id)
+    if (!event) return invalid("Some signed membership evidence is missing")
+    if (
+      !Number.isSafeInteger(event.created_at) ||
+      event.created_at > pollCreatedAt ||
+      event.created_at < 0
+    ) {
+      return invalid("Membership evidence was created after this poll")
+    }
+    try {
+      if (!signedEventIsValid(event))
+        return invalid("Membership evidence has an invalid signature")
+    } catch {
+      return invalid("Membership evidence has an invalid signature")
+    }
+    committed.push(event)
+  }
+  const policyEvent = received.get(snapshot.policyEventId)
+  const group = policyEvent && parseGroup(policyEvent, pollCreatedAt)
+  if (
+    !group ||
+    group.id !== groupRef.id ||
+    group.creator !== groupRef.creator ||
+    group.policy.direct !== snapshot.policy.direct ||
+    group.policy.secondDegree !== snapshot.policy.secondDegree
+  ) {
+    return invalid("The signed group policy does not match this poll")
+  }
+  const follows = new Map<string, NostrEvent>()
+  for (const event of committed) {
+    if (event.kind === 3) {
+      if (newer(event, follows.get(event.pubkey))) follows.set(event.pubkey, event)
+    } else if (event.kind === GROUP_FACT_KIND || event.kind === GROUP_METADATA_KIND) {
+      const state = parseGroupEventState(event, pollCreatedAt)
+      if (!state || !exactTag(event, "a", groupAddress(groupRef))) {
+        return invalid("The poll includes unrelated or invalid membership evidence")
+      }
+    } else return invalid("The poll includes unsupported membership evidence")
+  }
+  const needsRootFollows = [...authority].some((key) => key !== groupRef.creator)
+  const rootFollowEvent =
+    snapshot.rootFollowEventId && received.get(snapshot.rootFollowEventId)
+  if (
+    (needsRootFollows && !rootFollowEvent) ||
+    (snapshot.rootFollowEventId &&
+      (!evidenceIds.has(snapshot.rootFollowEventId) ||
+        !rootFollowEvent ||
+        rootFollowEvent.kind !== 3 ||
+        rootFollowEvent.pubkey !== groupRef.creator ||
+        follows.get(groupRef.creator)?.id !== rootFollowEvent.id))
+  ) {
+    return invalid("The creator's signed trust list is missing or does not match")
+  }
+  // Reject a known rollback. Absence of a newer relay event is never proof that
+  // none exists, which is why this remains an observed advisory snapshot.
+  if (rootFollowEvent) {
+    for (const event of received.values()) {
+      if (
+        event.kind !== 3 ||
+        event.pubkey !== groupRef.creator ||
+        event.created_at > pollCreatedAt ||
+        !newer(event, rootFollowEvent)
+      )
+        continue
+      try {
+        if (signedEventIsValid(event))
+          return invalid("A newer creator trust list predates this poll")
+      } catch {
+        /* Malformed uncommitted input cannot change the proof. */
+      }
+    }
+  }
+  const getFollows = (pubkey: string): string[] => {
+    const event = follows.get(pubkey)
+    if (!event || expired(event, pollCreatedAt)) return []
+    return event.tags
+      .filter((tag) => tag[0] === "p" && PUBKEY.test(tag[1] ?? ""))
+      .map((tag) => tag[1])
+  }
+  const projected = deriveGroupMembers({
+    group,
+    events: committed,
+    getFollows,
+    now: pollCreatedAt,
+  })
+  if (projected.truncated)
+    return invalid("The signed trust graph exceeds the supported snapshot size")
+  if ([...members].some((key) => !projected.eligiblePubkeys.has(key))) {
+    return invalid("A declared member is not supported by signed consent and vouches")
+  }
+  if ([...authority].some((key) => !projected.authorityPubkeys.has(key))) {
+    return invalid("A declared trusted voter is not an eligible direct contact")
+  }
+  return {valid: true}
 }

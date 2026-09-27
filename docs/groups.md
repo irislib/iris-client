@@ -131,6 +131,12 @@ were vouched for. An admitted member does not gain the power to create more
 trusted voting accounts. `countDistinctTrustedAuthors` counts at most one signal
 per authorized key, including when events are repeated or relayed many times.
 
+The canonical helper source is the library's `trustedAuthors.ts`, introduced in
+commit `40eceb3`. Until a pinned package release includes that commit, this app
+consumes its compiled exports through a reproducible pnpm dependency patch.
+Remove the patch when the package version includes the helper; do not maintain a
+second application implementation.
+
 Member ballots and the trusted result are separate visible counts. A member can
 participate without being in the selected view's authority set; that distinction
 must be explained before voting. Engagement ranking uses distinct authority
@@ -149,16 +155,24 @@ feed limits, diversity, and moderation controls.
 `deriveGroupElectorate` freezes the creator's published policy and observed
 membership view at poll opening. It supplies the metadata event ID, root, policy,
 eligible member keys, authority keys, and positive membership/vouch evidence IDs.
-It refuses a truncated graph view or snapshots above 512 members, 257 authority
-accounts (root plus 256 direct contacts), or 2048 evidence events; it never clips
-an electorate. The publisher separately checks relay loading/readiness and its
-serialized-event size limit.
+It refuses a truncated graph view, more than 257 authority accounts (root plus
+256 direct contacts), or more than 2048 required evidence events. The member
+roster is an explicitly observed subset capped at 512: it preserves every known
+authority account, the creator, and the current publisher before filling the
+remaining slots deterministically. `memberSnapshotLimited` records when member
+discovery or this roster bound omitted accounts. The publisher separately checks
+protected-evidence readiness and its serialized-event size limit. An overflowing
+untrusted join inbox must not block retrieval of known trusted accounts.
 
 The signed poll commits those explicit keys. Later membership, vouch, follow, or
 threshold changes affect new views and polls, not the frozen roster. Positive
 evidence documents the author's observed projection; it cannot prove no facts
-were omitted or that a relay supplied a complete history. A known root contact
-event may be attached as additional evidence by the data store.
+were omitted or that a relay supplied a complete history. The signed root contact
+event is required for non-root authority, and second-degree contact events are
+included when membership depends on those paths. Receivers fetch and replay the
+committed evidence through the same membership rules before enabling counts or
+voting. Missing consent, forged vouches, unrelated policy, unsupported authority,
+and known preopening root-list rollback fail closed.
 
 Self-declared Nostr timestamps also do not prove receipt before a poll closes.
 An eligible key can backdate a late event. Without an independently agreed
