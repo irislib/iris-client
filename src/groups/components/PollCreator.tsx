@@ -5,16 +5,18 @@ import {Avatar} from "@/shared/components/user/Avatar"
 import {ProfileLink} from "@/shared/components/user/ProfileLink"
 import {usePublicKey} from "@/stores/user"
 import {ndk} from "@/utils/ndk"
-import {groupAddress, type GroupRef} from "../model"
+import {groupAddress, verifyGroupElectorateEvidence, type GroupRef} from "../model"
 import {
   assertPollSize,
   buildPollElectorateTags,
+  buildPollEvidenceTags,
   buildPollTags,
   KIND_POLL,
   pollRelayUrls,
   type PollElectorate,
 } from "../polls"
 import {publishGroupEvent} from "../publish"
+import {useGroupEvents} from "../useGroupEvents"
 
 interface PollCreatorProps {
   group: GroupRef
@@ -34,6 +36,20 @@ export default function PollCreator({
   onPublished,
 }: PollCreatorProps) {
   const publicKey = usePublicKey()
+  const [proofRevision, setProofRevision] = useState(0)
+  const evidence = useGroupEvents(
+    electorate
+      ? [{ids: electorate.evidenceEventIds, limit: electorate.evidenceEventIds.length}]
+      : [],
+    electorate?.evidenceEventIds.length ?? 1,
+    {refreshKey: proofRevision}
+  )
+  const proofsReady =
+    !!electorate &&
+    !evidence.loading &&
+    electorate.evidenceEventIds.every((id) =>
+      evidence.events.some((event) => event.id === id)
+    )
   const [question, setQuestion] = useState("")
   const [options, setOptions] = useState(["", ""])
   const [duration, setDuration] = useState(86400)
@@ -59,6 +75,18 @@ export default function PollCreator({
           "Polls use the group creator's membership view. You are not included in that snapshot."
         )
       }
+      if (!proofsReady)
+        throw new Error("Wait for all signed voter proofs before posting the poll.")
+      const verification = verifyGroupElectorateEvidence(
+        group,
+        electorate,
+        evidence.events,
+        Math.floor(Date.now() / 1000)
+      )
+      if (!verification.valid)
+        throw new Error(
+          verification.reason || "The voter snapshot could not be verified."
+        )
       const relays = pollRelayUrls(ndk().explicitRelayUrls)
       if (!relays.length) throw new Error("Connect to a relay before creating a poll.")
       const draft = {
@@ -68,6 +96,7 @@ export default function PollCreator({
           ["h", group.id],
           ["a", groupAddress(group)],
           ...buildPollElectorateTags(electorate),
+          ...buildPollEvidenceTags(electorate, evidence.events),
           ...buildPollTags({
             options,
             endsAt: Math.floor(Date.now() / 1000) + duration,
@@ -197,6 +226,25 @@ export default function PollCreator({
                 Loading the observed voter snapshot…
               </p>
             )}
+            {electorate && !proofsReady && !snapshotLoading && (
+              <p role="status" className="text-xs text-base-content/60">
+                Loading signed voter proofs…
+              </p>
+            )}
+            {evidence.error && (
+              <p role="alert" className="text-sm text-error">
+                {evidence.error}
+              </p>
+            )}
+            {electorate && !proofsReady && !evidence.loading && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setProofRevision((value) => value + 1)}
+              >
+                Retry voter proofs
+              </button>
+            )}
             {snapshotError && (
               <p role="alert" className="text-sm text-error">
                 {snapshotError}
@@ -216,6 +264,7 @@ export default function PollCreator({
                   snapshotLoading ||
                   !!snapshotError ||
                   !electorate ||
+                  !proofsReady ||
                   !publicKey ||
                   !question.trim() ||
                   options.some((option) => !option.trim())

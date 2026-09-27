@@ -24,6 +24,7 @@ export interface Poll {
   relays: string[]
   electorate?: PollElectorate
   groupId?: string
+  evidenceEvents?: SignedEvent[]
 }
 
 const isHex = (value: string) => /^[0-9a-f]{64}$/.test(value)
@@ -108,6 +109,92 @@ export function buildPollElectorateTags(input: PollElectorate): string[][] {
   ]
 }
 
+function verifiedEvidence(event: PollEvent & {sig?: string}): SignedEvent {
+  if (
+    !event ||
+    !isTimestamp(event.created_at) ||
+    event.kind === undefined ||
+    !event.sig
+  ) {
+    throw new Error("A signed voter proof is missing or malformed.")
+  }
+  const raw: SignedEvent = {
+    id: event.id,
+    pubkey: event.pubkey,
+    kind: event.kind,
+    created_at: event.created_at,
+    content: event.content,
+    tags: event.tags,
+    sig: event.sig,
+  }
+  if (!verifyEvent(raw)) throw new Error("A voter proof has an invalid signature.")
+  // Strip verifyEvent's cached marker and any transport metadata from the bundle.
+  return {
+    id: raw.id,
+    pubkey: raw.pubkey,
+    kind: raw.kind,
+    created_at: raw.created_at,
+    content: raw.content,
+    tags: raw.tags,
+    sig: raw.sig,
+  }
+}
+
+/** Carry every committed original signature so replaceable history cannot disappear. */
+export function buildPollEvidenceTags(
+  snapshot: PollElectorate,
+  events: Iterable<PollEvent & {sig?: string}>
+): string[][] {
+  canonicalElectorate(snapshot)
+  const byId = new Map([...events].map((event) => [event.id, event]))
+  const bundle = snapshot.evidenceEventIds
+    .map((id) => {
+      const event = byId.get(id)
+      if (!event)
+        throw new Error("Wait for all signed voter proofs before posting the poll.")
+      return verifiedEvidence(event)
+    })
+    .sort((a, b) => a.id.localeCompare(b.id))
+  const tags = [["iris-evidence-bundle", "1", JSON.stringify(bundle)]]
+  assertPollSize({content: "", tags})
+  return tags
+}
+
+function parsePollEvidence(
+  event: PollEvent,
+  snapshot: PollElectorate | undefined
+): SignedEvent[] | undefined {
+  const bundles = event.tags.filter((tag) => tag[0] === "iris-evidence-bundle")
+  if (!bundles.length) return undefined
+  if (
+    !snapshot ||
+    bundles.length !== 1 ||
+    bundles[0].length !== 3 ||
+    bundles[0][1] !== "1"
+  )
+    throw new Error("Invalid voter evidence bundle")
+  const decoded = JSON.parse(bundles[0][2])
+  if (
+    !Array.isArray(decoded) ||
+    decoded.length !== snapshot.evidenceEventIds.length ||
+    decoded.length > MAX_POLL_EVIDENCE
+  )
+    throw new Error("Incomplete voter evidence bundle")
+  const ids = new Set<string>()
+  const expected = new Set(snapshot.evidenceEventIds)
+  return decoded.map((value) => {
+    const proof = verifiedEvidence(value)
+    if (
+      !expected.has(proof.id) ||
+      ids.has(proof.id) ||
+      proof.created_at > event.created_at!
+    )
+      throw new Error("Voter evidence does not match the poll commitment")
+    ids.add(proof.id)
+    return proof
+  })
+}
+
 function parsePollElectorate(event: PollEvent): PollElectorate | undefined {
   const header = event.tags.filter((tag) => tag[0] === "iris-electorate")
   const voters = event.tags.filter((tag) => tag[0] === "iris-voter")
@@ -163,7 +250,7 @@ export function assertPollSize(draft: {content: string; tags: string[][]}): void
     MAX_POLL_BYTES
   ) {
     throw new Error(
-      "This group's voter snapshot is too large for a poll. No members were excluded."
+      "The signed voter proofs exceed the poll size limit. No voters or proofs were dropped."
     )
   }
 }
@@ -220,8 +307,10 @@ export function parsePoll(event: PollEvent): Poll | null {
   )
     return null
   let electorate: PollElectorate | undefined
+  let evidenceEvents: SignedEvent[] | undefined
   try {
     electorate = parsePollElectorate(event)
+    evidenceEvents = parsePollEvidence(event, electorate)
   } catch {
     return null
   }
@@ -229,6 +318,7 @@ export function parsePoll(event: PollEvent): Poll | null {
     id: event.id,
     question: event.content,
     electorate,
+    evidenceEvents,
     groupId: electorate ? event.tags.find((tag) => tag[0] === "h")?.[1] : undefined,
     createdAt: event.created_at,
     options,
@@ -369,6 +459,7 @@ export function tallyPollElectorate(
 }
 
 export interface PollResponseFilter {
+  [tag: `#${string}`]: string[]
   kinds: number[]
   "#e": string[]
   authors?: string[]
@@ -483,4 +574,34 @@ export function isPollVoter(
   return poll.electorate
     ? snapshotVerified && poll.electorate.memberPubkeys.includes(pubkey)
     : liveEligible
+}
+
+/** Keep a discovered rollback conflict across failed refreshes of the same poll. */
+export function rememberPollRootEvidence(
+  poll: Poll,
+  previous: SignedEvent | undefined,
+  incoming: Iterable<PollEvent & {sig?: string}>
+): SignedEvent | undefined {
+  let latest = previous
+  for (const event of incoming) {
+    if (
+      event.kind !== 3 ||
+      event.pubkey !== poll.electorate?.rootPubkey ||
+      !isTimestamp(event.created_at) ||
+      event.created_at > poll.createdAt
+    )
+      continue
+    try {
+      const candidate = verifiedEvidence(event)
+      if (
+        !latest ||
+        candidate.created_at > latest.created_at ||
+        (candidate.created_at === latest.created_at && candidate.id < latest.id)
+      )
+        latest = candidate
+    } catch {
+      /* An invalid event cannot establish or clear a conflict. */
+    }
+  }
+  return latest
 }

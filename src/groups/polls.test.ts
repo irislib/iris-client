@@ -1,10 +1,19 @@
 import {describe, expect, it} from "vitest"
-import {finalizeEvent} from "nostr-tools"
+import {finalizeEvent, getPublicKey} from "nostr-tools"
+import {
+  createGroupDraft,
+  createMembershipDraft,
+  createVouchDraft,
+  groupAddress,
+  verifyGroupElectorateEvidence,
+} from "./model"
 import {
   assertPollSize,
   pollResponseQueries,
   verifyPollAuthority,
+  rememberPollRootEvidence,
   buildPollElectorateTags,
+  buildPollEvidenceTags,
   tallyPollElectorate,
   buildPollResponseTags,
   buildPollTags,
@@ -462,5 +471,144 @@ describe("frozen poll voting controls", () => {
     expect(isPollVoter(frozen, undefined, true, true)).toBe(false)
     expect(isPollVoter(poll(), hex(4), false, true)).toBe(true)
     expect(isPollVoter(poll(), hex(4), true, false)).toBe(false)
+  })
+})
+
+function archivedPoll() {
+  const rootKey = new Uint8Array(32)
+  rootKey[31] = 1
+  const memberKey = new Uint8Array(32)
+  memberKey[31] = 2
+  const ref = {id: "12345678-1234-4234-8234-123456789abc", creator: getPublicKey(rootKey)}
+  const member = getPublicKey(memberKey)
+  const metadata = finalizeEvent(
+    {...createGroupDraft({...ref, name: "Proof archive"}), created_at: 80},
+    rootKey
+  )
+  const contacts = finalizeEvent(
+    {kind: 3, content: "", tags: [["p", member]], created_at: 81},
+    rootKey
+  )
+  const join = finalizeEvent(
+    {...createMembershipDraft(ref, member, true), created_at: 82},
+    memberKey
+  )
+  const vouch = finalizeEvent(
+    {...createVouchDraft(ref, member, true), created_at: 83},
+    rootKey
+  )
+  const events = [metadata, contacts, join, vouch]
+  const snapshot = {
+    rootPubkey: ref.creator,
+    policyEventId: metadata.id,
+    policy: {direct: 1, secondDegree: 3},
+    memberPubkeys: [ref.creator, member],
+    authorityPubkeys: [ref.creator, member],
+    evidenceEventIds: events.map((event) => event.id),
+    rootFollowEventId: contacts.id,
+    memberSnapshotLimited: false,
+  }
+  const tags = [
+    ["h", ref.id],
+    ["a", groupAddress(ref)],
+    ...buildPollTags({options: ["Yes", "No"], endsAt: 200}),
+    ...buildPollElectorateTags(snapshot),
+    ...buildPollEvidenceTags(snapshot, events),
+  ]
+  const event = finalizeEvent(
+    {kind: 1068, content: "Keep the garden?", tags, created_at: 100},
+    rootKey
+  )
+  return {event, snapshot, events, ref, rootKey}
+}
+
+describe("immutable signed proof archive", () => {
+  it("replays membership and authority using only the signed poll after relay history disappears", () => {
+    const {event, ref} = archivedPoll()
+    const parsed = parsePoll(event)!
+    expect(parsed.evidenceEvents).toHaveLength(4)
+    expect(verifyPollAuthority(parsed, parsed.evidenceEvents!)).toEqual({valid: true})
+    expect(
+      verifyGroupElectorateEvidence(
+        ref,
+        parsed.electorate!,
+        parsed.evidenceEvents!,
+        parsed.createdAt
+      )
+    ).toEqual({valid: true})
+  })
+  it("survives later replacement of group policy and creator contacts", () => {
+    const {event, ref, rootKey} = archivedPoll()
+    const laterPolicy = finalizeEvent(
+      {
+        ...createGroupDraft({
+          ...ref,
+          name: "Changed group",
+          policy: {direct: 2, secondDegree: 4},
+        }),
+        created_at: 150,
+      },
+      rootKey
+    )
+    const laterContacts = finalizeEvent(
+      {kind: 3, content: "", tags: [], created_at: 150},
+      rootKey
+    )
+    const parsed = parsePoll(event)!
+    const available = [...parsed.evidenceEvents!, laterPolicy, laterContacts]
+    expect(verifyPollAuthority(parsed, available).valid).toBe(true)
+    expect(
+      verifyGroupElectorateEvidence(ref, parsed.electorate!, available, parsed.createdAt)
+        .valid
+    ).toBe(true)
+  })
+  it("rejects missing, forged and duplicate archived proofs", () => {
+    const {event} = archivedPoll()
+    const bundle = event.tags.find((tag) => tag[0] === "iris-evidence-bundle")!
+    const originals = JSON.parse(bundle[2])
+    const variants = [
+      originals.slice(1),
+      [...originals.slice(1), originals[1]],
+      originals.map((proof: object, index: number) =>
+        index ? proof : {...proof, sig: "0".repeat(128)}
+      ),
+    ]
+    for (const values of variants) {
+      const altered = {
+        ...event,
+        tags: event.tags.map((tag) =>
+          tag === bundle ? [tag[0], tag[1], JSON.stringify(values)] : tag
+        ),
+      }
+      expect(parsePoll(altered)).toBeNull()
+    }
+  })
+  it("refuses missing or oversized evidence without dropping voters or signatures", () => {
+    const {snapshot, events, rootKey} = archivedPoll()
+    expect(() => buildPollEvidenceTags(snapshot, events.slice(1))).toThrow()
+    const large = finalizeEvent(
+      {kind: 3, content: "x".repeat(70_000), tags: [], created_at: 90},
+      rootKey
+    )
+    expect(() =>
+      buildPollEvidenceTags(
+        {...snapshot, evidenceEventIds: [...snapshot.evidenceEventIds, large.id]},
+        [...events, large]
+      )
+    ).toThrow(/size limit/)
+  })
+})
+
+describe("proof refresh conflict retention", () => {
+  it("keeps a valid pre-opening root-list conflict after an empty or forged refresh", () => {
+    const {poll, proof, secret} = signedElectorate()
+    const newer = finalizeEvent({kind: 3, content: "", tags: [], created_at: 95}, secret)
+    const remembered = rememberPollRootEvidence(poll, undefined, [newer])
+    const afterTimeout = rememberPollRootEvidence(poll, remembered, [])
+    const afterForged = rememberPollRootEvidence(poll, afterTimeout, [
+      {...proof, created_at: 99},
+    ])
+    expect(afterForged?.id).toBe(newer.id)
+    expect(verifyPollAuthority(poll, [proof, afterForged!]).valid).toBe(false)
   })
 })

@@ -153,8 +153,10 @@ export default function PollCard({
 
   if (!poll || !tally)
     return (
-      <div className="space-y-2">
-        <TextNote event={event} />
+      <div className="space-y-2 px-4">
+        <div className="-mx-4">
+          <TextNote event={event} />
+        </div>
         <p className="text-sm text-base-content/60">
           This poll has invalid choices or settings.
         </p>
@@ -193,8 +195,14 @@ export default function PollCard({
   const endLabel = deadline ? `Ends ${deadline}` : "No deadline"
 
   return (
-    <section className="space-y-3" aria-label="Poll" onClick={(e) => e.stopPropagation()}>
-      <TextNote event={event} />
+    <section
+      className="space-y-3 px-4"
+      aria-label="Poll"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="-mx-4">
+        <TextNote event={event} />
+      </div>
       {poll.electorate && (
         <div className="flex flex-wrap gap-2" aria-label="Poll result views">
           <button
@@ -314,7 +322,10 @@ export default function PollCard({
           <button
             type="button"
             className="underline underline-offset-2"
-            onClick={refresh}
+            onClick={() => {
+              refresh()
+              authority.refresh()
+            }}
             disabled={loading}
           >
             {loading ? "Loading…" : "Refresh results"}
@@ -331,6 +342,12 @@ export default function PollCard({
               poll author. Joining or gaining vouches does not grant a trusted vote in
               this poll. One response per public key, not per person.
             </p>
+            {authority.trustListCreatedAt !== undefined && (
+              <p className="mt-1">
+                Creator contact list signed{" "}
+                {new Date(authority.trustListCreatedAt * 1000).toLocaleString()}.
+              </p>
+            )}
             <p className="mt-1">
               Advisory results from observed votes. Missing or backdated votes can change
               totals after closing.
@@ -348,6 +365,7 @@ export default function PollCard({
         )}
         {limited && <p>Showing a limited relay sample; totals may be incomplete.</p>}
         {queryError && <p role="status">{queryError}</p>}
+        {authority.valid && authority.warning && <p role="status">{authority.warning}</p>}
       </div>
       {error && (
         <p role="alert" className="text-sm text-error">
