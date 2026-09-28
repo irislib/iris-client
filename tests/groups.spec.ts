@@ -6,7 +6,7 @@ import {
   nip19,
   type Event,
 } from "nostr-tools"
-import WebSocket from "ws"
+import WebSocket, {WebSocketServer} from "ws"
 import {
   createGroupDraft,
   createMembershipDraft,
@@ -38,6 +38,65 @@ async function publish(event: Event) {
       message[2] ? resolve() : reject(new Error(message[3]))
     })
     socket.on("error", reject)
+  })
+}
+
+for (const partial of [false, true]) {
+  test(`group discovery can retry ${partial ? "partial" : "unavailable"} results`, async ({
+    page,
+  }, testInfo) => {
+    const secret = generateSecretKey()
+    const metadata = finalizeEvent(
+      {
+        ...createGroupDraft({
+          creator: getPublicKey(secret),
+          id: crypto.randomUUID(),
+          name: "Our neighbourhood",
+          description: "Ideas and conversations close to home.",
+        }),
+        created_at: Math.floor(Date.now() / 1000) - 1,
+      },
+      secret
+    )
+    let recovered = false
+    // A real local socket also exercises the app's background relay worker.
+    const relay = new WebSocketServer({host: "127.0.0.1", port: 0})
+    await new Promise<void>((resolve) => relay.once("listening", resolve))
+    relay.on("connection", (socket) => {
+      socket.on("message", (raw) => {
+        const [type, id, ...filters] = JSON.parse(raw.toString())
+        if (type !== "REQ") return
+        const discovery = filters.some((filter) => filter.kinds?.includes(37368))
+        if (discovery && (partial || recovered))
+          socket.send(JSON.stringify(["EVENT", id, metadata]))
+        if (!discovery || recovered) socket.send(JSON.stringify(["EOSE", id]))
+      })
+    })
+    try {
+      const address = relay.address()
+      if (!address || typeof address === "string") throw new Error("Missing relay port")
+      await prepare(page, address.port)
+      await page.goto("/groups")
+      const notice = page.getByRole("status").filter({
+        hasText: partial ? "Some groups may be missing." : "Couldn’t load groups.",
+      })
+      await expect(notice).toBeVisible({timeout: 20000})
+      await expect(page.getByText("Start something together", {exact: true})).toHaveCount(
+        0
+      )
+      const group = page.getByRole("link", {name: /Our neighbourhood/})
+      await expect(group).toHaveCount(partial ? 1 : 0)
+      await page.setViewportSize({width: 390, height: 844})
+      await page.screenshot({path: testInfo.outputPath("discovery-retry-mobile.png")})
+      recovered = true
+      await notice.getByRole("button", {name: "Try again"}).click()
+      await expect(group).toBeVisible()
+      await expect(notice).toHaveCount(0)
+    } finally {
+      await page.close()
+      for (const socket of relay.clients) socket.terminate()
+      await new Promise<void>((resolve) => relay.close(() => resolve()))
+    }
   })
 }
 

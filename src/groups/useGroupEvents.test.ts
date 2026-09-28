@@ -198,7 +198,7 @@ describe("group collection lifecycle", () => {
     expect(subs[1].stopped && subs[2].stopped).toBe(true)
     subs[3].eose()
     expect(collection.getSnapshot().loading).toBe(false)
-    expect(collection.getSnapshot().error).toContain("Refresh")
+    expect(collection.getSnapshot().error).toEqual(expect.any(String))
     first()
     const second = collection.subscribe(() => {})
     subs[5].eose()

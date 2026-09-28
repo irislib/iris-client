@@ -24,7 +24,7 @@ const LOADING: GroupEventSnapshot = {events: [], loading: true, limited: false}
 const HISTORY_BATCH = 16
 const HISTORY_CONCURRENCY = 2
 const HISTORY_TIMEOUT = 12_000
-const PARTIAL_ERROR = "Some relay results are unavailable. Refresh to try again."
+const PARTIAL_ERROR = "Some content couldn’t load."
 type Subscribe = (filters: NDKFilter[], closeOnEose: boolean) => NDKSubscription
 const defaultSubscribe: Subscribe = (filters, closeOnEose) =>
   ndk().subscribe(

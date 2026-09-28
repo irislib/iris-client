@@ -16,11 +16,13 @@ export default function GroupsPage() {
   const publicKey = usePublicKey()
   const [query, setQuery] = useState("")
   const [creating, setCreating] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
   const accounts = useSavedGroups((state) => state.accounts)
   const saved = accounts[publicKey] ?? []
   const discovery = useGroupEvents(
     [{kinds: [37368], "#t": [GROUP_DISCOVERY_TAG], limit: 100}],
-    100
+    100,
+    {refreshKey}
   )
   const known = useGroupEvents(
     saved.map((ref) => ({
@@ -29,7 +31,8 @@ export default function GroupsPage() {
       "#d": [ref.id],
       limit: 1,
     })),
-    100
+    100,
+    {refreshKey}
   )
   const groups = useMemo(
     () =>
@@ -49,6 +52,15 @@ export default function GroupsPage() {
   )
   const create = () =>
     publicKey ? setCreating(true) : useUIStore.getState().setShowLoginDialog(true)
+  const loadError = discovery.error || known.error
+  const retry = (
+    <button
+      className="btn btn-ghost btn-sm"
+      onClick={() => setRefreshKey((value) => value + 1)}
+    >
+      Try again
+    </button>
+  )
   return (
     <div className="flex flex-col h-full">
       <Header
@@ -116,6 +128,11 @@ export default function GroupsPage() {
             <p role="status" className="py-14 text-center text-base-content/60">
               Finding groups…
             </p>
+          ) : loadError ? (
+            <div role="status" className="py-12 text-center text-base-content/60">
+              <p className="mb-3">Couldn’t load groups.</p>
+              {retry}
+            </div>
           ) : (
             <div className="py-12 text-center">
               <h2 className="text-xl font-semibold">
@@ -133,10 +150,14 @@ export default function GroupsPage() {
               )}
             </div>
           )}
-          {discovery.error && (
-            <p role="status" className="mt-4 text-sm text-base-content/60">
-              {discovery.error}
-            </p>
+          {loadError && groups.length > 0 && (
+            <div
+              role="status"
+              className="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
+            >
+              <span>Some groups may be missing.</span>
+              {retry}
+            </div>
           )}
         </div>
       </ScrollablePageContainer>
