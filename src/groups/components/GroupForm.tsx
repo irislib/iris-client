@@ -84,9 +84,6 @@ export default function GroupForm({
             placeholder="What brings you together, and who can join?"
           />
         </label>
-        <p className="text-sm text-base-content/60">
-          Posts, membership and votes are public.
-        </p>
         {error && (
           <p role="alert" className="text-error">
             {error}
