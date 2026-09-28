@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 import {usePublicKey} from "@/stores/user"
 import {useGroupEvents} from "./useGroupEvents"
+import {selectGroupFeedAuthors} from "./groupFeed"
 import {
   deriveGroupMembers,
   deriveGroupFollowLists,
@@ -16,7 +17,11 @@ import {
 export type GroupView = "creator" | "personal"
 export const groupPath = (group: GroupRef) => `/groups/${group.creator}/${group.id}`
 
-export function useGroup(ref: GroupRef, view: GroupView = "creator") {
+export function useGroup(
+  ref: GroupRef,
+  view: GroupView = "creator",
+  reviewMember?: string
+) {
   const publicKey = usePublicKey()
   const [, setClock] = useState(0)
   const now = Math.floor(Date.now() / 1000)
@@ -29,11 +34,6 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
     [{kinds: [37368], authors: [ref.creator], "#d": [ref.id], limit: 5}],
     5
   )
-  // This open inbox is discovery only. Its capacity must never displace known
-  // member evidence or stop trusted polls when outsiders flood join requests.
-  const discovery = useGroupEvents([{kinds: [7368], "#a": [address], limit: 512}], 512, {
-    perAuthorCap: 16,
-  })
   const group = useMemo(
     () =>
       listGroups(metadata.events, now).find(
@@ -48,6 +48,20 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
     [rootFollows.events, root, now]
   )
   const direct = useMemo(() => [...rootContacts].sort().slice(0, 256), [rootContacts])
+  // Do not subscribe to a public join inbox. Direct trust bounds discovery even
+  // when a contact follows or confirms thousands of new identities.
+  const discovery = useGroupEvents(
+    [
+      {
+        kinds: [7368],
+        authors: [...new Set([ref.creator, root, ...direct])],
+        "#a": [address],
+        limit: 512,
+      },
+    ],
+    512,
+    {perAuthorCap: 16}
+  )
   const followLists = useGroupEvents(
     direct.map((author) => ({kinds: [3], authors: [author], limit: 1})),
     256,
@@ -66,9 +80,17 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
   const criticalMembers = useMemo(
     () =>
       [
-        ...new Set([ref.creator, root, ...direct, ...(publicKey ? [publicKey] : [])]),
+        ...new Set([
+          ref.creator,
+          root,
+          ...direct,
+          ...(publicKey ? [publicKey] : []),
+          // An explicitly opened request gets one reserved evidence slot. This
+          // is retrieval only; it never adds the applicant to the trust graph.
+          ...(reviewMember && /^[0-9a-f]{64}$/.test(reviewMember) ? [reviewMember] : []),
+        ]),
       ].sort(),
-    [ref.creator, root, direct, publicKey]
+    [ref.creator, root, direct, publicKey, reviewMember]
   )
   const criticalFilters = useMemo(
     () => protectedGroupFactFilters(ref, criticalMembers),
@@ -111,6 +133,12 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
     for (const member of [...observedMembers].sort()) {
       if (members.size >= 512) break
       members.add(member)
+    }
+    // A member introduced by a direct contact may supply an independent
+    // second-degree confirmation. Fetch their evidence for known targets only;
+    // this does not put their contacts or applicants into the request inbox.
+    for (const member of members) {
+      if (network.has(member)) vouchers.add(member)
     }
     const memberKeys = [...members].sort()
     const voucherKeys = [...vouchers].sort()
@@ -173,6 +201,22 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
   const isEligible = useCallback(
     (pubkey: string) => membership?.eligiblePubkeys.has(pubkey) ?? false,
     [membership]
+  )
+  const visiblePubkeys = useMemo(
+    () =>
+      new Set(
+        selectGroupFeedAuthors(
+          membership?.authorityPubkeys ?? [],
+          membership?.eligiblePubkeys ?? new Set(),
+          publicKey,
+          "trusted"
+        )
+      ),
+    [membership, publicKey]
+  )
+  const isVisibleMember = useCallback(
+    (pubkey: string) => visiblePubkeys.has(pubkey),
+    [visiblePubkeys]
   )
   const loading =
     metadata.loading ||
@@ -267,6 +311,8 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
       group,
       membership,
       isEligible,
+      visiblePubkeys,
+      isVisibleMember,
       canParticipate,
       loading,
       policyLabel,
@@ -290,6 +336,8 @@ export function useGroup(ref: GroupRef, view: GroupView = "creator") {
       group,
       membership,
       isEligible,
+      visiblePubkeys,
+      isVisibleMember,
       canParticipate,
       loading,
       policyLabel,

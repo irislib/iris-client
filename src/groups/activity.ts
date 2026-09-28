@@ -2,7 +2,10 @@ import {verifyEvent, type Event} from "nostr-tools"
 import {groupAddress, groupTags, type GroupRef} from "./model"
 
 type TaggedEvent = {pubkey: string; tags: string[][]; rawEvent?: () => unknown}
-export type GroupActivityAccess = {ref: GroupRef; isEligible: (pubkey: string) => boolean}
+export type GroupActivityAccess = {
+  ref: GroupRef
+  isVisibleMember: (pubkey: string) => boolean
+}
 const signatures = new WeakMap<object, {fingerprint: string; valid: boolean}>()
 
 function validSignature(event: TaggedEvent, raw: Event): boolean {
@@ -56,13 +59,15 @@ export function inheritGroupTags(
   ]
 }
 
-/** Raw activity can be cached; its visibility always uses the current member set. */
+/** Raw activity can be cached; visibility uses the same current trust boundary as posts. */
 export function isVisibleGroupActivity(
   event: TaggedEvent,
   access: GroupActivityAccess | null
 ): boolean {
   if (!access) return true
-  return access.isEligible(event.pubkey) && isAuthenticGroupActivity(event, access.ref)
+  return (
+    access.isVisibleMember(event.pubkey) && isAuthenticGroupActivity(event, access.ref)
+  )
 }
 
 export function isAuthenticGroupActivity(event: TaggedEvent, group: GroupRef): boolean {

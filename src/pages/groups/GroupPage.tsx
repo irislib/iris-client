@@ -1,14 +1,12 @@
 import {useMemo, useRef, useState} from "react"
-import {RiBarChartFill, RiLink, RiSettings3Fill} from "@remixicon/react"
-import {useParams, Link} from "@/navigation"
+import {RiBarChartFill, RiLink, RiQrCodeFill, RiSettings3Fill} from "@remixicon/react"
+import {useParams, useLocation, Link} from "@/navigation"
 import {usePublicKey} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {useToastStore} from "@/stores/toast"
 import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
-import {Avatar} from "@/shared/components/user/Avatar"
-import {Name} from "@/shared/components/user/Name"
-import {ProfileLink} from "@/shared/components/user/ProfileLink"
+import ShareLinkModal from "@/shared/components/ShareLinkModal"
 import Feed from "@/shared/components/feed/Feed"
 import {BaseNoteCreator} from "@/shared/components/notes/BaseNoteCreator"
 import {type NDKEvent} from "@/lib/ndk"
@@ -17,6 +15,7 @@ import {
   createMembershipAttestationDraft,
   groupAddress,
   type GroupRef,
+  type GroupMember,
 } from "@/groups/model"
 import {GroupProvider} from "@/groups/GroupContext"
 import {groupPath, useGroup, type GroupView} from "@/groups/useGroup"
@@ -24,12 +23,18 @@ import {publishGroupEvent} from "@/groups/publish"
 import {useSavedGroups} from "@/groups/savedGroups"
 import GroupForm from "@/groups/components/GroupForm"
 import GroupSettings from "@/groups/components/GroupSettings"
+import GroupMemberRow from "@/groups/components/GroupMemberRow"
 import PollCreator from "@/groups/components/PollCreator"
 import {useGroupFeed} from "@/groups/useGroupFeed"
 import {diversifyGroupFeed} from "@/groups/groupFeed"
 
 export default function GroupPage() {
   const {owner, groupId} = useParams()
+  const location = useLocation()
+  const request = new URL(location.pathname, window.location.origin).searchParams.get(
+    "request"
+  )
+  const reviewMember = request && /^[0-9a-f]{64}$/.test(request) ? request : undefined
   if (
     !/^[0-9a-f]{64}$/.test(owner ?? "") ||
     !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(groupId ?? "")
@@ -44,19 +49,32 @@ export default function GroupPage() {
     )
   }
   return (
-    <GroupContent key={`${owner}:${groupId}`} reference={{id: groupId, creator: owner}} />
+    <GroupContent
+      key={`${owner}:${groupId}:${reviewMember ?? ""}`}
+      reference={{id: groupId, creator: owner}}
+      reviewMember={reviewMember}
+    />
   )
 }
 
-function GroupContent({reference}: {reference: GroupRef}) {
+function GroupContent({
+  reference,
+  reviewMember,
+}: {
+  reference: GroupRef
+  reviewMember?: string
+}) {
   const publicKey = usePublicKey()
-  const [tab, setTab] = useState<"posts" | "polls" | "members">("posts")
+  const [tab, setTab] = useState<"posts" | "polls" | "members">(
+    reviewMember ? "members" : "posts"
+  )
   const [view, setView] = useState<GroupView>("creator")
-  const access = useGroup(reference, view)
+  const access = useGroup(reference, view, reviewMember)
   const {group, membership, canParticipate} = access
   const me = membership?.byPubkey.get(publicKey)
   const [editing, setEditing] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sharingRequest, setSharingRequest] = useState(false)
   const [polling, setPolling] = useState(false)
   const [busy, setBusy] = useState("")
   const actionPending = useRef(false)
@@ -113,12 +131,37 @@ function GroupContent({reference}: {reference: GroupRef}) {
       setError("Could not copy the link. You can copy it from your address bar.")
     }
   }
-  const members =
-    membership?.members.filter(
-      (member) =>
-        member.joined &&
-        (!memberQuery || member.pubkey.includes(memberQuery.toLowerCase()))
+  const visibleMembers =
+    membership?.members.filter((member) => access.visiblePubkeys.has(member.pubkey)) ?? []
+  const members = visibleMembers.filter(
+    (member) =>
+      member.pubkey !== reviewMember &&
+      (!memberQuery || member.pubkey.includes(memberQuery.toLowerCase()))
+  )
+  const requests =
+    membership?.members.filter((member) =>
+      membership.requestPubkeys.has(member.pubkey)
     ) ?? []
+  const reviewedMember = reviewMember ? membership?.byPubkey.get(reviewMember) : undefined
+  const confirmMember = (member: GroupMember) =>
+    action(
+      member.pubkey,
+      createMembershipAttestationDraft(
+        reference,
+        member.pubkey,
+        !member.vouchers.includes(publicKey)
+      )
+    )
+  const memberRow = (member: GroupMember) => (
+    <GroupMemberRow
+      key={member.pubkey}
+      member={member}
+      publicKey={publicKey}
+      creator={reference.creator}
+      busy={busy}
+      onConfirm={canParticipate ? confirmMember : undefined}
+    />
+  )
   const published = (event: NDKEvent) =>
     setInjected((events) => [event, ...events].slice(0, 50))
 
@@ -171,7 +214,10 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     </h1>
                     <p className="text-sm text-base-content/55 mt-2">
                       Public group ·{" "}
-                      <span>{membership?.eligiblePubkeys.size ?? 0} members</span>
+                      <span>
+                        {visibleMembers.length}{" "}
+                        {visibleMembers.length === 1 ? "member" : "members"}
+                      </span>
                     </p>
                   </div>
                   <button
@@ -194,7 +240,9 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     {busy === "membership"
                       ? "Saving…"
                       : me?.joined
-                        ? "Leave group"
+                        ? canParticipate
+                          ? "Leave group"
+                          : "Cancel request"
                         : "Request to join"}
                   </button>
                   {me?.joined && (
@@ -208,6 +256,20 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     </span>
                   )}
                 </div>
+                {me?.joined && !canParticipate && !access.loading && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-base-content/70">
+                      Ask a member who knows you to confirm you.
+                    </p>
+                    <button
+                      className="btn btn-sm btn-primary gap-2"
+                      onClick={() => setSharingRequest(true)}
+                    >
+                      <RiQrCodeFill size={18} />
+                      Share request
+                    </button>
+                  </div>
+                )}
                 {!me?.joined && (
                   <p className="text-xs text-base-content/50 mt-2">
                     Membership is public.
@@ -246,6 +308,14 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     onClick={() => setTab(item)}
                   >
                     {item[0].toUpperCase() + item.slice(1)}
+                    {item === "members" && canParticipate && requests.length > 0 && (
+                      <span
+                        className="badge badge-sm ml-2"
+                        aria-label={`${requests.length} join ${requests.length === 1 ? "request" : "requests"}`}
+                      >
+                        {requests.length}
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -333,6 +403,66 @@ function GroupContent({reference}: {reference: GroupRef}) {
                 </>
               ) : (
                 <section className="px-5 py-5">
+                  {reviewMember && (
+                    <section aria-label="Membership request" className="mb-5">
+                      <h2 className="font-semibold">Membership request</h2>
+                      {access.loading ? (
+                        <p className="text-sm py-4">Opening request…</p>
+                      ) : reviewedMember?.joined ? (
+                        <>
+                          {!reviewedMember.eligible && canParticipate && (
+                            <p className="text-sm text-base-content/65 mt-2">
+                              Confirm only if you know this person and they meet the
+                              group’s membership requirements.
+                            </p>
+                          )}
+                          {memberRow(reviewedMember)}
+                          {!publicKey && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              onClick={() =>
+                                useUIStore.getState().setShowLoginDialog(true)
+                              }
+                            >
+                              Sign in to confirm
+                            </button>
+                          )}
+                          {publicKey && !canParticipate && reviewMember !== publicKey && (
+                            <p className="text-sm text-base-content/65">
+                              A current member needs to confirm this request.
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p role="status" className="text-sm py-4">
+                          No active request from this person.
+                        </p>
+                      )}
+                    </section>
+                  )}
+                  {canParticipate &&
+                    requests.some((member) => member.pubkey !== reviewMember) && (
+                      <section aria-label="Join requests" className="mb-5">
+                        <h2 className="font-semibold">Join requests</h2>
+                        <p className="text-sm text-base-content/65 mt-2">
+                          Confirm people you know who meet the group’s membership
+                          requirements.
+                        </p>
+                        {requests
+                          .filter((member) => member.pubkey !== reviewMember)
+                          .slice(0, memberLimit)
+                          .map(memberRow)}
+                        {requests.length > memberLimit && (
+                          <button
+                            className="btn btn-ghost w-full"
+                            onClick={() => setMemberLimit((count) => count + 50)}
+                          >
+                            Show more requests
+                          </button>
+                        )}
+                      </section>
+                    )}
+                  <h2 className="font-semibold">Members</h2>
                   {members.length > 20 && (
                     <input
                       className="input input-bordered w-full mb-4"
@@ -342,60 +472,7 @@ function GroupContent({reference}: {reference: GroupRef}) {
                       onChange={(event) => setMemberQuery(event.target.value)}
                     />
                   )}
-                  {members.slice(0, memberLimit).map((member) => (
-                    <div
-                      key={member.pubkey}
-                      className="flex items-start gap-3 py-4"
-                      data-testid="group-member"
-                      data-pubkey={member.pubkey}
-                    >
-                      <ProfileLink pubKey={member.pubkey}>
-                        <Avatar pubKey={member.pubkey} width={42} />
-                      </ProfileLink>
-                      <div className="min-w-0 flex-1">
-                        <ProfileLink pubKey={member.pubkey}>
-                          <Name pubKey={member.pubkey} className="font-semibold" />
-                        </ProfileLink>
-                        <p className="text-sm text-base-content/55 mt-1">
-                          {member.reason.replace(/vouch/g, "confirmation")}
-                        </p>
-                        {member.directVouches + member.secondDegreeVouches > 0 && (
-                          <details className="text-xs mt-2 text-base-content/55">
-                            <summary className="cursor-pointer">Confirmations</summary>
-                            <div className="flex flex-wrap gap-2 pt-2">
-                              {member.vouchers.slice(0, 20).map((key) => (
-                                <ProfileLink key={key} pubKey={key}>
-                                  <Name pubKey={key} />
-                                </ProfileLink>
-                              ))}
-                            </div>
-                          </details>
-                        )}
-                      </div>
-                      {canParticipate && member.pubkey !== publicKey && (
-                        <button
-                          disabled={!!busy}
-                          className="btn btn-ghost btn-sm shrink-0"
-                          onClick={() =>
-                            action(
-                              member.pubkey,
-                              createMembershipAttestationDraft(
-                                reference,
-                                member.pubkey,
-                                !member.vouchers.includes(publicKey)
-                              )
-                            )
-                          }
-                        >
-                          {busy === member.pubkey
-                            ? "Saving…"
-                            : member.vouchers.includes(publicKey)
-                              ? "Withdraw confirmation"
-                              : "Confirm membership"}
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {members.slice(0, memberLimit).map(memberRow)}
                   {members.length > memberLimit && (
                     <button
                       className="btn btn-ghost w-full"
@@ -409,6 +486,18 @@ function GroupContent({reference}: {reference: GroupRef}) {
             </>
           )}
         </ScrollablePageContainer>
+        {sharingRequest && me?.joined && !canParticipate && (
+          <ShareLinkModal
+            title="Share your request"
+            url={
+              new URL(
+                `${groupPath(reference)}?request=${publicKey}`,
+                window.location.origin
+              ).href
+            }
+            onClose={() => setSharingRequest(false)}
+          />
+        )}
         {settingsOpen && group && (
           <GroupSettings
             group={group}

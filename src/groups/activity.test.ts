@@ -29,7 +29,7 @@ describe("group activity visibility", () => {
   it("re-evaluates cached activity when membership or the selected view changes", () => {
     const events = [signed(), signed(otherKey)]
     const eligible = new Set([author])
-    const access = {ref, isEligible: (pubkey: string) => eligible.has(pubkey)}
+    const access = {ref, isVisibleMember: (pubkey: string) => eligible.has(pubkey)}
     const visible = () =>
       events
         .filter((event) => isVisibleGroupActivity(event, access))
@@ -42,7 +42,7 @@ describe("group activity visibility", () => {
   })
 
   it("rejects forged signatures, a different group, and ambiguous group references", () => {
-    const access = {ref, isEligible: () => true}
+    const access = {ref, isVisibleMember: () => true}
     const original = signed()
     expect(isVisibleGroupActivity(original, access)).toBe(true)
     const copiedForgery = {...original, content: "copied forged"}
@@ -83,7 +83,7 @@ describe("group activity visibility", () => {
   })
 
   it("counts a zap by its signed request author and requires the correct target", () => {
-    const access = {ref, isEligible: (pubkey: string) => pubkey === author}
+    const access = {ref, isVisibleMember: (pubkey: string) => pubkey === author}
     const request = signed(key, [...groupTags(ref), ["e", target]], 9734)
     const zap = {
       pubkey: author,

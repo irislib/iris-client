@@ -4,6 +4,7 @@ import {NDKEvent, NDKFilter} from "@/lib/ndk"
 
 import {useGroupEvents} from "@/groups/useGroupEvents"
 import {groupTags} from "@/groups/model"
+import {isVisibleGroupActivity} from "@/groups/activity"
 import {ndk} from "@/utils/ndk"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {PerfProfiler} from "@/utils/reactProfiler"
@@ -112,16 +113,8 @@ const Feed = memo(function Feed({
     return baseFilters
   }, [feedConfig.filter, feedConfig.followDistance, follows, myPubKey])
 
-  // Thread replies use the same member boundary and per-author query budgets.
-  const groupAuthors = groupAccess
-    ? [
-        ...new Set([
-          ...(groupAccess.membership?.authorityPubkeys ?? []),
-          ...(myPubKey && groupAccess.isEligible(myPubKey) ? [myPubKey] : []),
-          ...(groupAccess.membership?.eligiblePubkeys ?? []),
-        ]),
-      ].slice(0, 512)
-    : []
+  // Thread replies share the post feed's trust boundary and per-author budgets.
+  const groupAuthors = groupAccess ? [...groupAccess.visiblePubkeys] : []
   const groupFilters: NDKFilter[] =
     groupAccess && !suppliedEventSource && enabled
       ? (subscriptionFilters?.length ? subscriptionFilters : [filters]).map((filter) => ({
@@ -154,6 +147,7 @@ const Feed = memo(function Feed({
     ]) {
       const reply = getEventReplyReference(event)
       if (
+        !isVisibleGroupActivity(event, groupAccess) ||
         (feedConfig.hideReplies && reply) ||
         (feedConfig.requiresReplies && !reply) ||
         (feedConfig.repliesTo && reply !== feedConfig.repliesTo)

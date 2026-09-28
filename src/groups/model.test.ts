@@ -284,17 +284,25 @@ describe("group facts and membership", () => {
 
   it("does not let a compromised trusted member mint authority through 1000 admissions", () => {
     const events = [join(3), vouch(1, 3)]
+    const requests = [...events, join(4)]
     const bots: string[] = []
     for (let n = 100; n < 1100; n++) {
       bots.push(pub(n))
-      events.push(join(n), vouch(3, n))
+      const request = join(n)
+      requests.push(request)
+      events.push(request, vouch(3, n))
     }
-    const getFollows = (p: string) => (p === pub(1) ? [pub(3)] : [])
+    const getFollows = (p: string) =>
+      p === pub(1) ? [pub(3), pub(4)] : p === pub(3) ? bots : []
+    const pending = deriveGroupMembers({group, events: requests, now: 200, getFollows})
+    expect(pending.requestPubkeys).toEqual(new Set([pub(4)]))
+    expect(pending.eligiblePubkeys).toEqual(new Set([pub(1), pub(3)]))
     const members = deriveGroupMembers({group, events, now: 200, getFollows})
     // Membership fan-out remains visible; it never silently becomes authority.
     expect(members.eligiblePubkeys.size).toBe(1002)
     expect(members.authorityPubkeys).toEqual(new Set([pub(1), pub(3)]))
     expect(bots.filter((p) => members.authorityPubkeys.has(p))).toHaveLength(0)
+    expect(members.requestPubkeys.size).toBe(0)
     const snapshot = deriveGroupElectorate({
       group,
       events,

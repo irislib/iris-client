@@ -4,9 +4,12 @@ import {
   getPublicKey,
   finalizeEvent,
   nip19,
+  matchFilters,
+  type Filter,
   type Event,
 } from "nostr-tools"
 import WebSocket, {WebSocketServer} from "ws"
+import jsQR from "jsqr"
 import {
   createGroupDraft,
   createMembershipDraft,
@@ -23,9 +26,9 @@ async function prepare(page: Page, port = 7777) {
   }, port)
 }
 
-async function publish(event: Event) {
+async function publish(event: Event, relayUrl = "ws://127.0.0.1:7777") {
   await new Promise<void>((resolve, reject) => {
-    const socket = new WebSocket("ws://127.0.0.1:7777")
+    const socket = new WebSocket(relayUrl)
     const timeout = setTimeout(() => {
       socket.close()
       reject(new Error("Relay did not acknowledge fixture"))
@@ -163,13 +166,64 @@ test("group creation, membership, posts, polls and direct links preserve access"
     memberPage.getByText("Awaiting membership confirmation", {exact: true})
   ).toBeVisible({timeout: 15000})
   await expect(memberPage.getByPlaceholder(`Post to ${groupName}`)).toHaveCount(0)
+  await expect(
+    memberPage.getByText("Ask a member who knows you to confirm you.", {exact: true})
+  ).toBeVisible()
+  await memberPage.setViewportSize({width: 390, height: 844})
+  await memberPage.screenshot({
+    path: testInfo.outputPath("membership-pending-mobile.png"),
+  })
+  await memberPage.getByRole("button", {name: "Share request", exact: true}).click()
+  const shareRequest = memberPage.getByRole("dialog")
+  const requestUrl = await shareRequest.getByLabel("Link", {exact: true}).inputValue()
+  expect(requestUrl).toBe(`${url}?request=${member}`)
+  const qr = shareRequest.getByRole("img", {name: "QR code", exact: true})
+  await expect(qr).toBeVisible()
+  const pixels = await qr.evaluate((element: HTMLImageElement) => {
+    const canvas = document.createElement("canvas")
+    canvas.width = element.naturalWidth
+    canvas.height = element.naturalHeight
+    const context = canvas.getContext("2d")!
+    context.drawImage(element, 0, 0)
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      data: Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data),
+    }
+  })
+  expect(
+    jsQR(new Uint8ClampedArray(pixels.data), pixels.width, pixels.height)?.data
+  ).toBe(requestUrl)
+  await memberPage.screenshot({path: testInfo.outputPath("membership-qr-mobile.png")})
+  await memberPage.keyboard.press("Escape")
   await page.getByRole("tab", {name: /^members$/i}).click()
   const memberRow = page.locator(`[data-testid="group-member"][data-pubkey="${member}"]`)
+  // Unsolicited applicants stay out of the inbox. A shared link is an explicit review.
+  await expect(memberRow).toHaveCount(0)
+  await memberPage.getByRole("button", {name: "Cancel request", exact: true}).click()
+  await expect(
+    memberPage.getByRole("button", {name: "Request to join", exact: true})
+  ).toBeVisible()
+  await page.goto(requestUrl)
+  await expect(
+    page.getByText("No active request from this person.", {exact: true})
+  ).toBeVisible()
+  await expect(memberRow).toHaveCount(0)
+  await memberPage.getByRole("button", {name: "Request to join", exact: true}).click()
   await expect(memberRow).toBeVisible()
+  await expect(
+    memberPage.getByText("Awaiting membership confirmation", {exact: true})
+  ).toBeVisible()
+  await page.setViewportSize({width: 390, height: 844})
+  await page.screenshot({path: testInfo.outputPath("membership-review-mobile.png")})
   await memberRow.getByRole("button", {name: "Confirm membership", exact: true}).click()
   await expect(memberPage.getByText("You’re a member", {exact: true})).toBeVisible({
     timeout: 15000,
   })
+  await expect(
+    memberPage.getByRole("button", {name: "Share request", exact: true})
+  ).toHaveCount(0)
+  await expect(memberRow.getByText("Member", {exact: true})).toBeVisible()
 
   // A trusted member is explicitly followed; admission alone cannot mint voting authority.
   await publish(
@@ -245,9 +299,27 @@ test("group creation, membership, posts, polls and direct links preserve access"
       memberKey
     )
   )
-  await expect(page.getByText("3 members", {exact: true})).toBeVisible({
+  await page.goto(`${url}?request=${getPublicKey(outsiderKey)}`)
+  await expect(
+    page
+      .locator(`[data-testid="group-member"][data-pubkey="${getPublicKey(outsiderKey)}"]`)
+      .getByText("Member", {exact: true})
+  ).toBeVisible({
     timeout: 15000,
   })
+  await expect(page.getByText("2 members", {exact: true})).toBeVisible()
+  await expect(post.getByTestId("like-count")).toHaveText("1")
+  await publish(
+    finalizeEvent(
+      {
+        kind: 1,
+        content: "Admitted identities cannot spam replies",
+        tags: [...groupTags(group), ["e", postId!, "", "root"], ["p", member]],
+        created_at: Math.floor(Date.now() / 1000),
+      },
+      outsiderKey
+    )
+  )
   await expect(
     memberPage.getByText("Unvouched spam should stay out", {exact: true})
   ).toHaveCount(0)
@@ -327,6 +399,9 @@ test("group creation, membership, posts, polls and direct links preserve access"
   ).toBeVisible()
 
   await memberPage.goto(`${new URL(url).origin}/${nip19.noteEncode(postId!)}`)
+  await expect(
+    memberPage.getByText("Admitted identities cannot spam replies", {exact: true})
+  ).toHaveCount(0)
   const reply = memberPage.getByPlaceholder("Write your reply...")
   await reply.fill("I can help organise it.")
   await memberPage.getByRole("button", {name: "Reply", exact: true}).last().click()
@@ -407,6 +482,191 @@ test("group creation, membership, posts, polls and direct links preserve access"
   })
   await visitor.close()
   await memberContext.close()
+})
+
+test("only direct contacts enter the request inbox, even when a contact introduces a swarm", async ({
+  page,
+}, testInfo) => {
+  const ownerKey = generateSecretKey()
+  const knownKey = generateSecretKey()
+  const compromisedKey = generateSecretKey()
+  const creator = getPublicKey(ownerKey)
+  const known = getPublicKey(knownKey)
+  const compromised = getPublicKey(compromisedKey)
+  const group = {creator, id: crypto.randomUUID()}
+  const now = Math.floor(Date.now() / 1000) - 2
+  const bots = Array.from({length: 100}, () => generateSecretKey())
+  const botAuthors = new Set(bots.map((key) => getPublicKey(key)))
+  const events: Event[] = [
+    finalizeEvent(
+      {...createGroupDraft({...group, name: "Neighbourhood"}), created_at: now},
+      ownerKey
+    ),
+    finalizeEvent(
+      {
+        kind: 3,
+        content: "",
+        tags: [
+          ["p", known],
+          ["p", compromised],
+        ],
+        created_at: now,
+      },
+      ownerKey
+    ),
+    finalizeEvent(
+      {
+        kind: 3,
+        content: "",
+        tags: [...botAuthors].map((key) => ["p", key]),
+        created_at: now,
+      },
+      compromisedKey
+    ),
+    finalizeEvent(
+      {...createMembershipDraft(group, known, true), created_at: now},
+      knownKey
+    ),
+    finalizeEvent(
+      {...createMembershipDraft(group, compromised, true), created_at: now},
+      compromisedKey
+    ),
+    finalizeEvent(
+      {...createMembershipAttestationDraft(group, compromised, true), created_at: now},
+      ownerKey
+    ),
+    ...bots.map((key) =>
+      finalizeEvent(
+        {...createMembershipDraft(group, getPublicKey(key), true), created_at: now},
+        key
+      )
+    ),
+  ]
+  const factFilters: Filter[] = []
+  const relay = new WebSocketServer({host: "127.0.0.1", port: 0})
+  await new Promise<void>((resolve) => relay.once("listening", resolve))
+  relay.on("connection", (socket) =>
+    socket.on("message", (raw) => {
+      const [type, id, ...filters] = JSON.parse(raw.toString())
+      if (type === "EVENT") {
+        socket.send(JSON.stringify(["OK", id.id, true, ""]))
+        return
+      }
+      if (type !== "REQ") return
+      factFilters.push(
+        ...filters.filter((filter: Filter) => filter.kinds?.includes(7368))
+      )
+      for (const event of events) {
+        // A relay may send unsolicited events. The client must reject those too.
+        if (
+          matchFilters(filters, event) ||
+          (event.kind === 7368 && botAuthors.has(event.pubkey))
+        ) {
+          socket.send(JSON.stringify(["EVENT", id, event]))
+        }
+      }
+      socket.send(JSON.stringify(["EOSE", id]))
+    })
+  )
+  try {
+    const address = relay.address()
+    if (!address || typeof address === "string") throw new Error("Missing relay port")
+    await prepare(page, address.port)
+    await signUp(page, nip19.nsecEncode(ownerKey))
+    const path = `/groups/${creator}/${group.id}`
+    await page.goto(path)
+    await expect(page.getByText("You’re a member", {exact: true})).toBeVisible()
+    await page.getByRole("tab", {name: /^Members/}).click()
+    const inbox = page.getByRole("region", {name: "Join requests", exact: true})
+    await expect(inbox.getByTestId("group-member")).toHaveCount(1)
+    await expect(inbox.locator(`[data-pubkey="${known}"]`)).toBeVisible()
+    await expect(page.getByTestId("group-member")).toHaveCount(3)
+    await expect(page.getByText("2 members", {exact: true})).toBeVisible()
+    expect(factFilters.length).toBeGreaterThan(0)
+    expect(factFilters.every((filter) => filter.authors?.length)).toBe(true)
+    await page.setViewportSize({width: 390, height: 844})
+    await page.screenshot({path: testInfo.outputPath("membership-inbox-mobile.png")})
+    // A URL with no signed join request cannot manufacture a confirmable applicant.
+    await page.goto(`${path}?request=${getPublicKey(generateSecretKey())}`)
+    const review = page.getByRole("region", {name: "Membership request", exact: true})
+    await expect(
+      review.getByText("No active request from this person.", {exact: true})
+    ).toBeVisible()
+    await expect(
+      review.getByRole("button", {name: "Confirm membership", exact: true})
+    ).toHaveCount(0)
+  } finally {
+    await page.close()
+    for (const socket of relay.clients) socket.terminate()
+    await new Promise<void>((resolve) => relay.close(() => resolve()))
+  }
+})
+
+test("a shared request still accepts three independent confirmations", async ({page}) => {
+  const ownerKey = generateSecretKey()
+  const applicantKey = generateSecretKey()
+  const creator = getPublicKey(ownerKey)
+  const applicant = getPublicKey(applicantKey)
+  const group = {creator, id: crypto.randomUUID()}
+  const bridges = Array.from({length: 3}, () => generateSecretKey())
+  const helpers = Array.from({length: 3}, () => generateSecretKey())
+  const seed = (draft: Pick<Event, "kind" | "content" | "tags">, key: Uint8Array) =>
+    finalizeEvent({...draft, created_at: Math.floor(Date.now() / 1000) - 2}, key)
+  const initialEvents = [
+    seed(createGroupDraft({...group, name: "Independent confirmations"}), ownerKey),
+    seed(
+      {kind: 3, content: "", tags: bridges.map((key) => ["p", getPublicKey(key)])},
+      ownerKey
+    ),
+    seed(createMembershipDraft(group, applicant, true), applicantKey),
+    ...bridges.flatMap((key, index) => [
+      seed({kind: 3, content: "", tags: [["p", getPublicKey(helpers[index])]]}, key),
+      seed(createMembershipDraft(group, getPublicKey(key), true), key),
+      seed(createMembershipAttestationDraft(group, getPublicKey(key), true), ownerKey),
+      seed(
+        createMembershipDraft(group, getPublicKey(helpers[index]), true),
+        helpers[index]
+      ),
+      seed(
+        createMembershipAttestationDraft(group, getPublicKey(helpers[index]), true),
+        key
+      ),
+    ]),
+    ...helpers
+      .slice(0, 2)
+      .map((key) => seed(createMembershipAttestationDraft(group, applicant, true), key)),
+  ]
+  const relay = await startNostrRelay({port: 0, initialEvents})
+  try {
+    await prepare(page, relay.port)
+    await signUp(page, nip19.nsecEncode(applicantKey))
+    await page.goto(`/groups/${creator}/${group.id}?request=${applicant}`)
+    await expect(
+      page.getByText("Awaiting membership confirmation", {exact: true})
+    ).toBeVisible()
+    await expect(
+      page.getByRole("button", {name: "Confirm membership", exact: true})
+    ).toHaveCount(0)
+    await publish(
+      finalizeEvent(
+        {
+          ...createMembershipAttestationDraft(group, applicant, true),
+          created_at: Math.floor(Date.now() / 1000),
+        },
+        helpers[2]
+      ),
+      relay.url
+    )
+    await expect(page.getByText("You’re a member", {exact: true})).toBeVisible({
+      timeout: 15000,
+    })
+    await expect(
+      page.getByRole("button", {name: "Share request", exact: true})
+    ).toHaveCount(0)
+  } finally {
+    await page.close()
+    await relay.close()
+  }
 })
 
 test("a rejected group post keeps its draft and does not appear as confirmed", async ({

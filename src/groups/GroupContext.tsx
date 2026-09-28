@@ -23,7 +23,7 @@ export function useGroupVisibility() {
               return (
                 !ref ||
                 groupAddress(ref) !== groupAddress(access.ref) ||
-                !access.isEligible(event.pubkey)
+                !access.isVisibleMember(event.pubkey)
               )
             },
           }

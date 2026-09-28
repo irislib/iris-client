@@ -52,6 +52,8 @@ export type GroupMembers = {
   eligiblePubkeys: Set<string>
   /** Eligible root/direct accounts; membership never delegates this authority. */
   authorityPubkeys: Set<string>
+  /** Pending requests from the root's direct contacts; referrals cannot fill this inbox. */
+  requestPubkeys: Set<string>
   /** Positive fact evidence for this observed projection, not proof of completeness. */
   evidenceEventIds: string[]
   view: GroupView
@@ -463,7 +465,7 @@ export function parseGroupEventState(
   }
 }
 
-/** Each known author gets its own relay limit, separate from the open join inbox. */
+/** Each known author gets its own relay limit, separate from discovery. */
 export function protectedGroupFactFilters(
   group: GroupRef,
   memberKeys: Iterable<string>,
@@ -714,6 +716,13 @@ export function deriveGroupMembers({
     authorityPubkeys: chooseTrustedAuthors({
       rootPubkey,
       eligibleAuthors: eligiblePubkeys,
+      directFollows: network.direct,
+    }),
+    requestPubkeys: chooseTrustedAuthors({
+      rootPubkey,
+      eligibleAuthors: members
+        .filter((member) => member.joined && !member.eligible)
+        .map((member) => member.pubkey),
       directFollows: network.direct,
     }),
     evidenceEventIds: [...evidenceEventIds].sort(),

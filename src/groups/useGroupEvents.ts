@@ -119,7 +119,7 @@ export class GroupEventCollection {
             if (
               !isVisibleGroupZap({pubkey: author, event}, options.zap!.targetId, {
                 ref: options.zap!.ref,
-                isEligible: (pubkey) => zapAuthors.has(pubkey),
+                isVisibleMember: (pubkey) => zapAuthors.has(pubkey),
               })
             )
               return null

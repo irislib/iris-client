@@ -8,8 +8,7 @@ import {useGroupEvents} from "./useGroupEvents"
 /** Receipt signers are payment services; #P indexes the signed request's member. */
 export function useGroupZaps(targetId: string, enabled = true) {
   const group = useGroupAccess()
-  const authors =
-    group && enabled ? [...(group.membership?.eligiblePubkeys ?? [])].sort() : []
+  const authors = group && enabled ? [...group.visiblePubkeys].sort() : []
   const retainedPerAuthor = Math.max(
     1,
     Math.min(32, Math.floor(8192 / Math.max(1, authors.length)))

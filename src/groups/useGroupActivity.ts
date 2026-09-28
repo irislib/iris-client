@@ -5,14 +5,14 @@ import {groupAddress} from "./model"
 import {isVisibleGroupActivity} from "./activity"
 import {useGroupEvents} from "./useGroupEvents"
 
-/** Only eligible authors occupy history slots; one prolific author has its own cap. */
+/** Only visible authors occupy history slots; one prolific author has its own cap. */
 export function useGroupActivity(
   filters: NDKFilter[],
   perAuthorCap = 32,
   enabled = true
 ) {
   const group = useGroupAccess()
-  const authors = group ? [...(group.membership?.eligiblePubkeys ?? [])].sort() : []
+  const authors = group ? [...group.visiblePubkeys].sort() : []
   const retainedPerAuthor = Math.max(
     1,
     Math.min(perAuthorCap, Math.floor(8192 / Math.max(1, authors.length)))

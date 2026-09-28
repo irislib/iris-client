@@ -9,8 +9,7 @@ import type {GroupActivityAccess} from "@/groups/activity"
 import {useReactionsByAuthor} from "./useReactions"
 
 const state = vi.hoisted(() => ({
-  access: null as
-    (GroupActivityAccess & {membership: {eligiblePubkeys: Set<string>}}) | null,
+  access: null as (GroupActivityAccess & {visiblePubkeys: Set<string>}) | null,
   listeners: new Set<(event: NDKEvent) => void>(),
   filters: [] as NDKFilter[][],
 }))
@@ -55,8 +54,8 @@ const reaction = (secret: Uint8Array, time = 100) =>
   )
 const access = (...authors: string[]) => ({
   ref,
-  membership: {eligiblePubkeys: new Set(authors)},
-  isEligible: (pubkey: string) => authors.includes(pubkey),
+  visiblePubkeys: new Set(authors),
+  isVisibleMember: (pubkey: string) => authors.includes(pubkey),
 })
 function Counter() {
   const reactions = useReactionsByAuthor(targetId)
@@ -70,7 +69,7 @@ afterEach(() => {
 })
 
 describe("group reaction subscriptions", () => {
-  it("rejects outsider floods at admission and reloads per member when eligibility changes", async () => {
+  it("rejects untrusted floods and reloads per author when the visible trust set changes", async () => {
     ;(
       globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}
     ).IS_REACT_ACT_ENVIRONMENT = true
