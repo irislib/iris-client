@@ -84,13 +84,8 @@ export default function GroupForm({
             placeholder="What brings you together, and who can join?"
           />
         </label>
-        <p className="text-sm text-base-content/65">
-          People request to join, then an existing member confirms their membership. Your
-          network determines whose confirmations count. Following a member also gives that
-          account a trusted vote in future polls.
-        </p>
         <p className="text-sm text-base-content/60">
-          Anyone can read. Membership, confirmations, posts and votes are public.
+          Posts, membership and votes are public.
         </p>
         {error && (
           <p role="alert" className="text-error">

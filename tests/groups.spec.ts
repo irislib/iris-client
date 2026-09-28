@@ -14,6 +14,7 @@ import {
   groupTags,
 } from "../src/groups/model"
 import {signUp} from "./auth.setup"
+import {expectPersistedDraft} from "./utils/drafts"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 
 async function prepare(page: Page, port = 7777) {
@@ -125,6 +126,21 @@ test("group creation, membership, posts, polls and direct links preserve access"
   await expect(page.getByText("You’re a member", {exact: true})).toBeVisible({
     timeout: 20000,
   })
+  await expect(page.getByLabel("Trust view")).toHaveCount(0)
+  await expect(page.getByLabel("Feed members")).toHaveCount(0)
+  await expect(page.getByText(/Membership needs/)).toHaveCount(0)
+  await page.getByRole("button", {name: "Group settings", exact: true}).click()
+  const settings = page.getByRole("dialog")
+  await expect(settings.getByLabel("Trust view")).toBeHidden()
+  await settings.getByText("Advanced", {exact: true}).click()
+  await expect(settings.getByLabel("Trust view")).toBeVisible()
+  await settings.getByLabel("Trust view").selectOption("personal")
+  await settings.getByRole("button", {name: "Done", exact: true}).click()
+  await expect(page.getByRole("button", {name: "My network", exact: true})).toBeVisible()
+  await page.getByRole("button", {name: "Group settings", exact: true}).click()
+  await settings.getByText("Advanced", {exact: true}).click()
+  await settings.getByLabel("Trust view").selectOption("creator")
+  await settings.getByRole("button", {name: "Done", exact: true}).click()
   const url = page.url()
   const group = {creator, id: new URL(url).pathname.split("/").pop()!}
 
@@ -158,10 +174,14 @@ test("group creation, membership, posts, polls and direct links preserve access"
       creatorKey
     )
   )
-  await memberPage
-    .getByPlaceholder(`Post to ${groupName}`)
-    .fill("A weekend assembly in the park?")
-  await memberPage.getByRole("button", {name: "Post", exact: true}).click()
+  const composer = memberPage.getByPlaceholder(`Post to ${groupName}`)
+  await composer.fill("A weekend assembly in the park?")
+  await expectPersistedDraft(memberPage, "A weekend assembly in the park?")
+  await composer.press("Meta+Enter")
+  await expect(composer).toHaveValue("")
+  await expectPersistedDraft(memberPage, "A weekend assembly in the park?", false)
+  await memberPage.reload()
+  await expect(composer).toHaveValue("")
   await expect(memberPage).toHaveURL(url)
   const post = memberPage
     .getByTestId("feed-item")
@@ -216,20 +236,13 @@ test("group creation, membership, posts, polls and direct links preserve access"
       memberKey
     )
   )
-  await expect(page.getByText("3 members in this view", {exact: true})).toBeVisible({
+  await expect(page.getByText("3 members", {exact: true})).toBeVisible({
     timeout: 15000,
   })
   await expect(
     memberPage.getByText("Unvouched spam should stay out", {exact: true})
   ).toHaveCount(0)
-  await memberPage.getByLabel("Feed members").selectOption("members")
-  await expect(
-    memberPage.getByText("Unvouched spam should stay out", {exact: true})
-  ).toBeVisible({timeout: 15000})
-  await memberPage.getByLabel("Feed members").selectOption("trusted")
-  await expect(
-    memberPage.getByText("Unvouched spam should stay out", {exact: true})
-  ).toHaveCount(0)
+  await expect(memberPage.getByLabel("Feed members")).toHaveCount(0)
 
   await page.getByRole("tab", {name: /^polls$/i}).click()
   await page.getByRole("button", {name: "Create poll", exact: true}).click()
@@ -373,6 +386,10 @@ test("group creation, membership, posts, polls and direct links preserve access"
     path: testInfo.outputPath("groups-mobile.png"),
     fullPage: true,
   })
+  await memberPage.getByRole("button", {name: "Group settings", exact: true}).click()
+  await memberPage.getByRole("dialog").getByText("Advanced", {exact: true}).click()
+  await memberPage.screenshot({path: testInfo.outputPath("group-settings-mobile.png")})
+  await memberPage.getByRole("dialog").getByRole("button", {name: "Done"}).click()
   await page.setViewportSize({width: 1440, height: 1000})
   await page.screenshot({path: testInfo.outputPath("groups-desktop.png"), fullPage: true})
   await memberPage.reload()
@@ -412,11 +429,12 @@ test("a rejected group post keeps its draft and does not appear as confirmed", a
     await page.goto(`/groups/${group.creator}/${group.id}`)
     const composer = page.getByPlaceholder("Post to Relay recovery")
     await composer.fill("A proposal worth keeping")
-    await page.getByRole("button", {name: "Post", exact: true}).click()
+    await composer.press("Meta+Enter")
     await expect(page.getByText(/Could not publish post/).first()).toBeVisible({
       timeout: 15000,
     })
     await expect(composer).toHaveValue("A proposal worth keeping")
+    await expectPersistedDraft(page, "A proposal worth keeping")
     await expect(
       page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
     ).toHaveCount(0)
@@ -426,6 +444,71 @@ test("a rejected group post keeps its draft and does not appear as confirmed", a
       page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
     ).toHaveCount(1, {timeout: 15000})
     await expect(composer).toHaveValue("")
+  } finally {
+    await page.close()
+    await relay.close()
+  }
+})
+
+test("a confirmed shortcut post clears a remounted editor and its saved draft", async ({
+  page,
+}) => {
+  const secret = generateSecretKey()
+  const group = {creator: getPublicKey(secret), id: crypto.randomUUID()}
+  const metadata = finalizeEvent(
+    {
+      ...createGroupDraft({
+        ...group,
+        name: "Draft recovery",
+        description: "A local check",
+      }),
+      created_at: Math.floor(Date.now() / 1000) - 1,
+    },
+    secret
+  )
+  let acknowledge: (() => void) | undefined
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [metadata],
+    acknowledgeEvent: (event, accept) => {
+      if (event.kind === 1) acknowledge = accept
+      else accept()
+    },
+  })
+  try {
+    await prepare(page, relay.port)
+    await signUp(page, nip19.nsecEncode(secret))
+    await page.goto(`/groups/${group.creator}/${group.id}`)
+    const composer = page.getByPlaceholder("Post to Draft recovery")
+    const content = "A shortcut post should not remain a draft"
+    await composer.fill(content)
+    await expectPersistedDraft(page, content)
+    await composer.press("Meta+Enter")
+    await expect(page.getByTestId("feed-item").filter({hasText: content})).toHaveCount(1)
+    await expect(composer).toHaveValue(content)
+    await page.getByRole("tab", {name: "Polls", exact: true}).click()
+    await page.getByRole("tab", {name: "Posts", exact: true}).click()
+    await expect(composer).toHaveValue(content)
+    expect(acknowledge).toBeDefined()
+    acknowledge!()
+    await expect(composer).toHaveValue("")
+    await expectPersistedDraft(page, content, false)
+    await page.reload()
+    await expect(composer).toHaveValue("")
+
+    // A late confirmation must not erase text written for the next post.
+    await composer.fill("Another shortcut post")
+    await composer.press("Control+Enter")
+    await expect(
+      page.getByTestId("feed-item").filter({hasText: "Another shortcut post"})
+    ).toHaveCount(1)
+    await composer.fill("My next draft")
+    await expectPersistedDraft(page, "My next draft")
+    acknowledge!()
+    await expect(page.getByRole("button", {name: "Post", exact: true})).toBeEnabled()
+    await expect(composer).toHaveValue("My next draft")
+    await page.reload()
+    await expect(composer).toHaveValue("My next draft")
   } finally {
     await page.close()
     await relay.close()

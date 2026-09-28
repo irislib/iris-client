@@ -8,7 +8,21 @@ export async function publishConfirmedEvent(event: NDKEvent, supplied?: NDKRelay
     supplied ??
     instance.devWriteRelaySet ??
     (await calculateRelaySetFromEvent(instance, event, 1))
-  const accepted = await relays.publish(event, 10_000, 1)
+  event.publishStatus = "pending"
+  // One positive acknowledgement confirms delivery. Other relays keep publishing
+  // in the background; a silent relay must not hold a confirmed draft open.
+  const first = await Promise.any(
+    [...relays.relays].map(async (relay) => {
+      if (!(await relay.publish(event, 10_000))) throw new Error("Publish rejected")
+      return relay
+    })
+  ).catch(() => {
+    event.publishStatus = "error"
+    throw new Error("No relay confirmed the event.")
+  })
+  event.publishStatus = "success"
+  const accepted = new Set([first])
+  event.emit("published", {relaySet: relays, publishedToRelays: accepted})
   accepted.forEach((relay) => instance.subManager.seenEvent(event.id, relay))
   instance.subManager.dispatchEvent(event, undefined, true)
   return accepted

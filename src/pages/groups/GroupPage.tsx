@@ -23,9 +23,10 @@ import {groupPath, useGroup, type GroupView} from "@/groups/useGroup"
 import {publishGroupEvent} from "@/groups/publish"
 import {useSavedGroups} from "@/groups/savedGroups"
 import GroupForm from "@/groups/components/GroupForm"
+import GroupSettings from "@/groups/components/GroupSettings"
 import PollCreator from "@/groups/components/PollCreator"
 import {useGroupFeed} from "@/groups/useGroupFeed"
-import {diversifyGroupFeed, type GroupFeedScope} from "@/groups/groupFeed"
+import {diversifyGroupFeed} from "@/groups/groupFeed"
 
 export default function GroupPage() {
   const {owner, groupId} = useParams()
@@ -55,6 +56,7 @@ function GroupContent({reference}: {reference: GroupRef}) {
   const {group, membership, canParticipate} = access
   const me = membership?.byPubkey.get(publicKey)
   const [editing, setEditing] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [polling, setPolling] = useState(false)
   const [busy, setBusy] = useState("")
   const actionPending = useRef(false)
@@ -62,12 +64,11 @@ function GroupContent({reference}: {reference: GroupRef}) {
   const [injected, setInjected] = useState<NDKEvent[]>([])
   const [memberQuery, setMemberQuery] = useState("")
   const [memberLimit, setMemberLimit] = useState(50)
-  const [scope, setScope] = useState<GroupFeedScope>("trusted")
-  const feed = useGroupFeed(access, publicKey, scope, tab === "polls", injected)
+  const feed = useGroupFeed(access, publicKey, "trusted", tab === "polls", injected)
   const address = groupAddress(reference)
   const feedConfig = useMemo(
     () => ({
-      id: `group:${address}:${view}:${tab}:${scope}`,
+      id: `group:${address}:${view}:${tab}`,
       name: group?.name ?? "Group",
       filter: {
         kinds: tab === "polls" ? [1068] : [1, 1068],
@@ -81,7 +82,7 @@ function GroupContent({reference}: {reference: GroupRef}) {
       showRepliedTo: false,
       showEventsByUnknownUsers: false,
     }),
-    [address, view, tab, scope, group?.name, reference.id]
+    [address, view, tab, group?.name, reference.id]
   )
   const action = async (key: string, draft: ReturnType<typeof createMembershipDraft>) => {
     if (actionPending.current) return
@@ -170,20 +171,16 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     </h1>
                     <p className="text-sm text-base-content/55 mt-2">
                       Public group ·{" "}
-                      <span>
-                        {membership?.eligiblePubkeys.size ?? 0} members in this view
-                      </span>
+                      <span>{membership?.eligiblePubkeys.size ?? 0} members</span>
                     </p>
                   </div>
-                  {publicKey === group.creator && (
-                    <button
-                      className="btn btn-ghost btn-circle btn-sm"
-                      onClick={() => setEditing(true)}
-                      aria-label="Edit group"
-                    >
-                      <RiSettings3Fill size={20} />
-                    </button>
-                  )}
+                  <button
+                    className="btn btn-ghost btn-circle btn-sm"
+                    onClick={() => setSettingsOpen(true)}
+                    aria-label="Group settings"
+                  >
+                    <RiSettings3Fill size={20} />
+                  </button>
                 </div>
                 <p className="whitespace-pre-wrap break-words mt-4 text-base-content/80">
                   {group.description}
@@ -213,37 +210,9 @@ function GroupContent({reference}: {reference: GroupRef}) {
                 </div>
                 {!me?.joined && (
                   <p className="text-xs text-base-content/50 mt-2">
-                    Joining and membership confirmations are public.
+                    Membership is public.
                   </p>
                 )}
-                <details className="mt-4 text-sm text-base-content/65">
-                  <summary className="cursor-pointer">{access.policyLabel}</summary>
-                  <div className="pt-3 space-y-3">
-                    <p>
-                      Membership needs {group.policy.direct} direct confirmation
-                      {group.policy.direct === 1 ? "" : "s"}, or{" "}
-                      {group.policy.secondDegree} confirmations through independent
-                      contacts. Posts, replies and reactions use this view. Each poll
-                      keeps its opening membership snapshot.
-                    </p>
-                    <label className="flex flex-wrap gap-3 items-center">
-                      Trust view
-                      <select
-                        aria-label="Trust view"
-                        className="select select-bordered select-sm"
-                        value={view}
-                        onChange={(event) => setView(event.target.value as GroupView)}
-                      >
-                        <option value="creator">Group’s network</option>
-                        {publicKey && <option value="personal">My network</option>}
-                      </select>
-                    </label>
-                    <p>
-                      Counts reflect the evidence received and current membership. A
-                      different trust view can give different results.
-                    </p>
-                  </div>
-                </details>
                 {(access.error ||
                   access.limited ||
                   access.memberSnapshotLimited ||
@@ -251,7 +220,7 @@ function GroupContent({reference}: {reference: GroupRef}) {
                   <p role="status" className="text-sm text-warning mt-4">
                     {access.error ??
                       access.discoveryError ??
-                      "This is a partial view of the group. Some membership evidence is outside the current limits."}
+                      "Some members may be missing."}
                   </p>
                 )}
                 {access.error && (
@@ -322,46 +291,26 @@ function GroupContent({reference}: {reference: GroupRef}) {
                         </button>
                       </div>
                     ))}
-                  {!canParticipate && (
-                    <p className="px-5 py-4 text-sm text-base-content/60">
-                      {me?.joined
-                        ? "You can participate once your membership is established."
-                        : "Members can post, reply, react and vote. Anyone can read."}
-                    </p>
-                  )}
-                  <div className="px-5 py-3 flex justify-between items-center gap-3">
-                    <label className="text-sm flex items-center gap-2">
-                      Show
-                      <select
-                        aria-label="Feed members"
-                        className="select select-ghost select-sm"
-                        value={scope}
-                        onChange={(event) =>
-                          setScope(event.target.value as GroupFeedScope)
-                        }
-                      >
-                        <option value="trusted">Trusted members</option>
-                        <option value="members">All members</option>
-                      </select>
-                    </label>
-                    {feed.error && (
-                      <button className="btn btn-ghost btn-sm" onClick={feed.refresh}>
-                        Retry
-                      </button>
-                    )}
-                  </div>
-                  {scope === "members" && (
-                    <p className="px-5 pb-3 text-xs text-base-content/55">
-                      Membership confirmations do not establish one person per account.
-                    </p>
+                  {view === "personal" && (
+                    <button
+                      className="btn btn-ghost btn-sm mx-3 my-2"
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      My network
+                    </button>
                   )}
                   {(feed.error || feed.limited) && (
                     <p role="status" className="px-5 pb-3 text-sm text-base-content/55">
-                      {feed.error ?? "Showing a bounded selection of recent posts."}
+                      {feed.error ?? "Some posts may be missing."}
+                      {feed.error && (
+                        <button className="btn btn-ghost btn-sm" onClick={feed.refresh}>
+                          Try again
+                        </button>
+                      )}
                     </p>
                   )}
                   <Feed
-                    key={`${address}:${tab}:${view}:${scope}`}
+                    key={`${address}:${tab}:${view}`}
                     feedConfig={feedConfig}
                     eventSource={feed}
                     selectEvents={diversifyGroupFeed}
@@ -463,6 +412,22 @@ function GroupContent({reference}: {reference: GroupRef}) {
             </>
           )}
         </ScrollablePageContainer>
+        {settingsOpen && group && (
+          <GroupSettings
+            group={group}
+            view={view}
+            onViewChange={setView}
+            onClose={() => setSettingsOpen(false)}
+            onEdit={
+              publicKey === group.creator
+                ? () => {
+                    setSettingsOpen(false)
+                    setEditing(true)
+                  }
+                : undefined
+            }
+          />
+        )}
         {editing && group && (
           <GroupForm group={group} onClose={() => setEditing(false)} />
         )}

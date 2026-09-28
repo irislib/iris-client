@@ -35,6 +35,18 @@ export function useNoteDraft(
   const draftStore = useDraftStore()
   const hasHydrated = draftStore.hasHydrated
 
+  // A publish can finish after its editor unmounts. Clear any current editor for
+  // the same draft too, so a remount cannot keep or re-save the submitted text.
+  useEffect(
+    () =>
+      useDraftStore.subscribe((current, previous) => {
+        if (previous.drafts[draftKey] && !current.drafts[draftKey]) {
+          dispatch({type: "RESET"})
+        }
+      }),
+    [draftKey, dispatch]
+  )
+
   // Load draft on hydration
   useEffect(() => {
     if (!hasHydrated) return
@@ -83,7 +95,11 @@ export function useNoteDraft(
   }, [state.title, draftKey, hasHydrated])
 
   const clearDraft = () => {
+    // The user may have started a different draft while this publish was pending.
+    const current = draftStore.getDraft(draftKey)
+    if (current && current.content !== state.text) return false
     draftStore.clearDraft(draftKey)
+    return true
   }
 
   return {clearDraft, draftStore}

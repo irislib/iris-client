@@ -220,26 +220,29 @@ export default function PollCreator({
               Votes are public. Choose one option.
             </p>
             {electorate && !snapshotLoading && (
-              <p className="text-xs text-base-content/60">
-                Fixed at posting: {electorate.memberPubkeys.length} observed members ·{" "}
-                {electorate.authorityPubkeys.length} trusted voters. Trusted voters are
-                the creator and eligible direct contacts in the observed group view.
-              </p>
+              <details className="text-xs text-base-content/60">
+                <summary className="cursor-pointer">Who can vote</summary>
+                <p className="mt-2">
+                  {electorate.memberPubkeys.length} members, including{" "}
+                  {electorate.authorityPubkeys.length} trusted voters. This list is fixed
+                  when you post the poll. Trusted voters are the creator and eligible
+                  direct contacts.
+                </p>
+              </details>
             )}
             {electorate?.memberSnapshotLimited && (
               <p className="text-xs text-base-content/60">
-                The member snapshot is partial. Trusted voting authority is fixed
-                separately.
+                Some members may be missing from this poll.
               </p>
             )}
             {snapshotLoading && (
               <p role="status" className="text-xs text-base-content/60">
-                Loading the observed voter snapshot…
+                Preparing poll…
               </p>
             )}
             {electorate && !proofsReady && !snapshotLoading && (
               <p role="status" className="text-xs text-base-content/60">
-                Loading signed voter proofs…
+                Preparing poll…
               </p>
             )}
             {evidence.error && (
@@ -253,7 +256,7 @@ export default function PollCreator({
                 className="btn btn-ghost btn-sm"
                 onClick={() => setProofRevision((value) => value + 1)}
               >
-                Retry voter proofs
+                Try again
               </button>
             )}
             {snapshotError && (

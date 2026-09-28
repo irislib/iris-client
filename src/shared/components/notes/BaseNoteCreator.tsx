@@ -104,9 +104,10 @@ function NoteCreatorBody({
     group: destination ?? undefined,
     canPublish,
     onPublishSuccess: () => {
-      clearDraft() // Clear draft BEFORE reset to prevent useEffect re-persistence
-      dispatch({type: "RESET"})
-      setIsFocused(false)
+      if (clearDraft()) {
+        dispatch({type: "RESET"})
+        setIsFocused(false)
+      }
     },
   })
 

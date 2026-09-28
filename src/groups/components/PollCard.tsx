@@ -182,15 +182,9 @@ export default function PollCard({
   const frozenMember = !!publicKey && !!poll.electorate?.memberPubkeys.includes(publicKey)
   const frozenAuthority =
     !!publicKey && !!poll.electorate?.authorityPubkeys.includes(publicKey)
-  let participationLabel = "You are not in this poll’s fixed voter snapshot."
-  if (frozenMember)
-    participationLabel = authority.valid
-      ? "Your ballot counts in Member ballots. It does not add a trusted vote."
-      : "The fixed voter snapshot must be verified before you can vote."
-  if (frozenAuthority)
-    participationLabel = authority.valid
-      ? "Your vote counts in both Trusted votes and Member ballots."
-      : "The fixed voter snapshot must be verified before you can vote."
+  const participationLabel = frozenMember
+    ? "Your vote appears under Member ballots."
+    : "You’re not on this poll’s voter list."
   const voteLabel = mine ? "Update vote" : "Vote"
   const endLabel = deadline ? `Ends ${deadline}` : "No deadline"
 
@@ -227,12 +221,10 @@ export default function PollCard({
       )}
       {poll.electorate && !authority.valid && (
         <p className="text-xs text-base-content/70" role="status">
-          {authority.loading
-            ? "Checking the signed voter snapshot…"
-            : authority.reason || "Voter snapshot proof is unavailable."}
+          {authority.loading ? "Checking who can vote…" : "Couldn’t verify who can vote."}
         </p>
       )}
-      {poll.electorate && publicKey && !closed && (
+      {poll.electorate && authority.valid && publicKey && !frozenAuthority && !closed && (
         <p className="text-xs text-base-content/70">{participationLabel}</p>
       )}
       <fieldset className="space-y-2" disabled={!eligibleToVote || closed || publishing}>
@@ -333,10 +325,11 @@ export default function PollCard({
         </div>
         {poll.electorate ? (
           <details>
-            <summary className="cursor-pointer">
-              Author’s observed snapshot · {poll.electorate.memberPubkeys.length} members
-              · {poll.electorate.authorityPubkeys.length} trusted
-            </summary>
+            <summary className="cursor-pointer">Poll details</summary>
+            <p className="mt-1">
+              {poll.electorate.memberPubkeys.length} members ·{" "}
+              {poll.electorate.authorityPubkeys.length} trusted voters at opening.
+            </p>
             <p className="mt-1">
               Trusted voters are the creator and eligible direct contacts observed by the
               poll author. Joining or gaining membership confirmations does not grant a
@@ -352,20 +345,28 @@ export default function PollCard({
               Advisory results from observed votes. Missing or backdated votes can change
               totals after closing.
             </p>
+            {authority.reason && <p className="mt-1">{authority.reason}</p>}
+            {authority.valid && authority.warning && (
+              <p className="mt-1">{authority.warning}</p>
+            )}
           </details>
         ) : (
-          <p>Current view · {policyLabel}. One response per public key.</p>
+          <details>
+            <summary className="cursor-pointer">Poll details</summary>
+            <p className="mt-1">
+              Current view · {policyLabel}. One response per public key.
+            </p>
+          </details>
         )}
         {!eligibleToVote && !closed && !poll.electorate && (
           <p>{publicKey ? "Only eligible members can vote." : "Sign in to vote."}</p>
         )}
         {!publicKey && poll.electorate && !closed && <p>Sign in to vote.</p>}
         {poll.electorate?.memberSnapshotLimited && (
-          <p>Partial member snapshot: member ballots cover only the recorded accounts.</p>
+          <p>Some members may be missing from this poll.</p>
         )}
-        {limited && <p>Showing a limited relay sample; totals may be incomplete.</p>}
+        {limited && <p>Some votes may be missing.</p>}
         {queryError && <p role="status">{queryError}</p>}
-        {authority.valid && authority.warning && <p role="status">{authority.warning}</p>}
       </div>
       {error && (
         <p role="alert" className="text-sm text-error">

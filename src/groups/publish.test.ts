@@ -123,12 +123,12 @@ describe("acknowledged group publishing", () => {
     const relay = new NDKRelay("wss://relay.example", undefined, instance)
     const relaySet = new NDKRelaySet(new Set([relay]), instance)
     instance.devWriteRelaySet = relaySet
-    const send = vi.spyOn(relaySet, "publish").mockRejectedValue(new Error("Rejected"))
+    const send = vi.spyOn(relay, "publish").mockRejectedValue(new Error("Rejected"))
     const optimisticPublish = vi.spyOn(NDKEvent.prototype, "publish")
     const seen = vi.spyOn(instance.subManager, "seenEvent")
-    await expect(publishGroupEvent(draft())).rejects.toThrow("Rejected")
+    await expect(publishGroupEvent(draft())).rejects.toThrow("No relay confirmed")
     expect(send).toHaveBeenCalledOnce()
-    expect(send.mock.calls[0].slice(1)).toEqual([10_000, 1])
+    expect(send.mock.calls[0].slice(1)).toEqual([10_000])
     expect(optimisticPublish).not.toHaveBeenCalled()
     expect(seen).not.toHaveBeenCalled()
     expectUnpublished()
@@ -139,12 +139,12 @@ describe("acknowledged group publishing", () => {
     const relay = new NDKRelay("wss://relay.example", undefined, instance)
     const relaySet = new NDKRelaySet(new Set([relay]), instance)
     instance.devWriteRelaySet = relaySet
-    let acknowledge!: (relays: Set<NDKRelay>) => void
+    let acknowledge!: (accepted: boolean) => void
     let entered!: () => void
     const started = new Promise<void>((resolve) => (entered = resolve))
-    vi.spyOn(relaySet, "publish").mockImplementation(() => {
+    vi.spyOn(relay, "publish").mockImplementation(() => {
       entered()
-      return new Promise<Set<NDKRelay>>((resolve) => (acknowledge = resolve))
+      return new Promise<boolean>((resolve) => (acknowledge = resolve))
     })
     const optimisticPublish = vi.spyOn(NDKEvent.prototype, "publish")
     const seen = vi.spyOn(instance.subManager, "seenEvent")
@@ -152,7 +152,7 @@ describe("acknowledged group publishing", () => {
     await started
     expectUnpublished()
     expect(seen).not.toHaveBeenCalled()
-    acknowledge(new Set([relay]))
+    acknowledge(true)
     const event = await publishing
     expect(verifyEvent(event.rawEvent())).toBe(true)
     expect(optimisticPublish).not.toHaveBeenCalled()

@@ -14,6 +14,7 @@ export const releaseSteps = [
       "vitest",
       "run",
       "src/groups",
+      "src/lib/publishConfirmedEvent.test.ts",
       "src/groupsBuildConfig.test.ts",
       "src/portableBuildConfig.test.ts",
       "src/utils/reaction.test.ts",

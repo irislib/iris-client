@@ -21,6 +21,8 @@ type NostrRelayMessage =
 export interface NostrRelayOptions {
   /** Optional relay policy for deterministic publish-failure integration tests. */
   rejectEvent?: (event: NostrEvent) => string | undefined
+  /** Optional delivery gate for deterministic late-acknowledgement tests. */
+  acknowledgeEvent?: (event: NostrEvent, acknowledge: () => void) => void
   host?: string
   port?: number
   /**
@@ -305,7 +307,9 @@ export async function startNostrRelay(
         }
         const {stored, notice} = store.acceptEvent(event)
         if (notice) safeSend(ws, ["NOTICE", notice])
-        safeSend(ws, ["OK", event?.id ?? "", true, ""])
+        const acknowledge = () => safeSend(ws, ["OK", event?.id ?? "", true, ""])
+        if (opts.acknowledgeEvent) opts.acknowledgeEvent(event, acknowledge)
+        else acknowledge()
         if (stored) broadcastEvent(event)
         return
       }
