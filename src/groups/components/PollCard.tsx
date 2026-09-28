@@ -323,49 +323,49 @@ export default function PollCard({
             {loading ? "Loading…" : "Refresh results"}
           </button>
         </div>
-        {poll.electorate ? (
-          <details>
-            <summary className="cursor-pointer">Poll details</summary>
-            <p className="mt-1">
-              {poll.electorate.memberPubkeys.length} members ·{" "}
-              {poll.electorate.authorityPubkeys.length} trusted voters at opening.
-            </p>
-            <p className="mt-1">
-              Trusted voters are the creator and eligible direct contacts observed by the
-              poll author. Joining or gaining membership confirmations does not grant a
-              trusted vote in this poll. One response per public key, not per person.
-            </p>
-            {authority.trustListCreatedAt !== undefined && (
+        <details>
+          <summary className="cursor-pointer">Poll details</summary>
+          {poll.electorate ? (
+            <>
               <p className="mt-1">
-                Creator contact list signed{" "}
-                {new Date(authority.trustListCreatedAt * 1000).toLocaleString()}.
+                {poll.electorate.memberPubkeys.length} members ·{" "}
+                {poll.electorate.authorityPubkeys.length} trusted voters at opening.
               </p>
-            )}
-            <p className="mt-1">
-              Advisory results from observed votes. Missing or backdated votes can change
-              totals after closing.
-            </p>
-            {authority.reason && <p className="mt-1">{authority.reason}</p>}
-            {authority.valid && authority.warning && (
-              <p className="mt-1">{authority.warning}</p>
-            )}
-          </details>
-        ) : (
-          <details>
-            <summary className="cursor-pointer">Poll details</summary>
+              <p className="mt-1">
+                Trusted voters are the creator and eligible direct contacts observed by
+                the poll author. Joining or gaining membership confirmations does not
+                grant a trusted vote in this poll. One response per public key, not per
+                person.
+              </p>
+              {authority.trustListCreatedAt !== undefined && (
+                <p className="mt-1">
+                  Creator contact list signed{" "}
+                  {new Date(authority.trustListCreatedAt * 1000).toLocaleString()}.
+                </p>
+              )}
+              <p className="mt-1">
+                Advisory results from observed votes. Missing or backdated votes can
+                change totals after closing.
+              </p>
+              {authority.reason && <p className="mt-1">{authority.reason}</p>}
+              {authority.valid && authority.warning && (
+                <p className="mt-1">{authority.warning}</p>
+              )}
+            </>
+          ) : (
             <p className="mt-1">
               Current view · {policyLabel}. One response per public key.
             </p>
-          </details>
-        )}
+          )}
+          {poll.electorate?.memberSnapshotLimited && (
+            <p className="mt-1">Some members may be missing from this poll.</p>
+          )}
+          {limited && <p className="mt-1">Some votes may be missing.</p>}
+        </details>
         {!eligibleToVote && !closed && !poll.electorate && (
           <p>{publicKey ? "Only eligible members can vote." : "Sign in to vote."}</p>
         )}
         {!publicKey && poll.electorate && !closed && <p>Sign in to vote.</p>}
-        {poll.electorate?.memberSnapshotLimited && (
-          <p>Some members may be missing from this poll.</p>
-        )}
-        {limited && <p>Some votes may be missing.</p>}
         {queryError && <p role="status">{queryError}</p>}
       </div>
       {error && (

@@ -1,5 +1,5 @@
 import {useMemo, useState} from "react"
-import {RiAddLine, RiGroupFill, RiSearchLine} from "@remixicon/react"
+import {RiAddLine, RiSearchLine} from "@remixicon/react"
 import {Link} from "@/navigation"
 import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
@@ -79,15 +79,6 @@ export default function GroupsPage() {
       />
       <ScrollablePageContainer>
         <div className="mx-auto max-w-3xl px-5 sm:px-8 py-8">
-          <div className="flex items-center gap-3 mb-3">
-            <RiGroupFill className="text-primary" size={34} />
-            <h1 className="text-3xl font-semibold tracking-tight">
-              A place for your people.
-            </h1>
-          </div>
-          <p className="text-base-content/60 mb-7">
-            Public conversations. Shared decisions. Membership through people you trust.
-          </p>
           <label className="input input-bordered flex items-center gap-3 mb-6">
             <RiSearchLine size={20} className="opacity-50" />
             <input
@@ -136,27 +127,13 @@ export default function GroupsPage() {
           ) : (
             <div className="py-12 text-center">
               <h2 className="text-xl font-semibold">
-                {query ? "No matching groups" : "Start something together"}
+                {query ? "No matching groups" : "No groups yet"}
               </h2>
-              <p className="mt-2 text-base-content/60">
-                {query
-                  ? "Try another name, or open a group’s invitation link."
-                  : "Create a group, then share its link with your people."}
-              </p>
               {!query && (
                 <button onClick={create} className="btn btn-primary mt-6">
                   Create group
                 </button>
               )}
-            </div>
-          )}
-          {loadError && groups.length > 0 && (
-            <div
-              role="status"
-              className="mt-4 flex flex-wrap items-center gap-2 text-sm text-base-content/60"
-            >
-              <span>Some groups may be missing.</span>
-              {retry}
             </div>
           )}
         </div>

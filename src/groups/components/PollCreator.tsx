@@ -228,12 +228,10 @@ export default function PollCreator({
                   when you post the poll. Trusted voters are the creator and eligible
                   direct contacts.
                 </p>
+                {electorate.memberSnapshotLimited && (
+                  <p className="mt-2">Some members may be missing from this poll.</p>
+                )}
               </details>
-            )}
-            {electorate?.memberSnapshotLimited && (
-              <p className="text-xs text-base-content/60">
-                Some members may be missing from this poll.
-              </p>
             )}
             {snapshotLoading && (
               <p role="status" className="text-xs text-base-content/60">

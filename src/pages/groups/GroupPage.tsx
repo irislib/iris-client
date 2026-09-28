@@ -213,14 +213,9 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     Membership is public.
                   </p>
                 )}
-                {(access.error ||
-                  access.limited ||
-                  access.memberSnapshotLimited ||
-                  access.discoveryError) && (
+                {access.error && (
                   <p role="status" className="text-sm text-warning mt-4">
-                    {access.error ??
-                      access.discoveryError ??
-                      "Some members may be missing."}
+                    {access.error}
                   </p>
                 )}
                 {access.error && (
@@ -299,16 +294,6 @@ function GroupContent({reference}: {reference: GroupRef}) {
                       My network
                     </button>
                   )}
-                  {(feed.error || feed.limited) && (
-                    <p role="status" className="px-5 pb-3 text-sm text-base-content/55">
-                      {feed.error ?? "Some posts may be missing."}
-                      {feed.error && (
-                        <button className="btn btn-ghost btn-sm" onClick={feed.refresh}>
-                          Try again
-                        </button>
-                      )}
-                    </p>
-                  )}
                   <Feed
                     key={`${address}:${tab}:${view}`}
                     feedConfig={feedConfig}
@@ -318,9 +303,21 @@ function GroupContent({reference}: {reference: GroupRef}) {
                     showDisplayAsSelector={false}
                     emptyPlaceholder={
                       <div className="p-10 text-center text-base-content/55">
-                        {tab === "polls"
-                          ? "No polls yet"
-                          : "No posts yet. Start the conversation."}
+                        {feed.error ? (
+                          <>
+                            <p>{feed.error}</p>
+                            <button
+                              className="btn btn-ghost btn-sm mt-3"
+                              onClick={feed.refresh}
+                            >
+                              Try again
+                            </button>
+                          </>
+                        ) : tab === "polls" ? (
+                          "No polls yet"
+                        ) : (
+                          "No posts yet"
+                        )}
                       </div>
                     }
                   />

@@ -43,7 +43,7 @@ async function publish(event: Event) {
 }
 
 for (const partial of [false, true]) {
-  test(`group discovery can retry ${partial ? "partial" : "unavailable"} results`, async ({
+  test(`group discovery ${partial ? "shows partial results quietly" : "can retry unavailable results"}`, async ({
     page,
   }, testInfo) => {
     const secret = generateSecretKey()
@@ -60,6 +60,7 @@ for (const partial of [false, true]) {
       secret
     )
     let recovered = false
+    const histories = new Set<string>()
     // A real local socket also exercises the app's background relay worker.
     const relay = new WebSocketServer({host: "127.0.0.1", port: 0})
     await new Promise<void>((resolve) => relay.once("listening", resolve))
@@ -68,6 +69,8 @@ for (const partial of [false, true]) {
         const [type, id, ...filters] = JSON.parse(raw.toString())
         if (type !== "REQ") return
         const discovery = filters.some((filter) => filter.kinds?.includes(37368))
+        if (discovery && filters.some((filter) => filter.since === undefined))
+          histories.add(id)
         if (discovery && (partial || recovered))
           socket.send(JSON.stringify(["EVENT", id, metadata]))
         if (!discovery || recovered) socket.send(JSON.stringify(["EOSE", id]))
@@ -77,20 +80,26 @@ for (const partial of [false, true]) {
       const address = relay.address()
       if (!address || typeof address === "string") throw new Error("Missing relay port")
       await prepare(page, address.port)
+      if (partial) await page.clock.install()
       await page.goto("/groups")
       const notice = page.getByRole("status").filter({
-        hasText: partial ? "Some groups may be missing." : "Couldn’t load groups.",
+        hasText: "Couldn’t load groups.",
       })
-      await expect(notice).toBeVisible({timeout: 20000})
-      await expect(page.getByText("Start something together", {exact: true})).toHaveCount(
-        0
-      )
+      if (partial) {
+        await expect(page.getByRole("link", {name: /Our neighbourhood/})).toBeVisible()
+        await expect.poll(() => histories.size).toBeGreaterThan(0)
+        await page.clock.fastForward(12_100)
+        await expect(page.getByRole("status")).toHaveCount(0)
+        await expect(page.getByRole("button", {name: "Try again"})).toHaveCount(0)
+      } else await expect(notice).toBeVisible({timeout: 20000})
+      await expect(page.getByText("No groups yet", {exact: true})).toHaveCount(0)
       const group = page.getByRole("link", {name: /Our neighbourhood/})
       await expect(group).toHaveCount(partial ? 1 : 0)
       await page.setViewportSize({width: 390, height: 844})
       await page.screenshot({path: testInfo.outputPath("discovery-retry-mobile.png")})
       recovered = true
-      await notice.getByRole("button", {name: "Try again"}).click()
+      if (partial) await page.reload()
+      else await notice.getByRole("button", {name: "Try again"}).click()
       await expect(group).toBeVisible()
       await expect(notice).toHaveCount(0)
     } finally {
