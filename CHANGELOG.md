@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.24 - 2026-09-29
+
+- Hide Groups from the Iris navigation menu.
+
 ## 2.5.23 - 2026-09-29
 
 - Avoid repeatedly attempting to decrypt pending messages with unchanged chat
