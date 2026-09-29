@@ -1,5 +1,5 @@
 import {CSSProperties, useEffect, useState, MouseEvent, useRef} from "react"
-import {generateProxyUrl, generateVideoProxyUrl} from "../utils/imgproxy"
+import {generateProxyUrl, generateVideoProxyUrl, shouldSkipProxy} from "../utils/imgproxy"
 import {imgproxyFailureCache, loadedImageCache} from "@/utils/memcache"
 import {useSettingsStore} from "@/stores/settings"
 
@@ -16,12 +16,6 @@ type Props = {
   hideBroken?: boolean
   loadOriginalIfProxyFails?: boolean
   isVideo?: boolean
-}
-
-const safeOrigins = ["data:image", "blob:"]
-
-const shouldSkipProxy = (url: string) => {
-  return safeOrigins.some((origin) => url.startsWith(origin))
 }
 
 const LOAD_TIMEOUT = 2000 // 2 seconds timeout
@@ -52,7 +46,7 @@ const ProxyImg = (props: Props) => {
       imgproxy.enabled &&
       props.src &&
       !hasProxyFailed &&
-      (!shouldSkipProxy(props.src) || props.width)
+      !shouldSkipProxy(props.src)
 
     if (shouldUseProxy) {
       if (props.isVideo) {

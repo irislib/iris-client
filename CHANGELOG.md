@@ -4,6 +4,8 @@
 
 - Preserve relay connections and pending feed requests when returning after sleep
   or a paused page, instead of immediately restarting a healthy relay worker.
+- Load embedded and local images directly, including resized avatars, without
+  sending them to an image proxy that cannot fetch them.
 
 ## 2.5.21 - 2026-09-27
 

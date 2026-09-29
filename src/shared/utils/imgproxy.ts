@@ -41,11 +41,17 @@ interface ImgProxyConfig {
   salt: string
 }
 
+export function shouldSkipProxy(url: string) {
+  return url.startsWith("data:image") || url.startsWith("blob:")
+}
+
 export function generateProxyUrl(
   originalSrc: string,
   options: ImgProxyOptions = {},
   config?: Partial<ImgProxyConfig>
 ) {
+  if (shouldSkipProxy(originalSrc)) return originalSrc
+
   const proxyConfig = {
     url: config?.url || DefaultImgProxy.url,
     key: config?.key || DefaultImgProxy.key,
