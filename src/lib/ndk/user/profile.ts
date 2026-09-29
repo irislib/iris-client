@@ -46,7 +46,7 @@ export function profileFromEvent(event: NDKEvent): NDKUserProfile {
                 break;
             case "image":
             case "picture":
-                profile.picture = (payload.picture || payload.image) as string;
+                profile.picture = (payload.picture ?? payload.image) as string;
                 profile.image = profile.picture;
                 break;
             case "banner":
@@ -84,23 +84,24 @@ export function profileFromEvent(event: NDKEvent): NDKUserProfile {
 export function serializeProfile(profile: NDKUserProfile): string {
     const payload: NDKUserProfile = {};
 
-    // Remap some keys from bad clients into good ones per NIP-24
+    // Normalize legacy aliases without overwriting canonical fields or explicit clears.
     for (const [key, val] of Object.entries(profile)) {
         switch (key) {
             case "username":
             case "name":
-                payload.name = val as string;
+                payload.name = (profile.name ?? profile.username) as string;
                 break;
+            case "display_name":
             case "displayName":
-                payload.display_name = val;
+                payload.display_name = profile.display_name ?? profile.displayName;
                 break;
             case "image":
             case "picture":
-                payload.picture = val as string;
+                payload.picture = profile.picture ?? profile.image;
                 break;
             case "bio":
             case "about":
-                payload.about = val as string;
+                payload.about = profile.about ?? profile.bio;
                 break;
             default:
                 payload[key] = val;

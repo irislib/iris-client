@@ -34,7 +34,7 @@ function sanitizeProfileForUi(profile?: NDKUserProfile | null): NDKUserProfile |
   const displayName =
     profile.displayName ||
     (typeof profile.display_name === "string" ? profile.display_name : undefined)
-  const picture = profile.picture || profile.image
+  const picture = profile.picture ?? profile.image
 
   return {
     created_at: profile.created_at,
