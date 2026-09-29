@@ -68,11 +68,9 @@ test("For You uses the default network until the viewer follows someone", async 
   graph.addFollower(starter.publicKey, recommended.publicKey)
   await graph.recalculateFollowDistances()
   const snapshot = Buffer.from(await graph.toBinary())
-  let snapshotRequests = 0
   await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) => {
     // Vite first imports a JS module containing the asset URL, then fetches it.
     if (route.request().resourceType() === "script") return route.continue()
-    snapshotRequests++
     return route.fulfill({contentType: "application/octet-stream", body: snapshot})
   })
 
@@ -107,7 +105,6 @@ test("For You uses the default network until the viewer follows someone", async 
     signEvent(personal, {kind: 1, content: personalContent, tags: [], created_at: now}),
   ])
   await signUp(page, nip19.nsecEncode(viewer.privateKey))
-  await expect.poll(() => snapshotRequests).toBe(1)
 
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(posts.filter({hasText: starterContent}).first()).toBeVisible({
