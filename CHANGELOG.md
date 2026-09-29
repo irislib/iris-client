@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.23 - 2026-09-29
+
+- Avoid repeatedly attempting to decrypt pending messages with unchanged chat
+  session keys during startup, keeping feed loading responsive while chats sync.
+  Messages are retried when the receiving session or its ratchet state changes.
+
 ## 2.5.22 - 2026-09-29
 
 - Preserve relay connections and pending feed requests when returning after sleep

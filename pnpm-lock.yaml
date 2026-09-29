@@ -5,6 +5,9 @@ settings:
   excludeLinksFromLockfile: false
 
 patchedDependencies:
+  nostr-double-ratchet:
+    hash: ggxfxwx5grg3lpunsa6q22prye
+    path: patches/nostr-double-ratchet.patch
   nostr-social-graph:
     hash: rwdgsudffqej7cvo4x5x56keku
     path: patches/nostr-social-graph.patch
@@ -90,7 +93,7 @@ importers:
         version: 4.2.1
       nostr-double-ratchet:
         specifier: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.170/nostr-double-ratchet-0.0.170.tgz
-        version: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.170/nostr-double-ratchet-0.0.170.tgz(typescript@5.9.3)
+        version: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.170/nostr-double-ratchet-0.0.170.tgz(patch_hash=ggxfxwx5grg3lpunsa6q22prye)(typescript@5.9.3)
       nostr-social-graph:
         specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz
         version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3)
@@ -6419,7 +6422,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.170/nostr-double-ratchet-0.0.170.tgz(typescript@5.9.3):
+  nostr-double-ratchet@https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.170/nostr-double-ratchet-0.0.170.tgz(patch_hash=ggxfxwx5grg3lpunsa6q22prye)(typescript@5.9.3):
     dependencies:
       '@noble/curves': 2.2.0
       nostr-tools: 2.24.1(typescript@5.9.3)
