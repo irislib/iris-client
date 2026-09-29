@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.22 - 2026-09-29
+
+- Preserve relay connections and pending feed requests when returning after sleep
+  or a paused page, instead of immediately restarting a healthy relay worker.
+
 ## 2.5.21 - 2026-09-27
 
 - Identify Iris with the standard lowercase client tag on public posts, replies,

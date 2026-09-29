@@ -125,6 +125,70 @@ describe("NDKWorkerTransport search", () => {
 })
 
 describe("NDKWorkerTransport lifecycle", () => {
+  it("lets a healthy relay worker answer after the page's heartbeat timer was suspended", async () => {
+    vi.useFakeTimers()
+    const worker = new FakeWorker()
+    const factory = vi.fn(() => worker as unknown as Worker)
+    const transport = new NDKWorkerTransport(factory)
+    const received = vi.fn()
+    try {
+      await transport.connect({transportPlugins: []} as unknown as NDK, [])
+      worker.dispatchMessage({type: "ready"})
+      transport.subscribe("feed", [{kinds: [1]}], received)
+      await vi.advanceTimersByTimeAsync(5000)
+      worker.dispatchMessage({type: "pong"})
+
+      // Sleeping/backgrounding can delay the timer and its queued pong together.
+      // Move wall time without executing callbacks, then run the next timer.
+      vi.setSystemTime(Date.now() + 60_000)
+      const sentBeforeResume = worker.postedMessages.length
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(worker.postedMessages.slice(sentBeforeResume)).toMatchObject([
+        {type: "ping"},
+      ])
+      worker.dispatchMessage({type: "pong"})
+      worker.dispatchMessage({
+        type: "event",
+        subId: "feed",
+        event: {id: "post", pubkey: "a".repeat(64), kind: 1, content: "ready", tags: []},
+      })
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(factory).toHaveBeenCalledOnce()
+      expect(received).toHaveBeenCalledOnce()
+    } finally {
+      transport.close()
+      vi.useRealTimers()
+    }
+  })
+
+  it("still restarts a worker that remains unresponsive after the page resumes", async () => {
+    vi.useFakeTimers()
+    const workers: FakeWorker[] = []
+    const transport = new NDKWorkerTransport(() => {
+      const worker = new FakeWorker()
+      workers.push(worker)
+      return worker as unknown as Worker
+    })
+    try {
+      await transport.connect({transportPlugins: []} as unknown as NDK, [])
+      workers[0].dispatchMessage({type: "ready"})
+      transport.subscribe("feed", [{kinds: [1]}], vi.fn())
+      vi.setSystemTime(Date.now() + 60_000)
+      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(15_000)
+      expect(workers).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(6000)
+      expect(workers).toHaveLength(2)
+      workers[1].dispatchMessage({type: "ready"})
+      expect(
+        workers[1].postedMessages.filter((message) => message.type === "subscribe")
+      ).toMatchObject([{id: "feed"}])
+    } finally {
+      transport.close()
+      vi.useRealTimers()
+    }
+  })
+
   it("restores active subscriptions exactly once after a crash, including changes during recovery", async () => {
     vi.useFakeTimers()
     const workers: FakeWorker[] = []

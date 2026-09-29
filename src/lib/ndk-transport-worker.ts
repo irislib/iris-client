@@ -140,14 +140,23 @@ export class NDKWorkerTransport {
   private startHeartbeat() {
     this.stopHeartbeat()
     this.lastPong = Date.now()
+    let lastHeartbeat = this.lastPong
 
     this.heartbeatInterval = setInterval(() => {
       if (!this.ready) {
         return
       }
 
-      // Check if worker is unresponsive
-      if (Date.now() - this.lastPong > this.HEARTBEAT_TIMEOUT_MS) {
+      const now = Date.now()
+      // A suspended page cannot process pongs either. After a delayed timer
+      // (sleep, background throttling, or a long task), probe the worker again
+      // before discarding its connections and pending feed requests.
+      if (now - lastHeartbeat > this.HEARTBEAT_INTERVAL_MS * 2 || now < lastHeartbeat) {
+        this.lastPong = now
+      }
+      lastHeartbeat = now
+
+      if (now - this.lastPong > this.HEARTBEAT_TIMEOUT_MS) {
         console.error(
           "[Worker Transport] Worker unresponsive (no pong received), restarting..."
         )
@@ -156,7 +165,7 @@ export class NDKWorkerTransport {
       }
 
       // Send ping
-      this.worker.postMessage({type: "ping", id: Date.now().toString()} as WorkerMessage)
+      this.worker.postMessage({type: "ping", id: now.toString()} as WorkerMessage)
     }, this.HEARTBEAT_INTERVAL_MS)
   }
 

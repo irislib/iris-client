@@ -107,7 +107,7 @@ test("For You uses the default network until the viewer follows someone", async 
     signEvent(personal, {kind: 1, content: personalContent, tags: [], created_at: now}),
   ])
   await signUp(page, nip19.nsecEncode(viewer.privateKey))
-  expect(snapshotRequests).toBe(1)
+  await expect.poll(() => snapshotRequests).toBe(1)
 
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(posts.filter({hasText: starterContent}).first()).toBeVisible({
@@ -413,9 +413,10 @@ test("a short For You feed fills with late posts and keeps paginating", async ({
   }).toPass({timeout: 20000})
 })
 
-test("logged-in relay subscriptions recover after their worker crashes", async ({
+test("logged-in relay subscriptions survive page suspension and recover after worker crashes", async ({
   page,
 }) => {
+  await page.clock.install()
   await page.addInitScript(() => {
     const target = window as typeof window & {
       relayWorkers: Worker[]
@@ -459,6 +460,19 @@ test("logged-in relay subscriptions recover after their worker crashes", async (
       () => (window as typeof window & {recoveredEvents: string[]}).recoveredEvents
     )
   await expect.poll(receivedEvents).toContain(before)
+
+  // As when waking a laptop, skip the suspended interval's timer callbacks.
+  // The still-live worker must get a fresh ping before it is declared dead.
+  await page.clock.fastForward(60_000)
+  await page.clock.runFor(1500)
+  expect(
+    await page.evaluate(
+      () => (window as typeof window & {relayWorkers: Worker[]}).relayWorkers.length
+    )
+  ).toBe(1)
+  const resumed = `after suspension ${viewer.publicKey}`
+  await publishEvents([signEvent(viewer, {kind: 1, content: resumed, tags: []})])
+  await expect.poll(receivedEvents).toContain(resumed)
 
   await page.evaluate(() => {
     const target = window as typeof window & {relayWorkers: Worker[]}
