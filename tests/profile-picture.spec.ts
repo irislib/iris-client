@@ -21,6 +21,17 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
     name: "Profile Picture Test",
     about: "Keep this description when changing the picture",
     website: "https://example.com/",
+    bot: true,
+    lud06: "lnurl1legacyprofilevalue",
+    customLabel: "Keep this extension",
+    customCount: 7,
+    customEmpty: null,
+    profileEvent: "An original metadata field, not the cached event envelope",
+    customData: {
+      enabled: false,
+      nested: {labels: ["one", "two"], mention: `@${nip19.npubEncode(publicKey)}`},
+    },
+    customItems: [1, "two", null, {three: true}],
   }
   const initialEvent = finalizeEvent(
     {
@@ -67,6 +78,21 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
     const nextPicture = new URL("/img/icon128.png", baseURL).href
     let previousCreatedAt = initialEvent.created_at
 
+    const saveAndCheck = async (expected: Record<string, unknown>) => {
+      const countBeforeSave = published.size
+      await page.getByRole("button", {name: "Save Changes", exact: true}).first().click()
+      await expect.poll(() => published.size).toBeGreaterThan(countBeforeSave)
+      const event = [...published.values()].at(-1)!
+      expect(verifyEvent(event)).toBe(true)
+      const content = JSON.parse(event.content)
+      expect(content).toEqual(expected)
+      for (const internalField of ["pubkey", "created_at"]) {
+        expect(content).not.toHaveProperty(internalField)
+      }
+      expect(content).not.toHaveProperty("image")
+      previousCreatedAt = event.created_at
+    }
+
     for (const [step, picture] of [
       ["add", firstPicture],
       ["replace", nextPicture],
@@ -78,24 +104,8 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
         await expect
           .poll(() => Math.floor(Date.now() / 1000))
           .toBeGreaterThan(previousCreatedAt)
-        const countBeforeSave = published.size
         await pictureInput.fill(picture)
-        await page
-          .getByRole("button", {name: "Save Changes", exact: true})
-          .first()
-          .click()
-        await expect.poll(() => published.size).toBeGreaterThan(countBeforeSave)
-        const event = [...published.values()].at(-1)!
-        expect(verifyEvent(event)).toBe(true)
-        const content = JSON.parse(event.content)
-        expect(content).toMatchObject({
-          name: initialProfile.name,
-          about: initialProfile.about,
-          website: initialProfile.website,
-          picture,
-        })
-        expect(content).not.toHaveProperty("image")
-        previousCreatedAt = event.created_at
+        await saveAndCheck({...initialProfile, picture})
 
         await page.reload()
         await expect(aboutInput).toHaveValue(initialProfile.about)
@@ -112,6 +122,67 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
         }
       })
     }
+
+    // Replace and clear already round-trip the preceding reload. A final ordinary
+    // editor change verifies uneditable metadata survived the clear/reload too.
+    await test.step("uneditable metadata survives the final reload", async () => {
+      await expect
+        .poll(() => Math.floor(Date.now() / 1000))
+        .toBeGreaterThan(previousCreatedAt)
+      const about = `${initialProfile.about} after reload`
+      await aboutInput.fill(about)
+      await saveAndCheck({...initialProfile, picture: "", about})
+    })
+  } finally {
+    await page.close()
+    await relay.close()
+  }
+})
+
+test("a nameless new account can save its first profile edit", async ({page}) => {
+  const published = new Map<string, VerifiedEvent>()
+  const relay = await startNostrRelay({
+    port: 0,
+    acknowledgeEvent: (event, acknowledge) => {
+      if (event.kind === 0) published.set(event.id, event)
+      acknowledge()
+    },
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    }, relay.port)
+    const account = await signUp(page, "")
+    await expect
+      .poll(() =>
+        [...published.values()].some((event) => event.pubkey === account.publicKey)
+      )
+      .toBe(true)
+    const initialEvent = [...published.values()].find(
+      (event) => event.pubkey === account.publicKey
+    )!
+    expect(verifyEvent(initialEvent)).toBe(true)
+    expect(JSON.parse(initialEvent.content)).toEqual({})
+
+    await page.goto("/settings/profile")
+    const aboutInput = page.getByPlaceholder("About yourself")
+    await expect(aboutInput).toHaveValue("")
+    await expect
+      .poll(() => Math.floor(Date.now() / 1000))
+      .toBeGreaterThan(initialEvent.created_at)
+    const countBeforeSave = published.size
+    const about = "First profile edit without choosing a name"
+    await aboutInput.fill(about)
+    await page.getByRole("button", {name: "Save Changes", exact: true}).first().click()
+    await expect.poll(() => published.size).toBeGreaterThan(countBeforeSave)
+    const event = [...published.values()].at(-1)!
+    expect(event.pubkey).toBe(account.publicKey)
+    expect(verifyEvent(event)).toBe(true)
+    expect(JSON.parse(event.content)).toEqual({about})
+
+    await page.reload()
+    await expect(aboutInput).toHaveValue(about)
+    await expect(page.getByPlaceholder("Your name")).toHaveValue("")
   } finally {
     await page.close()
     await relay.close()

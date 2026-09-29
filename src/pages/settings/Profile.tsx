@@ -7,15 +7,25 @@ import {Name} from "@/shared/components/user/Name"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile from "@/shared/hooks/useProfile"
 import {useEffect, useMemo, useState} from "react"
-import {NDKUserProfile} from "@/lib/ndk"
+import {NDKEvent, NDKSubscriptionCacheUsage, profileFromEvent} from "@/lib/ndk"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
 import {ndk} from "@/utils/ndk"
 import ProxyImg from "@/shared/components/ProxyImg"
+import {
+  profileEditorValues,
+  readProfileMetadata,
+  type ProfileEdits,
+  type ProfileEditorField,
+  type ProfileMetadata,
+} from "./profileMetadata"
 
 export function ProfileSettings() {
-  const [publicKeyState, setPublicKeyState] = useState("")
   const myPubKey = useUserStore((state) => state.publicKey)
+  return myPubKey ? <ProfileSettingsEditor key={myPubKey} myPubKey={myPubKey} /> : null
+}
+
+function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const navigate = useNavigate()
 
   const profileUpload = useFileUpload({
@@ -28,29 +38,64 @@ export function ProfileSettings() {
     accept: "image/*",
   })
 
-  useEffect(() => {
-    if (myPubKey) {
-      setPublicKeyState(myPubKey)
-    }
-  }, [myPubKey])
-
-  const existingProfile = useProfile(publicKeyState)
-
-  const user = useMemo(() => {
-    if (!myPubKey) {
-      return null
-    }
-    return ndk().getUser({pubkey: myPubKey})
-  }, [myPubKey])
-
-  const [newProfile, setNewProfile] = useState<NDKUserProfile>(user?.profile || {})
+  const existingProfile = useProfile(myPubKey)
+  const [source, setSource] = useState<{
+    pubkey: string
+    metadata: ProfileMetadata
+    createdAt: number
+  } | null>(null)
+  const [edits, setEdits] = useState<ProfileEdits>({})
+  const [loadError, setLoadError] = useState("")
+  const [saveError, setSaveError] = useState("")
+  const [loadAttempt, setLoadAttempt] = useState(0)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
+  const currentSource = source?.pubkey === myPubKey ? source : null
+  const baseValues = useMemo(
+    () => profileEditorValues(currentSource?.metadata ?? {}),
+    [currentSource]
+  )
+  const newProfile = {...baseValues, ...edits}
 
   useEffect(() => {
-    if (existingProfile) {
-      setNewProfile(existingProfile)
+    if (!myPubKey) return
+    let cancelled = false
+    setLoadError("")
+    const accept = (data: NonNullable<ReturnType<typeof readProfileMetadata>>) => {
+      if (cancelled) return
+      setSource((current) =>
+        current?.pubkey === myPubKey && current.createdAt > data.createdAt
+          ? current
+          : {pubkey: myPubKey, ...data}
+      )
     }
-  }, [existingProfile])
+    const cached = readProfileMetadata(existingProfile?.profileEvent, myPubKey)
+    if (cached) {
+      accept(cached)
+      return
+    }
+    // A UI/cache projection is not a complete metadata document. Fetch the source
+    // event before allowing edits to replace it, and fail closed if unavailable.
+    void ndk()
+      .fetchEvent(
+        {kinds: [0], authors: [myPubKey]},
+        {cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY}
+      )
+      .then((event) => {
+        const data = readProfileMetadata(
+          event ? JSON.stringify(event.rawEvent()) : undefined,
+          myPubKey
+        )
+        if (!data) throw new Error("Profile source unavailable")
+        accept(data)
+      })
+      .catch(() => {
+        if (!cancelled)
+          setLoadError("Couldn't load your full profile. Retry before saving.")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [myPubKey, existingProfile?.profileEvent, loadAttempt])
 
   useEffect(() => {
     if (saveState === "saved") {
@@ -59,36 +104,54 @@ export function ProfileSettings() {
     }
   }, [saveState])
 
-  function setProfileField(field: keyof NDKUserProfile, value: string) {
-    setNewProfile((prev) => {
-      return {
-        ...prev,
-        [field]: value,
-      }
+  function setProfileField(field: ProfileEditorField, value: string) {
+    setEdits((prev) => {
+      const next = {...prev}
+      if (value === baseValues[field]) delete next[field]
+      else next[field] = value
+      return next
     })
   }
 
   async function onSaveProfile() {
-    if (!user || !newProfile || !myPubKey) {
-      return
-    }
+    if (!currentSource || !myPubKey) return
     setSaveState("saving")
-    user.profile = newProfile
-    await user.publish()
-
-    // Update name cache for immediate UI reflection
-    const {updateNameCache} = await import("@/utils/profileName")
-    updateNameCache(myPubKey, newProfile)
-
-    setSaveState("saved")
+    setSaveError("")
+    const savedEdits = edits
+    const metadata = {...currentSource.metadata, ...savedEdits}
+    try {
+      const event = new NDKEvent(ndk())
+      event.kind = 0
+      event.content = JSON.stringify(metadata)
+      const signer = ndk().signer
+      if (!signer || (await signer.user()).pubkey !== myPubKey) {
+        throw new Error("Profile signer changed")
+      }
+      // Metadata strings are data, not post text to rewrite into Nostr mentions.
+      await event.sign(signer, {skipContentTagging: true})
+      await event.publish()
+      setSource((current) =>
+        current && current.createdAt > (event.created_at ?? 0)
+          ? current
+          : {pubkey: myPubKey, metadata, createdAt: event.created_at ?? 0}
+      )
+      setEdits((current) =>
+        Object.fromEntries(
+          Object.entries(current).filter(
+            ([key, value]) => savedEdits[key as ProfileEditorField] !== value
+          )
+        )
+      )
+      const {updateNameCache} = await import("@/utils/profileName")
+      updateNameCache(myPubKey, profileFromEvent(event))
+      setSaveState("saved")
+    } catch {
+      setSaveState("idle")
+      setSaveError("Couldn't save your profile. Your changes are still here; try again.")
+    }
   }
 
-  const isEdited = useMemo(() => {
-    if (!newProfile) {
-      return false
-    }
-    return JSON.stringify(newProfile) !== JSON.stringify(existingProfile)
-  }, [newProfile, existingProfile])
+  const isEdited = Object.keys(edits).length > 0
 
   const getUploadButtonLabel = (upload: typeof profileUpload, defaultLabel: string) => {
     if (upload.uploading) {
@@ -108,7 +171,13 @@ export function ProfileSettings() {
         return "Save Changes"
       })()}
       onClick={onSaveProfile}
-      disabled={!isEdited || saveState === "saving"}
+      disabled={
+        !currentSource ||
+        !isEdited ||
+        saveState === "saving" ||
+        profileUpload.uploading ||
+        bannerUpload.uploading
+      }
       isLast
     />
   )
@@ -142,130 +211,148 @@ export function ProfileSettings() {
         </div>
 
         <div className="space-y-6">
-          <SettingsGroup>
-            <SaveButton />
-          </SettingsGroup>
+          {loadError && (
+            <div role="alert">
+              <p>{loadError}</p>
+              <button
+                className="btn btn-sm"
+                onClick={() => setLoadAttempt((value) => value + 1)}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {saveError && <p role="alert">{saveError}</p>}
+          {!currentSource && !loadError && <p>Loading your full profile…</p>}
+          <fieldset
+            className="space-y-6"
+            disabled={!currentSource || saveState === "saving"}
+          >
+            <SettingsGroup>
+              <SaveButton />
+            </SettingsGroup>
 
-          <SettingsGroup title="Personal Information">
-            <SettingsInputItem
-              label="Name"
-              value={String(newProfile?.display_name || "")}
-              placeholder="Your name"
-              onChange={(value) => setProfileField("display_name", value)}
-            />
+            <SettingsGroup title="Personal Information">
+              <SettingsInputItem
+                label="Name"
+                value={String(newProfile?.display_name || "")}
+                placeholder="Your name"
+                onChange={(value) => setProfileField("display_name", value)}
+              />
 
-            <SettingsGroupItem>
-              <div className="flex flex-col space-y-2">
-                <label className="text-base font-normal">About</label>
-                <textarea
-                  placeholder="About yourself"
-                  className="bg-transparent border-none p-0 text-base focus:outline-none placeholder:text-base-content/40 resize-none min-h-[4em] w-full"
-                  value={newProfile?.about || ""}
-                  onChange={(e) => setProfileField("about", e.target.value)}
-                />
-              </div>
-            </SettingsGroupItem>
-
-            <SettingsInputItem
-              label="Website"
-              value={newProfile?.website || ""}
-              placeholder="https://example.com"
-              onChange={(value) => setProfileField("website", value)}
-              type="url"
-              isLast
-            />
-          </SettingsGroup>
-
-          <SettingsGroup title="Profile Picture">
-            <SettingsInputItem
-              label="Image URL"
-              value={newProfile?.picture || ""}
-              placeholder="https://example.com/image.jpg"
-              onChange={(value) => setProfileField("picture", value)}
-              type="url"
-            />
-
-            {newProfile?.picture && (
               <SettingsGroupItem>
-                <div className="w-10 h-10 rounded-full overflow-hidden">
-                  <ProxyImg
-                    src={newProfile.picture}
-                    alt="Profile preview"
-                    className="w-full h-full object-cover"
-                    width={40}
-                    square={true}
+                <div className="flex flex-col space-y-2">
+                  <label className="text-base font-normal">About</label>
+                  <textarea
+                    placeholder="About yourself"
+                    className="bg-transparent border-none p-0 text-base focus:outline-none placeholder:text-base-content/40 resize-none min-h-[4em] w-full"
+                    value={newProfile?.about || ""}
+                    onChange={(e) => setProfileField("about", e.target.value)}
                   />
                 </div>
               </SettingsGroupItem>
-            )}
 
-            <SettingsButton
-              label={getUploadButtonLabel(profileUpload, "Upload Profile Picture")}
-              onClick={profileUpload.triggerUpload}
-              disabled={profileUpload.uploading}
-              variant={profileUpload.error ? "destructive" : "default"}
-              isLast
-            />
-          </SettingsGroup>
+              <SettingsInputItem
+                label="Website"
+                value={newProfile?.website || ""}
+                placeholder="https://example.com"
+                onChange={(value) => setProfileField("website", value)}
+                type="url"
+                isLast
+              />
+            </SettingsGroup>
 
-          <SettingsGroup title="Banner Image">
-            <SettingsInputItem
-              label="Image URL"
-              value={newProfile?.banner || ""}
-              placeholder="https://example.com/banner.jpg"
-              onChange={(value) => setProfileField("banner", value)}
-              type="url"
-            />
+            <SettingsGroup title="Profile Picture">
+              <SettingsInputItem
+                label="Image URL"
+                value={newProfile?.picture || ""}
+                placeholder="https://example.com/image.jpg"
+                onChange={(value) => setProfileField("picture", value)}
+                type="url"
+              />
 
-            {newProfile?.banner && (
-              <SettingsGroupItem>
-                <div className="w-16 h-8 rounded overflow-hidden">
-                  <ProxyImg
-                    src={newProfile.banner}
-                    alt="Banner preview"
-                    className="w-full h-full object-cover"
-                    width={64}
-                  />
-                </div>
-              </SettingsGroupItem>
-            )}
+              {newProfile?.picture && (
+                <SettingsGroupItem>
+                  <div className="w-10 h-10 rounded-full overflow-hidden">
+                    <ProxyImg
+                      src={newProfile.picture}
+                      alt="Profile preview"
+                      className="w-full h-full object-cover"
+                      width={40}
+                      square={true}
+                    />
+                  </div>
+                </SettingsGroupItem>
+              )}
 
-            <SettingsButton
-              label={getUploadButtonLabel(bannerUpload, "Upload Banner Image")}
-              onClick={bannerUpload.triggerUpload}
-              disabled={bannerUpload.uploading}
-              variant={bannerUpload.error ? "destructive" : "default"}
-              isLast
-            />
-          </SettingsGroup>
+              <SettingsButton
+                label={getUploadButtonLabel(profileUpload, "Upload Profile Picture")}
+                onClick={profileUpload.triggerUpload}
+                disabled={profileUpload.uploading}
+                variant={profileUpload.error ? "destructive" : "default"}
+                isLast
+              />
+            </SettingsGroup>
 
-          <SettingsGroup title="Verification & Payment">
-            <SettingsInputItem
-              label="Lightning Address"
-              value={newProfile?.lud16 || ""}
-              placeholder="user@wallet.com"
-              onChange={(value) => setProfileField("lud16", value)}
-              type="email"
-            />
+            <SettingsGroup title="Banner Image">
+              <SettingsInputItem
+                label="Image URL"
+                value={newProfile?.banner || ""}
+                placeholder="https://example.com/banner.jpg"
+                onChange={(value) => setProfileField("banner", value)}
+                type="url"
+              />
 
-            <SettingsInputItem
-              label="user@domain verification (NIP-05)"
-              value={newProfile?.nip05 || ""}
-              placeholder="user@example.com"
-              onChange={(value) => setProfileField("nip05", value)}
-              type="email"
-            />
+              {newProfile?.banner && (
+                <SettingsGroupItem>
+                  <div className="w-16 h-8 rounded overflow-hidden">
+                    <ProxyImg
+                      src={newProfile.banner}
+                      alt="Banner preview"
+                      className="w-full h-full object-cover"
+                      width={64}
+                    />
+                  </div>
+                </SettingsGroupItem>
+              )}
 
-            <SettingsButton
-              label="Get free username @ iris.to"
-              onClick={() => navigate("/settings/iris")}
-              isLast
-            />
-          </SettingsGroup>
+              <SettingsButton
+                label={getUploadButtonLabel(bannerUpload, "Upload Banner Image")}
+                onClick={bannerUpload.triggerUpload}
+                disabled={bannerUpload.uploading}
+                variant={bannerUpload.error ? "destructive" : "default"}
+                isLast
+              />
+            </SettingsGroup>
 
-          <SettingsGroup>
-            <SaveButton />
-          </SettingsGroup>
+            <SettingsGroup title="Verification & Payment">
+              <SettingsInputItem
+                label="Lightning Address"
+                value={newProfile?.lud16 || ""}
+                placeholder="user@wallet.com"
+                onChange={(value) => setProfileField("lud16", value)}
+                type="email"
+              />
+
+              <SettingsInputItem
+                label="user@domain verification (NIP-05)"
+                value={newProfile?.nip05 || ""}
+                placeholder="user@example.com"
+                onChange={(value) => setProfileField("nip05", value)}
+                type="email"
+              />
+
+              <SettingsButton
+                label="Get free username @ iris.to"
+                onClick={() => navigate("/settings/iris")}
+                isLast
+              />
+            </SettingsGroup>
+
+            <SettingsGroup>
+              <SaveButton />
+            </SettingsGroup>
+          </fieldset>
         </div>
       </div>
     </div>

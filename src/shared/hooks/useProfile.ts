@@ -37,6 +37,7 @@ function sanitizeProfileForUi(profile?: NDKUserProfile | null): NDKUserProfile |
   const picture = profile.picture ?? profile.image
 
   return {
+    profileEvent: profile.profileEvent,
     created_at: profile.created_at,
     name: profile.name,
     username: profile.username,
@@ -72,6 +73,8 @@ function loadProfileFromDb(pubKeyHex: string) {
     .then((dexieProfile) => {
       const profile = sanitizeProfileForUi(dexieProfile)
       if (!profile) return
+      const current = profileStore.get(pubKeyHex)
+      if (current && (current.created_at ?? 0) >= (profile.created_at ?? 0)) return
       profileStore.set(pubKeyHex, profile)
       updateNameCache(pubKeyHex, profile)
       notifySubscribers(pubKeyHex)

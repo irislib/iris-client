@@ -110,16 +110,16 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
     const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
     ndk().signer = privateKeySigner
 
-    // Only create profile if username is provided
-    if (newUserName.trim()) {
-      const profileEvent = new NDKEvent(ndk())
-      profileEvent.kind = 0
-      profileEvent.content = JSON.stringify({
-        display_name: newUserName.trim(),
-        lud16: `${npub}@npub.cash`,
-      })
-      profileEvent.publish()
-    }
+    // Even a nameless new identity needs an authoritative empty profile document
+    // so later edits never have to guess whether existing metadata failed to load.
+    const profileEvent = new NDKEvent(ndk())
+    profileEvent.kind = 0
+    profileEvent.content = JSON.stringify(
+      newUserName.trim()
+        ? {display_name: newUserName.trim(), lud16: `${npub}@npub.cash`}
+        : {}
+    )
+    void profileEvent.publish(undefined, undefined, undefined, {skipContentTagging: true})
 
     setShowLoginDialog(false)
   }

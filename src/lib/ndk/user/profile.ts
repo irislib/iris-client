@@ -34,8 +34,6 @@ export function profileFromEvent(event: NDKEvent): NDKUserProfile {
         throw new Error(`Failed to parse profile event: ${error}`);
     }
 
-    profile.profileEvent = JSON.stringify(event.rawEvent());
-
     for (const key of Object.keys(payload)) {
         switch (key) {
             case "name":
@@ -76,6 +74,8 @@ export function profileFromEvent(event: NDKEvent): NDKUserProfile {
         }
     }
 
+    // Keep the source envelope even when its content has a custom profileEvent field.
+    profile.profileEvent = JSON.stringify(event.rawEvent());
     profile.created_at = event.created_at;
 
     return profile;
