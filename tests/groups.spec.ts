@@ -1,4 +1,4 @@
-import {test, expect, type Page} from "@playwright/test"
+import {test as base, expect, type Page} from "@playwright/test"
 import {
   generateSecretKey,
   getPublicKey,
@@ -19,6 +19,19 @@ import {
 import {signUp} from "./auth.setup"
 import {expectPersistedDraft} from "./utils/drafts"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
+
+const test = base.extend<{groupRelay: Awaited<ReturnType<typeof startNostrRelay>>}>({
+  // Playwright requires destructuring even for fixtures without dependencies.
+  // eslint-disable-next-line no-empty-pattern
+  groupRelay: async ({}, use) => {
+    const relay = await startNostrRelay({port: 0})
+    try {
+      await use(relay)
+    } finally {
+      await relay.close()
+    }
+  },
+})
 
 async function prepare(page: Page, port = 7777) {
   await page.addInitScript((port) => {
@@ -116,6 +129,7 @@ for (const partial of [false, true]) {
 test("group creation, membership, posts, polls and direct links preserve access", async ({
   page,
   browser,
+  groupRelay,
 }, testInfo) => {
   test.setTimeout(120000)
   const creatorKey = generateSecretKey()
@@ -123,7 +137,8 @@ test("group creation, membership, posts, polls and direct links preserve access"
   const outsiderKey = generateSecretKey()
   const creator = getPublicKey(creatorKey)
   const member = getPublicKey(memberKey)
-  await prepare(page)
+  const publishGroupEvent = (event: Event) => publish(event, groupRelay.url)
+  await prepare(page, groupRelay.port)
   await signUp(page, nip19.nsecEncode(creatorKey))
   await page.goto("/groups")
   await page.getByRole("button", {name: "Create group", exact: true}).first().click()
@@ -158,7 +173,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
 
   const memberContext = await browser.newContext()
   const memberPage = await memberContext.newPage()
-  await prepare(memberPage)
+  await prepare(memberPage, groupRelay.port)
   await signUp(memberPage, nip19.nsecEncode(memberKey))
   await memberPage.goto(url)
   await memberPage.getByRole("button", {name: "Request to join"}).click()
@@ -226,7 +241,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
   await expect(memberRow.getByText("Member", {exact: true})).toBeVisible()
 
   // A trusted member is explicitly followed; admission alone cannot mint voting authority.
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 3,
@@ -254,13 +269,13 @@ test("group creation, membership, posts, polls and direct links preserve access"
   const postId = await post.getAttribute("data-event-id")
 
   const now = Math.floor(Date.now() / 1000)
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {...createMembershipDraft(group, getPublicKey(outsiderKey), true), created_at: now},
       outsiderKey
     )
   )
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 1,
@@ -271,7 +286,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
       outsiderKey
     )
   )
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 7,
@@ -290,7 +305,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
   await expect(post.getByTestId("like-count")).toHaveText("1", {timeout: 15000})
 
   // A compromised trusted account can admit another account, but cannot delegate a trusted vote.
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         ...createMembershipAttestationDraft(group, getPublicKey(outsiderKey), true),
@@ -309,7 +324,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
   })
   await expect(page.getByText("2 members", {exact: true})).toBeVisible()
   await expect(post.getByTestId("like-count")).toHaveText("1")
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 1,
@@ -351,7 +366,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
     .first()
   const pollId = (await pollItem.getAttribute("data-event-id"))!
   const parkId = await pollItem.getByRole("radio", {name: /The park/}).inputValue()
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 1018,
@@ -373,7 +388,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
   ).toBeVisible()
 
   // Removing a voter from today's trust list must not rewrite the already-open poll.
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 3,
@@ -411,7 +426,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
 
   // More than one page of member replies remains reachable through shared Iris rendering.
   for (let index = 0; index < 12; index++) {
-    await publish(
+    await publishGroupEvent(
       finalizeEvent(
         {
           kind: 1,
@@ -434,7 +449,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
 
   // A deep link must enforce the same policy as the group page.
   const visitor = await browser.newPage()
-  await prepare(visitor)
+  await prepare(visitor, groupRelay.port)
   await visitor.goto(`${new URL(url).origin}/${nip19.noteEncode(postId!)}`)
   await expect(
     visitor.getByText("A weekend assembly in the park?", {exact: true}).first()
@@ -442,7 +457,7 @@ test("group creation, membership, posts, polls and direct links preserve access"
   await expect(visitor.getByTestId("like-button").first()).toBeDisabled()
   await expect(visitor.getByPlaceholder("Write your reply...")).toHaveCount(0)
 
-  await publish(
+  await publishGroupEvent(
     finalizeEvent(
       {
         kind: 3,
@@ -708,7 +723,11 @@ test("a rejected group post keeps its draft and does not appear as confirmed", a
       page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
     ).toHaveCount(0)
     rejectPosts = false
-    await page.getByRole("button", {name: "Post", exact: true}).click()
+    await page
+      .getByTestId("note-creator")
+      .filter({has: composer})
+      .getByRole("button", {name: "Post", exact: true})
+      .click()
     await expect(
       page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
     ).toHaveCount(1, {timeout: 15000})
@@ -774,7 +793,12 @@ test("a confirmed shortcut post clears a remounted editor and its saved draft", 
     await composer.fill("My next draft")
     await expectPersistedDraft(page, "My next draft")
     acknowledge!()
-    await expect(page.getByRole("button", {name: "Post", exact: true})).toBeEnabled()
+    await expect(
+      page
+        .getByTestId("note-creator")
+        .filter({has: composer})
+        .getByRole("button", {name: "Post", exact: true})
+    ).toBeEnabled()
     await expect(composer).toHaveValue("My next draft")
     await page.reload()
     await expect(composer).toHaveValue("My next draft")

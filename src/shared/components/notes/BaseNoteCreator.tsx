@@ -168,6 +168,7 @@ function NoteCreatorBody({
   return (
     <div
       ref={containerRef}
+      data-testid="note-creator"
       className={`${containerClass} ${drag.isDragOver ? "relative" : ""} relative`}
       onDragEnter={drag.handleDragEnter}
       onDragLeave={drag.handleDragLeave}

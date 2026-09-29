@@ -132,7 +132,7 @@ test("NIP-07 login can reply to a cached post detail event", async ({page}) => {
   await expect(page.getByText(parentContent)).toBeVisible()
 
   await page.getByPlaceholder("Write your reply...").fill("NIP07 cached reply smoke")
-  await page.getByRole("button", {name: "Reply"}).click()
+  await page.getByTestId("note-creator").getByRole("button", {name: "Reply"}).click()
 
   await expect(page.getByPlaceholder("Write your reply...")).toHaveValue("")
   expect(
@@ -200,7 +200,7 @@ test("important NIP-07 reply failures keep the draft and show a toast", async ({
 
   const replyInput = page.getByPlaceholder("Write your reply...")
   await replyInput.fill(replyDraft)
-  await page.getByRole("button", {name: "Reply"}).click()
+  await page.getByTestId("note-creator").getByRole("button", {name: "Reply"}).click()
 
   await expect(
     page.getByText("Could not publish reply: User rejected signing", {exact: true})
