@@ -43,10 +43,7 @@ const ProxyImg = (props: Props) => {
     const hasProxyFailed = imgproxyFailureCache.has(props.src)
 
     const shouldUseProxy =
-      imgproxy.enabled &&
-      props.src &&
-      !hasProxyFailed &&
-      !shouldSkipProxy(props.src)
+      imgproxy.enabled && props.src && !hasProxyFailed && !shouldSkipProxy(props.src)
 
     if (shouldUseProxy) {
       if (props.isVideo) {

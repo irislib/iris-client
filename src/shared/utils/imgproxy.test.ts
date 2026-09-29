@@ -3,12 +3,12 @@ import {describe, expect, it} from "vitest"
 import {generateProxyUrl} from "./imgproxy"
 
 describe("generateProxyUrl", () => {
-  it.each([
-    "data:image/png;base64,aGVsbG8=",
-    "blob:https://iris.to/local-avatar",
-  ])("keeps an in-memory image local even when resizing: %s", (source) => {
-    expect(generateProxyUrl(source, {width: 45, square: true})).toBe(source)
-  })
+  it.each(["data:image/png;base64,aGVsbG8=", "blob:https://iris.to/local-avatar"])(
+    "keeps an in-memory image local even when resizing: %s",
+    (source) => {
+      expect(generateProxyUrl(source, {width: 45, square: true})).toBe(source)
+    }
+  )
 
   it("keeps imgproxy HMAC signatures stable with Noble v2", () => {
     const original = "https://example.com/image.jpg"
