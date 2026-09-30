@@ -1,0 +1,96 @@
+// Replaced with the exact static build manifest by import-legacy-wallet.mjs.
+const manifest = {"version":"779d6a4a28e3348069fe19ce4563fa04dbe6362185af12313df6b82b5a1cc7c2","worker":"service-worker.779d6a4a28e3348069fe19ce4563fa04dbe6362185af12313df6b82b5a1cc7c2.js","files":{"assets/AlreadyRunning.654dcacc.js":"51a23f4a23f7dad2617cb64398b0393f471e87f6eb4eb92e70a2f217bd841f0d","assets/AndroidPWAPrompt.211f877d.js":"91b9e7b0aeec22973bd3ba462c5132be104cf138fcd246c712e1308ff9b6d773","assets/AndroidPWAPrompt.eb57d776.css":"0eb96784e2be2940b0f848c7ee1bcaa82748332a02ddf3e59d2ce06b6f8a7eda","assets/base.c6c478d6.js":"0eadeb7103ab4acc41b7ceefb0131534cd71e9a6f2a9963cdec8fd193f51b8bc","assets/BlankLayout.7f7f2f7a.js":"b90a1d9094aff4b25b91b726880e2031dde78b0bc69f288e6b45e866b1d4fa22","assets/cashu.5d75870c.js":"01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b","assets/ErrorNotFound.0d602e2e.js":"5590b9b7cf12080fb1844727e183ebc54415e548b3bfd39cbec52dd615ae73db","assets/flUhRq6tzZclQEJ-Vdg-IuiaDsNa.fd84f88b.woff":"fd84f88b497040d4f7d5e8c9f8635aef8d3e706c0fa52e2b6facf14eee87e522","assets/flUhRq6tzZclQEJ-Vdg-IuiaDsNcIhQ8tQ.4a4dbc62.woff2":"4a4dbc62fa335e411b94a532be091c58c0c0c4fa731339f11722577d3cf6443b","assets/focusout.7879ac0d.js":"e7e4ea1ca03c9f26ea4dbdf5755f0c2c87bc4cccac1f9b1059156a3e9760a326","assets/FullscreenLayout.a3988f8a.js":"dc74f833b00a8036f8e58d1be1dbd02382895fbe322c4b80ea563094a32f70f9","assets/global-components.bac6e06e.js":"335bdf3f515c4e52f287902517df035b879fab5a5bc3f06966cb109ef0122eaf","assets/index.14146baf.css":"d6c21fe52628572654fb5120794557ea9afdff0884dfd22cc2b9a6d609bdc2ff","assets/index.4aa00efe.js":"9c657d70d50d501c45f4958af3a83b6c1c115104064b3abc822fa06c15aba516","assets/index.d40e8cca.js":"704afefbb261b260bba5c2aac9a0daca03aafd43f74b8db06f6e6a5d131183f7","assets/KFOkCnqEu92Fr1MmgVxIIzQ.34e9582c.woff":"34e9582c1371a3b3a20380266dae994edc6eade192dff1a4061dd6511352c102","assets/KFOlCnqEu92Fr1MmEU9fBBc-.9ce7f3ac.woff":"9ce7f3ac47b91743893a2d29fe511a7ebec7aef52b2ea985fa127448d1f227c1","assets/KFOlCnqEu92Fr1MmSU5fBBc-.bf14c7d7.woff":"bf14c7d7734b8f9c863b982a4e7b30d4361af8e8747f2ca8672ba58e703e96a3","assets/KFOlCnqEu92Fr1MmWUlfBBc-.e0fd57c0.woff":"e0fd57c0d9537d9c9884b6a8ad8c1823800d94dcfb6a2cc988780fe65a592fe6","assets/KFOlCnqEu92Fr1MmYUtfBBc-.f6537e32.woff":"f6537e32263e6c49bf59bd6e4952b6bf06c8f09152c5b016365fef70e35856cf","assets/KFOmCnqEu92Fr1Mu4mxM.f2abf7fb.woff":"f2abf7fbabe298e5823d257e48f5dc2138c6d5e0c210066f76b0067e8eda194f","assets/MainLayout.7c2e2776.js":"6f349a5850906e9af16266b230e204aed7b48ed539ec72d5ca87e3536efaf03a","assets/MainLayout.aee306ae.css":"cc590fce1d7db451a7088bf0894a98c84de822dc19d1f524eebaba7c954856e3","assets/material-icons-v50.fbba257d.woff2":"fbba257dc39b6005dfbd9a19b047beb96a5af5dd737690f896222cbd89893caf","assets/npubcash.a3874876.js":"7ccbdc4ed325903a745ca636218d02cb9477a3f8ae767a334cd45857ebf27b8b","assets/private.use-form.a0b3b6e1.js":"5292ab98243aaa4b1bc950d0c8f202097926aa7b19d9b0b89faa5741c64ea65a","assets/QHeader.13c631b7.js":"5db95fd536791eef7a384eea491507d16eedbe7c333e3c9bb47b8b0256137475","assets/QInput.cb2eda42.js":"9c6a6b0392d3a6bcf5bb59fe95b35299cacfa67488825db451a971c47705f486","assets/QItem.ee40fe78.js":"c6a172cb9c4cea65804588d42660d605a7765f35521cc4f6c353301f8d3e69ab","assets/QLayout.bace0ecc.js":"c8a276664db6e56f4f5212279af7e2998c5b90f306e7560956b0a619e2ab6653","assets/QLinearProgress.105130bc.js":"a18040d09c483876b3c0f75340d6ffacd230d82fc269cc43204553fe0acf12e1","assets/QList.475c69c0.js":"7f19749f04ad9766f76d7e1d4dec699dff97561d38f1a356577b7e7752155810","assets/qr-scanner-worker.min.4f416acf.js":"f9d5a00a24ef3c0f52453748a018feec9441c0031c7068e41606c744a26491f5","assets/QResizeObserver.7f03b42b.js":"8c97a41f11ba07709cbcd7c7d9341d7477f1dcc336ddfbbc08320ce0d5effa5a","assets/QSpinnerHourglass.261057ba.js":"870ecbef1eca6cd9208c0f9217df14801e308c6c3cc08bd816bb99a03c1ab424","assets/QToolbar.4e800bfd.js":"d8df46c6754370a51a0af7398c77729fe03828e692d67733a10bed2c9a4f84cc","assets/QToolbarTitle.d193599e.js":"e0596afcfe9aa0a5a13fb8fd0d1bd66b290277cfc0294814b93b79d53a6d42e3","assets/Restore.8cba89ea.js":"72fbecb60dc05d30065aa4cd067d2bb06d39222b5cdca5e495e3020707971fbc","assets/restore.b282b426.js":"592e9de31857e662e0a23a118dc1d1304c3296cbaa412712aa3ddcee5ae6c45f","assets/scroll.a2c1a752.js":"f98de144619d4f34bfae5f3601669ebc241d033b566c14469f2908489fa7677f","assets/selection.1defce9d.js":"090470a8ec4c857574f2a2152626c767bc125a8e5b55b22eece4ed3fdc2dc98a","assets/Settings.caad80e0.js":"5379c4f6d92cdcb5556646e2556ae6ce8939937e20cad04f41d24021ff5096eb","assets/Settings.f9af94b6.css":"27a4a6c32bf927815a040966f7f74b225772c8a2bfde06718b787f70dbb896d1","assets/TermsPage.8329ea15.css":"89ba7b30ab9325edcc84fbbe35e6baa09183ed5195e2d4c7f40d87d05c7ab51b","assets/TermsPage.9410ced0.js":"779e34a1e09951b18b300bbb9349c5e1156184f696646c51ca173ed39a48deba","assets/touch.41c219d2.js":"60f85a6706eb14d4ef2c235f327b63e77aa3741b12f31cfbc951ffed47df1562","assets/ui.3203c37a.js":"98907755b1a11f0db115aa4ee578fc62ca5a74b2274eb9ee4ac324c9e7a4771e","assets/use-checkbox.d2c82c29.js":"28414423d060e4470a6671178aa00887578bc8f6a4a3243819a99ca2289ee885","assets/use-timeout.9ea380f4.js":"2ce591f716e1cd68290fcc1a36fcb93351188b5893ba915290018b0c9ee7a7d0","assets/vue-qrcode.esm.0771b810.js":"263ddcf40db2ca4317ae34955afb69ba11da92f26236db4902658ec9f9fe625a","assets/WalletPage.d54c5d8d.js":"6e0bcf894295071742bbf50c975aacee5b16f51ed0adae9298d07ecb65e1fa66","assets/WalletPage.d7bc9a06.css":"fa7d8554b3da05b3714b900212840b7a977bbb71047087b367a9ce3b72b85555","assets/web.1979affd.js":"2ee6ce692507c4293a568a7023763ab5dad70729ee7900c218ceb72f039b6a01","assets/web.67be7bf6.js":"ce9d0a648a14fa73af2936d84b4ae748b49bd5b82d5a5486f7e12be0ef943f65","assets/welcome.8ff628c3.js":"ee1cd0d926c16d46888205e5c39cc2d10714f89376935158e8cb3425ce2a1fb2","assets/WelcomePage.b07b1606.css":"c5e66ae22019948781a3d8e254bda24ee7a3d9ad876dcd8e0fa821af4ab49e40","assets/WelcomePage.eac48196.js":"188d80ff4c8a2dc8d20b8d7a45e736e91cdbc88d4621812d2eb88092df0a049b","assets/WelcomeSlide4.4d29ee52.js":"41f563cfade2cd6b082aa4f967ed7ba75d29e7b046be6d7419777d1d9e5b00e9","assets/WelcomeSlide4.8505cd1c.css":"f25b69724e09ba3cf5008778a45ef402d76dd41b8ecaf34cc85b52d8afbb86a4","clean.png":"26dd19161f2db3ccdee428007f172985029c9acce7f8d5917c769ed5201363ea","favicon.ico":"93494db1627c52219940f133a1835817b108a652b2e3d75c80877fdc07af1b90","icons/apple-icon-120x120.png":"e50f3e8428a6f159eb58d7a52705f626b432df2bf4ef7c3bdb3aadaf8dcdfbaa","icons/apple-icon-152x152.png":"879d0ccbbb338cf780bb11f43cd8ec0145d357cc850e0ea4ccea41576d228403","icons/apple-icon-167x167.png":"60bb4d1e48cc1bfab5d419b580a7a9072099d584d04e0762d67f9490d9e7a256","icons/apple-icon-180x180.png":"5e208a71ac4ffb7f37625f12a8f35741e2577901ff7691ad76799ba413650c17","icons/apple-launch-1080x2340.png":"b09270dbdee9f122a1ee4329b32f813286ca7a74d444bd8ddda6f14e60ce4a38","icons/apple-launch-1125x2436.png":"62b27051c0c573584e131c2dbca1c8a86bb33f1259672e8521e193d22139e8e9","icons/apple-launch-1170x2532.png":"f84b1908b2b697c2325d07a81d048e2d9be58e38523beafdfdd73dc36d69ba3d","icons/apple-launch-1179x2556.png":"9d3ac7f842e7a82a00aa0374e3dd6177e0a9dfab618d49186e3a46396f4dded4","icons/apple-launch-1242x2208.png":"15b5e9accd936096faa3851af0ee05bf74d6bf88e2407892f00efd7544ac9f50","icons/apple-launch-1242x2688.png":"806ed6ffb334995e5f8f5984ff749fb44fd3f207dc131763c61df0643c8609e4","icons/apple-launch-1284x2778.png":"bd45b2437b6978983cc3b1ad21ce9ce03c0bb849edabf6d9a95b2c0f2ae3f5b5","icons/apple-launch-1290x2796.png":"835b0b757767a824d367c2902d22d46060feb0f0df46caa2a6dcca3c65deed21","icons/apple-launch-1536x2048.png":"c3268aa8efecb4dc4cdf8d9fb4591f1a10e3afe879a92f58dbbdd9eec552bba6","icons/apple-launch-1620x2160.png":"e55c8674f86b84648082059dd82c8a46db45ee20e1b5c2925550b09d2fb0ba81","icons/apple-launch-1668x2224.png":"19f70e47113befa9543fb9564f216bbbeb39a1c9de2f9e79961e8420bc60f833","icons/apple-launch-1668x2388.png":"603cb780932a7dabe0d3b938bd305f9c362e7a01e78f39735b13bb8ddbc33d9c","icons/apple-launch-2048x2732.png":"f1fdc4d98335ef83cbd08b254beb40e5beaa462ee92808d745fb9df8628c6f76","icons/apple-launch-750x1334.png":"1dcb20ca2f16feb3497650c4e617039b082120f21cc7ada00f08b089f0df6c52","icons/apple-launch-828x1792.png":"5c2ae539bc948e2e45c193b5ad56a4e0d24793fb86750bf6049671ded121a98e","icons/favicon-128x128.png":"6ab40ea3a84561c78bcd69f0291a36d2a1c736196a4815e5bf765ed3f3603689","icons/favicon-16x16.png":"9fc4729ac48d1c438900abb472953f74aec14d5080654e939c308e8463ccf7b5","icons/favicon-32x32.png":"f2b5dfc5ba62e3f032f94018aa4b74376640ef151ad2e2d2a2e004c2f582b2eb","icons/favicon-96x96.png":"ef27ff03f22e9e8d1384e587eab4b86d40ecb4b3b57928dd32b72d0a18448329","icons/icon-128x128.png":"1fb86491bec5ecfe85c0010373f845c656d984a9b1ec4cc825abe00f1ced4698","icons/icon-192x192.png":"7fb2830a3c4c99e1c78704095b75381eaddf92988421204f8ce4d22dabdee092","icons/icon-256x256.png":"62386278b22eb608f4de0612ce66b7fac2e330a46e462e14eb602ac2f196c7bf","icons/icon-384x384.png":"bd1e52d51148972c886f908960782e39faa5b4882089ee752b8b44dac627b4d4","icons/icon-512x512.png":"54f6971eba7069d551ec219321a7bf991eddbe75748438d204b66ea2de4f1ead","icons/ms-icon-144x144.png":"8fd0e2a0d6a088e59b89c97665018e44bbd5fe7e08cbcb6cab483eedb7d077ae","icons/safari-pinned-tab.svg":"0cc4ac0adb0950bf7f8055533d6d5ca9a4c525f2562b31238bc2aa7ca89e60bf","index.html":"fb867ef2260ac7fe2cdd0fabf0569b7525eb0b45ade07054ed0b7ea69a7c61c3","nostr-icon.svg":"81a52e60058705c3f80801d439479adab8f181137d09a1088dad8fcca0790064","offline.js":"b533b8d13452e5c78fb17d319eb4317b5d5851e6c111ba4a95df5d1159a4d334","provenance.json":"2904d03f08e53100e0eb488cbe254204c1933366d1ef64900d92511c6be77986","screenshots/narrow-1.png":"a30590402e52088ea9bd202d831ffac91bdb7d898baecd63a788328756b80401","screenshots/narrow-2.png":"6431172fc7aa78030f987ab74ee7b60fde15b1979854979bf96f5009c17922c8","screenshots/wide-1.png":"48a508f24cf3d728eb86138f13d2eda791aae3ed3f2c915d331afb828a1cba02","screenshots/wide-2.png":"5fca485eb5e973cd69929e0db3d676bab0788b225708eac481ae3d93890ab37e","x-logo.svg":"0d3b0798913e8d27d45490fa60e36aef6b833d69cd3174dbb9bbb597bb35c25d"}}
+const prefix = `legacy-cashu-static:${self.registration.scope}:`
+const cacheName = prefix + manifest.version
+const index = new URL("index.html", self.registration.scope).href
+// The history router's document routes can share the cached entry page. Keep
+// this explicit so API requests and unknown paths never receive cached HTML.
+const routes = new Set(
+  ["", "settings", "restore", "already-running", "welcome", "terms"].map(
+    (route) => new URL(route, self.registration.scope).href
+  )
+)
+const files = new Map(
+  Object.entries(manifest.files).map(([file, hash]) => [
+    new URL(file, self.registration.scope).href,
+    `sha256-${btoa(String.fromCharCode(...hash.match(/../g).map((byte) => parseInt(byte, 16))))}`,
+  ])
+)
+
+async function retireUnusedCaches() {
+  // An update may wait behind an open wallet. Keep every live worker's version;
+  // discard only abandoned installations or versions the browser has retired.
+  const keep = new Set([cacheName])
+  for (const worker of [
+    self.registration.active,
+    self.registration.waiting,
+    self.registration.installing,
+  ]) {
+    const version =
+      worker && new URL(worker.scriptURL).pathname.match(/\.([0-9a-f]{64})\.js$/)?.[1]
+    if (version) keep.add(prefix + version)
+  }
+  await Promise.all(
+    (await caches.keys())
+      .filter((name) => name.startsWith(prefix) && !keep.has(name))
+      .map((name) => caches.delete(name))
+  )
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const cache = await caches.open(cacheName)
+      // Atomic static response batch: no API URLs or wallet data are included.
+      try {
+        await cache.addAll(
+          [...files].map(
+            ([url, integrity]) => new Request(url, {cache: "no-cache", integrity})
+          )
+        )
+      } catch (error) {
+        const inUse = [self.registration.active, self.registration.waiting].some(
+          (worker) => worker?.scriptURL === self.location.href
+        )
+        if (!inUse) await caches.delete(cacheName)
+        throw error
+      }
+      await retireUnusedCaches()
+    })()
+  )
+  // No skipWaiting: open wallets keep their matching HTML, scripts and styles.
+})
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      await retireUnusedCaches()
+      await self.clients.claim()
+    })()
+  )
+})
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return
+  const url = new URL(event.request.url)
+  url.search = ""
+  url.hash = ""
+  const key = event.request.mode === "navigate" && routes.has(url.href) ? index : url.href
+  if (!files.has(key)) return
+  event.respondWith(
+    (async () => {
+      const cache = await caches.open(cacheName)
+      const saved = await cache.match(key)
+      const response =
+        saved ?? (await fetch(new Request(key, {integrity: files.get(key)})))
+      if (!saved && response.ok) await cache.put(key, response.clone())
+      // Static hosts can redirect index.html to /. Navigation requests reject
+      // redirected cached responses, although their verified bytes are valid.
+      return response.redirected
+        ? new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          })
+        : response
+    })()
+  )
+})

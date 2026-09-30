@@ -4,6 +4,7 @@
 
 - Keep the recovery wallet working offline when the web host redirects its entry page.
 - Recover an older wallet cache when reopening it from Iris.
+- Keep the recovery wallet usable when its signing device is offline.
 
 ## 2.5.29 - 2026-09-30
 
