@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.25 - 2026-09-30
+
+- Use the shared Nostr runtime for batched subscriptions, durable offline events, and peer-served files.
+- Keep existing accounts and message sessions when upgrading.
+
 ## 2.5.24 - 2026-09-29
 
 - Hide Groups from the Iris navigation menu.
