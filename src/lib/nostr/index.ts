@@ -808,22 +808,30 @@ export class NostrClient extends Emitter {
     opts: SubscriptionOptions = {},
     relaySet?: RelaySet
   ) {
+    return this.collectEvents(filters, opts, relaySet)
+  }
+  private collectEvents(
+    filters: EventFilter | EventFilter[],
+    opts: SubscriptionOptions,
+    relaySet?: RelaySet,
+    exactId?: string
+  ) {
     return new Promise<Set<AppEvent>>((resolve) => {
       const found = new Map<string, AppEvent>()
       const sub = this.subscribe(filters, {...opts, closeOnEose: true}, relaySet)
+      const finish = () => {
+        clearTimeout(timeout)
+        sub.stop()
+        resolve(new Set(found.values()))
+      }
+      const timeout = setTimeout(finish, 10000)
       sub.on("event", (event: AppEvent) => {
         const key = event.deduplicationKey()
         const old = found.get(key)
         if (!old || old.created_at < event.created_at) found.set(key, event)
+        if (event.id === exactId) finish()
       })
-      const timeout = setTimeout(() => {
-        sub.stop()
-        resolve(new Set(found.values()))
-      }, 10000)
-      sub.on("eose", () => {
-        clearTimeout(timeout)
-        resolve(new Set(found.values()))
-      })
+      sub.on("eose", finish)
     })
   }
   async fetchEvent(
@@ -848,7 +856,11 @@ export class NostrClient extends Emitter {
         else return null
       }
     } else filters = filter
-    const events = await this.fetchEvents(filters, opts, relaySet)
+    const exactId =
+      filters.ids?.length === 1 && /^[0-9a-f]{64}$/.test(filters.ids[0])
+        ? filters.ids[0]
+        : undefined
+    const events = await this.collectEvents(filters, opts, relaySet, exactId)
     return [...events].sort((a, b) => b.created_at - a.created_at)[0] ?? null
   }
   async publishEvent(event: AppEvent, relaySet?: RelaySet): Promise<Set<Relay>> {

@@ -1,9 +1,75 @@
 import {describe, it, expect, vi} from "vitest"
 import {nip19, verifyEvent} from "nostr-tools"
-import NostrClient, {AppEvent, SecretKeySigner, profileFromEvent, Relay} from "./index"
+import NostrClient, {
+  AppEvent,
+  SecretKeySigner,
+  profileFromEvent,
+  Relay,
+  EventSubscription,
+} from "./index"
 import {relayHints} from "./relayPolicy"
 
 describe("app event and account semantics", () => {
+  it("returns an exact post as soon as the worker delivers it and closes its interest", async () => {
+    const client = new NostrClient({signer: SecretKeySigner.generate()})
+    const post = new AppEvent(client, {kind: 1, content: "Already available"})
+    await post.sign()
+    let subscription!: EventSubscription
+    client.transportPlugins.push({
+      onSubscribe: (sub) => {
+        subscription = sub
+      },
+    })
+    try {
+      const result = client.fetchEvent(post.id)
+      await Promise.resolve()
+      subscription.eventReceived(post)
+      const delivered = await Promise.race([
+        result,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 50)),
+      ])
+      expect(delivered?.id).toBe(post.id)
+      expect(subscription.closed).toBe(true)
+    } finally {
+      subscription.eoseReceived()
+      await client.close()
+    }
+  })
+  it.each(["replaceable", "prefix", "multiple IDs"])(
+    "waits for history before choosing a %s result",
+    async (kind) => {
+      const client = new NostrClient({signer: SecretKeySigner.generate()})
+      const old = new AppEvent(client, {kind: 0, created_at: 100, content: "Old"})
+      const latest = new AppEvent(client, {kind: 0, created_at: 101, content: "Latest"})
+      await old.sign()
+      await latest.sign()
+      const filter =
+        kind === "replaceable"
+          ? {kinds: [0], authors: [old.pubkey]}
+          : kind === "prefix"
+            ? {ids: [old.id.slice(0, 8)]}
+            : {ids: [old.id, latest.id]}
+      let subscription!: EventSubscription
+      client.transportPlugins.push({
+        onSubscribe: (sub) => {
+          subscription = sub
+        },
+      })
+      let settled = false
+      const result = client.fetchEvent(filter).then((event) => {
+        settled = true
+        return event
+      })
+      await Promise.resolve()
+      subscription.eventReceived(old)
+      await Promise.resolve()
+      expect(settled).toBe(false)
+      if (kind !== "prefix") subscription.eventReceived(latest)
+      subscription.eoseReceived()
+      expect((await result)?.id).toBe(kind === "prefix" ? old.id : latest.id)
+      await client.close()
+    }
+  )
   it("routes confirmed writes through the attached worker without another runtime", async () => {
     const client = new NostrClient()
     const publish = vi.fn().mockResolvedValue({remoteAccepted: true})
