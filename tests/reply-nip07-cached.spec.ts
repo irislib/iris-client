@@ -19,8 +19,14 @@ const seedCachedEvent = async (
     sig: string
   }
 ) => {
+  await expect
+    .poll(() =>
+      page.evaluate(async () =>
+        (await indexedDB.databases()).some((database) => database.name === "iris-pubsub")
+      )
+    )
+    .toBe(true)
   await page.evaluate(async (cachedEvent) => {
-    const {getMainThreadDb} = await import("/src/lib/nostr/db.ts")
     const serialized = JSON.parse(cachedEvent.serialized)
     const event = {
       id: cachedEvent.id,
@@ -31,7 +37,7 @@ const seedCachedEvent = async (
       content: serialized[5],
       sig: cachedEvent.sig,
     }
-    await getMainThreadDb().events.put({
+    const record = {
       id: event.id,
       pubkey: event.pubkey,
       kind: event.kind,
@@ -39,7 +45,24 @@ const seedCachedEvent = async (
       event: JSON.stringify(event),
       sig: event.sig,
       tagIndex: event.tags.map((tag: string[]) => `${tag[0]}:${tag[1]}`),
+    }
+    // Seed the actual persisted cache in both dev and production builds.
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("iris-pubsub")
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
     })
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction("events", "readwrite")
+        transaction.objectStore("events").put(record)
+        transaction.oncomplete = () => resolve()
+        transaction.onabort = () => reject(transaction.error)
+        transaction.onerror = () => reject(transaction.error)
+      })
+    } finally {
+      database.close()
+    }
   }, event)
 }
 

@@ -39,9 +39,11 @@ test("saved account and queued post survive an offline reload and publish on rec
   ).toBe(before)
   await context.setOffline(false)
   const readerContext = await browser.newContext()
-  await readerContext.addInitScript(() => {
-    window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
-  })
+  if (process.env.IRIS_E2E_LOCAL_RELAY === "true") {
+    await readerContext.addInitScript(() => {
+      window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
+    })
+  }
   const reader = await readerContext.newPage()
   try {
     await reader.goto(path)
