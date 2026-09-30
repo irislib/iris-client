@@ -438,13 +438,19 @@ test("group creation, membership, posts, polls and direct links preserve access"
       )
     )
   }
-  await memberPage
-    .locator("[data-main-scroll-container]")
-    .last()
-    .evaluate((element) => element.scrollTo(0, element.scrollHeight))
-  await expect(
-    memberPage.getByText("Assembly reply 12", {exact: true}).first()
-  ).toBeVisible({timeout: 15000})
+  // Relay acknowledgments can precede rendering. Scroll as the replies arrive.
+  await expect
+    .poll(
+      async () => {
+        await memberPage
+          .locator("[data-main-scroll-container]")
+          .last()
+          .evaluate((element) => element.scrollTo(0, element.scrollHeight))
+        return memberPage.getByText(/^Assembly reply \d+$/).count()
+      },
+      {timeout: 15000}
+    )
+    .toBe(12)
   await memberPage.goto(url)
 
   // A deep link must enforce the same policy as the group page.
