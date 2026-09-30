@@ -3,7 +3,10 @@ import {signUp} from "./auth.setup"
 import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 import {usingBuiltDist} from "./utils/built-dist"
 
-test.skip(usingBuiltDist, "requires local-relay private messaging group setup")
+test.skip(
+  usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true",
+  "requires local-relay private messaging group setup"
+)
 
 test("can create and use a group chat with self", async ({page}) => {
   test.setTimeout(60000)

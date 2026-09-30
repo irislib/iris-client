@@ -154,3 +154,6 @@ const store = create<GroupsStore>()(
 )
 
 export const useGroupsStore = store
+
+export const isGroupMember = (group: Group | undefined, owner: string): boolean =>
+  !!group?.members.includes(owner)

@@ -79,6 +79,26 @@ describe("app event and account semantics", () => {
     expect(publish).toHaveBeenCalledWith(event, [relay], {requireAck: true})
     expect(runtime).not.toHaveBeenCalled()
   })
+  it("does not treat a queued worker publication as a confirmed private message", async () => {
+    const client = new NostrClient()
+    const publish = vi
+      .fn()
+      .mockResolvedValue({queued: true, remoteAccepted: false, sources: []})
+    client.transportPlugins.push({publish})
+    const event = new AppEvent(client, {kind: 1060})
+    const options = {requireAck: true, connectedOnly: true}
+    await expect(client.publishEvent(event, undefined, options)).rejects.toThrow(
+      "No relay confirmed"
+    )
+    expect(publish).toHaveBeenCalledWith(event, undefined, options)
+    publish.mockResolvedValue({
+      remoteAccepted: true,
+      sources: [{id: "wss://relay.example", accepted: true}],
+    })
+    expect((await client.publishEvent(event, undefined, options)).size).toBe(1)
+    await client.close()
+  })
+
   it("restores the existing hex/nsec account and preserves both chat encryption schemes", async () => {
     const original = SecretKeySigner.generate()
     const restored = new SecretKeySigner(original.privateKey)

@@ -116,6 +116,8 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
       return mocks.runtime.initForOwner(ownerPubkey)
     }
 
+    async syncGroups() {}
+
     createLinkInvite(ownerPubkey?: string) {
       return mocks.runtime.createLinkInvite(ownerPubkey)
     }

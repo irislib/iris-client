@@ -62,6 +62,58 @@ const storedRows = async () =>
   Promise.all((await storage.keys()).map((key) => storage.getItem(key)))
 
 describe("durable runtime publication", () => {
+  it("retains group scope across restart and drops removed-group retries", async () => {
+    const context = {groupId: "removed-group"}
+    const failed = createQueue(async () => {
+      throw new Error("offline")
+    })
+    await expect(failed.publish(envelope("a"), "inner-a", context)).rejects.toThrow(
+      "offline"
+    )
+    failed.close()
+    context.groupId = "mutated-by-caller"
+    const canPublish = vi.fn(async () => false)
+    const publish = vi.fn()
+    const restored = createQueue(publish, {canPublish})
+    restored.start()
+    await waitFor(async () => expect(await storage.keys()).toEqual([]))
+    expect(canPublish).toHaveBeenCalledWith({groupId: "removed-group"})
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it("cancels an active group attempt without cancelling direct messages", async () => {
+    const ack = deferred()
+    const publish = vi.fn(async (_event, _inner, signal) => {
+      await ack.promise
+      signal.throwIfAborted()
+    })
+    const queue = createQueue(publish)
+    const group = queue.publish(envelope("a"), "inner-a", {groupId: "removed-group"})
+    const rejected = expect(group).rejects.toMatchObject({name: "AbortError"})
+    const direct = queue.publish(envelope("b"), "inner-b")
+    await waitFor(() => expect(publish).toHaveBeenCalledTimes(2))
+    await queue.cancelGroup("removed-group")
+    ack.resolve()
+    await rejected
+    await direct
+    expect(await storedRows()).toEqual([])
+  })
+
+  it("deletes queued group sends on removal even if membership is later restored", async () => {
+    const publish = vi.fn()
+    const queue = createQueue(publish, {canPublish: () => true})
+    await queue.enqueue(envelope("a"), "old-group-message", {groupId: "group"})
+    await queue.enqueue(envelope("b"), "direct")
+    await queue.cancelGroup("group")
+    await queue.publish(envelope("c"), "new-group-message", {groupId: "group"})
+    queue.start()
+    await waitFor(async () => expect(await storage.keys()).toEqual([]))
+    expect(publish.mock.calls.map(([event]) => event.id).sort()).toEqual([
+      envelope("b").id,
+      envelope("c").id,
+    ])
+  })
+
   it("persists before dispatch and lets another send finish while an ACK never arrives", async () => {
     const stalled = deferred()
     const sent = new Set<string>()
@@ -156,6 +208,7 @@ describe("durable runtime publication", () => {
       envelope("a"),
       "inner-a",
       expect.any(AbortSignal),
+      undefined,
     ])
     await waitFor(async () => expect(await storage.keys()).toEqual([]))
   })

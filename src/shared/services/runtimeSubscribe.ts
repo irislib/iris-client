@@ -1,6 +1,7 @@
 import {AppEvent, EventFilter, CacheMode} from "@/lib/nostr"
 import {
   buildRuntimeBackfillFilters,
+  MESSAGE_EVENT_KIND,
   RuntimeSubscriptionTracker,
   type NostrSubscribe,
 } from "nostr-double-ratchet"
@@ -109,5 +110,49 @@ export const createRuntimeSubscribe = (
       }
       liveSubscription.stop()
     }
+  }
+}
+
+/** Restore host group state before encrypted history enters the runtime. */
+export const createRuntimeEventGate = (subscribe: NostrSubscribe) => {
+  let ready = false
+  let closed = false
+  const pending = new Set<() => void>()
+  const gatedSubscribe: NostrSubscribe = (filter, onEvent) => {
+    let active = true
+    const buffered = new Set<() => void>()
+    const stop = subscribe(filter, (event) => {
+      if (!active || closed) return
+      if (ready || event.kind !== MESSAGE_EVENT_KIND) {
+        onEvent(event)
+        return
+      }
+      const deliver = () => {
+        buffered.delete(deliver)
+        if (active && !closed) onEvent(event)
+      }
+      buffered.add(deliver)
+      pending.add(deliver)
+    })
+    return () => {
+      active = false
+      for (const deliver of buffered) pending.delete(deliver)
+      buffered.clear()
+      stop()
+    }
+  }
+  return {
+    subscribe: gatedSubscribe,
+    release() {
+      if (closed) return
+      ready = true
+      const deliveries = [...pending]
+      pending.clear()
+      for (const deliver of deliveries) deliver()
+    },
+    close() {
+      closed = true
+      pending.clear()
+    },
   }
 }

@@ -162,3 +162,45 @@ describe("createRuntimeSubscribe", () => {
     })
   })
 })
+
+describe("runtime message startup gate", () => {
+  it("holds encrypted history until saved groups are ready without blocking registration", async () => {
+    const {createRuntimeEventGate} = await import("./runtimeSubscribe")
+    let receive: (event: any) => void = () => {}
+    const gate = createRuntimeEventGate((_filter, onEvent) => {
+      receive = onEvent
+      return () => {}
+    })
+    const onEvent = vi.fn()
+    const unsubscribe = gate.subscribe({}, onEvent)
+    const registration = {kind: 37368, id: "registration"} as any
+    const message = {kind: 1060, id: "group-removal"} as any
+    receive(message)
+    receive(registration)
+    expect(onEvent.mock.calls).toEqual([[registration]])
+    gate.release()
+    expect(onEvent.mock.calls).toEqual([[registration], [message]])
+    receive(message)
+    expect(onEvent).toHaveBeenCalledTimes(3)
+    unsubscribe()
+    gate.close()
+  })
+
+  it("discards history for closed subscriptions or closed accounts", async () => {
+    const {createRuntimeEventGate} = await import("./runtimeSubscribe")
+    let receive: (event: any) => void = () => {}
+    const gate = createRuntimeEventGate((_filter, onEvent) => {
+      receive = onEvent
+      return () => {}
+    })
+    const onEvent = vi.fn()
+    const unsubscribe = gate.subscribe({}, onEvent)
+    receive({kind: 1060})
+    unsubscribe()
+    gate.release()
+    expect(onEvent).not.toHaveBeenCalled()
+    gate.close()
+    receive({kind: 1060})
+    expect(onEvent).not.toHaveBeenCalled()
+  })
+})

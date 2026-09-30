@@ -7,7 +7,10 @@ import {
 } from "./private-messaging-helpers"
 import {usingBuiltDist} from "./utils/built-dist"
 
-test.skip(usingBuiltDist, "requires local-relay private messaging group setup")
+test.skip(
+  usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true",
+  "requires local-relay private messaging group setup"
+)
 
 async function openChatFromProfile(page: Page, targetPubkeyHex: string) {
   const targetNpub = nip19.npubEncode(targetPubkeyHex)
@@ -60,7 +63,7 @@ test.describe("Group admin edits", () => {
 
       await openChatFromProfile(pageB, admin.publicKey)
       await expect(
-        pageB.locator(".whitespace-pre-wrap").getByText(dmMessage)
+        pageB.locator(".whitespace-pre-wrap:visible").getByText(dmMessage)
       ).toBeVisible({
         timeout: 60000,
       })
@@ -109,6 +112,52 @@ test.describe("Group admin edits", () => {
         timeout: 15000,
       })
       await expect(pageB.getByRole("button", {name: "Edit group"})).not.toBeVisible()
+
+      // The removed member keeps history, but cannot send, including after reload.
+      await pageA.locator(`a[href="/chats/group/${groupId}"]`).last().click()
+      await pageB.locator(`a[href="/chats/group/${groupId}"]`).last().click()
+      await expect(pageB.getByPlaceholder("Message").last()).toBeEnabled()
+      await pageB.reload()
+      await expect(pageB.getByPlaceholder("Message").last()).toBeEnabled()
+      const history = `Before removal ${Date.now()}`
+      await pageA.getByPlaceholder("Message").last().fill(history)
+      await pageA.getByPlaceholder("Message").last().press("Enter")
+      await expect(
+        pageA.locator(".whitespace-pre-wrap:visible").getByText(history)
+      ).toBeVisible({
+        timeout: 15000,
+      })
+      await expect(
+        pageB.locator(".whitespace-pre-wrap:visible").getByText(history)
+      ).toBeVisible({
+        timeout: 60000,
+      })
+      await pageA.getByRole("banner").getByText("Renamed Group", {exact: true}).click()
+      await pageA.getByRole("button", {name: "Edit group"}).click()
+      await pageA.getByRole("button", {name: "×"}).click()
+      await pageA.getByRole("button", {name: "Save changes"}).click()
+      await expect(pageA.getByRole("button", {name: "Edit group"})).toBeVisible()
+      await expect(
+        pageB
+          .getByText("You’re no longer a member of this group.")
+          .filter({visible: true})
+      ).toBeVisible({timeout: 30000})
+      await expect(
+        pageB.locator(".whitespace-pre-wrap:visible").getByText(history)
+      ).toBeVisible()
+      await expect(pageB.getByPlaceholder("Message").filter({visible: true})).toHaveCount(
+        0
+      )
+      await pageB.reload()
+      await expect(
+        pageB
+          .getByText("You’re no longer a member of this group.")
+          .filter({visible: true})
+      ).toBeVisible()
+      await expect(
+        pageB.locator(".whitespace-pre-wrap:visible").getByText(history)
+      ).toBeVisible()
+      await pageB.screenshot({path: "work/group-removed.png"})
     } finally {
       await contextA.close()
       await contextB.close()

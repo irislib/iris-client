@@ -566,6 +566,15 @@ async function handlePublish(
       self.postMessage({type: "published", id} as WorkerResponse)
       return
     }
+    if (opts?.connectedOnly) {
+      relayUrls = runtime
+        .getRelayStats()
+        .filter(
+          (relay) => relay.connected && (!relayUrls || relayUrls.includes(relay.url))
+        )
+        .map((relay) => relay.url)
+      if (!relayUrls.length) throw new Error("No connected message server")
+    }
     const result = await runtime.publish(eventData, {
       relays: relayUrls,
       requireAck: opts?.requireAck,

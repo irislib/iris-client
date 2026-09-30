@@ -6,7 +6,7 @@ import {useMessagesStore} from "@/stores/messages"
 import {useMessageRequestsStore} from "@/stores/messageRequests"
 import type {MessageType} from "@/pages/chats/message/Message"
 import {getTag} from "./tagUtils"
-import {KIND_CHAT_SETTINGS, KIND_REACTION} from "./constants"
+import {KIND_CHAT_MESSAGE, KIND_CHAT_SETTINGS, KIND_REACTION} from "./constants"
 import {getSocialGraph} from "./socialGraph"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -106,7 +106,9 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
         return
       }
 
-      const pTag = getTag("p", event.tags)
+      // Native peers omit the redundant recipient on authenticated incoming rumors.
+      // Sibling-device copies still need the tag to identify the original peer.
+      const pTag = getTag("p", event.tags) || (!isOwnDevice ? publicKey : undefined)
       if (!pTag) return
 
       const pTagIsOwnDevice = isOwnDevicePubkey(
@@ -248,6 +250,10 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
         }
         return
       }
+
+      // New private control kinds (such as linked-device mute sync) are not chat text.
+      if (![KIND_CHAT_MESSAGE, KIND_CHAT_SETTINGS, KIND_REACTION].includes(event.kind))
+        return
 
       const isReaction = event.kind === KIND_REACTION
       if (!isReaction) {

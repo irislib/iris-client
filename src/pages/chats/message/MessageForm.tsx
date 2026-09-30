@@ -26,7 +26,7 @@ import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {sendGroupEvent} from "../utils/groupMessaging"
-import {GROUP_SENDER_KEY_MESSAGE_KIND} from "nostr-double-ratchet"
+import {CHAT_MESSAGE_KIND} from "nostr-double-ratchet"
 import {useRecipientHasAppKeys} from "../hooks/useRecipientHasAppKeys"
 import {createTypingThrottle} from "@/stores/typingIndicators"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
@@ -187,7 +187,7 @@ const MessageForm = ({
           groupMembers,
           senderPubKey: myPubKey,
           content: text,
-          kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+          kind: CHAT_MESSAGE_KIND,
           extraTags,
         })
 
@@ -326,7 +326,7 @@ const MessageForm = ({
           groupMembers,
           senderPubKey: myPubKey,
           content: token,
-          kind: GROUP_SENDER_KEY_MESSAGE_KIND,
+          kind: CHAT_MESSAGE_KIND,
         })
         return
       }

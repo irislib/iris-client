@@ -75,7 +75,7 @@ async function sendGroupEventImpl(options: SendGroupEventOptions): Promise<Rumor
   await usePrivateMessagesStore.getState().upsert(groupId, senderPubKey, {
     ...sent.inner,
     ownerPubkey: senderPubKey,
-    ...(sent.outerEventId ? {sentToRelays: true, nostrEventId: sent.outerEventId} : {}),
+    ...(sent.outerEventId ? {nostrEventId: sent.outerEventId} : {}),
   })
 
   return sent.inner

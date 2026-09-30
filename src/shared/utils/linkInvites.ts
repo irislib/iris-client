@@ -15,7 +15,7 @@ type LinkInvitePayload = {
 function parseInvitePayload(url: string): {purpose?: string; owner?: string} | null {
   try {
     const parsed = new URL(url)
-    const rawHash = parsed.hash.slice(1)
+    const rawHash = invitePayloadFromHash(parsed.hash)
     if (!rawHash) return null
     const decoded = decodeURIComponent(rawHash)
     const data = JSON.parse(decoded) as Record<string, unknown>
@@ -41,11 +41,10 @@ function normalizeInvitePayload(raw: string): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
 
-  const decoded = trimmed.startsWith("%7B") ? decodeURIComponent(trimmed) : trimmed
-  if (!decoded.startsWith("{")) return null
-
   let data: LinkInvitePayload
   try {
+    const decoded = /^%7b/i.test(trimmed) ? decodeURIComponent(trimmed) : trimmed
+    if (!decoded.startsWith("{")) return null
     data = JSON.parse(decoded) as LinkInvitePayload
   } catch {
     return null
@@ -90,13 +89,17 @@ function normalizeInvitePayload(raw: string): string | null {
 function normalizeInvitePayloadFromUrl(rawUrl: string): string | null {
   try {
     const parsed = new URL(rawUrl)
-    const rawHash = parsed.hash.slice(1)
+    const rawHash = invitePayloadFromHash(parsed.hash)
     if (!rawHash) return null
     const decoded = decodeURIComponent(rawHash)
     return normalizeInvitePayload(decoded)
   } catch {
     return null
   }
+}
+
+function invitePayloadFromHash(hash: string): string {
+  return hash.replace(/^#\/?(?:invite\/)?/i, "")
 }
 
 export function parseLinkInviteInput(
@@ -115,7 +118,7 @@ export function parseChatInviteInput(
   roots: string[] = DEFAULT_LINK_INVITE_ROOTS
 ): Invite | null {
   return parseInviteInput(input, roots, {
-    allowedPurposes: ["chat"],
+    allowedPurposes: ["chat", "private"],
   })
 }
 

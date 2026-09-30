@@ -863,22 +863,43 @@ export class NostrClient extends Emitter {
     const events = await this.collectEvents(filters, opts, relaySet, exactId)
     return [...events].sort((a, b) => b.created_at - a.created_at)[0] ?? null
   }
-  async publishEvent(event: AppEvent, relaySet?: RelaySet): Promise<Set<Relay>> {
+  async publishEvent(
+    event: AppEvent,
+    relaySet?: RelaySet,
+    options?: {requireAck?: boolean; connectedOnly?: boolean}
+  ): Promise<Set<Relay>> {
     if (this.transportPlugins.length) {
       const accepted = new Set<Relay>()
       for (const plugin of this.transportPlugins) {
         const report = (await plugin.publish?.(
           event,
-          relaySet ? [...relaySet.relays] : undefined
-        )) as {sources?: {id: string; accepted: boolean}[]} | undefined
+          relaySet ? [...relaySet.relays] : undefined,
+          options
+        )) as RuntimePublishResult | undefined
+        if (options?.requireAck && !report?.remoteAccepted) continue
         for (const source of report?.sources ?? [])
           if (source.accepted) accepted.add(this.pool.getRelay(source.id))
       }
+      if (options?.requireAck && accepted.size === 0)
+        throw new PublishError("No relay confirmed the event")
       return accepted
     }
+    let relayUrls = relaySet ? [...relaySet.relays].map((r) => r.url) : undefined
+    if (options?.connectedOnly) {
+      relayUrls = this.getRuntime()
+        .getRelayStats()
+        .filter(
+          (relay) => relay.connected && (!relayUrls || relayUrls.includes(relay.url))
+        )
+        .map((relay) => relay.url)
+      if (!relayUrls.length) throw new PublishError("No connected message server")
+    }
     const result = await this.getRuntime().publish(event.rawEvent(), {
-      relays: relaySet ? [...relaySet.relays].map((r) => r.url) : undefined,
+      relays: relayUrls,
+      requireAck: options?.requireAck,
     })
+    if (options?.requireAck && !result.remoteAccepted)
+      throw new PublishError("No relay confirmed the event")
     if (!result.remoteAccepted && !result.queued)
       throw new PublishError("Publication was not accepted")
     return new Set(

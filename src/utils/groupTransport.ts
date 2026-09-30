@@ -1,7 +1,8 @@
 import {ensureNdrRuntime, getNdrRuntime} from "@/shared/services/PrivateChats"
-import {useGroupsStore, type Group} from "@/stores/groups"
+import {useGroupsStore, isGroupMember, type Group} from "@/stores/groups"
 import {buildGroupRosterFactEvent, type GroupData, type Rumor} from "nostr-double-ratchet"
 import {getEventHash} from "nostr-tools"
+import {createGroupRumor} from "./groupRumor"
 
 function toGroupData(group: Group): GroupData {
   return {
@@ -17,34 +18,19 @@ function toGroupData(group: Group): GroupData {
   }
 }
 
-function buildFallbackGroupData(
-  groupId: string,
-  groupMembers: string[],
-  senderPubKey: string
-): GroupData {
-  const memberSet = new Set(groupMembers)
-  memberSet.add(senderPubKey)
-  return {
-    id: groupId,
-    name: `Group ${groupId.slice(0, 8)}`,
-    members: Array.from(memberSet),
-    admins: [senderPubKey],
-    createdAt: Date.now(),
-    accepted: true,
-  }
+function currentGroup(groupId: string, senderPubKey: string): Group {
+  const group = useGroupsStore.getState().groups[groupId]
+  if (!isGroupMember(group, senderPubKey))
+    throw new Error("You’re no longer a member of this group.")
+  return group
 }
 
 async function upsertGroupIntoRuntime(
   groupId: string,
-  groupMembers: string[],
   senderPubKey: string
 ): Promise<void> {
-  const runtime = getNdrRuntime()
-  const existing = useGroupsStore.getState().groups[groupId]
-  const groupData = existing
-    ? toGroupData(existing)
-    : buildFallbackGroupData(groupId, groupMembers, senderPubKey)
-  await runtime.upsertGroup(groupData)
+  await getNdrRuntime().upsertGroup(toGroupData(currentGroup(groupId, senderPubKey)))
+  currentGroup(groupId, senderPubKey)
 }
 
 export async function sendGroupEventViaTransport(options: {
@@ -55,22 +41,24 @@ export async function sendGroupEventViaTransport(options: {
   content: string
   tags?: string[][]
 }): Promise<{inner: Rumor; outerEventId?: string}> {
-  const {groupId, groupMembers, senderPubKey, kind, content, tags} = options
+  const {groupId, senderPubKey, kind, content, tags} = options
+  currentGroup(groupId, senderPubKey)
   await ensureNdrRuntime(senderPubKey)
-  await upsertGroupIntoRuntime(groupId, groupMembers, senderPubKey)
+  await upsertGroupIntoRuntime(groupId, senderPubKey)
 
+  const inner = createGroupRumor(groupId, senderPubKey, {kind, content, tags})
   const sent = await getNdrRuntime().sendGroupEvent(
     groupId,
     {
       kind,
-      content,
-      tags,
+      content: JSON.stringify(inner),
+      tags: inner.tags,
     },
     {}
   )
 
   return {
-    inner: sent.inner,
+    inner,
     outerEventId: sent.outer.id,
   }
 }
@@ -140,9 +128,10 @@ export async function rotateGroupSenderKey(options: {
   groupMembers: string[]
   senderPubKey: string
 }): Promise<void> {
-  const {groupId, groupMembers, senderPubKey} = options
+  const {groupId, senderPubKey} = options
+  currentGroup(groupId, senderPubKey)
   await ensureNdrRuntime(senderPubKey)
-  await upsertGroupIntoRuntime(groupId, groupMembers, senderPubKey)
+  await upsertGroupIntoRuntime(groupId, senderPubKey)
 
   const groupManager = await getNdrRuntime().waitForGroupManager(senderPubKey)
   await groupManager.rotateSenderKey(groupId, {

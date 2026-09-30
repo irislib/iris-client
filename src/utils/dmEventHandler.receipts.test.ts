@@ -89,6 +89,61 @@ describe("dmEventHandler receipts", () => {
     await usePrivateMessagesStore.getState().clear()
   })
 
+  it("routes native messages without a recipient tag using the authenticated sender", async () => {
+    attachNdrRuntimeEventListener(sessionManager as any)
+    capturedCallback?.(
+      {
+        id: "native-message",
+        kind: KIND_CHAT_MESSAGE,
+        pubkey: THEIR_PUBKEY,
+        content: "Native message",
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ["ndr-protocol", "pairwise-rumor"],
+          ["ndr-version", "1"],
+        ],
+      },
+      THEIR_PUBKEY,
+      {senderOwnerPubkey: THEIR_PUBKEY, senderDevicePubkey: "f".repeat(64), isSelf: false}
+    )
+    await flushPromises()
+    expect(
+      usePrivateMessagesStore.getState().events.get(THEIR_PUBKEY)?.get("native-message")
+        ?.content
+    ).toBe("Native message")
+  })
+
+  it("keeps linked-device mute controls out of message history", async () => {
+    attachNdrRuntimeEventListener(sessionManager as any)
+    capturedCallback?.(
+      {
+        id: "mute-control",
+        kind: 10449,
+        pubkey: MY_PUBKEY,
+        content: JSON.stringify({
+          type: "chat-mute",
+          v: 1,
+          mute: {
+            chatId: THEIR_PUBKEY,
+            untilSecs: 0,
+            updatedAtMs: Date.now(),
+          },
+        }),
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [["p", MY_PUBKEY]],
+      },
+      MY_PUBKEY,
+      {
+        isSelf: true,
+        senderOwnerPubkey: MY_PUBKEY,
+        senderDevicePubkey: SIBLING_DEVICE_PUBKEY,
+      }
+    )
+    await flushPromises()
+    expect(usePrivateMessagesStore.getState().events.size).toBe(0)
+    expect(sessionManager.sendReceipt).not.toHaveBeenCalled()
+  })
+
   it("does not send delivery receipts when disabled", async () => {
     useMessagesStore.setState({sendDeliveryReceipts: false})
 

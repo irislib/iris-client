@@ -132,3 +132,34 @@ describe("parseChatInviteInput", () => {
     expect(invite).toBeNull()
   })
 })
+
+describe("native chat invite formats", () => {
+  const payload = {
+    inviter: INVITER,
+    ephemeralKey: EPHEMERAL,
+    sharedSecret: SECRET,
+    owner: OWNER,
+    purpose: "private",
+  }
+  it.each([
+    "https://chat.iris.to/#/invite/",
+    "#/invite/",
+    "nostr:https://chat.iris.to/#/invite/",
+  ])("accepts the native invite route %s", (prefix) => {
+    const invite = parseChatInviteInput(
+      prefix + encodeURIComponent(JSON.stringify(payload))
+    )
+    expect(invite?.inviter).toBe(INVITER)
+    expect(invite?.ownerPubkey).toBe(OWNER)
+    expect(invite?.sharedSecret).toBe(SECRET)
+  })
+  it("keeps chat and device linking purposes separate for routed links", () => {
+    const url = (purpose: string) =>
+      "https://chat.iris.to/#/invite/" +
+      encodeURIComponent(JSON.stringify({...payload, purpose}))
+    expect(parseLinkInviteInput(url("private"), OWNER)).toBeNull()
+    expect(parseChatInviteInput(url("link"))).toBeNull()
+    expect(parseLinkInviteInput(url("link"), "e".repeat(64))).toBeNull()
+    expect(parseLinkInviteInput(url("link"), OWNER)?.ownerPubkey).toBe(OWNER)
+  })
+})

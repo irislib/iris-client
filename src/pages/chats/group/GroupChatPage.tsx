@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback} from "react"
 import {useLocation} from "@/navigation"
-import {useGroupsStore} from "@/stores/groups"
+import {useUserStore} from "@/stores/user"
+import {useGroupsStore, isGroupMember} from "@/stores/groups"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import ChatContainer from "../components/ChatContainer"
 import MessageForm from "../message/MessageForm"
@@ -20,6 +21,8 @@ const GroupChatPage = () => {
 
   const groups = useGroupsStore((state) => state.groups)
   const group = id ? groups[id] : undefined
+  const owner = useUserStore((state) => state.publicKey)
+  const canSend = isGroupMember(group, owner)
   const {events} = usePrivateMessagesStore()
   const markOpened = usePrivateMessagesStore((state) => state.markOpened)
   const [replyingTo, setReplyingTo] = useState<MessageType | undefined>(undefined)
@@ -75,6 +78,7 @@ const GroupChatPage = () => {
     <>
       <GroupChatHeader groupId={id} />
       <ChatContainer
+        readOnly={!canSend}
         messages={messages}
         sessionId={id}
         onReply={setReplyingTo}
@@ -83,13 +87,19 @@ const GroupChatPage = () => {
         groupId={id}
         groupMembers={group.members}
       />
-      <MessageForm
-        id={id}
-        groupId={group.id}
-        groupMembers={group.members}
-        replyingTo={replyingTo}
-        setReplyingTo={setReplyingTo}
-      />
+      {canSend ? (
+        <MessageForm
+          id={id}
+          groupId={group.id}
+          groupMembers={group.members}
+          replyingTo={replyingTo}
+          setReplyingTo={setReplyingTo}
+        />
+      ) : (
+        <div className="p-4 text-center text-sm text-base-content/60">
+          You’re no longer a member of this group.
+        </div>
+      )}
     </>
   )
 }

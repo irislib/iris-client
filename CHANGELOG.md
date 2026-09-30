@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.5.27 - 2026-09-30
+
+- Accept current native chat invites and direct messages, and use the shared group message format.
+- Restore saved groups before processing incoming encrypted history.
+- Keep removed group chats readable and stop their pending sends.
+- Require message-server confirmation before marking outgoing messages as sent.
+- Keep linked-device control messages out of conversation history.
+
 ## 2.5.26 - 2026-09-30
 
 - Route larger peer connection offers over paths that can carry them.

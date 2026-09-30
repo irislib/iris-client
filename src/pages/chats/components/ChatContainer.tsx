@@ -21,6 +21,7 @@ import {sendGroupEvent} from "../utils/groupMessaging"
 interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
   sessionId: string
+  readOnly?: boolean
   onReply: (message: MessageType) => void
   bottomContent?: ReactNode
   showAuthor?: boolean
@@ -39,6 +40,7 @@ const ChatContainer = ({
   messages,
   sessionId,
   onReply,
+  readOnly = false,
   bottomContent,
   showAuthor = false,
   isPublicChat = false,
@@ -274,9 +276,9 @@ const ChatContainer = ({
                             isFirst={messageIndex === 0}
                             isLast={messageIndex === group.length - 1}
                             sessionId={sessionId}
-                            onReply={() => onReply(message)}
+                            onReply={readOnly ? undefined : () => onReply(message)}
                             showAuthor={showAuthor}
-                            onSendReaction={handleReaction}
+                            onSendReaction={readOnly ? undefined : handleReaction}
                           />
                         ))}
                       </ErrorBoundary>

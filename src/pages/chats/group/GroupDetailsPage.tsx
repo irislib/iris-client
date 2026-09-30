@@ -30,7 +30,10 @@ const GroupDetailsPage = () => {
   const {groups, updateGroup} = useGroupsStore()
   const group = id ? groups[id] : undefined
   const myPubKey = useUserStore((state) => state.publicKey)
-  const canEdit = !!myPubKey && !!group?.admins?.includes(myPubKey)
+  const canEdit =
+    !!myPubKey &&
+    !!group?.members.includes(myPubKey) &&
+    !!group?.admins?.includes(myPubKey)
 
   const [isEditing, setIsEditing] = useState(false)
   const [draftName, setDraftName] = useState("")

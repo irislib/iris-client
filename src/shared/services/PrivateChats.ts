@@ -10,6 +10,7 @@ import {
   decryptInviteResponse,
   type NdrRuntimeState,
   type NostrFetch,
+  type NostrPublishContext,
   type NostrSubscribe,
   type PreparedRegistration,
   type PreparedRevocation,
@@ -19,6 +20,7 @@ import type {VerifiedEvent} from "nostr-tools"
 import {nostr} from "@/utils/nostrClient"
 import {hasWriteAccess} from "@/utils/auth"
 import {useUserStore} from "../../stores/user"
+import {useGroupsStore, isGroupMember} from "@/stores/groups"
 import {useDevicesStore} from "../../stores/devices"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -35,7 +37,7 @@ import {
   getCurrentDeviceRegistrationLabels,
   getLinkedDeviceRegistrationLabels,
 } from "./deviceLabels"
-import {createRuntimeSubscribe} from "./runtimeSubscribe"
+import {createRuntimeSubscribe, createRuntimeEventGate} from "./runtimeSubscribe"
 import {createRuntimePublish} from "./runtimePublish"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -45,6 +47,8 @@ const APP_KEYS_FAST_TIMEOUT_MS = 2000
 const RUNTIME_USER_SETUP_SYNC_MS = 500
 
 let runtime: NdrRuntime | null = null
+let runtimeInitialization: Promise<void> | null = null
+let runtimeEventGate: ReturnType<typeof createRuntimeEventGate> | null = null
 let runtimeCleanup: (() => void) | null = null
 let runtimeOwnerIdentityKeyHex: string | null = null
 let runtimeOwnerPubkey: string | null = null
@@ -86,11 +90,19 @@ const createFetch = (ndkInstance: NostrClient): NostrFetch => {
 }
 
 const createPublish = (ndkInstance: NostrClient, requireAccess: () => void) => {
-  return async (event: VerifiedEvent, innerEventId?: string, signal?: AbortSignal) => {
+  return async (
+    event: VerifiedEvent,
+    innerEventId?: string,
+    signal?: AbortSignal,
+    context?: NostrPublishContext
+  ) => {
     requireAccess()
     signal?.throwIfAborted()
     const e = new AppEvent(ndkInstance, event)
-    await e.publish()
+    await ndkInstance.publishEvent(e, undefined, {
+      requireAck: true,
+      connectedOnly: !!context,
+    })
     if (innerEventId) await usePrivateMessagesStore.getState().awaitHydration()
     requireAccess()
     signal?.throwIfAborted()
@@ -98,15 +110,21 @@ const createPublish = (ndkInstance: NostrClient, requireAccess: () => void) => {
     if (innerEventId) {
       const {events, updateMessage} = usePrivateMessagesStore.getState()
       for (const [chatId, messageMap] of events.entries()) {
-        const existing = messageMap.get(innerEventId)
-        if (!existing) continue
+        let messageId = messageMap.has(innerEventId) ? innerEventId : undefined
+        if (!messageId && context?.groupId === chatId) {
+          messageId = [...messageMap].find(
+            ([, message]) => message.nostrEventId === e.id
+          )?.[0]
+        }
+        if (!messageId) continue
+        const existing = messageMap.get(messageId)!
 
         const updates: Partial<typeof existing> = {sentToRelays: true}
         if (!existing.nostrEventId) {
           updates.nostrEventId = e.id
         }
 
-        await updateMessage(chatId, innerEventId, updates)
+        await updateMessage(chatId, messageId, updates)
         break
       }
     }
@@ -124,6 +142,9 @@ const getOwnerIdentityKeyHex = (): string | null => {
 }
 
 const closeRuntime = (): void => {
+  runtimeEventGate?.close()
+  runtimeEventGate = null
+  runtimeInitialization = null
   if (runtimeUserSetupPoller) {
     clearInterval(runtimeUserSetupPoller)
     runtimeUserSetupPoller = null
@@ -138,6 +159,12 @@ const closeRuntime = (): void => {
   runtimeOwnerIdentityKeyHex = null
   runtimeOwnerPubkey = null
   runtimeWriteAccess = false
+}
+
+export const cancelGroupPublications = (groupId: string): void => {
+  void runtimePublisher?.cancelGroup(groupId).catch((error) => {
+    log("Could not remove queued group publications:", error)
+  })
 }
 
 export const closePrivateMessaging = (): void => {
@@ -178,26 +205,31 @@ const getRuntime = (): NdrRuntime => {
   const publisher = createRuntimePublish({
     owner: ownerPubkey,
     publish: createPublish(ndkInstance, requirePublicationAccess),
+    canPublish: async ({groupId}) => {
+      await awaitGroupsHydration()
+      return isGroupMember(useGroupsStore.getState().groups[groupId], ownerPubkey)
+    },
     onError: (error) => log("Message publication queued for retry:", error),
   })
   runtimePublisher = publisher
+  runtimeEventGate = createRuntimeEventGate(createSubscribe(ndkInstance))
   runtime = new NdrRuntime({
-    nostrSubscribe: createSubscribe(ndkInstance),
+    nostrSubscribe: runtimeEventGate.subscribe,
     nostrSign: async (event) => {
       requirePublicationAccess()
       const signed = new AppEvent(ndkInstance, event)
       await signed.sign()
       return signed.rawEvent() as VerifiedEvent
     },
-    nostrEnqueue: async (event, innerEventId) => {
+    nostrEnqueue: async (event, innerEventId, context) => {
       requirePublicationAccess()
-      await publisher.enqueue(event, innerEventId)
+      await publisher.enqueue(event, innerEventId, context)
     },
-    nostrPublish: async (event, innerEventId) => {
+    nostrPublish: async (event, innerEventId, context) => {
       if (!("sig" in event) || !event.sig) {
         throw new Error("Runtime publication requires a signed event")
       }
-      await publisher.publish(event as VerifiedEvent, innerEventId)
+      await publisher.publish(event as VerifiedEvent, innerEventId, context)
       return event as VerifiedEvent
     },
     onPublishError: ({error}) => log("Message publication queued for retry:", error),
@@ -320,12 +352,43 @@ export const initDelegateManager = async (): Promise<void> => {
   log("DelegateManager initialized")
 }
 
+const awaitGroupsHydration = async (): Promise<void> => {
+  if (useGroupsStore.persist.hasHydrated()) return
+  await new Promise<void>((resolve) => {
+    const unsubscribe = useGroupsStore.persist.onFinishHydration(() => {
+      unsubscribe()
+      resolve()
+    })
+  })
+}
+
+const initializeRuntime = (
+  currentRuntime: NdrRuntime,
+  ownerPubkey: string
+): Promise<void> => {
+  if (!runtimeInitialization) {
+    runtimeInitialization = (async () => {
+      await awaitGroupsHydration()
+      await currentRuntime.initForOwner(ownerPubkey)
+      await currentRuntime.syncGroups(
+        Object.values(useGroupsStore.getState().groups),
+        ownerPubkey
+      )
+      if (runtime === currentRuntime) runtimeEventGate?.release()
+    })().catch((error) => {
+      if (runtime === currentRuntime) runtimeInitialization = null
+      throw error
+    })
+  }
+  return runtimeInitialization
+}
+
 export const ensureNdrRuntime = async (ownerPubkey: string): Promise<NdrRuntime> => {
   if (!ownerPubkey) throw new Error("Owner pubkey required")
 
   await ensureNdkConnected()
   const currentRuntime = getRuntime()
-  await currentRuntime.initForOwner(ownerPubkey)
+  await initializeRuntime(currentRuntime, ownerPubkey)
   return currentRuntime
 }
 
@@ -338,7 +401,7 @@ export const initPrivateMessaging = async (ownerPubkey: string): Promise<NdrRunt
     attachNdrRuntimeEventListener(currentRuntime)
     attachGroupMessageListener()
     await ensureNdkConnected()
-    await currentRuntime.initForOwner(ownerPubkey)
+    await initializeRuntime(currentRuntime, ownerPubkey)
   } catch (error) {
     cleanupNdrRuntimeEventListener()
     cleanupGroupMessageListener()

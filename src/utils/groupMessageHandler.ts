@@ -4,7 +4,7 @@ import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useTypingStore} from "@/stores/typingIndicators"
 import {useUserStore} from "@/stores/user"
-import {getNdrRuntime} from "@/shared/services/PrivateChats"
+import {getNdrRuntime, cancelGroupPublications} from "@/shared/services/PrivateChats"
 import {
   CHAT_SETTINGS_KIND,
   getMillisecondTimestamp,
@@ -14,6 +14,7 @@ import {
   type GroupDecryptedEvent,
   type GroupRosterFactRumor,
 } from "nostr-double-ratchet"
+import {unwrapGroupRumor} from "./groupRumor"
 import {parseChatSettingsMessage} from "./chatSettings"
 
 let unsubscribeGroupEvents: (() => void) | null = null
@@ -86,14 +87,16 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
 
   if (isGroupRosterFactEvent(event.inner)) {
     const fact = parseGroupRosterFactRumor(event.inner as GroupRosterFactRumor)
-    const {groups, addGroup, removeGroup} = useGroupsStore.getState()
+    const {groups, addGroup} = useGroupsStore.getState()
     const existing = groups[fact.groupId]
 
-    if (!fact.group.members.includes(publicKey)) {
-      removeGroup(fact.groupId)
-      useChatExpirationStore.getState().clearExpiration(fact.groupId)
-      await usePrivateMessagesStore.getState().removeSession(fact.groupId)
+    if (existing?.rosterRevision !== undefined && fact.revision < existing.rosterRevision)
       return
+    // Keep the last roster and history so removal cannot recreate a writable placeholder.
+    if (!fact.group.members.includes(publicKey)) {
+      cancelGroupPublications(fact.groupId)
+      useTypingStore.getState().clearRemoteTyping(fact.groupId)
+      if (!existing) return
     }
 
     addGroup({
@@ -107,11 +110,19 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
     return
   }
 
+  const inner = unwrapGroupRumor(
+    event.inner,
+    event.groupId,
+    senderOwnerPubkey,
+    event.senderDevicePubkey
+  )
+  if (!inner) return
+
   ensurePlaceholderGroup(event.groupId, publicKey, senderOwnerPubkey)
 
-  if (event.inner.kind === CHAT_SETTINGS_KIND) {
+  if (inner.kind === CHAT_SETTINGS_KIND) {
     const group = useGroupsStore.getState().groups[event.groupId]
-    const settings = parseChatSettingsMessage(event.inner.content)
+    const settings = parseChatSettingsMessage(inner.content)
     if (!group?.admins.includes(senderOwnerPubkey) || !settings) return
 
     useGroupsStore.getState().updateGroup(event.groupId, {
@@ -127,21 +138,21 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
     return
   }
 
-  if (isTyping(event.inner)) {
+  if (isTyping(inner)) {
     if (senderOwnerPubkey !== publicKey) {
       useTypingStore
         .getState()
-        .setRemoteTyping(event.groupId, getMillisecondTimestamp(event.inner))
+        .setRemoteTyping(event.groupId, getMillisecondTimestamp(inner))
     }
     return
   }
 
   useTypingStore
     .getState()
-    .clearRemoteTyping(event.groupId, getMillisecondTimestamp(event.inner))
+    .clearRemoteTyping(event.groupId, getMillisecondTimestamp(inner))
 
   await usePrivateMessagesStore.getState().upsert(event.groupId, publicKey, {
-    ...event.inner,
+    ...inner,
     ownerPubkey: senderOwnerPubkey,
   })
 }
@@ -172,6 +183,12 @@ export const attachGroupMessageListener = (): void => {
 
   unsubscribeGroupsStore = useGroupsStore.subscribe((state, prev) => {
     if (state.groups === prev.groups) return
+    const owner = useUserStore.getState().publicKey
+    for (const [id, group] of Object.entries(prev.groups)) {
+      if (group.members.includes(owner) && !state.groups[id]?.members.includes(owner)) {
+        cancelGroupPublications(id)
+      }
+    }
     void runtime.syncGroups(Object.values(state.groups)).catch(() => {})
   })
 

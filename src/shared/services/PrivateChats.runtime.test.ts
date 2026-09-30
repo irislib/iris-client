@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => {
     ownerPubkey,
     writeAccess: true,
     publisherStart: vi.fn(),
+    publisherEnqueue: vi.fn(),
+    eventGateRelease: vi.fn(),
+    publishEvent: vi.fn(),
+    publicationContext: undefined as unknown,
     runtimeState,
     order: [] as string[],
     hydrationPromise: Promise.resolve() as Promise<void>,
@@ -77,6 +81,10 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
       await mocks.initForOwner(ownerPubkey)
     }
 
+    async syncGroups() {
+      mocks.order.push("groups:restore")
+    }
+
     async republishInvite() {
       mocks.order.push("runtime:republish")
     }
@@ -121,10 +129,16 @@ vi.mock("@/stores/privateMessages", () => ({
   },
 }))
 
+vi.mock("@/stores/groups", () => ({
+  useGroupsStore: {getState: () => ({groups: {}}), persist: {hasHydrated: () => true}},
+  isGroupMember: () => true,
+}))
+
 vi.mock("@/utils/auth", () => ({hasWriteAccess: () => mocks.writeAccess}))
 
 vi.mock("@/utils/nostrClient", () => ({
   nostr: () => ({
+    publishEvent: mocks.publishEvent,
     pool: {
       connectedRelays: mocks.connectedRelays,
       connect: mocks.connect,
@@ -146,14 +160,22 @@ vi.mock("./runtimePublish", () => ({
   createRuntimePublish: (options: {
     publish: (...args: unknown[]) => Promise<unknown>
   }) => ({
-    enqueue: vi.fn(async () => {}),
-    publish: options.publish,
+    enqueue: mocks.publisherEnqueue,
+    publish: (event: unknown, inner: unknown, context: unknown) => {
+      mocks.publicationContext = context
+      return options.publish(event, inner, new AbortController().signal, context)
+    },
     start: mocks.publisherStart,
     close: vi.fn(),
   }),
 }))
 
 vi.mock("./runtimeSubscribe", () => ({
+  createRuntimeEventGate: (subscribe: unknown) => ({
+    subscribe,
+    release: mocks.eventGateRelease,
+    close: vi.fn(),
+  }),
   createRuntimeSubscribe: vi.fn(() => vi.fn()),
 }))
 
@@ -205,6 +227,15 @@ describe("PrivateChats runtime startup", () => {
     mocks.runtimeOptions = undefined
     mocks.writeAccess = true
     mocks.publisherStart.mockReset()
+    mocks.eventGateRelease.mockReset().mockImplementation(() => {
+      mocks.order.push("messages:release")
+    })
+    mocks.publisherEnqueue.mockReset().mockResolvedValue(undefined)
+    mocks.publishEvent.mockReset().mockImplementation(async (event) => {
+      mocks.order.push(`publish:${event.id}`)
+      if (mocks.publishFailures.has(event.id)) throw new Error("publish failed")
+      return new Set(["relay"])
+    })
     mocks.publishFailures.clear()
     mocks.messageEvents.clear()
     mocks.resolveHydration = undefined
@@ -269,6 +300,8 @@ describe("PrivateChats runtime startup", () => {
       "group:attach",
       "relay:connect",
       "runtime:init",
+      "groups:restore",
+      "messages:release",
       "runtime:republish",
     ])
   })
@@ -333,6 +366,36 @@ describe("PrivateChats runtime startup", () => {
     expect(messages.get("restored-inner")).toMatchObject({
       sentToRelays: true,
       nostrEventId: "restored-outer",
+    })
+  })
+
+  it("matches native group application IDs to their acknowledged outer envelope", async () => {
+    const {getNdrRuntime} = await import("./PrivateChats")
+    getNdrRuntime()
+    const messages = new Map([
+      ["application-id", {nostrEventId: "group-outer", sentToRelays: false}],
+    ])
+    mocks.messageEvents.set("group", messages)
+    await mocks.runtimeOptions!.nostrPublish(
+      {id: "group-outer", sig: "signature"} as Parameters<NostrPublish>[0],
+      "wrapper-id",
+      {groupId: "group"}
+    )
+    expect(messages.get("application-id")?.sentToRelays).toBe(true)
+  })
+
+  it("forwards group scope to durable handoff and requires a connected relay acknowledgement", async () => {
+    const {getNdrRuntime} = await import("./PrivateChats")
+    getNdrRuntime()
+    const event = {id: "group-outer", sig: "signature"} as never
+    const context = {groupId: "group-id"}
+    await mocks.runtimeOptions!.nostrEnqueue!(event, "inner", context)
+    expect(mocks.publisherEnqueue).toHaveBeenCalledWith(event, "inner", context)
+    await mocks.runtimeOptions!.nostrPublish(event, "inner", context)
+    expect(mocks.publicationContext).toEqual(context)
+    expect(mocks.publishEvent).toHaveBeenCalledWith(expect.anything(), undefined, {
+      requireAck: true,
+      connectedOnly: true,
     })
   })
 
