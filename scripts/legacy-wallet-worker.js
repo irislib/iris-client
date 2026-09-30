@@ -10,8 +10,11 @@ const routes = new Set(
     (route) => new URL(route, self.registration.scope).href
   )
 )
-const files = new Set(
-  Object.keys(manifest.files).map((file) => new URL(file, self.registration.scope).href)
+const files = new Map(
+  Object.entries(manifest.files).map(([file, hash]) => [
+    new URL(file, self.registration.scope).href,
+    `sha256-${btoa(String.fromCharCode(...hash.match(/../g).map((byte) => parseInt(byte, 16))))}`,
+  ])
 )
 
 async function retireUnusedCaches() {
@@ -39,7 +42,11 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(cacheName)
       // Atomic static response batch: no API URLs or wallet data are included.
-      await cache.addAll([...files].map((url) => new Request(url, {cache: "no-cache"})))
+      await cache.addAll(
+        [...files].map(
+          ([url, integrity]) => new Request(url, {cache: "no-cache", integrity})
+        )
+      )
       await retireUnusedCaches()
     })()
   )
@@ -64,7 +71,7 @@ self.addEventListener("fetch", (event) => {
       const cache = await caches.open(cacheName)
       const saved = await cache.match(key)
       if (saved) return saved
-      const response = await fetch(key)
+      const response = await fetch(new Request(key, {integrity: files.get(key)}))
       if (response.ok) await cache.put(key, response.clone())
       return response
     })()
