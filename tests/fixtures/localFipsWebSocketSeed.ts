@@ -25,6 +25,7 @@ export interface LocalFipsWebSocketSeed {
 class InboundWebSocketTransport implements Transport {
   readonly type = "websocket"
   readonly mtu = 1_400
+  readonly maxFrameBytes = MAX_FRAME_BYTES
 
   private context?: TransportContext
   private server?: WebSocketServer
