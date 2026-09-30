@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.26 - 2026-09-30
+
+- Route larger peer connection offers over paths that can carry them.
+- Resume peer connections promptly after authenticated signaling recovers.
+
 ## 2.5.25 - 2026-09-30
 
 - Use the shared Nostr runtime for batched subscriptions, durable offline events, and peer-served files.

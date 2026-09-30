@@ -16,9 +16,9 @@ const releases = {
       "sha512-ZIkcdIYY9XXKhi2w9HfsdrEFPSe0Qlm9+OSxVGGjBH/+YJf6lwQkrGR/00KqX4GAJVjI59B3rPwcqBAH6Mlo1Q==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-fips-transport-0.4.14.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.12/hashtree-fips-transport-0.4.15.tgz",
     integrity:
-      "sha512-yvmzkYKhxuAQLDAlJ31dmc2EPGkDng3K7uaiMNmQwo9zYs0F7q15pei8ZhO+Osb+EGnZHTKSnyv+YxOf+0o++Q==",
+      "sha512-TG9WuaN8haDCmP9L5+TJLYrYXxXrZjWoaSqAEd5GiME7Dpc93ZfbaGb/jktiLKx3Aqrf+zuUsr6cTPuHVDjkZw==",
   },
   "@hashtree/dexie": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-dexie-0.1.11.tgz",
