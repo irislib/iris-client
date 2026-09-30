@@ -1,5 +1,5 @@
 import {afterEach, expect, it, vi} from "vitest"
-import NostrClient, {AppEvent, Relay, EventSubscription} from "@/lib/nostr"
+import NostrClient, {AppEvent, Relay} from "@/lib/nostr"
 import {subscribeSearch} from "./subscribeSearch"
 
 afterEach(() => {

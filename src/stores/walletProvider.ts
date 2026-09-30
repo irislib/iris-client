@@ -571,7 +571,9 @@ export const useWalletProviderStore = create<WalletProviderState>()(
             (section: {name: string}) => section.name === "amount"
           )
           const invoiceAmountMsat =
-            amountSection && "value" in amountSection ? parseInt(String(amountSection.value)) : 0
+            amountSection && "value" in amountSection
+              ? parseInt(String(amountSection.value))
+              : 0
           const invoiceAmountSat = Math.ceil(invoiceAmountMsat / 1000)
 
           // Get available mints with balance

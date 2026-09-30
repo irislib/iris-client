@@ -129,7 +129,6 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
       for (const subscription of subscriptions) subscription.stop()
     }
     // Signed poll content is immutable; identity plus relay hints scopes this subscription.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poll?.id, relayKey, revision, closed])
 
   const refresh = useCallback(() => setRevision((value) => value + 1), [])

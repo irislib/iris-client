@@ -255,7 +255,10 @@ vi.mock("@/stores/socialGraph", () => ({
   useSocialGraphStore: graphStoreMock.useSocialGraphStore,
 }))
 vi.mock("nostr-social-graph", () => ({SocialGraph: socialGraphMock.FakeSocialGraph}))
-vi.mock("@/utils/nostrClient", () => ({nostr: ndkMock.nostr, initNostr: ndkMock.initNostr}))
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: ndkMock.nostr,
+  initNostr: ndkMock.initNostr,
+}))
 vi.mock("@/lib/nostr", () => ({
   EventSubscription: class EventSubscription {},
   CacheMode: {ONLY_RELAY: "ONLY_RELAY"},

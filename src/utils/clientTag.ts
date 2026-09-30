@@ -1,5 +1,4 @@
-import type {ClientOptions} from "@/lib/nostr"
-import {EventKind} from "@/lib/nostr"
+import {EventKind, type ClientOptions} from "@/lib/nostr"
 import {useSettingsStore} from "@/stores/settings"
 
 // Public publishing and engagement only. New kinds must opt in explicitly.
@@ -15,13 +14,11 @@ const attributedKinds = new Set<number>([
   EventKind.ZapRequest,
 ])
 
-export const irisClientTagOptions: Pick<
-  ClientOptions,
-  "clientName" | "clientTagFilter"
-> = {
-  clientName: "iris",
-  clientTagFilter: (event) =>
-    useSettingsStore.getState().content.showClientTag !== false &&
-    attributedKinds.has(event.kind) &&
-    !event.tags.some((tag) => tag[0] === "anon"),
-}
+export const irisClientTagOptions: Pick<ClientOptions, "clientName" | "clientTagFilter"> =
+  {
+    clientName: "iris",
+    clientTagFilter: (event) =>
+      useSettingsStore.getState().content.showClientTag !== false &&
+      attributedKinds.has(event.kind) &&
+      !event.tags.some((tag) => tag[0] === "anon"),
+  }

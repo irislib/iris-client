@@ -75,7 +75,9 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
 
     try {
       // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
-      const subs = filters.map((filter) => nostr().subscribe(filter, {closeOnEose: !group}))
+      const subs = filters.map((filter) =>
+        nostr().subscribe(filter, {closeOnEose: !group})
+      )
 
       subs.forEach((sub) =>
         sub?.on("event", (e: AppEvent) => {

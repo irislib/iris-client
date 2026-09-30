@@ -1,7 +1,6 @@
-import {AppEvent} from "@/lib/nostr"
+import {AppEvent, deserialize} from "@/lib/nostr"
 import {LRUCache} from "typescript-lru-cache"
 import {getMainThreadDb} from "@/lib/nostr/db"
-import {deserialize} from "@/lib/nostr"
 
 // Hot cache for recently accessed events - immutable, no revalidation needed
 const eventCache = new LRUCache<string, AppEvent>({

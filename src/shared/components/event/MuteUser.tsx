@@ -42,7 +42,10 @@ function MuteUser({user, setMuting, muteState, setMutedState}: MuteUserProps) {
         event.kind = 3
         const followedUsers = socialGraph.getFollowedByUser(socialGraph.getRoot())
         followedUsers.delete(user)
-        event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as EventTag[]
+        event.tags = Array.from(followedUsers).map((pubKey) => [
+          "p",
+          pubKey,
+        ]) as EventTag[]
         event.publish().catch((e) => console.warn("Error publishing unfollow event:", e))
       }
 

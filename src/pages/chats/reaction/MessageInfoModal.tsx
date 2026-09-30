@@ -231,7 +231,7 @@ export const MessageInfoModal = ({
 
     sub.on("event", (event) => {
       if (event.onRelays) {
-        event.onRelays.forEach((relay: {url:string}) => {
+        event.onRelays.forEach((relay: {url: string}) => {
           status[relay.url] = true
         })
       }

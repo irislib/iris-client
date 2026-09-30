@@ -1,11 +1,10 @@
-import {AppEvent, Signer} from "@/lib/nostr"
+import {AppEvent, Signer, CacheMode} from "@/lib/nostr"
 import {decode} from "light-bolt11-decoder"
 import {nip19, type NostrEvent} from "nostr-tools"
 import {makeZapRequest} from "nostr-tools/nip57"
 import {nostr, DEFAULT_RELAYS} from "@/utils/nostrClient"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {bech32} from "@scure/base"
-import {CacheMode} from "@/lib/nostr"
 import debug from "debug"
 import {getEventGroup, inheritGroupTags} from "@/groups/activity"
 import {publishGroupEvent} from "@/groups/publish"
@@ -63,7 +62,8 @@ export const fetchZappedAmount = async (event: AppEvent): Promise<number> => {
           )
           if (amountSection && "value" in amountSection) {
             // Convert millisatoshis to bits
-            zappedAmount = zappedAmount + Math.floor(parseInt(String(amountSection.value)) / 1000)
+            zappedAmount =
+              zappedAmount + Math.floor(parseInt(String(amountSection.value)) / 1000)
           }
         }
       })

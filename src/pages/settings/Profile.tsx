@@ -76,10 +76,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     // A UI/cache projection is not a complete metadata document. Fetch the source
     // event before allowing edits to replace it, and fail closed if unavailable.
     void nostr()
-      .fetchEvent(
-        {kinds: [0], authors: [myPubKey]},
-        {cacheUsage: CacheMode.ONLY_RELAY}
-      )
+      .fetchEvent({kinds: [0], authors: [myPubKey]}, {cacheUsage: CacheMode.ONLY_RELAY})
       .then((event) => {
         const data = readProfileMetadata(
           event ? JSON.stringify(event.rawEvent()) : undefined,
