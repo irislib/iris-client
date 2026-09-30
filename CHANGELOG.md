@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.28 - 2026-09-30
+
+- Recover peer connections sooner when handshake messages or connection answers are lost.
+- Retain linked-device names from the shared messaging runtime.
+
 ## 2.5.27 - 2026-09-30
 
 - Accept current native chat invites and direct messages, and use the shared group message format.

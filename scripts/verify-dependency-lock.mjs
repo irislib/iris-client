@@ -16,9 +16,9 @@ const releases = {
       "sha512-ZIkcdIYY9XXKhi2w9HfsdrEFPSe0Qlm9+OSxVGGjBH/+YJf6lwQkrGR/00KqX4GAJVjI59B3rPwcqBAH6Mlo1Q==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.12/hashtree-fips-transport-0.4.15.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.13/hashtree-fips-transport-0.4.16.tgz",
     integrity:
-      "sha512-TG9WuaN8haDCmP9L5+TJLYrYXxXrZjWoaSqAEd5GiME7Dpc93ZfbaGb/jktiLKx3Aqrf+zuUsr6cTPuHVDjkZw==",
+      "sha512-LgLpG1kJXhg1V6Lm83ip7wuSU9JHwjHl8jPHiSoRWiuf08osUxb0t8aIpowsdeCaeyTpR5IhwxfuUa8zOQuIBQ==",
   },
   "@hashtree/dexie": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-dexie-0.1.11.tgz",
@@ -41,9 +41,9 @@ const releases = {
       "sha512-bBFZ0hyyf+6uAmYE8IKpo5vV8BH2zLy9mQEq/LY9wmv6Aa7CvKn+4fHI21TyO2jTV2rjkV0/mF8vW0dtVs7HNA==",
   },
   "nostr-double-ratchet": {
-    url: "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.174/nostr-double-ratchet-0.0.174.tgz",
+    url: "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.175/nostr-double-ratchet-0.0.175.tgz",
     integrity:
-      "sha512-tSWSNsfqbjM9sq7N1A/Sltt9nTO4EYCHUAr7D+k9hWU3s5vNUCtvdcTCXNqzudPddtHwhby57pK9+gvwHKCPRA==",
+      "sha512-q52P1BZrNUWoR0thEpBHuzj7EWdP0sSLKq2PC7oFJZVMEBKrq2/u1+eKZi/wijXa1J2ySS95QvYLNaurwI/B1A==",
   },
   "nostr-social-graph": {
     url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz",
