@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.32",
+  "version": "2.5.33",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -83,7 +83,7 @@
     "@cashu/cashu-ts": "^3.7.1",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
-    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.46/fips-core-0.0.46.tgz",
+    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.47/fips-core-0.0.47.tgz",
     "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.45/fips-transport-webrtc-0.0.50.tgz",
     "@gandlaf21/bc-ur": "^1.1.12",
     "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-core-0.3.2.tgz",

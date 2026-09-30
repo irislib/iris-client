@@ -6,9 +6,9 @@ const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
   "@fips/core": {
-    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.46/fips-core-0.0.46.tgz",
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.47/fips-core-0.0.47.tgz",
     integrity:
-      "sha512-rF5N84jrkmUy+BMAulanDgnLVL/yYGlyMTLaXWQzLHdfJDoS6TOCFaPd3DXT5YZ5QdpnYS0QQeZVvr0i2aTRmw==",
+      "sha512-nV8bzR5yL+hhq0qkZtC57is3VZXBO5CP7PE1tp1a1Qg5IKoBHLzZzeheq/GihQuqVH8RBXn80pxXeQ8XLBXUhg==",
   },
   "nostr-pubsub": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz",

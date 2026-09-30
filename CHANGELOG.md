@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.33 - 2026-10-01
+
+- Reply to FIPS link-quality reports so seed connections can leave their fast startup reporting cadence.
+
 ## 2.5.32 - 2026-09-30
 
 - Accept valid native FIPS routing filters and reduce repeated requests for unreachable peers.
