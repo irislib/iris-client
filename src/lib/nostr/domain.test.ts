@@ -6,6 +6,7 @@ import NostrClient, {
   profileFromEvent,
   Relay,
   EventSubscription,
+  type EventFilter,
 } from "./index"
 import {relayHints} from "./relayPolicy"
 
@@ -43,12 +44,9 @@ describe("app event and account semantics", () => {
       const latest = new AppEvent(client, {kind: 0, created_at: 101, content: "Latest"})
       await old.sign()
       await latest.sign()
-      const filter =
-        kind === "replaceable"
-          ? {kinds: [0], authors: [old.pubkey]}
-          : kind === "prefix"
-            ? {ids: [old.id.slice(0, 8)]}
-            : {ids: [old.id, latest.id]}
+      let filter: EventFilter = {ids: [old.id, latest.id]}
+      if (kind === "replaceable") filter = {kinds: [0], authors: [old.pubkey]}
+      if (kind === "prefix") filter = {ids: [old.id.slice(0, 8)]}
       let subscription!: EventSubscription
       client.transportPlugins.push({
         onSubscribe: (sub) => {
