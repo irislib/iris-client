@@ -7,24 +7,18 @@ export default function OldWallet() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
     let mounted = true
-    const timeout = setTimeout(() => mounted && setReady(true), 5000)
     const loader = new URL(
       `${import.meta.env.BASE_URL}cashu/offline.js`,
       document.baseURI
     ).href
     import(/* @vite-ignore */ loader)
-      .then(({updateLegacyWallet}) => {
-        clearTimeout(timeout)
-        return updateLegacyWallet()
-      })
+      .then(({updateLegacyWallet}) => updateLegacyWallet())
       .catch(() => {}) // A previously cached wallet remains available offline.
       .finally(() => {
-        clearTimeout(timeout)
         if (mounted) setReady(true)
       })
     return () => {
       mounted = false
-      clearTimeout(timeout)
     }
   }, [])
   return (

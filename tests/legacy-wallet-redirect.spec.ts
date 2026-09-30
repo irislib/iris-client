@@ -12,6 +12,11 @@ test("the wallet recovers an installed redirected cache through its parent view"
 }) => {
   test.skip(!usingBuiltDist, "requires the production build")
   test.setTimeout(60000)
+  let helperRequested = false
+  let releaseHelper: (() => void) | undefined
+  const helperHeld = new Promise<void>((resolve) => {
+    releaseHelper = resolve
+  })
   const oldWorker = `service-worker.${"1".repeat(64)}.js`
   // Reproduce the earlier worker's browser-visible defect using a real redirect,
   // real Cache storage and a real installed worker, with the current wallet bytes.
@@ -36,6 +41,10 @@ test("the wallet recovers an installed redirected cache through its parent view"
     if (url.pathname === "/fixture") {
       response.setHeader("Content-Type", "text/html")
       return response.end("<!doctype html><title>Wallet redirect fixture</title>")
+    }
+    if (url.pathname === "/cashu/offline.js") {
+      helperRequested = true
+      await helperHeld
     }
     try {
       const upstream = await fetch(new URL(url.pathname + url.search, baseURL))
@@ -92,7 +101,12 @@ test("the wallet recovers an installed redirected cache through its parent view"
 
     // No cache clearing, unregistering or forced worker activation: the actual
     // parent view installs the repair before creating the wallet frame.
-    await page.goto(`${origin}/old-wallet`)
+    await page.goto(`${origin}/old-wallet`, {waitUntil: "domcontentloaded"})
+    await expect.poll(() => helperRequested).toBe(true)
+    // Even a slow helper must not mount a broken old wallet before the repair.
+    await page.waitForTimeout(5500)
+    await expect(page.locator('iframe[title="Legacy Cashu Wallet"]')).toHaveCount(0)
+    releaseHelper!()
     const wallet = page.frameLocator('iframe[title="Legacy Cashu Wallet"]')
     await expect(wallet.locator("#q-app")).not.toBeEmpty()
     expect(
@@ -112,6 +126,7 @@ test("the wallet recovers an installed redirected cache through its parent view"
     await expect(wallet.locator("#q-app")).not.toBeEmpty()
     expect(errors).toEqual([])
   } finally {
+    releaseHelper!()
     await context.setOffline(false)
     server.closeAllConnections()
     await new Promise<void>((resolve, reject) =>
