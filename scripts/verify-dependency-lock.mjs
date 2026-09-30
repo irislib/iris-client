@@ -5,6 +5,11 @@ const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"
 const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
+  "@fips/core": {
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.46/fips-core-0.0.46.tgz",
+    integrity:
+      "sha512-rF5N84jrkmUy+BMAulanDgnLVL/yYGlyMTLaXWQzLHdfJDoS6TOCFaPd3DXT5YZ5QdpnYS0QQeZVvr0i2aTRmw==",
+  },
   "nostr-pubsub": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz",
     integrity:

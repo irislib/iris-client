@@ -2,6 +2,8 @@
 
 ## 2.5.32 - 2026-09-30
 
+- Accept valid native FIPS routing filters and reduce repeated requests for unreachable peers.
+
 - Label seed connections as FIPS WebSocket seeds and link to fips.network in Network settings.
 - Shorten the bandwidth legend to Up and Down.
 - Include WebSocket seeds in peer counts and avoid showing an empty peer state while connected to seeds.

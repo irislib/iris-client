@@ -83,7 +83,7 @@
     "@cashu/cashu-ts": "^3.7.1",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
-    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.45/fips-core-0.0.45.tgz",
+    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.46/fips-core-0.0.46.tgz",
     "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.45/fips-transport-webrtc-0.0.50.tgz",
     "@gandlaf21/bc-ur": "^1.1.12",
     "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-core-0.3.2.tgz",
@@ -176,7 +176,9 @@
       "@hashtree/fips-transport@0.4.16": "patches/hashtree-fips-transport.patch"
     },
     "overrides": {
-      "dexie": "$dexie"
+      "dexie": "$dexie",
+      "@fips/transport-webrtc>@fips/core": "$@fips/core",
+      "@fips/transport-websocket>@fips/core": "$@fips/core"
     }
   }
 }
