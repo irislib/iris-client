@@ -1,18 +1,18 @@
-import {NDKEvent, NDKSigner} from "@/lib/ndk"
+import {AppEvent, Signer} from "@/lib/nostr"
 import {decode} from "light-bolt11-decoder"
 import {nip19, type NostrEvent} from "nostr-tools"
 import {makeZapRequest} from "nostr-tools/nip57"
-import {ndk, DEFAULT_RELAYS} from "@/utils/ndk"
+import {nostr, DEFAULT_RELAYS} from "@/utils/nostrClient"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {bech32} from "@scure/base"
-import {NDKSubscriptionCacheUsage} from "@/lib/ndk/subscription"
+import {CacheMode} from "@/lib/nostr"
 import debug from "debug"
 import {getEventGroup, inheritGroupTags} from "@/groups/activity"
 import {publishGroupEvent} from "@/groups/publish"
 
 const log = debug("iris:zapUtils")
 
-export function getZappingUser(event: NDKEvent, npub = true) {
+export function getZappingUser(event: AppEvent, npub = true) {
   const description = event.tags?.find((t) => t[0] === "description")?.[1]
   if (!description) {
     return null
@@ -29,7 +29,7 @@ export function getZappingUser(event: NDKEvent, npub = true) {
   return obj.pubkey
 }
 
-export async function getZapAmount(event: NDKEvent) {
+export async function getZapAmount(event: AppEvent) {
   const invoice = event.tagValue("bolt11")
   if (invoice) {
     const decodedInvoice = decode(invoice)
@@ -38,13 +38,13 @@ export async function getZapAmount(event: NDKEvent) {
     )
     if (amountSection && "value" in amountSection) {
       // Convert millisatoshis to bits
-      return Math.floor(parseInt(amountSection.value) / 1000)
+      return Math.floor(parseInt(String(amountSection.value)) / 1000)
     }
   }
   return 0
 }
 
-export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
+export const fetchZappedAmount = async (event: AppEvent): Promise<number> => {
   return new Promise((resolve) => {
     let zappedAmount = 0
     const filter = {
@@ -52,7 +52,7 @@ export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
       ["#e"]: [event.id],
     }
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = nostr().subscribe(filter)
 
       sub?.on("event", async (event) => {
         const invoice = event.tagValue("bolt11")
@@ -63,7 +63,7 @@ export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
           )
           if (amountSection && "value" in amountSection) {
             // Convert millisatoshis to bits
-            zappedAmount = zappedAmount + Math.floor(parseInt(amountSection.value) / 1000)
+            zappedAmount = zappedAmount + Math.floor(parseInt(String(amountSection.value)) / 1000)
           }
         }
       })
@@ -79,20 +79,20 @@ export const fetchZappedAmount = async (event: NDKEvent): Promise<number> => {
 
 /**
  * Creates a zap invoice manually by fetching LNURL data and creating a zap request
- * @param target - Either {event: NDKEvent} for event zap or {pubkey: string} for profile zap
+ * @param target - Either {event: AppEvent} for event zap or {pubkey: string} for profile zap
  * @param amountMsats - Amount in millisatoshis
  * @param comment - Optional zap comment
  * @param lud16 - Lightning address (e.g. user@domain.com)
- * @param signer - NDK signer to sign the zap request
+ * @param signer - NostrClient signer to sign the zap request
  * @param isDonation - If true, adds "irisdonation" tag to the zap request
  * @returns Lightning invoice string
  */
 async function createZapInvoiceInternal(
-  target: {event: NDKEvent} | {pubkey: string},
+  target: {event: AppEvent} | {pubkey: string},
   amountMsats: number,
   comment: string,
   lud16: string,
-  signer: NDKSigner,
+  signer: Signer,
   isDonation = false
 ): Promise<string> {
   // Fetch LNURL data
@@ -110,8 +110,8 @@ async function createZapInvoiceInternal(
     throw new Error("This lightning address doesn't support Nostr zaps")
   }
 
-  // Get relays from NDK pool or use defaults
-  const ndkInstance = ndk()
+  // Get relays from NostrClient pool or use defaults
+  const ndkInstance = nostr()
   const connectedRelays = ndkInstance.pool?.connectedRelays()?.map((r) => r.url) || []
   const relaysToUse = connectedRelays.length > 0 ? connectedRelays : DEFAULT_RELAYS
 
@@ -145,7 +145,7 @@ async function createZapInvoiceInternal(
   }
 
   // Sign the zap request
-  const zapRequestEvent = new NDKEvent(ndk(), zapRequest)
+  const zapRequestEvent = new AppEvent(nostr(), zapRequest)
   await zapRequestEvent.sign(signer)
   if ("event" in target && getEventGroup(target.event))
     await publishGroupEvent(zapRequestEvent)
@@ -176,15 +176,15 @@ async function createZapInvoiceInternal(
  * @param amountMsats - Amount in millisatoshis
  * @param comment - Optional zap comment
  * @param lud16 - Lightning address (e.g. user@domain.com)
- * @param signer - NDK signer to sign the zap request
+ * @param signer - NostrClient signer to sign the zap request
  * @returns Lightning invoice string
  */
 export async function createZapInvoice(
-  event: NDKEvent,
+  event: AppEvent,
   amountMsats: number,
   comment: string,
   lud16: string,
-  signer: NDKSigner
+  signer: Signer
 ): Promise<string> {
   return createZapInvoiceInternal({event}, amountMsats, comment, lud16, signer)
 }
@@ -194,11 +194,11 @@ export async function createZapInvoice(
  * This combines creating the zap with publishing it to relays
  */
 export async function createAndPublishZapInvoice(
-  event: NDKEvent,
+  event: AppEvent,
   amountMsats: number,
   comment: string,
   lud16: string,
-  signer: NDKSigner
+  signer: Signer
 ): Promise<string> {
   // Parse lightning address
   const [name, domain] = lud16.split("@")
@@ -219,8 +219,8 @@ export async function createAndPublishZapInvoice(
     throw new Error("This lightning address doesn't support Nostr zaps")
   }
 
-  // Get relays from NDK pool or use defaults
-  const ndkInstance = ndk()
+  // Get relays from NostrClient pool or use defaults
+  const ndkInstance = nostr()
   const connectedRelays = ndkInstance.pool?.connectedRelays()?.map((r) => r.url) || []
   const relaysToUse = connectedRelays.length > 0 ? connectedRelays : DEFAULT_RELAYS
 
@@ -238,7 +238,7 @@ export async function createAndPublishZapInvoice(
   zapRequest.tags = inheritGroupTags(event, zapRequest.tags)
 
   // Sign and PUBLISH the zap request
-  const zapRequestEvent = new NDKEvent(ndk(), zapRequest)
+  const zapRequestEvent = new AppEvent(nostr(), zapRequest)
   await zapRequestEvent.sign(signer)
   if (getEventGroup(event)) {
     await publishGroupEvent(zapRequestEvent)
@@ -273,14 +273,14 @@ export interface ZapInfo {
   amount: number
   pubkey: string
   comment: string
-  event: NDKEvent
+  event: AppEvent
   bolt11?: string // invoice for deduplication
 }
 
 /**
  * Parse a zap receipt event (kind 9735) into structured data
  */
-export function parseZapReceipt(zapEvent: NDKEvent): ZapInfo | null {
+export function parseZapReceipt(zapEvent: AppEvent): ZapInfo | null {
   const invoice = zapEvent.tagValue("bolt11")
   if (!invoice) return null
 
@@ -292,7 +292,7 @@ export function parseZapReceipt(zapEvent: NDKEvent): ZapInfo | null {
 
     if (!amountSection || !("value" in amountSection)) return null
 
-    const amount = Math.floor(parseInt(amountSection.value) / 1000)
+    const amount = Math.floor(parseInt(String(amountSection.value)) / 1000)
     const zappingUser = getZappingUser(zapEvent)
 
     // Extract comment from description tag
@@ -467,15 +467,15 @@ export function calculateMultiRecipientDonations(
  * - For npub: Creates profile zap to the donation recipient
  * - For lightning address: Sends regular Lightning payment (no zap event)
  * @param donations - Array of recipients with amounts to send
- * @param signer - NDK signer
+ * @param signer - NostrClient signer
  * @param originalEvent - The event that was zapped (unused, kept for compatibility)
  * @param sendPayment - Function to send payment (from wallet provider)
  * @returns Promise that resolves when all donations are processed
  */
 export async function sendDonationZaps(
   donations: Array<{recipient: string; amount: number}>,
-  signer: NDKSigner,
-  originalEvent: NDKEvent,
+  signer: Signer,
+  originalEvent: AppEvent,
   sendPayment: (invoice: string) => Promise<{preimage?: string} | void>
 ): Promise<void> {
   const {nip19} = await import("nostr-tools")
@@ -495,9 +495,9 @@ export async function sendDonationZaps(
           recipientPubkey = decoded.data
           log("💝 DONATION: Decoded npub to pubkey:", recipientPubkey)
           // Fetch profile to get lightning address - force relay fetch
-          const ndkInstance = ndk()
+          const ndkInstance = nostr()
           const user = ndkInstance.getUser({pubkey: recipientPubkey})
-          await user.fetchProfile({cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY})
+          await user.fetchProfile({cacheUsage: CacheMode.ONLY_RELAY})
           log("💝 DONATION: Full profile:", user.profile)
           lightningAddress = user.profile?.lud16 || user.profile?.lud06 || null
           log("💝 DONATION: Lightning address:", lightningAddress)

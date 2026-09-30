@@ -1,7 +1,7 @@
 import {CustomEmojiComponent} from "../../embed/nostr/CustomEmojiComponent"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
-export function ReactionContent({content, event}: {content: string; event: NDKEvent}) {
+export function ReactionContent({content, event}: {content: string; event: AppEvent}) {
   if (content === "+") return "❤️"
 
   // Check if the content contains emoji shortcodes

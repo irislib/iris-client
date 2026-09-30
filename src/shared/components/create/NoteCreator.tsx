@@ -1,11 +1,11 @@
 import {BaseNoteCreator} from "../notes/BaseNoteCreator"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 type handleCloseFunction = () => void
 
 interface NoteCreatorProps {
-  repliedEvent?: NDKEvent
-  quotedEvent?: NDKEvent
+  repliedEvent?: AppEvent
+  quotedEvent?: AppEvent
   handleClose: handleCloseFunction
   reset?: boolean
 }

@@ -1,6 +1,6 @@
-import NDK, {NDKEvent, NDKPublishError} from "@/lib/ndk"
+import NostrClient, {AppEvent, PublishError} from "@/lib/nostr"
 import {beforeEach, describe, expect, it, vi} from "vitest"
-import {ndk} from "./ndk"
+import {nostr} from "@/utils/nostrClient"
 import {publishGroupEvent} from "@/groups/publish"
 import {groupTags} from "@/groups/model"
 import {
@@ -9,13 +9,13 @@ import {
   reactWithExpiration,
 } from "./reaction"
 
-vi.mock("./ndk", () => ({
-  ndk: vi.fn(),
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: vi.fn(),
 }))
 vi.mock("@/groups/publish", () => ({publishGroupEvent: vi.fn()}))
 
-const createTargetEvent = (eventNdk?: NDK) =>
-  new NDKEvent(eventNdk, {
+const createTargetEvent = (eventNdk?: NostrClient) =>
+  new AppEvent(eventNdk, {
     id: "1".repeat(64),
     pubkey: "2".repeat(64),
     created_at: 1_700_000_000,
@@ -31,35 +31,35 @@ describe("reactWithExpiration", () => {
     vi.clearAllMocks()
   })
 
-  it("uses the app NDK when a cached target event has no attached instance", async () => {
-    const appNdk = new NDK()
+  it("uses the app NostrClient when a cached target event has no attached instance", async () => {
+    const appNdk = new NostrClient()
     vi.spyOn(appNdk, "assertSigner").mockImplementation(() => undefined)
-    vi.mocked(ndk).mockReturnValue(appNdk)
-    vi.spyOn(NDKEvent.prototype, "publish").mockResolvedValue(new Set())
+    vi.mocked(nostr).mockReturnValue(appNdk)
+    vi.spyOn(AppEvent.prototype, "publish").mockResolvedValue(new Set())
 
     const reaction = await reactWithExpiration(createTargetEvent(), "+")
 
-    expect(ndk).toHaveBeenCalledOnce()
-    expect(reaction.ndk).toBe(appNdk)
+    expect(nostr).toHaveBeenCalledOnce()
+    expect(reaction.nostr).toBe(appNdk)
     expect(reaction.tags).toContainEqual(["expiration", "1_800_000_000"])
     expect(reaction.publish).toHaveBeenCalledOnce()
   })
 
-  it("keeps using an attached NDK when the target already has one", async () => {
-    const attachedNdk = new NDK()
+  it("keeps using an attached NostrClient when the target already has one", async () => {
+    const attachedNdk = new NostrClient()
     vi.spyOn(attachedNdk, "assertSigner").mockImplementation(() => undefined)
-    vi.spyOn(NDKEvent.prototype, "publish").mockResolvedValue(new Set())
+    vi.spyOn(AppEvent.prototype, "publish").mockResolvedValue(new Set())
 
     const reaction = await reactWithExpiration(createTargetEvent(attachedNdk), "+")
 
-    expect(ndk).not.toHaveBeenCalled()
-    expect(reaction.ndk).toBe(attachedNdk)
+    expect(nostr).not.toHaveBeenCalled()
+    expect(reaction.nostr).toBe(attachedNdk)
   })
 
   it("preserves group and custom emoji tags and propagates missing relay acknowledgment", async () => {
-    const attachedNdk = new NDK()
+    const attachedNdk = new NostrClient()
     vi.spyOn(attachedNdk, "assertSigner").mockImplementation(() => undefined)
-    const publish = vi.spyOn(NDKEvent.prototype, "publish").mockResolvedValue(new Set())
+    const publish = vi.spyOn(AppEvent.prototype, "publish").mockResolvedValue(new Set())
     const event = createTargetEvent(attachedNdk)
     const tags = groupTags({
       creator: "a".repeat(64),
@@ -72,7 +72,7 @@ describe("reactWithExpiration", () => {
         ["emoji", "wave", "https://example.com/wave.png"],
       ])
     ).rejects.toThrow("No relay acknowledged")
-    const reaction = vi.mocked(publishGroupEvent).mock.calls[0][0] as NDKEvent
+    const reaction = vi.mocked(publishGroupEvent).mock.calls[0][0] as AppEvent
     expect(reaction.tags).toEqual(
       expect.arrayContaining([...tags, ["emoji", "wave", "https://example.com/wave.png"]])
     )
@@ -82,7 +82,7 @@ describe("reactWithExpiration", () => {
 
 describe("isRelayPublishFailure", () => {
   it("identifies relay delivery failures that should remain silent", () => {
-    const error = new NDKPublishError(
+    const error = new PublishError(
       "Not enough relays received the event (0 published, 1 required)",
       new Map(),
       new Set()
@@ -94,7 +94,7 @@ describe("isRelayPublishFailure", () => {
 
   it("does not hide signer or runtime failures", () => {
     expect(isRelayPublishFailure(new Error("User rejected signing"))).toBe(false)
-    expect(isRelayPublishFailure(new Error("No NDK instance found"))).toBe(false)
+    expect(isRelayPublishFailure(new Error("No NostrClient instance found"))).toBe(false)
     expect(getReactionPublishErrorMessage(new Error("User rejected signing"))).toBe(
       "Could not publish reaction: User rejected signing"
     )

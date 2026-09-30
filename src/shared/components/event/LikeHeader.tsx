@@ -1,11 +1,11 @@
 import {CustomEmojiComponent} from "../embed/nostr/CustomEmojiComponent"
 import {Name} from "@/shared/components/user/Name"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
 
 interface LikeHeaderProps {
-  event: NDKEvent
+  event: AppEvent
 }
 
 function LikeHeader({event}: LikeHeaderProps) {

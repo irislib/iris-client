@@ -2,7 +2,7 @@ import {KIND_CHANNEL_MESSAGE, DEBUG_NAMESPACES} from "@/utils/constants"
 import {usePublicChatsStore} from "@/stores/publicChats"
 import {useMessagesStore} from "@/stores/messages"
 import {useUserStore} from "../stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
@@ -57,7 +57,7 @@ export const migratePublicChats = async () => {
   if (!myPubKey) return
   const channelIds = new Set<string>([DEFAULT_PUBLIC_CHAT_ID])
 
-  const events = await ndk()
+  const events = await nostr()
     .fetchEvents({
       kinds: [KIND_CHANNEL_MESSAGE],
       authors: [myPubKey],

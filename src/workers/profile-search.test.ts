@@ -44,7 +44,7 @@ vi.mock("@hashtree/core", () => ({
   nhashEncode: nhashEncodeMock,
 }))
 
-vi.mock("../lib/ndk-cache", () => ({
+vi.mock("@/lib/nostr/cache", () => ({
   db: {
     profiles: {
       put: profilesPutMock,

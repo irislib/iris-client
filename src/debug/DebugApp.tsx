@@ -324,13 +324,13 @@ const DebugApp = () => {
               </div>
             )}
 
-            {ndkInfo && <div className="divider">NDK Information</div>}
+            {ndkInfo && <div className="divider">NostrClient Information</div>}
 
             {ndkInfo && (
               <div className="card bg-base-200 shadow">
                 <div className="card-body">
                   <h3 className="card-title">
-                    NDK Subscription Manager
+                    NostrClient Subscription Manager
                     <span className="badge badge-info badge-sm">Live</span>
                   </h3>
                   <div className="space-y-4">
@@ -346,7 +346,7 @@ const DebugApp = () => {
                     </div>
                     <details className="collapse collapse-arrow bg-base-300">
                       <summary className="collapse-title text-sm font-medium">
-                        View Raw NDK Data
+                        View Raw NostrClient Data
                       </summary>
                       <div className="collapse-content">
                         <pre className="text-xs bg-base-100 p-2 rounded overflow-auto max-h-60">

@@ -1,7 +1,7 @@
 import {createElement} from "react"
 import {renderToStaticMarkup} from "react-dom/server"
 import {describe, expect, it, vi} from "vitest"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import LongForm from "./LongForm"
 
 vi.mock("@/navigation", () => ({useNavigate: () => vi.fn()}))
@@ -24,7 +24,7 @@ describe("LongForm", () => {
       id: "0".repeat(64),
       content,
       tagValue: (name: string) => (name === "title" ? "Security test" : undefined),
-    } as NDKEvent
+    } as AppEvent
 
     const html = renderToStaticMarkup(createElement(LongForm, {event, standalone: true}))
 

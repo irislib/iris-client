@@ -1,7 +1,7 @@
 import GroupPoll from "@/groups/components/GroupPoll"
 import MarketListing from "../../market/MarketListing"
 import ChannelCreation from "../ChannelCreation.tsx"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {
   KIND_ZAP_RECEIPT,
   KIND_REACTION,
@@ -20,8 +20,8 @@ import PictureFirst from "../PictureFirst.tsx"
 import {memo} from "react"
 
 type ContentProps = {
-  event: NDKEvent | undefined
-  referredEvent: NDKEvent | undefined
+  event: AppEvent | undefined
+  referredEvent: AppEvent | undefined
   standalone?: boolean
   truncate: number
 }

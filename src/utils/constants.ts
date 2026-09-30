@@ -62,24 +62,24 @@ export const KIND_CHAT_SETTINGS = 10448
 
 // Debug namespaces for debug pkg
 export const DEBUG_NAMESPACES = {
-  // NDK
-  NDK_RELAY: "ndk:relay",
-  NDK_RELAY_CONN: "ndk:relay:conn",
-  NDK_RELAY_ERROR: "ndk:relay:error",
-  NDK_RELAY_WARN: "ndk:relay:warn",
-  NDK_SUBSCRIPTION: "ndk:subscription",
-  NDK_SUBSCRIPTION_ERROR: "ndk:subscription:error",
-  NDK_SUBSCRIPTION_WARN: "ndk:subscription:warn",
-  NDK_CACHE: "ndk:cache",
-  NDK_CACHE_ERROR: "ndk:cache:error",
-  NDK_CACHE_WARN: "ndk:cache:warn",
-  NDK_POOL: "ndk:pool",
-  NDK_POOL_ERROR: "ndk:pool:error",
-  NDK_POOL_WARN: "ndk:pool:warn",
-  NDK_WORKER: "ndk:worker",
-  NDK_WORKER_ERROR: "ndk:worker:error",
-  NDK_WORKER_WARN: "ndk:worker:warn",
-  NDK_TRANSPORT: "ndk:transport",
+  // NostrClient
+  NDK_RELAY: "nostr:relay",
+  NDK_RELAY_CONN: "nostr:relay:conn",
+  NDK_RELAY_ERROR: "nostr:relay:error",
+  NDK_RELAY_WARN: "nostr:relay:warn",
+  NDK_SUBSCRIPTION: "nostr:subscription",
+  NDK_SUBSCRIPTION_ERROR: "nostr:subscription:error",
+  NDK_SUBSCRIPTION_WARN: "nostr:subscription:warn",
+  NDK_CACHE: "nostr:cache",
+  NDK_CACHE_ERROR: "nostr:cache:error",
+  NDK_CACHE_WARN: "nostr:cache:warn",
+  NDK_POOL: "nostr:pool",
+  NDK_POOL_ERROR: "nostr:pool:error",
+  NDK_POOL_WARN: "nostr:pool:warn",
+  NDK_WORKER: "nostr:worker",
+  NDK_WORKER_ERROR: "nostr:worker:error",
+  NDK_WORKER_WARN: "nostr:worker:warn",
+  NDK_TRANSPORT: "nostr:transport",
 
   // Cashu
   CASHU_WALLET: "cashu:wallet",

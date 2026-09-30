@@ -13,10 +13,12 @@ import {
   nhashEncode,
   type BlossomSigner,
 } from "@hashtree/core"
-import {NDKEvent} from "@/lib/ndk"
+import {createFileStore} from "./fileStore"
+import {getPeerRuntime} from "./peerRuntime"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {KIND_BLOSSOM_AUTH} from "@/utils/constants"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 const DEFAULT_BLOSSOM_SERVERS = [
   {url: "https://upload.iris.to", write: true, read: true},
@@ -28,12 +30,12 @@ let hashTree: HashTree | null = null
 
 function createSigner(): BlossomSigner {
   return async (event) => {
-    const signer = ndk().signer
+    const signer = nostr().signer
     if (!signer) {
       throw new Error("No signer available")
     }
 
-    const authEvent = new NDKEvent(ndk(), {
+    const authEvent = new AppEvent(nostr(), {
       kind: KIND_BLOSSOM_AUTH,
       created_at: event.created_at,
       content: event.content,
@@ -54,9 +56,17 @@ function getHashTree(): HashTree {
     blossomStore = new BlossomStore({
       servers: DEFAULT_BLOSSOM_SERVERS,
       signer: createSigner(),
+      getTimeoutMs: 8000,
+      putTimeoutMs: 15000,
+      maxConcurrentWrites: 2,
     })
 
-    hashTree = new HashTree({store: blossomStore})
+    hashTree = new HashTree({
+      store: createFileStore(
+        blossomStore,
+        async (hash) => (await getPeerRuntime())?.provider.fetch(hash) ?? null
+      ),
+    })
   }
 
   return hashTree

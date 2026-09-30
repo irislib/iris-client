@@ -3,7 +3,7 @@ import {RiFileCopyLine, RiCheckLine, RiRadioLine} from "@remixicon/react"
 import classNames from "classnames"
 import Modal from "@/shared/components/ui/Modal"
 import {Link} from "@/navigation"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {Name} from "@/shared/components/user/Name"
@@ -223,15 +223,15 @@ export const MessageInfoModal = ({
   const checkRelayStatus = async () => {
     if (!nostrEventId) return
 
-    const relays = ndk().pool.relays
+    const relays = nostr().pool.relays
     const status: Record<string, boolean> = {}
 
-    // Use NDK subscription to check if event exists on relays
-    const sub = ndk().subscribe({ids: [nostrEventId]}, {closeOnEose: true})
+    // Use NostrClient subscription to check if event exists on relays
+    const sub = nostr().subscribe({ids: [nostrEventId]}, {closeOnEose: true})
 
     sub.on("event", (event) => {
       if (event.onRelays) {
-        event.onRelays.forEach((relay) => {
+        event.onRelays.forEach((relay: {url:string}) => {
           status[relay.url] = true
         })
       }

@@ -121,7 +121,7 @@ export function getLogs(filters?: {
   if (filters?.namespace) {
     const ns = filters.namespace
     result = result.filter((log) => {
-      // Support glob patterns like "ndk:*"
+      // Support glob patterns like "nostr:*"
       if (ns.endsWith(":*")) {
         const prefix = ns.slice(0, -2)
         return log.namespace.startsWith(prefix)

@@ -1,10 +1,10 @@
 import {RiExternalLinkLine} from "@remixicon/react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
 
 interface HighlightProps {
-  event: NDKEvent
+  event: AppEvent
 }
 
 function Highlight({event}: HighlightProps) {

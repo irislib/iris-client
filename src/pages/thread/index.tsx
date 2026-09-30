@@ -10,7 +10,7 @@ import Widget from "@/shared/components/ui/Widget"
 import {useSettingsStore} from "@/stores/settings"
 import {useSocialGraph} from "@/utils/socialGraph"
 import {shouldHideEvent} from "@/utils/visibility"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect, useCallback} from "react"
 import {getTags} from "@/utils/nostr"
 import {nip19} from "nostr-tools"
@@ -37,7 +37,7 @@ export default function ThreadPage({
   const {event: longformEvent, loading: longformLoading} = useLongformEvent(
     isNaddr ? naddrData : null
   )
-  const [event, setEvent] = useState<NDKEvent | null>(null)
+  const [event, setEvent] = useState<AppEvent | null>(null)
   const [loading, setLoading] = useState(false)
   const recommendationPolicy = useRecommendationVisibilitySnapshot()
 
@@ -68,7 +68,7 @@ export default function ThreadPage({
   }, [isNaddr, longformEvent, longformLoading, addRelevantPerson])
 
   const addToThread = useCallback(
-    (event: NDKEvent) => {
+    (event: AppEvent) => {
       // Skip events from muted users or mentioning muted users
       if (shouldHideEvent(event)) return
 

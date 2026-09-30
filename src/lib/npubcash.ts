@@ -1,6 +1,6 @@
-import {NDKEvent, NDKSigner} from "@/lib/ndk"
+import {AppEvent, Signer} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 const NIP98_KIND = 27235
 
@@ -26,9 +26,9 @@ interface NPubCashClaim {
 async function generateNip98Event(
   url: string,
   method: string,
-  signer: NDKSigner
+  signer: Signer
 ): Promise<string> {
-  const nip98Event = new NDKEvent(ndk())
+  const nip98Event = new AppEvent(nostr())
   nip98Event.kind = NIP98_KIND
   nip98Event.content = ""
   nip98Event.tags = [
@@ -42,7 +42,7 @@ async function generateNip98Event(
 }
 
 export async function getNPubCashInfo(
-  signer: NDKSigner,
+  signer: Signer,
   domain = "npub.cash"
 ): Promise<NPubCashInfo | null> {
   const baseURL = `https://${domain}`
@@ -64,7 +64,7 @@ export async function getNPubCashInfo(
 }
 
 export async function getNPubCashBalance(
-  signer: NDKSigner,
+  signer: Signer,
   domain = "npub.cash"
 ): Promise<number> {
   const baseURL = `https://${domain}`
@@ -89,7 +89,7 @@ export async function getNPubCashBalance(
 }
 
 export async function claimNPubCashTokens(
-  signer: NDKSigner,
+  signer: Signer,
   domain = "npub.cash"
 ): Promise<string | null> {
   const baseURL = `https://${domain}`

@@ -1,16 +1,16 @@
 import {Dispatch, SetStateAction, useEffect, useState} from "react"
-import {Hexpubkey, NDKEvent, NDKTag} from "@/lib/ndk"
+import {Hexpubkey, AppEvent, EventTag} from "@/lib/nostr"
 
 import {muteUser, unmuteUser} from "@/shared/services/Mute.tsx"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {useSocialGraph} from "@/utils/socialGraph.ts"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {getMuteLabel, getMutedLabel, getUnmuteLabel} from "@/utils/muteLabels"
 
 interface MuteUserProps {
   setMuting: Dispatch<SetStateAction<boolean>>
   user: Hexpubkey
-  event?: NDKEvent
+  event?: AppEvent
   muteState: boolean
   setMutedState: Dispatch<SetStateAction<boolean>>
 }
@@ -38,11 +38,11 @@ function MuteUser({user, setMuting, muteState, setMutedState}: MuteUserProps) {
       const followDistance = socialGraph.getFollowDistance(user)
       if (followDistance === 1) {
         // Unfollow the user if they are being followed
-        const event = new NDKEvent(ndk())
+        const event = new AppEvent(nostr())
         event.kind = 3
         const followedUsers = socialGraph.getFollowedByUser(socialGraph.getRoot())
         followedUsers.delete(user)
-        event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as NDKTag[]
+        event.tags = Array.from(followedUsers).map((pubKey) => ["p", pubKey]) as EventTag[]
         event.publish().catch((e) => console.warn("Error publishing unfollow event:", e))
       }
 

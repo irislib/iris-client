@@ -3,7 +3,7 @@ import {useMemo, useState, useEffect} from "react"
 import {useSocialGraph} from "@/utils/socialGraph.ts"
 import {NostrEvent} from "nostr-social-graph"
 import {formatAmount} from "@/utils/utils.ts"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {shouldHideUser} from "@/utils/visibility"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
@@ -31,7 +31,7 @@ const FollowerCount = ({pubKey}: {pubKey: string}) => {
         kinds: [3],
         ["#p"]: [pubKey],
       }
-      const sub = ndk().subscribe(filter)
+      const sub = nostr().subscribe(filter)
       sub.on("event", (event) => {
         socialGraph.handleEvent(event as NostrEvent)
         const newFollowers = Array.from(socialGraph.getFollowersByUser(pubKey)).filter(

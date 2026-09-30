@@ -1,10 +1,10 @@
 import {AvatarGroup} from "@/shared/components/user/AvatarGroup.tsx"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {RefObject, useEffect, useState} from "react"
 import {createPortal} from "react-dom"
 
 interface NewEventsButtonProps {
-  newEventsFiltered: NDKEvent[]
+  newEventsFiltered: AppEvent[]
   newEventsFrom: Set<string>
   showNewEvents: () => void
   firstFeedItemRef: RefObject<HTMLDivElement | null>

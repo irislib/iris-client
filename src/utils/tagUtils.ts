@@ -1,6 +1,6 @@
-import {NDKTag} from "@/lib/ndk"
+import {EventTag} from "@/lib/nostr"
 
-export const getTag = (key: string, tags: NDKTag[]): string => {
+export const getTag = (key: string, tags: EventTag[]): string => {
   for (const t of tags) {
     if (t[0] === key) {
       return t[1]
@@ -9,7 +9,7 @@ export const getTag = (key: string, tags: NDKTag[]): string => {
   return ""
 }
 
-export const getTags = (key: string, tags: NDKTag[]): string[] => {
+export const getTags = (key: string, tags: EventTag[]): string[] => {
   const res: string[] = []
   for (const t of tags) {
     if (t[0] == key) {

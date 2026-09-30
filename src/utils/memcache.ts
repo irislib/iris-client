@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {LRUCache} from "typescript-lru-cache"
 import throttle from "lodash/throttle"
 import Dexie, {type EntityTable} from "dexie"
@@ -67,7 +67,7 @@ interface ChronologicalSubscriptionCache {
 
 interface CombinedPostFetcherCache {
   scopeKey?: string
-  events?: NDKEvent[]
+  events?: AppEvent[]
   hasLoadedInitial?: boolean
 }
 

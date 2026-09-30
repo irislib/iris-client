@@ -1,7 +1,7 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useMemo, useState} from "react"
 import {shouldHideUser} from "@/utils/visibility"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {isVisibleGroupActivity} from "@/groups/activity"
 import {useGroupActivity} from "@/groups/useGroupActivity"
@@ -9,7 +9,7 @@ import {useGroupActivity} from "@/groups/useGroupActivity"
 export interface ReactionInfo {
   emoji: string
   pubkeys: Set<string>
-  event?: NDKEvent
+  event?: AppEvent
   isCustom?: boolean
   emojiUrl?: string
 }
@@ -22,7 +22,7 @@ export interface ReactionInfo {
 export function useReactionsByAuthor(eventId: string) {
   const group = useGroupAccess()
   const memberReactions = useGroupActivity([{kinds: [7], "#e": [eventId]}], 1)
-  const [reactionsByAuthor, setReactionsByAuthor] = useState<Map<string, NDKEvent>>(
+  const [reactionsByAuthor, setReactionsByAuthor] = useState<Map<string, AppEvent>>(
     new Map()
   )
 
@@ -35,9 +35,9 @@ export function useReactionsByAuthor(eventId: string) {
     }
 
     // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
-    const sub = ndk().subscribe(filter, {closeOnEose: !group})
+    const sub = nostr().subscribe(filter, {closeOnEose: !group})
 
-    sub?.on("event", (reactionEvent: NDKEvent) => {
+    sub?.on("event", (reactionEvent: AppEvent) => {
       if (shouldHideUser(reactionEvent.pubkey)) return
 
       const authorPubkey = reactionEvent.pubkey

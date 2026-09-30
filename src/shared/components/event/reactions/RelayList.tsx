@@ -1,8 +1,8 @@
 import {useState, MouseEvent} from "react"
 import {Link} from "@/navigation"
-import type {NDKRelay} from "@/lib/ndk"
+import type {Relay} from "@/lib/nostr"
 
-export default function RelayList({relays}: {relays: NDKRelay[]}) {
+export default function RelayList({relays}: {relays: Relay[]}) {
   const [showAll, setShowAll] = useState(false)
   const maxToShow = 5
 

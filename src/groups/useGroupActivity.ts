@@ -1,5 +1,5 @@
 import {useMemo} from "react"
-import {NDKEvent, type NDKFilter} from "@/lib/ndk"
+import {AppEvent, type EventFilter} from "@/lib/nostr"
 import {useGroupAccess} from "./GroupContext"
 import {groupAddress} from "./model"
 import {isVisibleGroupActivity} from "./activity"
@@ -7,7 +7,7 @@ import {useGroupEvents} from "./useGroupEvents"
 
 /** Only visible authors occupy history slots; one prolific author has its own cap. */
 export function useGroupActivity(
-  filters: NDKFilter[],
+  filters: EventFilter[],
   perAuthorCap = 32,
   enabled = true
 ) {
@@ -43,7 +43,7 @@ export function useGroupActivity(
   return useMemo(
     () =>
       events.events
-        .map((event) => new NDKEvent(undefined, event))
+        .map((event) => new AppEvent(undefined, event))
         .filter((event) => isVisibleGroupActivity(event, group)),
     [events.events, group]
   )

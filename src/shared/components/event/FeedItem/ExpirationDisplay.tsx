@@ -1,8 +1,8 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {ExpirationTime} from "@/shared/components/event/ExpirationTime"
 
 interface ExpirationDisplayProps {
-  event: NDKEvent
+  event: AppEvent
   className?: string
 }
 

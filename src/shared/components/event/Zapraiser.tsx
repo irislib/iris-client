@@ -1,10 +1,10 @@
 import {fetchZappedAmount} from "@/utils/nostr"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
 
 interface ZapraiserProps {
-  event: NDKEvent
+  event: AppEvent
   truncate?: number
 }
 

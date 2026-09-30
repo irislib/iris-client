@@ -1,7 +1,7 @@
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {NOSTR_REGEX, HEX_REGEX, NIP05_REGEX} from "@/utils/validation"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 export type IdentifierResult =
   | {type: "npub"; data: string}
@@ -40,7 +40,7 @@ export async function parseNostrIdentifier(input: string): Promise<IdentifierRes
   // Check for hex pubkey/event id (64 chars)
   if (trimmed.match(HEX_REGEX) && trimmed.length === 64) {
     // Try to fetch as both user and event
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
 
     // Create subscriptions for both author and event ID
     const userSub = ndkInstance.subscribe({
@@ -67,7 +67,7 @@ export async function parseNostrIdentifier(input: string): Promise<IdentifierRes
           }
         })
 
-        eventSub.on("event", (event: NDKEvent) => {
+        eventSub.on("event", (event: AppEvent) => {
           if (!resolved) {
             resolved = true
             userSub.stop()
@@ -114,7 +114,7 @@ export async function parseNostrIdentifier(input: string): Promise<IdentifierRes
   // Check for NIP-05 identifier
   if (trimmed.match(NIP05_REGEX)) {
     try {
-      const user = await ndk().getUserFromNip05(trimmed)
+      const user = await nostr().getUserFromNip05(trimmed)
       if (user) {
         return {type: "nip05", data: user.pubkey}
       }

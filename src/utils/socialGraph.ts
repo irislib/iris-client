@@ -1,5 +1,5 @@
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
-import {NDKSubscription, NDKSubscriptionCacheUsage} from "@/lib/ndk"
+import {EventSubscription, CacheMode} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 import {VerifiedEvent} from "nostr-tools"
@@ -139,12 +139,12 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   return true
 }
 
-let sub: NDKSubscription | undefined
+let sub: EventSubscription | undefined
 let isManualRecrawling = false
 let graphSyncGeneration = 0
 let unsubscribeFromUserStore: (() => void) | undefined
 let activeGraphSync: {publicKey: string; promise: Promise<void>} | undefined
-const activeOpinionSubscriptions = new Set<NDKSubscription>()
+const activeOpinionSubscriptions = new Set<EventSubscription>()
 
 const INITIAL_SYNC_SETTLE_MS = 300
 const INITIAL_SYNC_TIMEOUT_MS = 8_000
@@ -182,9 +182,9 @@ function getFollowListsInternal(
   const fetchBatch = async (authors: string[]) => {
     if (!isCurrent() || (isManual && !isManualRecrawling)) return
 
-    const {ndk: getNdk, initNDK} = await import("@/utils/ndk")
+    const {nostr: getNdk, initNostr} = await import("@/utils/nostrClient")
     if (!isCurrent()) return
-    initNDK() // Init in background - messages queue until ready
+    initNostr() // Init in background - messages queue until ready
     const sub = getNdk().subscribe(
       {
         kinds: [KIND_CONTACTS, KIND_MUTE_LIST],
@@ -262,7 +262,7 @@ export const initializeSocialGraph = async () => {
   }
 }
 
-// Setup subscription (called after NDK is ready)
+// Setup subscription (called after NostrClient is ready)
 export const setupSocialGraphSubscriptions = async () => {
   const requestGraphSync = (publicKey: string) => {
     if (activeGraphSync?.publicKey === publicKey) {
@@ -404,7 +404,7 @@ async function resetSubscriptionToDefault() {
 }
 
 const waitForInitialSubscription = (
-  subscription: NDKSubscription,
+  subscription: EventSubscription,
   isCurrent: () => boolean,
   deadline: number
 ) =>
@@ -456,9 +456,9 @@ async function setupSubscription(publicKey: string) {
     useSocialGraphStore.getState().setReady(true)
   }
 
-  // Import ndk lazily to avoid initialization race
-  const {ndk: getNdk, initNDK} = await import("@/utils/ndk")
-  await initNDK()
+  // Import nostr lazily to avoid initialization race
+  const {nostr: getNdk, initNostr} = await import("@/utils/nostrClient")
+  await initNostr()
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
 
   const rootFilters = [
@@ -584,7 +584,7 @@ async function setupSubscription(publicKey: string) {
 
   const backgroundRootSub = getNdk().subscribe(rootFilters, {
     transports: ["worker-transport"],
-    cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+    cacheUsage: CacheMode.ONLY_RELAY,
   })
   backgroundRootSub.on("event", handleRootEvent)
   if (!isCurrentGraphSync(syncGeneration, publicKey)) {
@@ -604,7 +604,7 @@ async function setupSubscription(publicKey: string) {
       },
       {
         transports: ["worker-transport"],
-        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+        cacheUsage: CacheMode.ONLY_RELAY,
       }
     )
     backgroundOpinionSub.on("event", (event) => {

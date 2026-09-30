@@ -9,13 +9,13 @@ import FeedItemDropdown from "../reactions/FeedItemDropdown.tsx"
 import Dropdown from "@/shared/components/ui/Dropdown.tsx"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {EVENT_AVATAR_WIDTH} from "../../user/const.ts"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {isRepost} from "@/utils/nostr"
 import {KIND_ZAP_RECEIPT, KIND_REACTION} from "@/utils/constants"
 
 type FeedItemHeaderProps = {
-  event: NDKEvent
-  referredEvent?: NDKEvent
+  event: AppEvent
+  referredEvent?: AppEvent
   tight?: boolean
 }
 
@@ -26,7 +26,7 @@ function FeedItemHeader({event, referredEvent, tight}: FeedItemHeaderProps) {
 
   // handle long-form published timestamp
   useEffect(() => {
-    const getPublishedAt = (eventData: NDKEvent) => {
+    const getPublishedAt = (eventData: AppEvent) => {
       if (eventData && eventData.kind === 30023) {
         const published = eventData.tagValue("published_at")
         if (published) {

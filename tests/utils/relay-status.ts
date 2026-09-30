@@ -6,7 +6,7 @@ export async function waitForConnectedRelays(page: Page, timeout = 10_000) {
       async () => {
         try {
           return await page.evaluate(async () => {
-            const modulePath = "/src/utils/ndk.ts"
+            const modulePath = "/src/utils/nostrClient.ts"
             const {getWorkerTransport} = await import(/* @vite-ignore */ modulePath)
             const statuses = await getWorkerTransport()?.getRelayStatus()
             return (

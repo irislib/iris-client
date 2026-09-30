@@ -1,13 +1,13 @@
 import {useEffect, useRef, useState, useCallback, useMemo} from "react"
 import L, {type Map as LeafletMap} from "leaflet"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import worldGeoJSON from "./world-110m.json"
 import {decodeGeohash} from "@/utils/geohash"
 import {getGeohashesFromEvent} from "@/utils/locationGeocoding"
 
 interface GeohashMapContentProps {
   geohashes?: string[]
-  feedEvents?: NDKEvent[]
+  feedEvents?: AppEvent[]
   onGeohashSelect?: (geohash: string) => void
   height?: string
 }

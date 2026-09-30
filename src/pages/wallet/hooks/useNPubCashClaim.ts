@@ -5,7 +5,7 @@ import {
   claimNPubCashTokens,
   extractMintFromToken,
 } from "@/lib/npubcash"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -17,10 +17,10 @@ export function useNPubCashClaim(
   onRefresh: () => void
 ) {
   useEffect(() => {
-    if (!myPubKey || !ndk().signer || !manager) return
+    if (!myPubKey || !nostr().signer || !manager) return
 
     const checkAndClaim = async () => {
-      const signer = ndk().signer
+      const signer = nostr().signer
       if (!signer) return
 
       try {

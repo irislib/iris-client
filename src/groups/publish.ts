@@ -1,5 +1,5 @@
-import {NDKEvent, NDKRelay, NDKRelaySet} from "@/lib/ndk"
-import {getWorkerTransport, ndk} from "@/utils/ndk"
+import {AppEvent, Relay, RelaySet} from "@/lib/nostr"
+import {getWorkerTransport, nostr} from "@/utils/nostrClient"
 import {cacheEvent} from "@/utils/eventCache"
 import {useUserStore} from "@/stores/user"
 import {publishConfirmedEvent} from "@/lib/publishConfirmedEvent"
@@ -9,7 +9,7 @@ const signingQueues = new Map<string, Promise<void>>()
 
 type SigningWindow = {afterTimestamp?: number; beforeTimestamp?: number}
 
-async function signInOrder(event: NDKEvent, window: SigningWindow) {
+async function signInOrder(event: AppEvent, window: SigningWindow) {
   const author = useUserStore.getState().publicKey
   const previous = signingQueues.get(author) ?? Promise.resolve()
   const signing = previous
@@ -45,13 +45,13 @@ async function signInOrder(event: NDKEvent, window: SigningWindow) {
 
 /** Group writes are successful only after a relay acknowledges the signed event. */
 export async function publishGroupEvent(
-  draft: {kind: number; content: string; tags: string[][]} | NDKEvent,
+  draft: {kind: number; content: string; tags: string[][]} | AppEvent,
   relayUrls?: string[],
   window: SigningWindow = {}
-): Promise<NDKEvent> {
-  const instance = ndk()
-  const event = draft instanceof NDKEvent ? draft : new NDKEvent(instance, draft)
-  event.ndk = instance
+): Promise<AppEvent> {
+  const instance = nostr()
+  const event = draft instanceof AppEvent ? draft : new AppEvent(instance, draft)
+  event.nostr = instance
   if (!event.sig) await signInOrder(event, window)
   if (event.pubkey !== useUserStore.getState().publicKey)
     throw new Error("Your account changed. Please try again.")
@@ -65,12 +65,12 @@ export async function publishGroupEvent(
   if (transport) {
     await transport.publish(
       event,
-      relayUrls?.map((url) => new NDKRelay(url, undefined, instance)),
+      relayUrls?.map((url) => new Relay(url, undefined, instance)),
       {requireAck: true}
     )
   } else {
     const relaySet = relayUrls?.length
-      ? NDKRelaySet.fromRelayUrls(relayUrls, instance)
+      ? RelaySet.fromRelayUrls(relayUrls, instance)
       : undefined
     await publishConfirmedEvent(event, relaySet)
   }

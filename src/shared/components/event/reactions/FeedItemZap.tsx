@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {useOnlineStatus} from "@/shared/hooks/useOnlineStatus"
 import {MouseEvent, RefObject, useEffect, useMemo, useState} from "react"
@@ -10,7 +10,7 @@ import {usePublicKey, useUserStore} from "@/stores/user"
 import {useScrollAwareLongPress} from "@/shared/hooks/useScrollAwareLongPress"
 import Icon from "../../Icons/Icon.tsx"
 import ZapModal from "../ZapModal"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {useGroupZaps} from "@/groups/useGroupZaps"
@@ -21,7 +21,7 @@ const zapsByEventCache = new LRUCache<string, Map<string, ZapInfo[]>>({
 })
 
 interface FeedItemZapProps {
-  event: NDKEvent
+  event: AppEvent
   feedItemRef: RefObject<HTMLDivElement | null>
   showReactionCounts?: boolean
 }
@@ -159,7 +159,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
       return
     }
 
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
     const signer = ndkInstance.signer
     if (!signer) {
       console.warn("Quick zap: No signer available")
@@ -174,7 +174,7 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
       amount: amount / 1000, // Store in sats
       pubkey: myPubKey || "",
       comment: defaultZapComment || "",
-      event: event as NDKEvent,
+      event: event as AppEvent,
     }
 
     setZapsByAuthor((prev) => {
@@ -293,9 +293,9 @@ function FeedItemZap({event, feedItemRef, showReactionCounts = true}: FeedItemZa
 
     try {
       // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
-      const sub = ndk().subscribe(filter, {closeOnEose: !group})
+      const sub = nostr().subscribe(filter, {closeOnEose: !group})
 
-      sub?.on("event", async (zapEvent: NDKEvent) => {
+      sub?.on("event", async (zapEvent: AppEvent) => {
         // if (shouldHideEvent(zapEvent)) return // blah. disabling this check enables fake receipts but what can we do
         const zapInfo = parseZapReceipt(zapEvent)
         if (zapInfo) {

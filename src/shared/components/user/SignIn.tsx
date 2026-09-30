@@ -1,11 +1,11 @@
 import {hexToBytes, bytesToHex} from "@noble/hashes/utils.js"
-import {NDKPrivateKeySigner} from "@/lib/ndk"
+import {SecretKeySigner} from "@/lib/nostr"
 import {ChangeEvent, useEffect, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {NSEC_NPUB_REGEX, HEX_REGEX} from "@/utils/validation"
 import Icon from "@/shared/components/Icons/Icon"
 
@@ -41,8 +41,8 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         else if (inputPrivateKey.indexOf("nsec1") === 0) {
           const bytes = nip19.decode(inputPrivateKey).data as Uint8Array
           const hex = bytesToHex(bytes)
-          const privateKeySigner = new NDKPrivateKeySigner(hex)
-          ndk().signer = privateKeySigner
+          const privateKeySigner = new SecretKeySigner(hex)
+          nostr().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
 
           useUserStore.setState({
@@ -60,8 +60,8 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         else if (inputPrivateKey.match(HEX_REGEX)) {
           const bytes = hexToBytes(inputPrivateKey)
           const hex = bytesToHex(bytes)
-          const privateKeySigner = new NDKPrivateKeySigner(hex)
-          ndk().signer = privateKeySigner
+          const privateKeySigner = new SecretKeySigner(hex)
+          nostr().signer = privateKeySigner
           const publicKey = getPublicKey(bytes)
 
           useUserStore.setState({

@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef} from "react"
 import FeedItem from "../event/FeedItem/FeedItem"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {EmbedEvent} from "../embed/index"
 import ProxyImg from "../ProxyImg"
 import {generateVideoProxyUrl} from "@/shared/utils/imgproxy"
@@ -28,8 +28,8 @@ interface MediaModalProps {
   currentIndex?: number
 }
 
-function isNDKEvent(event: EmbedEvent): event is NDKEvent {
-  return event && typeof (event as NDKEvent).rawEvent !== "undefined"
+function isNDKEvent(event: EmbedEvent): event is AppEvent {
+  return event && typeof (event as AppEvent).rawEvent !== "undefined"
 }
 
 function MediaModal({

@@ -1,5 +1,5 @@
-import {NDKEvent} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {AppEvent} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_BLOSSOM_AUTH} from "@/utils/constants"
 import {calculateSHA256} from "./utils"
 import type {MediaServer} from "./types"
@@ -15,7 +15,7 @@ export async function uploadToBlossom(
 
   // Create a Nostr event for authentication
   const currentTime = Math.floor(Date.now() / 1000)
-  const event = new NDKEvent(ndk(), {
+  const event = new AppEvent(nostr(), {
     kind: KIND_BLOSSOM_AUTH, // Blossom authorization event
     tags: [
       ["t", "upload"],

@@ -1,17 +1,17 @@
 import {useState, useRef} from "react"
 import {groupAddress, type GroupRef} from "@/groups/model"
 import {publishGroupEvent} from "@/groups/publish"
-import NDK, {NDKEvent, NDKKind} from "@/lib/ndk"
+import NostrClient, {AppEvent, EventKind} from "@/lib/nostr"
 import {NoteCreatorState} from "./useNoteCreatorState"
 import {buildEventTags} from "../utils/eventTags"
 import {cacheEvent} from "@/utils/eventCache"
 import {useToastStore} from "@/stores/toast"
 
 interface UseNotePublisherParams {
-  ndkInstance: NDK | undefined
+  ndkInstance: NostrClient | undefined
   myPubKey: string | undefined
-  replyingTo?: NDKEvent
-  quotedEvent?: NDKEvent
+  replyingTo?: AppEvent
+  quotedEvent?: AppEvent
   draftKey: string
   gTags?: string[]
   group?: GroupRef
@@ -40,16 +40,16 @@ export function useNotePublisher(params: UseNotePublisherParams) {
     setPublishing(true)
     try {
       const effectiveEventKind =
-        params.replyingTo || params.group ? NDKKind.Text : state.eventKind
+        params.replyingTo || params.group ? EventKind.Text : state.eventKind
       const replyingTo = params.replyingTo
       if (replyingTo) {
-        replyingTo.ndk ??= ndkInstance
+        replyingTo.nostr ??= ndkInstance
       }
-      const event = replyingTo ? replyingTo.reply() : new NDKEvent(ndkInstance)
-      event.ndk ??= ndkInstance
+      const event = replyingTo ? replyingTo.reply() : new AppEvent(ndkInstance)
+      event.nostr ??= ndkInstance
 
       if (!params.replyingTo) {
-        event.kind = effectiveEventKind as NDKKind
+        event.kind = effectiveEventKind as EventKind
       }
 
       event.content = state.text

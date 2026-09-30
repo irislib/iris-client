@@ -1,6 +1,6 @@
 import {UserRow} from "@/shared/components/user/UserRow"
 import {RiFlashlightFill, RiMoreLine} from "@remixicon/react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useState} from "react"
 import {decode} from "light-bolt11-decoder"
 import {formatAmount} from "@/utils/utils"
@@ -10,8 +10,8 @@ import Dropdown from "@/shared/components/ui/Dropdown.tsx"
 import FeedItemDropdown from "./reactions/FeedItemDropdown.tsx"
 
 interface ZapReceiptHeaderProps {
-  event: NDKEvent
-  referredEvent?: NDKEvent
+  event: AppEvent
+  referredEvent?: AppEvent
   showAuthor?: boolean
 }
 
@@ -34,7 +34,7 @@ function ZapReceiptHeader({
         (section: {name: string}) => section.name === "amount"
       )
       if (amountSection && "value" in amountSection) {
-        setZappedAmount(Math.floor(parseInt(amountSection.value) / 1000))
+        setZappedAmount(Math.floor(parseInt(String(amountSection.value)) / 1000))
       }
     }
 

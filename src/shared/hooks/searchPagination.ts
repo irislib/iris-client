@@ -1,15 +1,15 @@
-import type {NDKFilter} from "@/lib/ndk"
+import type {EventFilter} from "@/lib/nostr"
 
 /** One cursor per query, based on raw relay deliveries, before client filtering. */
 export class SearchPageCursor {
   private relays = new Map<string, Map<string, number>>()
-  private filter: NDKFilter
+  private filter: EventFilter
 
-  constructor(filter: NDKFilter) {
+  constructor(filter: EventFilter) {
     this.filter = {...filter, until: filter.until ?? Math.floor(Date.now() / 1000)}
   }
 
-  get current(): NDKFilter {
+  get current(): EventFilter {
     return this.filter
   }
 
@@ -26,7 +26,7 @@ export class SearchPageCursor {
     this.relays.get(relay)!.set(event.id, event.created_at)
   }
 
-  next(): NDKFilter | null {
+  next(): EventFilter | null {
     const boundaries = [...this.relays.values()].map((events) =>
       Math.min(...events.values())
     )

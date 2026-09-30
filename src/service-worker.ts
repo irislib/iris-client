@@ -8,31 +8,33 @@ import {
 import {PROFILE_AVATAR_WIDTH, EVENT_AVATAR_WIDTH} from "./shared/components/user/const"
 import {CacheFirst, StaleWhileRevalidate, NetworkOnly} from "workbox-strategies"
 import {CacheableResponsePlugin} from "workbox-cacheable-response"
-import {cleanupOutdatedCaches, precacheAndRoute, PrecacheEntry} from "workbox-precaching"
+import {
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+  precacheAndRoute,
+  PrecacheEntry,
+} from "workbox-precaching"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
-import {registerRoute} from "workbox-routing"
+import {NavigationRoute, registerRoute} from "workbox-routing"
 import {clientsClaim, type RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 import {KIND_CHANNEL_CREATE} from "./utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import NDKCacheAdapterDexie from "@/lib/ndk-cache"
-import {NDKEvent} from "@/lib/ndk"
+import EventCache from "@/lib/nostr/cache"
+import {AppEvent} from "@/lib/nostr"
 import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
 import {isHashtreeBlobRequest, resolveNotificationClickUrl} from "./serviceWorkerRoutes"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
-let cacheAdapter: NDKCacheAdapterDexie | null = null
+let cacheAdapter: EventCache | null = null
 
-function getCacheAdapter(): NDKCacheAdapterDexie {
+function getCacheAdapter(): EventCache {
   if (!cacheAdapter) {
-    cacheAdapter = new NDKCacheAdapterDexie({
-      dbName: "treelike-nostr",
-      eventCacheSize: 5000,
-    })
+    cacheAdapter = new EventCache()
   }
   return cacheAdapter
 }
@@ -44,6 +46,14 @@ declare const self: ServiceWorkerGlobalScope & {
 
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
+// Saved notes and chats must reopen while offline, including a direct deep link.
+// Resolve against the worker scope so portable deployments retain their base path.
+registerRoute(
+  new NavigationRoute(
+    createHandlerBoundToURL(new URL("index.html", self.registration.scope).href),
+    {denylist: [/\/cashu(?:\/|$)/, /\/(?:api|\.well-known)(?:\/|$)/]}
+  )
+)
 clientsClaim()
 
 // Prevent caching of graph-api.iris.to requests
@@ -437,7 +447,7 @@ self.addEventListener("push", (event) => {
       // notification server sees events on relays the client may not connect to,
       // so without this the destination /note1<id> would never resolve.
       try {
-        const ndkEvent = new NDKEvent(undefined, data.event)
+        const ndkEvent = new AppEvent(undefined, data.event)
         await getCacheAdapter().setEvent(ndkEvent, [])
       } catch (err) {
         error("Failed to cache pushed event:", err)

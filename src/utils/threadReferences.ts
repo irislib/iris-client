@@ -1,21 +1,21 @@
 import {nip19} from "nostr-tools"
 import {
-  NDKEvent,
-  NDKFilter,
-  NDKKind,
+  AppEvent,
+  EventFilter,
+  EventKind,
   getReplyTag,
   getRootEventId,
   getRootTag,
-} from "@/lib/ndk"
+} from "@/lib/nostr"
 import {KIND_TEXT_NOTE} from "@/utils/constants"
 
 const HEX_EVENT_ID_REGEX = /^[0-9a-f]{64}$/i
 
-export function getEventReplyReference(event: NDKEvent): string | undefined {
+export function getEventReplyReference(event: AppEvent): string | undefined {
   return getReplyTag(event)?.[1]
 }
 
-export function getEventRootReference(event: NDKEvent): string | undefined {
+export function getEventRootReference(event: AppEvent): string | undefined {
   return getRootTag(event)?.[1] ?? getRootEventId(event) ?? undefined
 }
 
@@ -66,15 +66,15 @@ export function getThreadReferenceRoute(reference?: string): string | null {
   return null
 }
 
-export function buildReplyFeedFilter(event: NDKEvent): NDKFilter {
+export function buildReplyFeedFilter(event: AppEvent): EventFilter {
   return {
     ...event.filter(),
-    kinds: [KIND_TEXT_NOTE, NDKKind.GenericReply],
+    kinds: [KIND_TEXT_NOTE, EventKind.GenericReply],
   }
 }
 
-export function buildReplySubscriptionFilters(event: NDKEvent): NDKFilter[] {
-  const filters: NDKFilter[] = [
+export function buildReplySubscriptionFilters(event: AppEvent): EventFilter[] {
+  const filters: EventFilter[] = [
     {
       ...event.filter(),
       kinds: [KIND_TEXT_NOTE],
@@ -84,7 +84,7 @@ export function buildReplySubscriptionFilters(event: NDKEvent): NDKFilter[] {
   if (event.isParamReplaceable() || event.kind !== KIND_TEXT_NOTE) {
     filters.push({
       ...event.nip22Filter(),
-      kinds: [NDKKind.GenericReply],
+      kinds: [EventKind.GenericReply],
     })
   }
 

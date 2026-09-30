@@ -1,9 +1,9 @@
 import {BaseNoteCreator} from "../notes/BaseNoteCreator"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 interface InlineNoteCreatorProps {
-  onPublish?: (event: NDKEvent) => void
-  repliedEvent?: NDKEvent
+  onPublish?: (event: AppEvent) => void
+  repliedEvent?: AppEvent
   placeholder?: string
   className?: string
   alwaysExpanded?: boolean

@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, useCallback} from "react"
-import {NDKFilter} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {EventFilter} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useUserStore} from "@/stores/user"
 import {seenEventIds} from "@/utils/memcache"
@@ -95,7 +95,7 @@ export default function useChronologicalSubscription(
       return
     }
     const now = Math.floor(Date.now() / 1000)
-    const chronologicalFilter: NDKFilter = {
+    const chronologicalFilter: EventFilter = {
       kinds: [KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT],
       authors,
       since: oldestTimestamp,
@@ -105,7 +105,7 @@ export default function useChronologicalSubscription(
 
     unfilteredEventsReceivedAfterFilterChange.current = 0
 
-    const sub = ndk().subscribe(chronologicalFilter)
+    const sub = nostr().subscribe(chronologicalFilter)
 
     sub.on("event", (event) => {
       if (activeAuthorScope.current !== subscribedScope) return

@@ -1,22 +1,22 @@
-import type {NDKConstructorParams} from "@/lib/ndk"
-import {NDKKind} from "@/lib/ndk/events/kinds"
+import type {ClientOptions} from "@/lib/nostr"
+import {EventKind} from "@/lib/nostr"
 import {useSettingsStore} from "@/stores/settings"
 
 // Public publishing and engagement only. New kinds must opt in explicitly.
 const attributedKinds = new Set<number>([
-  NDKKind.Text,
-  NDKKind.Repost,
-  NDKKind.GenericRepost,
-  NDKKind.Reaction,
-  NDKKind.Image,
-  NDKKind.GenericReply,
-  NDKKind.Article,
-  NDKKind.Classified,
-  NDKKind.ZapRequest,
+  EventKind.Text,
+  EventKind.Repost,
+  EventKind.GenericRepost,
+  EventKind.Reaction,
+  EventKind.Image,
+  EventKind.GenericReply,
+  EventKind.Article,
+  EventKind.Classified,
+  EventKind.ZapRequest,
 ])
 
 export const irisClientTagOptions: Pick<
-  NDKConstructorParams,
+  ClientOptions,
   "clientName" | "clientTagFilter"
 > = {
   clientName: "iris",

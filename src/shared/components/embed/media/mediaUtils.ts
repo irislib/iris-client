@@ -1,5 +1,5 @@
 import {decode, encode} from "blurhash"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {EmbedEvent} from "../index"
 import {SwipeItem} from "@/shared/hooks/useSwipable"
 
@@ -190,8 +190,8 @@ export async function calculateVideoMetadata(file: File): Promise<ImageMetadata 
   })
 }
 
-function isNDKEvent(event: EmbedEvent): event is NDKEvent {
-  return event && typeof (event as NDKEvent).rawEvent !== "undefined"
+function isNDKEvent(event: EmbedEvent): event is AppEvent {
+  return event && typeof (event as AppEvent).rawEvent !== "undefined"
 }
 
 /**

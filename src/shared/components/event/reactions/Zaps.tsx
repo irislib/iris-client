@@ -1,15 +1,15 @@
 import {parseZapReceipt, groupZapsByUser, type ZapInfo} from "@/utils/nostr.ts"
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {ReactionContent} from "./ReactionContent"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useMemo, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
 
-export default function Zaps({event}: {event: NDKEvent}) {
+export default function Zaps({event}: {event: AppEvent}) {
   const group = useGroupAccess()
   const memberZaps = useGroupZaps(event.id)
   const [zapsByUser, setZapsByUser] = useState(
@@ -26,10 +26,10 @@ export default function Zaps({event}: {event: NDKEvent}) {
         kinds: [KIND_ZAP_RECEIPT],
         ["#e"]: [event.id],
       }
-      const sub = ndk().subscribe(filter)
+      const sub = nostr().subscribe(filter)
       const allZaps: ZapInfo[] = []
 
-      sub?.on("event", async (zapEvent: NDKEvent) => {
+      sub?.on("event", async (zapEvent: AppEvent) => {
         const zapInfo = parseZapReceipt(zapEvent)
         if (zapInfo) {
           // Check for duplicates

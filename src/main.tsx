@@ -73,17 +73,17 @@ const initializeApp = async () => {
   // Initialize debug logging first
   initializeDebugLogging()
 
-  // Wait for settings to hydrate from localStorage before initializing NDK
+  // Wait for settings to hydrate from localStorage before initializing NostrClient
   await useUserStore.getState().awaitHydration()
   const privateMessagingAvailable = await acquirePrivateMessagingTabLock()
   setPrivateMessagingAvailable(privateMessagingAvailable)
   useDevicesStore.getState().setPrivateMessagingBlocked(!privateMessagingAvailable)
   void maybeAutoEnableInjectedNip07Login()
 
-  // Start NDK initialization in background (non-blocking)
-  import("@/utils/ndk").then(async ({initNDK}) => {
-    await initNDK()
-    log("✅ NDK initialized")
+  // Start NostrClient initialization in background (non-blocking)
+  import("@/utils/nostrClient").then(async ({initNostr}) => {
+    await initNostr()
+    log("✅ NostrClient initialized")
 
     // Initialize AppKeysManager first (fast), then DelegateManager in parallel
     if (!privateMessagingAvailable) return
@@ -201,8 +201,8 @@ const unsubscribeDeviceRemoval = onCurrentDeviceRemovedFromRoster(() => {
 
   revokedDeviceCleanup = (async () => {
     closePrivateMessaging()
-    const {ndk} = await import("@/utils/ndk")
-    ndk().signer = undefined
+    const {nostr} = await import("@/utils/nostrClient")
+    nostr().signer = undefined
     await Promise.allSettled([
       usePrivateMessagesStore.getState().clear(),
       localforage.dropInstance({

@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {formatAmount} from "@/utils/utils"
 import {KIND_CLASSIFIED} from "@/utils/constants"
 import {marketStore} from "@/stores/marketstore"
@@ -37,9 +37,9 @@ export const formatPrice = (priceTag: string[]) => {
 }
 
 /**
- * Extracts market listing data from an NDKEvent
+ * Extracts market listing data from an AppEvent
  */
-export const extractMarketData = (event: NDKEvent) => {
+export const extractMarketData = (event: AppEvent) => {
   const title = event?.tagValue("title")
   const priceTag = event?.tags?.find((tag) => tag[0] === "price")
   const price = priceTag ? formatPrice(priceTag) : null
@@ -80,6 +80,6 @@ export const formatTagValue = (tag: string[]) => {
 /**
  * Checks if an event is a market listing
  */
-export const isMarketListing = (event: NDKEvent) => {
+export const isMarketListing = (event: AppEvent) => {
   return event.kind === KIND_CLASSIFIED
 }

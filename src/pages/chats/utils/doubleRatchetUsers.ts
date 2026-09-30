@@ -1,7 +1,7 @@
-import {NDKUserProfile} from "@/lib/ndk"
-import {getMainThreadDb} from "@/lib/ndk-cache/db"
+import {UserProfile} from "@/lib/nostr"
+import {getMainThreadDb} from "@/lib/nostr/db"
 import {handleProfile} from "@/utils/profileSearch"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import debounce from "lodash/debounce"
 import Fuse from "fuse.js"
 import {KIND_METADATA, DEBUG_NAMESPACES} from "@/utils/constants"
@@ -12,7 +12,7 @@ const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UI_CHAT)
 
 export interface DoubleRatchetUser {
   pubkey: string
-  profile: NDKUserProfile
+  profile: UserProfile
 }
 
 // Fuse.js search index
@@ -143,7 +143,7 @@ const updateDoubleRatchetSearchIndexImmediate = async () => {
     log("Fetching profiles for", usersWithoutProfiles.length, "users")
     isFetchingProfiles = true
 
-    const sub = ndk().subscribe(
+    const sub = nostr().subscribe(
       {kinds: [KIND_METADATA], authors: usersWithoutProfiles},
       {closeOnEose: true}
     )

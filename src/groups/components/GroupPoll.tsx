@@ -1,11 +1,11 @@
 import {useGroupAccess} from "../GroupContext"
 import {usePublicKey} from "@/stores/user"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import PollCard from "./PollCard"
 
 const allAccounts = () => true
 
-export default function GroupPoll({event}: {event: NDKEvent}) {
+export default function GroupPoll({event}: {event: AppEvent}) {
   const access = useGroupAccess()
   const publicKey = usePublicKey()
   return (

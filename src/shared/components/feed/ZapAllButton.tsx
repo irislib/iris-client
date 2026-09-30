@@ -1,10 +1,10 @@
 import {useState} from "react"
 import ZapAllModal from "./ZapAllModal"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import Icon from "../Icons/Icon"
 
 interface ZapAllButtonProps {
-  events: NDKEvent[]
+  events: AppEvent[]
 }
 
 function ZapAllButton({events}: ZapAllButtonProps) {

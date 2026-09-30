@@ -1,6 +1,6 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect, RefObject} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 import FeedItemComment from "./FeedItemComment.tsx"
 import FeedItemRepost from "./FeedItemRepost.tsx"
@@ -11,7 +11,7 @@ import {useSettingsStore} from "@/stores/settings"
 import {KIND_APP_DATA} from "@/utils/constants"
 
 type FeedItemActionsProps = {
-  event?: NDKEvent
+  event?: AppEvent
   eventId?: string
   feedItemRef: RefObject<HTMLDivElement | null>
   standalone?: boolean
@@ -23,12 +23,12 @@ function FeedItemActions({
   feedItemRef,
   standalone = false,
 }: FeedItemActionsProps) {
-  const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
+  const [event, setEvent] = useState<AppEvent | undefined>(initialEvent)
   const {content} = useSettingsStore()
 
   useEffect(() => {
     if (!event && eventId) {
-      ndk()
+      nostr()
         .fetchEvent(eventId)
         .then((fetchedEvent) => {
           if (fetchedEvent) setEvent(fetchedEvent)

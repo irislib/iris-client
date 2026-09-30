@@ -9,8 +9,8 @@ import {useUserStore} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
 import {cacheEvent} from "@/utils/eventCache"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
-import {NDKEvent, NDKSubscription} from "@/lib/ndk"
+import {nostr} from "@/utils/nostrClient"
+import {AppEvent, EventSubscription} from "@/lib/nostr"
 import {
   KIND_REACTION,
   KIND_REPOST,
@@ -24,7 +24,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 
 const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UI_FEED)
 
-let sub: NDKSubscription | undefined
+let sub: EventSubscription | undefined
 let unsubscribeFromGraph: (() => void) | undefined
 let unsubscribeFromSettings: (() => void) | undefined
 let unsubscribeFromAuth: (() => void) | undefined
@@ -212,7 +212,7 @@ const startNotificationsSubscriptionNow = async (
     limit: 100,
   }
 
-  const nextSub = ndk().subscribe(filters)
+  const nextSub = nostr().subscribe(filters)
   if (generation !== subscriptionGeneration || !hasReadyGraphFor(myPubKey)) {
     nextSub.stop()
     return
@@ -265,7 +265,7 @@ const startNotificationsSubscriptionNow = async (
     }
   })
 
-  nextSub.on("event", async (event: NDKEvent) => {
+  nextSub.on("event", async (event: AppEvent) => {
     const user = event.kind === KIND_ZAP_RECEIPT ? getZappingUser(event) : event.pubkey
     if (!user) {
       warn("no user for event", event)

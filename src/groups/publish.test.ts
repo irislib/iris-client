@@ -1,18 +1,18 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {verifyEvent} from "nostr-tools"
-import NDK, {NDKEvent, NDKPrivateKeySigner, NDKRelay, NDKRelaySet} from "@/lib/ndk"
+import NostrClient, {AppEvent, SecretKeySigner, Relay, RelaySet} from "@/lib/nostr"
 import {publishGroupEvent} from "./publish"
 
 const runtime = vi.hoisted(() => ({
-  instance: undefined as NDK | undefined,
+  instance: undefined as NostrClient | undefined,
   publicKey: "",
   workerAvailable: true,
   publish: vi.fn(),
   cacheEvent: vi.fn(),
 }))
 
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => runtime.instance,
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => runtime.instance,
   getWorkerTransport: () =>
     runtime.workerAvailable ? {publish: runtime.publish} : undefined,
 }))
@@ -27,7 +27,7 @@ const draft = () => ({
   tags: [["h", "00000000-0000-4000-8000-000000000000"]],
 })
 
-function pauseSigning(signer: NDKPrivateKeySigner) {
+function pauseSigning(signer: SecretKeySigner) {
   let release!: () => void
   let entered!: () => void
   const started = new Promise<void>((resolve) => (entered = resolve))
@@ -42,16 +42,16 @@ function pauseSigning(signer: NDKPrivateKeySigner) {
 }
 
 describe("acknowledged group publishing", () => {
-  let instance: NDK
-  let signer: NDKPrivateKeySigner
+  let instance: NostrClient
+  let signer: SecretKeySigner
   let dispatch: ReturnType<typeof vi.spyOn>
 
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000_000)
-    instance = new NDK({explicitRelayUrls: []})
+    instance = new NostrClient({explicitRelayUrls: []})
     // Each test has its own account, including the publisher's per-account queue.
-    signer = NDKPrivateKeySigner.generate()
+    signer = SecretKeySigner.generate()
     instance.signer = signer
     runtime.instance = instance
     runtime.publicKey = signer.pubkey
@@ -79,10 +79,10 @@ describe("acknowledged group publishing", () => {
     )
     expect(runtime.publish).toHaveBeenCalledOnce()
     const [event, relays, options] = runtime.publish.mock.calls[0]
-    expect(event).toBeInstanceOf(NDKEvent)
+    expect(event).toBeInstanceOf(AppEvent)
     expect(verifyEvent(event.rawEvent())).toBe(true)
     expect(relays.map((relay: {url: string}) => relay.url)).toEqual([
-      "wss://relay.example/",
+      "wss://relay.example",
     ])
     expect(options).toEqual({requireAck: true})
     expect(runtime.cacheEvent).not.toHaveBeenCalled()
@@ -112,7 +112,7 @@ describe("acknowledged group publishing", () => {
     const publishing = publishGroupEvent(draft())
     const rejected = expect(publishing).rejects.toThrow("Your account changed")
     await signing.started
-    runtime.publicKey = NDKPrivateKeySigner.generate().pubkey
+    runtime.publicKey = SecretKeySigner.generate().pubkey
     signing.release()
     await rejected
     expectUnpublished()
@@ -120,11 +120,11 @@ describe("acknowledged group publishing", () => {
 
   it("does not produce an optimistic echo when the fallback relay rejects", async () => {
     runtime.workerAvailable = false
-    const relay = new NDKRelay("wss://relay.example", undefined, instance)
-    const relaySet = new NDKRelaySet(new Set([relay]), instance)
+    const relay = new Relay("wss://relay.example", undefined, instance)
+    const relaySet = new RelaySet(new Set([relay]), instance)
     instance.devWriteRelaySet = relaySet
     const send = vi.spyOn(relay, "publish").mockRejectedValue(new Error("Rejected"))
-    const optimisticPublish = vi.spyOn(NDKEvent.prototype, "publish")
+    const optimisticPublish = vi.spyOn(AppEvent.prototype, "publish")
     const seen = vi.spyOn(instance.subManager, "seenEvent")
     await expect(publishGroupEvent(draft())).rejects.toThrow("No relay confirmed")
     expect(send).toHaveBeenCalledOnce()
@@ -136,8 +136,8 @@ describe("acknowledged group publishing", () => {
 
   it("dispatches exactly once after the fallback confirms a relay accepted the event", async () => {
     runtime.workerAvailable = false
-    const relay = new NDKRelay("wss://relay.example", undefined, instance)
-    const relaySet = new NDKRelaySet(new Set([relay]), instance)
+    const relay = new Relay("wss://relay.example", undefined, instance)
+    const relaySet = new RelaySet(new Set([relay]), instance)
     instance.devWriteRelaySet = relaySet
     let acknowledge!: (accepted: boolean) => void
     let entered!: () => void
@@ -146,7 +146,7 @@ describe("acknowledged group publishing", () => {
       entered()
       return new Promise<boolean>((resolve) => (acknowledge = resolve))
     })
-    const optimisticPublish = vi.spyOn(NDKEvent.prototype, "publish")
+    const optimisticPublish = vi.spyOn(AppEvent.prototype, "publish")
     const seen = vi.spyOn(instance.subManager, "seenEvent")
     const publishing = publishGroupEvent(draft())
     await started
@@ -173,7 +173,7 @@ describe("acknowledged group publishing", () => {
   })
 
   it("also enforces the real deadline for a previously signed event", async () => {
-    const event = new NDKEvent(instance, draft())
+    const event = new AppEvent(instance, draft())
     await event.sign()
     vi.setSystemTime(1_001_000)
     await expect(

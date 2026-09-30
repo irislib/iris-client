@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import TextNote from "@/shared/components/event/TextNote"
 import {usePublicKey} from "@/stores/user"
 import {groupAddress, type GroupRef} from "../model"
@@ -16,7 +16,7 @@ import usePollResponses from "./usePollResponses"
 import usePollAuthority from "./usePollAuthority"
 
 interface PollCardProps {
-  event: NDKEvent
+  event: AppEvent
   group?: GroupRef
   canVote: boolean
   isEligible: (pubkey: string) => boolean
@@ -36,7 +36,7 @@ export default function PollCard({
   const authority = usePollAuthority(poll)
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const [selected, setSelected] = useState<string[] | null>(null)
-  const [confirmed, setConfirmed] = useState<NDKEvent | null>(null)
+  const [confirmed, setConfirmed] = useState<AppEvent | null>(null)
   const [publishing, setPublishing] = useState(false)
   const busy = useRef(false)
   const [error, setError] = useState("")

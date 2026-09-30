@@ -7,7 +7,7 @@ import {
 } from "react"
 import {FloatingEmojiPicker} from "@/shared/components/emoji/FloatingEmojiPicker"
 import {formatAmount} from "@/utils/utils.ts"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useScrollAwareLongPress} from "@/shared/hooks/useScrollAwareLongPress"
 import EmojiType from "@/types/emoji"
@@ -21,7 +21,7 @@ export const FeedItemLike = ({
   event,
   showReactionCounts = true,
 }: {
-  event: NDKEvent
+  event: AppEvent
   showReactionCounts?: boolean
 }) => {
   const group = useGroupAccess()

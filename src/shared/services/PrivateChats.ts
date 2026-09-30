@@ -14,9 +14,9 @@ import {
   type PreparedRegistration,
   type PreparedRevocation,
 } from "nostr-double-ratchet"
-import NDK, {NDKEvent, NDKFilter} from "@/lib/ndk"
+import NostrClient, {AppEvent, EventFilter} from "@/lib/nostr"
 import type {VerifiedEvent} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {hasWriteAccess} from "@/utils/auth"
 import {useUserStore} from "../../stores/user"
 import {useDevicesStore} from "../../stores/devices"
@@ -70,26 +70,26 @@ const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
   store.setRegisteredDevices(state.registeredDevices, state.lastAppKeysCreatedAt)
 }
 
-const createSubscribe = (ndkInstance: NDK): NostrSubscribe => {
+const createSubscribe = (ndkInstance: NostrClient): NostrSubscribe => {
   return createRuntimeSubscribe(ndkInstance)
 }
 
 export const getNostrSubscribe = (): NostrSubscribe => {
-  return createSubscribe(ndk())
+  return createSubscribe(nostr())
 }
 
-const createFetch = (ndkInstance: NDK): NostrFetch => {
+const createFetch = (ndkInstance: NostrClient): NostrFetch => {
   return async (filter) => {
     const events = await ndkInstance.fetchEvents(filter)
     return Array.from(events).map((event) => event.rawEvent() as VerifiedEvent)
   }
 }
 
-const createPublish = (ndkInstance: NDK, requireAccess: () => void) => {
+const createPublish = (ndkInstance: NostrClient, requireAccess: () => void) => {
   return async (event: VerifiedEvent, innerEventId?: string, signal?: AbortSignal) => {
     requireAccess()
     signal?.throwIfAborted()
-    const e = new NDKEvent(ndkInstance, event)
+    const e = new AppEvent(ndkInstance, event)
     await e.publish()
     if (innerEventId) await usePrivateMessagesStore.getState().awaitHydration()
     requireAccess()
@@ -165,7 +165,7 @@ const getRuntime = (): NdrRuntime => {
 
   closeRuntime()
 
-  const ndkInstance = ndk()
+  const ndkInstance = nostr()
   const requirePublicationAccess = () => {
     if (
       !privateMessagingAvailable ||
@@ -185,7 +185,7 @@ const getRuntime = (): NdrRuntime => {
     nostrSubscribe: createSubscribe(ndkInstance),
     nostrSign: async (event) => {
       requirePublicationAccess()
-      const signed = new NDKEvent(ndkInstance, event)
+      const signed = new AppEvent(ndkInstance, event)
       await signed.sign()
       return signed.rawEvent() as VerifiedEvent
     },
@@ -201,7 +201,7 @@ const getRuntime = (): NdrRuntime => {
       return event as VerifiedEvent
     },
     onPublishError: ({error}) => log("Message publication queued for retry:", error),
-    nostrFetch: createFetch(ndk()),
+    nostrFetch: createFetch(nostr()),
     storage: new LocalForageStorageAdapter(),
     appKeysFetchTimeoutMs: APP_KEYS_FETCH_TIMEOUT_MS,
     appKeysFastTimeoutMs: APP_KEYS_FAST_TIMEOUT_MS,
@@ -288,7 +288,7 @@ export const setPrivateMessagingAvailable = (available: boolean): void => {
 }
 
 const ensureNdkConnected = async (): Promise<void> => {
-  const ndkInstance = ndk()
+  const ndkInstance = nostr()
   if (ndkInstance.pool.connectedRelays().length === 0) {
     await ndkInstance.pool.connect(5000)
   }
@@ -540,13 +540,13 @@ export const listenForLinkInviteAcceptance = (
   }
 
   const inviterPrivateKey = delegateManager.getIdentityKey()
-  const subscribe = createSubscribe(ndk())
+  const subscribe = createSubscribe(nostr())
 
   return subscribe(
     {
       kinds: [INVITE_RESPONSE_KIND],
       "#p": [invite.inviterEphemeralPublicKey],
-    } as NDKFilter,
+    } as EventFilter,
     async (event) => {
       try {
         if (invite.maxUses && invite.usedBy.length >= invite.maxUses) {

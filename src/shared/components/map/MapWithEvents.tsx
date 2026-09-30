@@ -3,7 +3,7 @@ import {useNavigate} from "@/navigation"
 import {GeohashMap} from "@/shared/components/geohash/GeohashMap"
 import Feed from "@/shared/components/feed/Feed"
 import {KIND_TEXT_NOTE, KIND_EPHEMERAL, DEBUG_NAMESPACES} from "@/utils/constants"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {type FeedConfig} from "@/stores/feed"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 
@@ -25,7 +25,7 @@ export default function MapWithEvents({
   displayAs = "list",
 }: MapWithEventsProps) {
   const navigate = useNavigate()
-  const [feedEvents, setFeedEvents] = useState<NDKEvent[]>([])
+  const [feedEvents, setFeedEvents] = useState<AppEvent[]>([])
 
   // Use provided feedConfig or create default
   const feedConfig = useMemo(() => {

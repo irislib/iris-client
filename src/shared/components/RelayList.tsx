@@ -66,7 +66,7 @@ export function RelayList({
       if (!url.startsWith("wss://") && !url.startsWith("ws://")) {
         url = `wss://${url}`
       }
-      // Ensure trailing slash for consistency with NDK normalization
+      // Ensure trailing slash for consistency with NostrClient normalization
       if (!url.endsWith("/")) {
         url = url + "/"
       }

@@ -26,7 +26,7 @@ import CashuToken from "./CashuToken.tsx"
 import CashuPaymentRequest from "./CashuPaymentRequest.tsx"
 import YouTube from "./youtube/YouTube.tsx"
 import WavLake from "./wavlake/WavLake.tsx"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import Twitch from "./twitch/Twitch.tsx"
 import TikTok from "./tiktok/TikTok.tsx"
 import Nip19 from "./nostr/Nip19.tsx"
@@ -35,7 +35,7 @@ import Audio from "./Audio.tsx"
 import Url from "./Url.tsx"
 import HashtreeAttachment from "./hashtree/HashtreeAttachment.tsx"
 
-export type EmbedEvent = NDKEvent | Rumor
+export type EmbedEvent = AppEvent | Rumor
 
 export type EmbedProps = {
   match: string

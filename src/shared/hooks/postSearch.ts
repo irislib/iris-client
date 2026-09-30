@@ -1,4 +1,4 @@
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 
 /** Compile once per query; relay search semantics are not consistent. */
 export function createPostSearchMatcher(query: string) {
@@ -15,7 +15,7 @@ export function createPostSearchMatcher(query: string) {
         "u"
       )
     })
-  return (event: Pick<NDKEvent, "content" | "tags">) => {
+  return (event: Pick<AppEvent, "content" | "tags">) => {
     const content = (event.content || "").normalize("NFC").toLowerCase()
     return (
       words.every((word) => word.test(content)) &&

@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-import NDK, {NDKEvent, NDKPrivateKeySigner, NDKRelay, NDKRelaySet} from "./ndk"
+import NostrClient, {AppEvent, SecretKeySigner, Relay, RelaySet} from "@/lib/nostr"
 import {publishConfirmedEvent} from "./publishConfirmedEvent"
 
 describe("confirmed publishing", () => {
@@ -10,18 +10,18 @@ describe("confirmed publishing", () => {
   })
 
   async function setup() {
-    const ndk = new NDK()
-    const event = new NDKEvent(ndk, {kind: 1, content: "A group post"})
-    await event.sign(NDKPrivateKeySigner.generate())
-    const accepting = new NDKRelay("wss://accepting.example", undefined, ndk)
-    const silent = new NDKRelay("wss://silent.example", undefined, ndk)
-    const relays = new NDKRelaySet(new Set([accepting, silent]), ndk)
-    const dispatch = vi.spyOn(ndk.subManager, "dispatchEvent")
+    const nostr = new NostrClient()
+    const event = new AppEvent(nostr, {kind: 1, content: "A group post"})
+    await event.sign(SecretKeySigner.generate())
+    const accepting = new Relay("wss://accepting.example", undefined, nostr)
+    const silent = new Relay("wss://silent.example", undefined, nostr)
+    const relays = new RelaySet(new Set([accepting, silent]), nostr)
+    const dispatch = vi.spyOn(nostr.subManager, "dispatchEvent")
     vi.spyOn(silent, "publish").mockImplementation(
       () =>
         new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 10_000))
     )
-    return {ndk, event, accepting, silent, relays, dispatch}
+    return {nostr, event, accepting, silent, relays, dispatch}
   }
 
   it("confirms the first acceptance while another relay remains silent", async () => {
@@ -42,12 +42,12 @@ describe("confirmed publishing", () => {
   })
 
   it("does not confirm a rejected write or an acknowledgement from another relay", async () => {
-    const {ndk, event, accepting, relays, dispatch} = await setup()
+    const {nostr, event, accepting, relays, dispatch} = await setup()
     vi.spyOn(accepting, "publish").mockRejectedValue(new Error("blocked"))
     const rejected = expect(publishConfirmedEvent(event, relays)).rejects.toThrow(
       "No relay confirmed the event."
     )
-    event.emit("relay:published", new NDKRelay("wss://unrelated.example", undefined, ndk))
+    event.emit("relay:published", new Relay("wss://unrelated.example", undefined, nostr))
     await vi.advanceTimersByTimeAsync(10_000)
     await rejected
     expect(dispatch).not.toHaveBeenCalled()

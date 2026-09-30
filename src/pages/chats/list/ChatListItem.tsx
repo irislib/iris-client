@@ -18,7 +18,7 @@ import {RiEarthLine} from "@remixicon/react"
 import {useUserStore} from "@/stores/user"
 import {useEffect, useState, useMemo, useRef} from "react"
 import classNames from "classnames"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {useGroupsStore} from "@/stores/groups"
 import {useTypingStore} from "@/stores/typingIndicators"
 import MessageStatus from "../message/MessageStatus"
@@ -102,7 +102,7 @@ const ChatListItem = ({id, isPublic = false, type}: ChatListItemProps) => {
     // Validate id is a valid hex string before subscribing
     if (!/^[0-9a-f]{64}$/i.test(id)) return
 
-    const sub = ndk().subscribe({
+    const sub = nostr().subscribe({
       kinds: [KIND_CHANNEL_MESSAGE],
       "#e": [id],
       limit: 1,

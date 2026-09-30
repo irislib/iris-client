@@ -70,7 +70,7 @@ export default function SendLightningMode({
       )
       if (amountSection && "value" in amountSection) {
         // Convert millisatoshis to bits
-        const bits = Math.floor(parseInt(amountSection.value) / 1000)
+        const bits = Math.floor(parseInt(String(amountSection.value)) / 1000)
         setInvoiceAmount(bits)
       } else {
         setInvoiceAmount(null)

@@ -1,5 +1,5 @@
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 type WriteAccessState = {
   privateKey?: string
@@ -37,5 +37,5 @@ export function shouldStartPrivateMessagingOnAuthChange(
  */
 export function isReadOnlyMode(): boolean {
   const {publicKey} = useUserStore.getState()
-  return !!publicKey && !ndk().signer
+  return !!publicKey && !nostr().signer
 }

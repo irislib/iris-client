@@ -1,8 +1,7 @@
 import {useMemo} from "react"
-import {DEFAULT_RELAYS} from "@/utils/ndk"
+import {DEFAULT_RELAYS} from "@/utils/nostrClient"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
-import {useSettingsStore} from "@/stores/settings"
 import {RelayList} from "@/shared/components/RelayList"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
@@ -17,7 +16,6 @@ export function Network() {
     setAutoConnectUserRelays,
   } = useUserStore()
   const {showRelayIndicator, setShowRelayIndicator} = useUIStore()
-  const {network, updateNetwork} = useSettingsStore()
 
   const appVersion = import.meta.env.VITE_APP_VERSION || "dev"
   const buildTime = import.meta.env.VITE_BUILD_TIME || "development"
@@ -108,23 +106,6 @@ export function Network() {
                   type="checkbox"
                   checked={autoConnectUserRelays}
                   onChange={(e) => handleAutoConnectUserRelaysToggle(e.target.checked)}
-                  className="toggle toggle-primary"
-                />
-              </div>
-            </SettingsGroupItem>
-
-            <SettingsGroupItem isLast>
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span>Enable Negentropy Sync</span>
-                  <span className="text-sm text-base-content/60">
-                    Efficient event reconciliation protocol (NIP-77)
-                  </span>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={network.negentropyEnabled}
-                  onChange={(e) => updateNetwork({negentropyEnabled: e.target.checked})}
                   className="toggle toggle-primary"
                 />
               </div>

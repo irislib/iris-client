@@ -15,7 +15,7 @@ import {navItemsConfig} from "./navConfig"
 import {UserRow} from "../user/UserRow"
 import {useUIStore} from "@/stores/ui"
 import {NavItem} from "./NavItem"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {RelayConnectivityIndicator, OfflineIndicator} from "../RelayConnectivityIndicator"
 import {hasWriteAccess} from "@/utils/auth"
 import {ColumnLayoutToggle} from "./ColumnLayoutToggle"
@@ -100,7 +100,7 @@ const NavSideBar = () => {
               )
             })}
           </ul>
-          {CONFIG.appVariant !== "groups" && myPubKey && ndk().signer && (
+          {CONFIG.appVariant !== "groups" && myPubKey && nostr().signer && (
             <PublishButton />
           )}
           {!myPubKey && (
@@ -143,7 +143,7 @@ const NavSideBar = () => {
                 <RelayConnectivityIndicator className="xl:flex-row" />
                 <OfflineIndicator className="hidden xl:flex badge-md" />
               </div>
-              {!ndk().signer && (
+              {!nostr().signer && (
                 <div
                   title="Read-only mode"
                   data-testid="sidebar-readonly-indicator"

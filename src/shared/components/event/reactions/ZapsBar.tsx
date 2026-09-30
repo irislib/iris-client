@@ -1,9 +1,9 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useMemo, useState} from "react"
 import {formatAmount} from "@/utils/utils"
 import {parseZapReceipt, type ZapInfo} from "@/utils/nostr"
 import {Name} from "@/shared/components/user/Name"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
@@ -13,7 +13,7 @@ import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
 
 interface ZapsBarProps {
-  event: NDKEvent
+  event: AppEvent
 }
 
 export default function ZapsBar({event}: ZapsBarProps) {
@@ -37,10 +37,10 @@ export default function ZapsBar({event}: ZapsBarProps) {
       ["#e"]: [event.id],
     }
 
-    const sub = ndk().subscribe(filter)
+    const sub = nostr().subscribe(filter)
     const processedEvents = new Set<string>()
 
-    sub?.on("event", (zapEvent: NDKEvent) => {
+    sub?.on("event", (zapEvent: AppEvent) => {
       // Skip if already processed
       if (processedEvents.has(zapEvent.id)) {
         return

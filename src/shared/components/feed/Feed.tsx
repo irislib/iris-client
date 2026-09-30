@@ -1,11 +1,11 @@
 import {useGroupAccess, useGroupVisibility} from "@/groups/GroupContext"
 import {useRef, useState, ReactNode, useEffect, useMemo, memo, useCallback} from "react"
-import {NDKEvent, NDKFilter} from "@/lib/ndk"
+import {AppEvent, EventFilter} from "@/lib/nostr"
 
 import {useGroupEvents} from "@/groups/useGroupEvents"
 import {groupTags} from "@/groups/model"
 import {isVisibleGroupActivity} from "@/groups/activity"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {PerfProfiler} from "@/utils/reactProfiler"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
@@ -30,7 +30,7 @@ interface FeedProps {
   feedConfig: FeedConfig
   asReply?: boolean
   showReplies?: number
-  onEvent?: (event: NDKEvent) => void
+  onEvent?: (event: AppEvent) => void
   borderTopFirst?: boolean
   emptyPlaceholder?: ReactNode
   forceUpdate?: number
@@ -38,12 +38,12 @@ interface FeedProps {
   showDisplayAsSelector?: boolean
   onDisplayAsChange?: (display: "list" | "grid") => void
   forceShowZapAll?: boolean
-  subscriptionFilters?: NDKFilter[]
-  injectedEvents?: NDKEvent[]
+  subscriptionFilters?: EventFilter[]
+  injectedEvents?: AppEvent[]
   visibilitySnapshot?: AlgorithmicVisibilitySnapshot | null
   enabled?: boolean
-  eventSource?: {events: NDKEvent[]; loading: boolean}
-  selectEvents?: (events: readonly NDKEvent[], displayCount: number) => NDKEvent[]
+  eventSource?: {events: AppEvent[]; loading: boolean}
+  selectEvents?: (events: readonly AppEvent[], displayCount: number) => AppEvent[]
 }
 
 const DefaultEmptyPlaceholder = (
@@ -86,7 +86,7 @@ const Feed = memo(function Feed({
 
   // Enhance filters with authors list for follow-distance-based feeds
   const filters = useMemo(() => {
-    const baseFilters = feedConfig.filter as unknown as NDKFilter
+    const baseFilters = feedConfig.filter as unknown as EventFilter
     const customAuthors = baseFilters.authors || []
 
     // If custom authors defined, ignore followDistance and use authors as-is
@@ -115,7 +115,7 @@ const Feed = memo(function Feed({
 
   // Thread replies share the post feed's trust boundary and per-author budgets.
   const groupAuthors = groupAccess ? [...groupAccess.visiblePubkeys] : []
-  const groupFilters: NDKFilter[] =
+  const groupFilters: EventFilter[] =
     groupAccess && !suppliedEventSource && enabled
       ? (subscriptionFilters?.length ? subscriptionFilters : [filters]).map((filter) => ({
           ...filter,
@@ -140,9 +140,9 @@ const Feed = memo(function Feed({
   )
   const groupSource = useMemo(() => {
     if (!groupAccess || suppliedEventSource) return undefined
-    const events = new Map<string, NDKEvent>()
+    const events = new Map<string, AppEvent>()
     for (const event of [
-      ...groupEvents.events.map((raw) => new NDKEvent(ndk(), raw)),
+      ...groupEvents.events.map((raw) => new AppEvent(nostr(), raw)),
       ...(injectedEvents ?? []),
     ]) {
       const reply = getEventReplyReference(event)
@@ -165,7 +165,7 @@ const Feed = memo(function Feed({
   const sortFn = useMemo(() => {
     switch (feedConfig.sortType) {
       case "followDistance":
-        return (a: NDKEvent, b: NDKEvent) => {
+        return (a: AppEvent, b: AppEvent) => {
           const followDistanceA = socialGraph.getFollowDistance(a.pubkey)
           const followDistanceB = socialGraph.getFollowDistance(b.pubkey)
           if (followDistanceA !== followDistanceB) {
@@ -174,7 +174,7 @@ const Feed = memo(function Feed({
           return (a.created_at || 0) - (b.created_at || 0)
         }
       case "chronological":
-        return (a: NDKEvent, b: NDKEvent) => (b.created_at || 0) - (a.created_at || 0)
+        return (a: AppEvent, b: AppEvent) => (b.created_at || 0) - (a.created_at || 0)
       default:
         return undefined
     }
@@ -258,7 +258,7 @@ const Feed = memo(function Feed({
     if (onEvent && filteredEvents.length > 0) {
       filteredEvents.forEach((event) => {
         if ("content" in event && !notifiedEventIds.current.has(event.id)) {
-          onEvent(event as NDKEvent)
+          onEvent(event as AppEvent)
           notifiedEventIds.current.add(event.id)
         }
       })
@@ -296,7 +296,7 @@ const Feed = memo(function Feed({
           }
           return event
         })
-        .filter((event): event is NDKEvent | {id: string} => {
+        .filter((event): event is AppEvent | {id: string} => {
           if (event === null) return false
 
           // Deduplicate by event ID to prevent multiple reposts of same event
@@ -428,7 +428,7 @@ const Feed = memo(function Feed({
     }
   }, [forceUpdate])
 
-  const renderFeedItem = (event: NDKEvent, first = false) => (
+  const renderFeedItem = (event: AppEvent, first = false) => (
     <div key={event.id} ref={first ? firstFeedItemRef : null} data-event-id={event.id}>
       <FeedItem
         asReply={asReply}

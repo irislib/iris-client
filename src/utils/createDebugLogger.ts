@@ -11,7 +11,7 @@ export interface DebugLogger {
 
 /**
  * Create debug loggers for a given namespace
- * Usage: const {log, warn, error} = createDebugLogger('ndk:relay')
+ * Usage: const {log, warn, error} = createDebugLogger('nostr:relay')
  */
 export function createDebugLogger(namespace: string): DebugLogger {
   const log = debug(namespace)

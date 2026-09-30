@@ -1,11 +1,11 @@
-import {NDKEvent, NDKTag} from "@/lib/ndk"
+import {AppEvent, EventTag} from "@/lib/nostr"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useMemo, useState, useEffect} from "react"
 
 import {unmuteUser} from "@/shared/services/Mute"
 import {useSocialGraph, handleSocialGraphEvent} from "@/utils/socialGraph.ts"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {getUnmuteLabel} from "@/utils/muteLabels"
 import {NostrEvent} from "nostr-social-graph"
 import {enqueueContactListPublish} from "@/utils/contactListPublishQueue"
@@ -84,12 +84,12 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
           nextFollowedUsers.delete(pubKeyHex)
         }
 
-        const event = new NDKEvent(ndk())
+        const event = new AppEvent(nostr())
         event.kind = 3
         event.tags = Array.from(nextFollowedUsers).map((pubKey) => [
           "p",
           pubKey,
-        ]) as NDKTag[]
+        ]) as EventTag[]
         const lastTimestamp = lastContactListTimestamps.get(myPubKey) ?? 0
         event.created_at = Math.max(Math.floor(Date.now() / 1000), lastTimestamp + 1)
         lastContactListTimestamps.set(myPubKey, event.created_at)

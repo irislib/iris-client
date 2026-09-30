@@ -1,0 +1,819 @@
+import {connectNostrSource, serveNostrSource} from "@hashtree/worker/nostr-source-port"
+import type {
+  NostrEventReader,
+  RuntimeSource,
+  RuntimePublishResult,
+  RuntimeCompletion,
+} from "nostr-pubsub"
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import {
+  type NostrClient,
+  AppEvent,
+  CacheMode,
+  type EventFilter,
+  type SubscriptionOptions,
+  type Relay,
+} from "@/lib/nostr"
+import {createDebugLogger} from "@/utils/createDebugLogger"
+import {DEBUG_NAMESPACES} from "@/utils/constants"
+import type {
+  WorkerMessage,
+  WorkerResponse,
+  WorkerSubscribeOpts,
+  WorkerPublishOpts,
+  LocalDataStats,
+  SearchResult,
+} from "./nostr-transport-types"
+import {useSettingsStore} from "@/stores/settings"
+
+const {log} = createDebugLogger(DEBUG_NAMESPACES.NDK_WORKER)
+type WorkerEventHandler = (
+  event: AppEvent,
+  relayUrl?: string,
+  fromCache?: boolean
+) => void
+
+/**
+ * NostrClient transport that communicates with relay worker
+ * All actual WebSocket connections live in the worker thread
+ */
+export class WorkerTransport {
+  public name = "worker-transport"
+  private worker: Worker
+  private workerUrl?: string
+  private workerFactory?: () => Worker
+  private nostr?: NostrClient
+  private relayUrls: string[] = []
+  private disableExtraRelayUrls = false
+  private subscriptions = new Map<string, Set<WorkerEventHandler>>()
+  private eoseHandlers = new Map<string, Set<(status?: RuntimeCompletion) => void>>()
+  private subscriptionRequests = new Map<string, WorkerMessage>()
+  private publishResolvers = new Map<
+    string,
+    {
+      resolve: (result: RuntimePublishResult | undefined) => void
+      reject: (err: Error) => void
+    }
+  >()
+  private peerSource?: RuntimeSource
+  private closeSourceBridge?: () => void
+  private cacheBridge?: ReturnType<typeof connectNostrSource>
+  readonly retainedEventReader: NostrEventReader = {
+    query: (filters, opts) =>
+      this.cacheBridge?.source.query?.(filters, opts) ??
+      Promise.resolve({events: [], complete: false}),
+  }
+  private ready = false
+  private restartAttempts = 0
+  private restarting = false
+  private closed = false
+  private statsCallbacks = new Map<string, (stats: LocalDataStats) => void>()
+  private relayStatusCallbacks = new Set<(statuses: any[]) => void>()
+  private messageQueue: WorkerMessage[] = []
+  private searchCallbacks = new Map<
+    number,
+    {
+      resolve: (
+        results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+      ) => void
+      onUpdate?: (
+        results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+      ) => void
+    }
+  >()
+  private searchReady = false
+  private readonly SEARCH_TIMEOUT_MS = 10_000
+  private unsubscribeSettings?: () => void
+
+  // Heartbeat monitoring - detects unresponsive workers (infinite loops, deadlocks)
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
+  private lastPong: number = Date.now()
+  private readonly HEARTBEAT_INTERVAL_MS = 5000 // Send ping every 5s
+  private readonly HEARTBEAT_TIMEOUT_MS = 15000 // 3 missed beats = unresponsive
+
+  constructor(workerOrUrl: Worker | string | (() => Worker) = "/relay-worker.js") {
+    if (typeof workerOrUrl === "string") {
+      this.workerUrl = workerOrUrl
+      this.worker = this.createWorker()
+    } else if (typeof workerOrUrl === "function") {
+      this.workerFactory = workerOrUrl
+      this.worker = workerOrUrl()
+      this.setupWorker(this.worker)
+    } else {
+      this.worker = workerOrUrl
+      this.setupWorker(this.worker)
+      console.warn(
+        "[Worker Transport] Worker passed directly - restart on crash may fail"
+      )
+    }
+  }
+
+  private connectPeerCache() {
+    this.cacheBridge?.close()
+    const channel = new MessageChannel()
+    this.cacheBridge = connectNostrSource(channel.port1, "client-cache")
+    this.worker.postMessage({type: "peerCache", port: channel.port2}, [channel.port2])
+  }
+
+  private createWorker(): Worker {
+    if (this.workerFactory) {
+      const worker = this.workerFactory()
+      this.setupWorker(worker)
+      return worker
+    }
+    if (!this.workerUrl) {
+      throw new Error("[Worker Transport] Cannot create worker: no URL or factory")
+    }
+    const worker = new Worker(this.workerUrl, {type: "module"})
+    this.setupWorker(worker)
+    return worker
+  }
+
+  private setupWorker(worker: Worker) {
+    const handler = (e: MessageEvent<WorkerResponse>) => {
+      if (
+        e.data.type === "ready" &&
+        !this.closed &&
+        !this.restarting &&
+        worker === this.worker
+      ) {
+        this.ready = true
+        this.connectPeerCache()
+        this.connectPeerSource()
+        worker.removeEventListener("message", handler)
+        this.restartAttempts = 0
+        // Subscriptions are desired state, including changes made while the
+        // worker was unavailable. Replay each active request exactly once.
+        for (const request of this.subscriptionRequests.values()) {
+          worker.postMessage(request)
+        }
+        this.flushMessageQueue()
+        this.startHeartbeat()
+      }
+    }
+    worker.addEventListener("message", handler)
+
+    // Handle worker crashes
+    worker.onerror = (error) => {
+      if (worker !== this.worker) return
+      console.error("[Worker Transport] Worker error:", error)
+      this.handleWorkerCrash()
+    }
+
+    // Setup message handlers after worker is assigned
+    this.setupMessageHandler(worker)
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    this.lastPong = Date.now()
+    let lastHeartbeat = this.lastPong
+
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.ready) {
+        return
+      }
+
+      const now = Date.now()
+      // A suspended page cannot process pongs either. After a delayed timer
+      // (sleep, background throttling, or a long task), probe the worker again
+      // before discarding its connections and pending feed requests.
+      if (now - lastHeartbeat > this.HEARTBEAT_INTERVAL_MS * 2 || now < lastHeartbeat) {
+        this.lastPong = now
+      }
+      lastHeartbeat = now
+
+      if (now - this.lastPong > this.HEARTBEAT_TIMEOUT_MS) {
+        console.error(
+          "[Worker Transport] Worker unresponsive (no pong received), restarting..."
+        )
+        this.handleWorkerCrash()
+        return
+      }
+
+      // Send ping
+      this.worker.postMessage({type: "ping", id: now.toString()} as WorkerMessage)
+    }, this.HEARTBEAT_INTERVAL_MS)
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
+  private async handleWorkerCrash() {
+    if (this.closed || this.restarting) return
+    this.restarting = true
+    this.stopHeartbeat()
+    this.restartAttempts++
+    this.ready = false
+    this.searchReady = false
+
+    // Check if we can restart
+    if (!this.workerUrl && !this.workerFactory) {
+      console.error(
+        "[Worker Transport] Cannot restart worker - no URL or factory provided"
+      )
+      this.restarting = false
+      return
+    }
+
+    // Exponential backoff capped at 30s
+    const delay = Math.min(1000 * Math.pow(2, this.restartAttempts - 1), 30_000)
+    console.warn(
+      `[Worker Transport] Worker crashed (attempt ${this.restartAttempts}), restarting in ${delay}ms...`
+    )
+
+    await new Promise((resolve) => setTimeout(resolve, delay))
+    if (this.closed) return
+
+    // Recreate worker
+    this.closeSourceBridge?.()
+    this.cacheBridge?.close()
+    this.worker.terminate()
+    this.worker = this.createWorker()
+    this.restarting = false
+
+    // Reinitialize with same config
+    if (this.nostr) {
+      try {
+        await this.connect(this.nostr, this.relayUrls, {
+          disableExtraRelayUrls: this.disableExtraRelayUrls,
+        })
+        log(`Worker restarted successfully after ${this.restartAttempts} attempts`)
+      } catch (error) {
+        console.error("[Worker Transport] Failed to reconnect after restart:", error)
+        // Will retry on next crash
+      }
+    }
+  }
+
+  async connect(
+    nostr: NostrClient,
+    relayUrls?: string[],
+    options?: {disableExtraRelayUrls?: boolean}
+  ): Promise<void> {
+    if (this.nostr && this.nostr !== nostr) {
+      this.removeTransportPlugin(this.nostr)
+    }
+    this.nostr = nostr
+    this.relayUrls = relayUrls || []
+    this.disableExtraRelayUrls = !!options?.disableExtraRelayUrls
+
+    // Register as transport plugin for publish and subscription interception
+    if (!nostr.transportPlugins) {
+      nostr.transportPlugins = []
+    }
+    if (!nostr.transportPlugins.includes(this)) {
+      nostr.transportPlugins.push(this)
+    }
+
+    const settingsState = useSettingsStore.getState()
+    const settings = {
+      appearance: settingsState.appearance,
+      content: settingsState.content,
+      imgproxy: settingsState.imgproxy,
+      notifications: settingsState.notifications,
+      network: settingsState.network,
+      desktop: settingsState.desktop,
+      debug: settingsState.debug,
+      legal: settingsState.legal,
+    }
+    // Send init directly - don't queue (worker needs this to become ready)
+    this.worker.postMessage({
+      type: "init",
+      relays: relayUrls || [],
+      settings,
+      disableExtraRelayUrls: this.disableExtraRelayUrls,
+    } as WorkerMessage)
+
+    // Forward browser online/offline events to worker
+    if (typeof window !== "undefined") {
+      window.addEventListener("offline", this.handleOffline)
+      window.addEventListener("online", this.handleOnline)
+    }
+
+    // Subscribe once: connect() also runs after an automatic worker restart.
+    if (!this.unsubscribeSettings) {
+      this.unsubscribeSettings = useSettingsStore.subscribe((state) => {
+        const settings = {
+          appearance: state.appearance,
+          content: state.content,
+          imgproxy: state.imgproxy,
+          notifications: state.notifications,
+          network: state.network,
+          desktop: state.desktop,
+          debug: state.debug,
+          legal: state.legal,
+        }
+        this.postMessage({
+          type: "updateSettings",
+          settings,
+        } as WorkerMessage)
+      })
+    }
+
+    // Don't await - let worker init in background
+  }
+
+  attachPeerSource(source: RuntimeSource): void {
+    this.peerSource = source
+    if (this.ready) this.connectPeerSource()
+  }
+
+  private connectPeerSource(): void {
+    this.closeSourceBridge?.()
+    if (!this.peerSource) return
+    const channel = new MessageChannel()
+    this.closeSourceBridge = serveNostrSource(channel.port1, this.peerSource)
+    this.worker.postMessage({type: "peerSource", port: channel.port2}, [channel.port2])
+  }
+
+  private postMessage(msg: WorkerMessage): void {
+    if (this.closed) return
+    if (this.ready) {
+      this.worker.postMessage(msg)
+    } else {
+      this.messageQueue.push(msg)
+    }
+  }
+
+  private flushMessageQueue(): void {
+    log(`[Worker Transport] Flushing ${this.messageQueue.length} queued messages`)
+    for (const msg of this.messageQueue) {
+      this.worker.postMessage(msg)
+    }
+    this.messageQueue = []
+  }
+
+  private handleOffline = () => {
+    this.postMessage({type: "browserOffline"} as WorkerMessage)
+  }
+
+  private handleOnline = () => {
+    this.postMessage({type: "browserOnline"} as WorkerMessage)
+  }
+
+  // Transport plugin hook - intercept publishes
+  async onPublish(event: AppEvent): Promise<void> {
+    // Publish through worker instead of main thread pool
+    await this.publish(event)
+  }
+
+  // Transport plugin hook - intercept subscriptions
+  onSubscribe(
+    subscription: any,
+    filters: EventFilter[],
+    opts?: SubscriptionOptions
+  ): void {
+    const subId = subscription.subId || subscription.internalId
+
+    // Listen for subscription close to clean up worker subscription
+    subscription.once("close", () => {
+      this.unsubscribe(subId)
+    })
+
+    // Forward subscription to worker with cache usage options
+    this.subscribe(
+      subId,
+      filters,
+      (event, relayUrl, fromCache) => {
+        const relay = relayUrl ? this.nostr?.pool.getRelay(relayUrl, false) : undefined
+        subscription.eventReceived(event, relay, fromCache ?? false)
+      },
+      (status) => {
+        // Emit EOSE to main thread subscription (pass null instead of undefined)
+        // Worker doesn't have relay reference, subscription handles it
+        subscription.eoseReceived(null, status)
+      },
+      opts
+    )
+  }
+
+  async publish(
+    event: AppEvent,
+    relays?: Relay[],
+    publishOpts?: WorkerPublishOpts
+  ): Promise<RuntimePublishResult | undefined> {
+    return new Promise((resolve, reject) => {
+      const id =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15)
+      this.publishResolvers.set(id, {resolve, reject})
+
+      this.postMessage({
+        type: "publish",
+        id,
+        event: event.rawEvent(),
+        relays: relays?.map((r) => r.url),
+        publishOpts,
+      } as WorkerMessage)
+
+      // Timeout after 10s
+      setTimeout(() => {
+        if (this.publishResolvers.has(id)) {
+          this.publishResolvers.delete(id)
+          reject(new Error("Publish timeout"))
+        }
+      }, 10_000)
+    })
+  }
+
+  subscribe(
+    subId: string,
+    filters: EventFilter[],
+    onEvent: WorkerEventHandler,
+    onEose?: (status?: RuntimeCompletion) => void,
+    opts?: SubscriptionOptions
+  ): void {
+    if (!this.subscriptions.has(subId)) {
+      this.subscriptions.set(subId, new Set())
+    }
+    this.subscriptions.get(subId)!.add(onEvent)
+
+    if (onEose) {
+      if (!this.eoseHandlers.has(subId)) {
+        this.eoseHandlers.set(subId, new Set())
+      }
+      this.eoseHandlers.get(subId)!.add(onEose)
+    }
+
+    // Convert cacheUsage enum to destinations array for worker
+    const subscribeOpts: WorkerSubscribeOpts = {}
+    if (opts?.relayUrls) subscribeOpts.relayUrls = opts.relayUrls
+    if (opts?.isolated) subscribeOpts.isolated = true
+    if (opts?.cacheUsage) {
+      switch (opts.cacheUsage) {
+        case CacheMode.ONLY_CACHE:
+          subscribeOpts.destinations = ["cache"]
+          subscribeOpts.closeOnEose = true
+          break
+        case CacheMode.ONLY_RELAY:
+          subscribeOpts.destinations = ["relay"]
+          break
+        case CacheMode.PARALLEL:
+          subscribeOpts.destinations = ["cache", "relay"]
+          // Let worker default handle groupable - don't disable it
+          break
+        case CacheMode.CACHE_FIRST:
+        default:
+          subscribeOpts.destinations = ["cache", "relay"]
+          // Don't set groupable here - let explicit opts override or worker default
+          break
+      }
+    }
+
+    // Pass through groupable options if explicitly set
+    if (opts?.groupable !== undefined) {
+      subscribeOpts.groupable = opts.groupable
+    }
+    if (opts?.groupableDelay !== undefined) {
+      subscribeOpts.groupableDelay = opts.groupableDelay
+    }
+    if (opts?.closeOnEose !== undefined) {
+      subscribeOpts.closeOnEose = opts.closeOnEose
+    }
+    if (opts?.waitForCacheBeforeRelays !== undefined) {
+      subscribeOpts.waitForCacheBeforeRelays = opts.waitForCacheBeforeRelays
+    }
+
+    const request: WorkerMessage = {
+      type: "subscribe",
+      id: subId,
+      filters,
+      subscribeOpts,
+    }
+    this.subscriptionRequests.set(subId, request)
+    if (this.ready) this.postMessage(request)
+  }
+
+  unsubscribe(subId: string): void {
+    this.subscriptions.delete(subId)
+    this.eoseHandlers.delete(subId)
+    this.subscriptionRequests.delete(subId)
+
+    if (this.ready)
+      this.postMessage({
+        type: "unsubscribe",
+        id: subId,
+      } as WorkerMessage)
+  }
+
+  close(): void {
+    this.closed = true
+    this.ready = false
+    this.stopHeartbeat()
+    this.subscriptionRequests.clear()
+    this.subscriptions.clear()
+    this.eoseHandlers.clear()
+    this.messageQueue = []
+
+    // Remove event listeners
+    if (typeof window !== "undefined") {
+      window.removeEventListener("offline", this.handleOffline)
+      window.removeEventListener("online", this.handleOnline)
+    }
+
+    this.unsubscribeSettings?.()
+    this.unsubscribeSettings = undefined
+    if (this.nostr) {
+      this.removeTransportPlugin(this.nostr)
+    }
+
+    this.closeSourceBridge?.()
+    this.cacheBridge?.close()
+    this.worker.terminate()
+  }
+
+  private removeTransportPlugin(nostr: NostrClient): void {
+    for (let i = nostr.transportPlugins.length - 1; i >= 0; i--) {
+      if (nostr.transportPlugins[i] === this) {
+        nostr.transportPlugins.splice(i, 1)
+      }
+    }
+  }
+
+  /**
+   * Get current status of all relays in worker
+   */
+  async getRelayStatus(): Promise<
+    Array<{
+      url: string
+      status: number
+      stats?: {attempts: number; success: number; connectedAt?: number}
+    }>
+  > {
+    return new Promise((resolve) => {
+      const id =
+        Math.random().toString(36).substring(2, 15) +
+        Math.random().toString(36).substring(2, 15)
+      const handler = (e: MessageEvent<WorkerResponse>) => {
+        if (e.data.type === "relayStatus" && e.data.id === id) {
+          this.worker.removeEventListener("message", handler)
+          resolve(e.data.relayStatuses || [])
+        }
+      }
+      this.worker.addEventListener("message", handler)
+      this.postMessage({type: "getRelayStatus", id} as WorkerMessage)
+      setTimeout(() => resolve([]), 1000) // Timeout fallback
+    })
+  }
+
+  /**
+   * Add relay to worker pool
+   */
+  async addRelay(url: string): Promise<void> {
+    this.postMessage({type: "addRelay", url} as WorkerMessage)
+  }
+
+  /**
+   * Remove relay from worker pool
+   */
+  async removeRelay(url: string): Promise<void> {
+    this.postMessage({type: "removeRelay", url} as WorkerMessage)
+  }
+
+  /**
+   * Connect specific relay
+   */
+  async connectRelay(url: string): Promise<void> {
+    this.postMessage({type: "connectRelay", url} as WorkerMessage)
+  }
+
+  /**
+   * Disconnect specific relay
+   */
+  async disconnectRelay(url: string): Promise<void> {
+    this.postMessage({type: "disconnectRelay", url} as WorkerMessage)
+  }
+
+  /**
+   * Reconnect disconnected relays
+   */
+  reconnectDisconnected(reason: string): void {
+    this.postMessage({type: "reconnectDisconnected", reason} as WorkerMessage)
+  }
+
+  /**
+   * Inject event from WebRTC - verify, dispatch to subscriptions & cache, no relay publish
+   */
+  injectEvent(eventData: any, source: string): void {
+    this.postMessage({
+      type: "publish",
+      event: eventData,
+      publishOpts: {
+        publishTo: ["subscriptions", "cache"],
+        verifySignature: true,
+        source,
+      },
+    } as WorkerMessage)
+  }
+
+  /**
+   * Cache-only subscription (e.g., for WebRTC REQ)
+   */
+  subscribeCacheOnly(
+    subId: string,
+    filters: EventFilter[],
+    onEvent: (event: AppEvent) => void,
+    onEose?: (status?: RuntimeCompletion) => void
+  ): void {
+    this.subscribe(subId, filters, onEvent, onEose, {
+      cacheUsage: CacheMode.ONLY_CACHE,
+    })
+  }
+
+  private setupMessageHandler(worker: Worker): void {
+    worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+      if (this.closed || this.restarting || worker !== this.worker) return
+      const {type, subId, event, relay, notice, error, id} = e.data
+
+      switch (type) {
+        case "signAuth": {
+          const request = e.data
+          void (async () => {
+            try {
+              const draft = request.event as {kind?: number; tags?: string[][]}
+              if (
+                draft.kind !== 22242 ||
+                !draft.tags?.some((t) => t[0] === "challenge") ||
+                !draft.tags.some((t) => t[0] === "relay")
+              )
+                throw new Error("Invalid authentication request")
+              const event = new AppEvent(this.nostr, request.event)
+              await event.sign()
+              this.worker.postMessage({
+                type: "authSigned",
+                id: request.id,
+                event: event.rawEvent(),
+              })
+            } catch (error) {
+              this.worker.postMessage({
+                type: "authSigned",
+                id: request.id,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+          })()
+          break
+        }
+        case "pong":
+          this.lastPong = Date.now()
+          break
+
+        case "event":
+          if (subId && event && this.nostr) {
+            const ndkEvent = new AppEvent(this.nostr, event)
+            const handlers = this.subscriptions.get(subId)
+            if (handlers) {
+              handlers.forEach((handler) => handler(ndkEvent, relay, e.data.fromCache))
+            }
+          }
+          break
+
+        case "eose":
+          if (subId) {
+            const request = this.subscriptionRequests.get(subId)
+            const handlers = this.eoseHandlers.get(subId)
+            if (handlers) {
+              handlers.forEach((handler) => handler(e.data.completion))
+            }
+            if (
+              request?.subscribeOpts?.closeOnEose &&
+              this.subscriptionRequests.get(subId) === request
+            ) {
+              this.unsubscribe(subId)
+            }
+          }
+          break
+
+        case "notice":
+          if (relay && notice) {
+            console.warn(`[Relay ${relay}] ${notice}`)
+          }
+          break
+
+        case "published":
+          if (id) {
+            const resolver = this.publishResolvers.get(id)
+            if (resolver) {
+              resolver.resolve(e.data.publishResult)
+              this.publishResolvers.delete(id)
+            }
+          }
+          break
+
+        case "error":
+          if (id && error) {
+            const resolver = this.publishResolvers.get(id)
+            if (resolver) {
+              resolver.reject(new Error(error))
+              this.publishResolvers.delete(id)
+            }
+          }
+          console.error("[Worker Transport]", error)
+          break
+
+        case "stats":
+          if (id) {
+            const callback = this.statsCallbacks.get(id)
+            if (callback) {
+              callback(e.data.stats!)
+              this.statsCallbacks.delete(id)
+            }
+          }
+          break
+
+        case "relayStatusUpdate":
+          if (e.data.relayStatuses) {
+            for (const status of e.data.relayStatuses) {
+              const relay = this.nostr?.pool.getRelay(status.url)
+              if (!relay) continue
+              const wasConnected = relay.connected
+              relay.status = status.status
+              if (wasConnected !== relay.connected)
+                relay.emit(relay.connected ? "connect" : "disconnect")
+            }
+            this.relayStatusCallbacks.forEach((cb) => cb(e.data.relayStatuses!))
+          }
+          break
+
+        case "searchReady":
+          this.searchReady = true
+          break
+
+        case "searchResult":
+          if (e.data.searchRequestId !== undefined) {
+            const callback = this.searchCallbacks.get(e.data.searchRequestId)
+            if (callback) {
+              const results = e.data.searchResults || []
+              callback.onUpdate?.(results)
+              if (e.data.searchComplete !== false) {
+                callback.resolve(results)
+                this.searchCallbacks.delete(e.data.searchRequestId)
+              }
+            }
+          }
+          break
+      }
+    }
+  }
+
+  onRelayStatusUpdate(callback: (statuses: any[]) => void): () => void {
+    this.relayStatusCallbacks.add(callback)
+    return () => this.relayStatusCallbacks.delete(callback)
+  }
+
+  async getStats(): Promise<LocalDataStats> {
+    const id = Math.random().toString(36).substring(7)
+
+    return new Promise((resolve) => {
+      this.statsCallbacks.set(id, resolve)
+
+      this.postMessage({
+        type: "getStats",
+        id,
+      } as WorkerMessage)
+
+      setTimeout(() => {
+        if (this.statsCallbacks.has(id)) {
+          this.statsCallbacks.delete(id)
+          resolve({totalEvents: 0, eventsByKind: {}})
+        }
+      }, 1000)
+    })
+  }
+
+  private searchRequestId = 0
+
+  search(
+    query: string,
+    onUpdate?: (
+      results: Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>
+    ) => void
+  ): Promise<Array<{item: SearchResult; score?: number; source?: "local" | "remote"}>> {
+    return new Promise((resolve) => {
+      const id = ++this.searchRequestId
+      this.searchCallbacks.set(id, {resolve, onUpdate})
+      this.postMessage({
+        type: "search",
+        searchQuery: query,
+        searchRequestId: id,
+      } as WorkerMessage)
+      setTimeout(() => {
+        if (this.searchCallbacks.has(id)) {
+          this.searchCallbacks.delete(id)
+          resolve([])
+        }
+      }, this.SEARCH_TIMEOUT_MS)
+    })
+  }
+
+  isSearchReady(): boolean {
+    return this.searchReady
+  }
+}
+
+export type {LocalDataStats, SearchResult}

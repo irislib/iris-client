@@ -1,10 +1,10 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
 import {Link} from "@/navigation"
 import {Avatar} from "@/shared/components/user/Avatar"
 
 interface ReplyPreviewProps {
-  replyingTo: NDKEvent
+  replyingTo: AppEvent
 }
 
 export function ReplyPreview({replyingTo}: ReplyPreviewProps) {

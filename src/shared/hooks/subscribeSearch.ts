@@ -1,9 +1,9 @@
-import NDK, {
-  NDKEvent,
-  NDKSubscriptionCacheUsage,
-  type NDKFilter,
-  type NDKSubscription,
-} from "@/lib/ndk"
+import NostrClient, {
+  AppEvent,
+  CacheMode,
+  type EventFilter,
+  type EventSubscription,
+} from "@/lib/nostr"
 import {SearchPageCursor} from "./searchPagination"
 
 export interface SearchProgress {
@@ -14,16 +14,16 @@ export interface SearchProgress {
 
 /** Bounded search batches keep independent text/tag/recent-note cursors. */
 export function subscribeSearch(
-  ndk: NDK,
-  filters: NDKFilter[],
-  onEvent: (event: NDKEvent) => void,
+  nostr: NostrClient,
+  filters: EventFilter[],
+  onEvent: (event: AppEvent) => void,
   needsMore: () => boolean,
   onProgress: (state: SearchProgress) => void,
   relayUrls?: string[]
 ) {
   const sources = filters.map((filter) => ({
     cursor: new SearchPageCursor(filter),
-    sub: undefined as NDKSubscription | undefined,
+    sub: undefined as EventSubscription | undefined,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     retry: false,
     pending: true,
@@ -91,12 +91,12 @@ export function subscribeSearch(
           onProgress({loading: false, canLoadMore, oldestSearched: boundary})
         }
       }
-      source.sub = ndk.subscribe(source.cursor.current, {
+      source.sub = nostr.subscribe(source.cursor.current, {
         relayUrls,
         // The worker routes text queries to the search index. Main-thread
         // relay/cache EOSEs must not finish that request before it answers.
         transports: ["worker-transport"],
-        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+        cacheUsage: CacheMode.ONLY_RELAY,
         groupable: false,
         isolated: true,
       })

@@ -1,15 +1,15 @@
 import {useState, useCallback} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import DebugManager from "@/utils/DebugManager"
 
 const MAX_FETCHED_EVENTS = 50 // Reduced for mobile
 
 export function useMediaCache() {
-  const [fetchedEventsMap, setFetchedEventsMap] = useState<Map<string, NDKEvent>>(
+  const [fetchedEventsMap, setFetchedEventsMap] = useState<Map<string, AppEvent>>(
     new Map()
   )
 
-  const handleEventFetched = useCallback((event: NDKEvent) => {
+  const handleEventFetched = useCallback((event: AppEvent) => {
     setFetchedEventsMap((prev) => {
       if (prev.has(event.id)) return prev
 
@@ -46,7 +46,7 @@ export function useMediaCache() {
   }, [])
 
   const cleanupInvisibleEvents = useCallback(
-    (visibleEvents: (NDKEvent | {id: string})[]) => {
+    (visibleEvents: (AppEvent | {id: string})[]) => {
       const visibleEventIds = new Set(visibleEvents.map((e) => e.id))
       setFetchedEventsMap((prev) => {
         // Only cleanup if we have significantly more events than visible

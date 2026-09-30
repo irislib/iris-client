@@ -1,6 +1,6 @@
 import {useNavigate} from "@/navigation"
 import {useEffect, useState, useMemo, memo, MutableRefObject, useRef} from "react"
-import {NDKEvent, NDKSubscription} from "@/lib/ndk"
+import {AppEvent, EventSubscription} from "@/lib/nostr"
 import {decode} from "blurhash"
 import {nip19} from "nostr-tools"
 
@@ -12,15 +12,15 @@ import {isMarketListing} from "@/shared/utils/marketUtils.ts"
 import ProxyImg from "../ProxyImg"
 import Icon from "../Icons/Icon"
 import {LRUCache} from "typescript-lru-cache"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {extractImetaImages} from "@/shared/utils/imetaUtils"
 
 interface ImageGridItemProps {
-  event: NDKEvent | {id: string}
+  event: AppEvent | {id: string}
   index: number
-  setActiveItemIndex: (event: NDKEvent, url: string) => void
-  onEventFetched?: (event: NDKEvent) => void
+  setActiveItemIndex: (event: AppEvent, url: string) => void
+  onEventFetched?: (event: AppEvent) => void
   lastElementRef?: MutableRefObject<HTMLDivElement>
   highlightAsNew?: boolean
 }
@@ -74,12 +74,12 @@ const ImageGridItem = memo(function ImageGridItem({
   const navigate = useNavigate()
   const [loadErrors, setLoadErrors] = useState<Record<number, boolean>>({})
   const [proxyFailed, setProxyFailed] = useState<Record<number, boolean>>({})
-  const [event, setEvent] = useState<NDKEvent | undefined>(
+  const [event, setEvent] = useState<AppEvent | undefined>(
     "content" in initialEvent ? initialEvent : undefined
   )
   const {content, imgproxy} = useSettingsStore()
   const gridItemRef = useRef<HTMLDivElement>(null)
-  const subscriptionRef = useRef<NDKSubscription | null>(null)
+  const subscriptionRef = useRef<EventSubscription | null>(null)
 
   // Handle highlight animation with opacity fade-in
   useEffect(() => {
@@ -105,9 +105,9 @@ const ImageGridItem = memo(function ImageGridItem({
     // Clean up any existing subscription first
     if (subscriptionRef.current) {
       subscriptionRef.current.stop()
-      // Force cleanup by removing from subscription manager (NDK bug workaround)
-      if (subscriptionRef.current.ndk?.subManager) {
-        subscriptionRef.current.ndk.subManager.subscriptions.delete(
+      // Force cleanup by removing from subscription manager (NostrClient bug workaround)
+      if (subscriptionRef.current.nostr?.subManager) {
+        subscriptionRef.current.nostr.subManager.subscriptions.delete(
           subscriptionRef.current.internalId
         )
       }
@@ -120,7 +120,7 @@ const ImageGridItem = memo(function ImageGridItem({
     }
 
     if (eventIdHex) {
-      ndk()
+      nostr()
         .fetchEvent(eventIdHex)
         .then((fetchedEvent) => {
           if (fetchedEvent) {

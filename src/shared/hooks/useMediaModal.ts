@@ -1,5 +1,5 @@
 import {useState, useCallback} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {MediaItem} from "./useMediaExtraction"
 
 const MAX_MODAL_MEDIA = 200 // Limit modal media to prevent crashes
@@ -10,7 +10,7 @@ export function useMediaModal() {
   const [modalMedia, setModalMedia] = useState<MediaItem[]>([])
 
   const openModal = useCallback(
-    (allMedia: MediaItem[], clickedEvent: NDKEvent, clickedUrl: string) => {
+    (allMedia: MediaItem[], clickedEvent: AppEvent, clickedUrl: string) => {
       const mediaIndex = allMedia.findIndex(
         (media) => media.event.id === clickedEvent.id && media.url === clickedUrl
       )

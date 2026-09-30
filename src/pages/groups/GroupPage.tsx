@@ -9,7 +9,7 @@ import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePage
 import ShareLinkModal from "@/shared/components/ShareLinkModal"
 import Feed from "@/shared/components/feed/Feed"
 import {BaseNoteCreator} from "@/shared/components/notes/BaseNoteCreator"
-import {type NDKEvent} from "@/lib/ndk"
+import {type AppEvent} from "@/lib/nostr"
 import {
   createMembershipDraft,
   createMembershipAttestationDraft,
@@ -79,7 +79,7 @@ function GroupContent({
   const [busy, setBusy] = useState("")
   const actionPending = useRef(false)
   const [error, setError] = useState("")
-  const [injected, setInjected] = useState<NDKEvent[]>([])
+  const [injected, setInjected] = useState<AppEvent[]>([])
   const [memberQuery, setMemberQuery] = useState("")
   const [memberLimit, setMemberLimit] = useState(50)
   const feed = useGroupFeed(access, publicKey, "trusted", tab === "polls", injected)
@@ -162,7 +162,7 @@ function GroupContent({
       onConfirm={canParticipate ? confirmMember : undefined}
     />
   )
-  const published = (event: NDKEvent) =>
+  const published = (event: AppEvent) =>
     setInjected((events) => [event, ...events].slice(0, 50))
 
   return (

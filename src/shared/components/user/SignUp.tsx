@@ -1,11 +1,11 @@
 import {ChangeEvent, KeyboardEvent, useEffect, useRef, useState} from "react"
 import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
-import {NDKEvent, NDKPrivateKeySigner} from "@/lib/ndk"
+import {AppEvent, SecretKeySigner} from "@/lib/nostr"
 import {bytesToHex} from "@noble/hashes/utils.js"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {useUIStore} from "@/stores/ui"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {NSEC_NPUB_REGEX} from "@/utils/validation"
 import Icon from "@/shared/components/Icons/Icon"
 
@@ -66,8 +66,8 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
 
           localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
           localStorage.setItem("cashu.ndk.pubkey", publicKey)
-          const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
-          ndk().signer = privateKeySigner
+          const privateKeySigner = new SecretKeySigner(privateKeyHex)
+          nostr().signer = privateKeySigner
 
           setShowLoginDialog(false)
           onClose()
@@ -88,7 +88,7 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
   }
 
   function handleSubmit() {
-    ndk()
+    nostr()
     const sk = generateSecretKey()
     const pk = getPublicKey(sk)
     const npub = nip19.npubEncode(pk)
@@ -107,12 +107,12 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
     // Keep these for backward compatibility
     localStorage.setItem("cashu.ndk.privateKeySignerPrivateKey", privateKeyHex)
     localStorage.setItem("cashu.ndk.pubkey", pk)
-    const privateKeySigner = new NDKPrivateKeySigner(privateKeyHex)
-    ndk().signer = privateKeySigner
+    const privateKeySigner = new SecretKeySigner(privateKeyHex)
+    nostr().signer = privateKeySigner
 
     // Even a nameless new identity needs an authoritative empty profile document
     // so later edits never have to guess whether existing metadata failed to load.
-    const profileEvent = new NDKEvent(ndk())
+    const profileEvent = new AppEvent(nostr())
     profileEvent.kind = 0
     profileEvent.content = JSON.stringify(
       newUserName.trim()

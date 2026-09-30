@@ -6,11 +6,11 @@ import {ProfileLink} from "@/shared/components/user/ProfileLink"
 
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem.tsx"
 
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import type {Rumor} from "nostr-double-ratchet"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
-type EmbedEvent = NDKEvent | Rumor
+type EmbedEvent = AppEvent | Rumor
 
 type Embed = {
   regex: RegExp
@@ -26,9 +26,9 @@ type Embed = {
 }
 
 function Naddr({naddr, data}: {naddr: string; data: nip19.AddressPointer}) {
-  const [event, setEvent] = useState<NDKEvent | null>(null)
+  const [event, setEvent] = useState<AppEvent | null>(null)
   useEffect(() => {
-    ndk()
+    nostr()
       .fetchEvent(
         {
           authors: [data.pubkey],

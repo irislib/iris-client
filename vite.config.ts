@@ -87,6 +87,14 @@ export default defineConfig({
     }),
   ],
   resolve: {
+    dedupe: [
+      "dexie",
+      "nostr-tools",
+      "nostr-pubsub",
+      "@hashtree/core",
+      "react",
+      "react-dom",
+    ],
     alias: {
       "@": "/src",
       "@core": "/src/lib/cashu/core",
@@ -143,8 +151,8 @@ export default defineConfig({
             return "cashu-core"
           }
 
-          // NDK from local sources - keep in main (used everywhere)
-          if (id.includes("/src/lib/ndk/") || id.includes("/src/lib/ndk-cache/")) {
+          // Small app event helpers are shared throughout the UI.
+          if (id.includes("/src/lib/nostr/")) {
             return "main"
           }
 
@@ -215,26 +223,6 @@ export default defineConfig({
       "**/*.bun.test.ts",
       "**/keepalive-bun.test.ts",
       "**/reconnection-integration.bun.test.ts",
-      "src/lib/ndk/subscription.test.ts",
-      "src/lib/ndk/subscription/index.test.ts",
-      "src/lib/ndk/relay/auth-retry.test.ts",
-      "src/lib/ndk/ndk/fetchEvent-guardrails.test.ts",
-      "src/lib/ndk/events/encryption.test.ts",
-      "src/lib/ndk/events/nip19.test.ts",
-      "src/lib/ndk/relay/pool/index.test.ts",
-      "src/lib/ndk/signers/nip46/index.test.ts",
-      "src/lib/ndk/subscription/outbox-late-arrival.test.ts",
-      "src/lib/ndk/events/kinds/cashu/tx.test.ts",
-      "src/lib/ndk/events/serializer.test.ts",
-      "src/lib/ndk/events/repost.test.ts",
-      "src/lib/ndk/events/kinds/interest-list.test.ts",
-      "src/lib/ndk/events/index.test.ts",
-      "src/lib/ndk/events/encode.test.ts",
-      "src/lib/ndk/user/index.test.ts",
-      "src/lib/ndk/user/follows.test.ts",
-      "src/lib/ndk/utils/filter-validation.test.ts",
-      "src/lib/ndk/signers/serialization.test.ts",
-      "src/lib/ndk/subscription/exclusive-relay.test.ts",
     ],
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],

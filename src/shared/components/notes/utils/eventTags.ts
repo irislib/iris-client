@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {ImetaTag} from "@/stores/draft"
 import {getEventRoot} from "@/utils/nostr"
 import {extractHashtags} from "./hashtags"
@@ -28,7 +28,7 @@ function extractContentUrls(content: string): Set<string> {
   return urls
 }
 
-export function buildReplyTags(replyingTo: NDKEvent, myPubKey: string): string[][] {
+export function buildReplyTags(replyingTo: AppEvent, myPubKey: string): string[][] {
   const tags: string[][] = []
   const rootEvent = getEventRoot(replyingTo) || replyingTo.id
 
@@ -50,7 +50,7 @@ export function buildReplyTags(replyingTo: NDKEvent, myPubKey: string): string[]
 }
 
 export function buildQuoteTags(
-  quotedEvent: NDKEvent,
+  quotedEvent: AppEvent,
   myPubKey: string,
   existingTags: string[][]
 ): string[][] {
@@ -134,8 +134,8 @@ export function buildMarketListingTags(
 }
 
 interface BuildEventTagsParams {
-  replyingTo?: NDKEvent
-  quotedEvent?: NDKEvent
+  replyingTo?: AppEvent
+  quotedEvent?: AppEvent
   initialTags?: string[][]
   includeReplyTags?: boolean
   imeta: ImetaTag[]

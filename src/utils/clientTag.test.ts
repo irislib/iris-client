@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import {beforeEach, describe, expect, it, vi} from "vitest"
 import {verifyEvent} from "nostr-tools"
-import NDK, {NDKEvent, NDKPrivateKeySigner, NDKRelay, NDKRelaySet} from "@/lib/ndk"
+import NostrClient, {AppEvent, SecretKeySigner, Relay, RelaySet} from "@/lib/nostr"
 import {useSettingsStore} from "@/stores/settings"
 import {irisClientTagOptions} from "./clientTag"
 
-const signer = NDKPrivateKeySigner.generate()
+const signer = SecretKeySigner.generate()
 
 function createEvent(kind: number, tags: string[][] = []) {
-  return new NDKEvent(new NDK(irisClientTagOptions), {
+  return new AppEvent(new NostrClient(irisClientTagOptions), {
     kind,
     content: "test",
     tags,
@@ -74,16 +74,16 @@ describe("Iris client attribution through event signing", () => {
   })
 
   it("preserves another client's signed event when rebroadcasting", async () => {
-    const event = new NDKEvent(new NDK({clientName: "other-client"}), {
+    const event = new AppEvent(new NostrClient({clientName: "other-client"}), {
       kind: 1,
       content: "original",
     })
     await event.sign(signer)
     const original = JSON.stringify(event.rawEvent())
-    const appNdk = new NDK(irisClientTagOptions)
-    event.ndk = appNdk
-    const relay = new NDKRelay("wss://relay.example", undefined, appNdk)
-    const relaySet = new NDKRelaySet(new Set([relay]), appNdk)
+    const appNdk = new NostrClient(irisClientTagOptions)
+    event.nostr = appNdk
+    const relay = new Relay("wss://relay.example", undefined, appNdk)
+    const relaySet = new RelaySet(new Set([relay]), appNdk)
     vi.spyOn(relaySet, "publish").mockResolvedValue(new Set([relay]))
     await event.publish(relaySet)
     expect(JSON.stringify(event.rawEvent())).toBe(original)

@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useMemo, ReactNode, useRef, useState} from "react"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {Name} from "@/shared/components/user/Name"
@@ -9,7 +9,7 @@ import {useToastStore} from "@/stores/toast"
 import {useGroupAccess} from "@/groups/GroupContext"
 
 interface ReactionsBarProps {
-  event: NDKEvent
+  event: AppEvent
 }
 
 export default function ReactionsBar({event}: ReactionsBarProps) {
@@ -74,7 +74,7 @@ export default function ReactionsBar({event}: ReactionsBarProps) {
 interface ReactionItemProps {
   reaction: ReactionInfo
   renderEmoji: (reaction: ReactionInfo) => ReactNode
-  event: NDKEvent
+  event: AppEvent
 }
 
 function ReactionItem({reaction, renderEmoji, event}: ReactionItemProps) {

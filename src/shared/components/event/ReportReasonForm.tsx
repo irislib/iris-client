@@ -1,11 +1,11 @@
 import {ChangeEvent, useCallback, useState} from "react"
-import {Hexpubkey, NDKEvent} from "@/lib/ndk"
+import {Hexpubkey, AppEvent} from "@/lib/nostr"
 
 import {flagUser, muteUser} from "@/shared/services/Mute.tsx"
 import {getMuteLabel} from "@/utils/muteLabels"
 
 interface ReportReasonFormProps {
-  event?: NDKEvent
+  event?: AppEvent
   user: Hexpubkey
   setReported: () => void
 }

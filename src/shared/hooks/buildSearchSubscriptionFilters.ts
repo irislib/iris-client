@@ -1,4 +1,4 @@
-import type {NDKFilter} from "@/lib/ndk"
+import type {EventFilter} from "@/lib/nostr"
 
 function buildHashtagVariants(search: string, hashtags: string[]) {
   const originalTerms = search.split(/\s+/)
@@ -19,11 +19,11 @@ function buildHashtagVariants(search: string, hashtags: string[]) {
   return [...new Set(hashtagVariants)]
 }
 
-function withUntil(filter: NDKFilter, untilTimestamp?: number): NDKFilter {
+function withUntil(filter: EventFilter, untilTimestamp?: number): EventFilter {
   return untilTimestamp ? {...filter, until: untilTimestamp} : filter
 }
 
-function dedupeFilters(filters: NDKFilter[]) {
+function dedupeFilters(filters: EventFilter[]) {
   const seen = new Set<string>()
 
   return filters.filter((filter) => {
@@ -37,10 +37,10 @@ function dedupeFilters(filters: NDKFilter[]) {
 }
 
 export function buildSearchSubscriptionFilters(
-  filters: NDKFilter,
+  filters: EventFilter,
   untilTimestamp?: number,
   fallbackLimit = 100
-): NDKFilter | NDKFilter[] {
+): EventFilter | EventFilter[] {
   if (!filters.search) {
     return withUntil(
       {
@@ -78,7 +78,7 @@ export function buildSearchSubscriptionFilters(
     }
   }
 
-  const filterArray: NDKFilter[] = []
+  const filterArray: EventFilter[] = []
 
   if (regularWords.length > 0) {
     // Plain recent notes fallback for relays without NIP-50 or word indexing.

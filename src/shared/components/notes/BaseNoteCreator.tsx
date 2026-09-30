@@ -1,11 +1,11 @@
 import {useState, useRef} from "react"
 import {getEventGroup, useGroupAccess} from "@/groups/GroupContext"
 import {groupAddress, type GroupRef} from "@/groups/model"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {ProfileLink} from "@/shared/components/user/ProfileLink"
 import {usePublicKey} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {type UploadState} from "@/shared/components/button/UploadButton"
 import {RiAttachment2} from "@remixicon/react"
 import {KIND_TEXT_NOTE, KIND_CLASSIFIED} from "@/utils/constants"
@@ -27,14 +27,14 @@ import {GeohashDisplay} from "./components/GeohashDisplay"
 
 interface BaseNoteCreatorProps {
   onClose?: () => void
-  replyingTo?: NDKEvent
-  quotedEvent?: NDKEvent
+  replyingTo?: AppEvent
+  quotedEvent?: AppEvent
   placeholder?: string
   autofocus?: boolean
   className?: string
   showPreview?: boolean
   variant?: "inline" | "modal"
-  onPublish?: (event: NDKEvent) => void
+  onPublish?: (event: AppEvent) => void
   expandOnFocus?: boolean
   alwaysExpanded?: boolean
   group?: GroupRef
@@ -55,7 +55,7 @@ function NoteCreatorBody({
   group,
 }: BaseNoteCreatorProps) {
   const myPubKey = usePublicKey()
-  const ndkInstance = ndk()
+  const ndkInstance = nostr()
   const access = useGroupAccess()
   const destination = replyingTo
     ? getEventGroup(replyingTo)

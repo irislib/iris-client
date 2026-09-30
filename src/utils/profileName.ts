@@ -1,9 +1,9 @@
 import {LRUCache} from "typescript-lru-cache"
-import {type Profile} from "@/lib/ndk-cache/db"
-import {NDKUserProfile} from "@/lib/ndk"
+import {type Profile} from "@/lib/nostr/db"
+import {UserProfile} from "@/lib/nostr"
 import AnimalName from "./AnimalName"
 
-type ProfileLike = Profile | NDKUserProfile | null | undefined
+type ProfileLike = Profile | UserProfile | null | undefined
 
 // Small in-memory cache for sync access, auto-expires after 5 minutes
 const nameCache = new LRUCache<string, string>({

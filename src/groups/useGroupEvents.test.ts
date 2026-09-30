@@ -1,12 +1,12 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {finalizeEvent, getPublicKey, type Event} from "nostr-tools"
-import type {NDKFilter, NDKSubscription} from "@/lib/ndk"
+import type {EventFilter, EventSubscription} from "@/lib/nostr"
 import {groupTags} from "./model"
 import {consolidateGroupLiveFilters, GroupEventCollection} from "./useGroupEvents"
 
-vi.mock("@/lib/ndk", () => ({NDKSubscriptionCacheUsage: {PARALLEL: "PARALLEL"}}))
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => {
+vi.mock("@/lib/nostr", () => ({CacheMode: {PARALLEL: "PARALLEL"}}))
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => {
     throw new Error("Unexpected default transport")
   },
 }))
@@ -19,7 +19,7 @@ class FakeSubscription {
   stopped = false
   listeners = new Map<string, (...args: any[]) => void>()
   constructor(
-    readonly filters: NDKFilter[],
+    readonly filters: EventFilter[],
     readonly closeOnEose: boolean
   ) {}
   on(name: string, listener: (...args: any[]) => void) {
@@ -40,10 +40,10 @@ class FakeSubscription {
 }
 const harness = () => {
   const subs: FakeSubscription[] = []
-  const source = (filters: NDKFilter[], closeOnEose: boolean) => {
+  const source = (filters: EventFilter[], closeOnEose: boolean) => {
     const sub = new FakeSubscription(filters, closeOnEose)
     subs.push(sub)
-    return sub as unknown as NDKSubscription
+    return sub as unknown as EventSubscription
   }
   return {subs, source}
 }

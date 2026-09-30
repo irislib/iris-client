@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 import {verifyEvent, type Event} from "nostr-tools"
-import {NDKSubscriptionCacheUsage, type NDKEvent, type NDKSubscription} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {CacheMode, type AppEvent, type EventSubscription} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {
   parsePollResponse,
   pollResponseQueries,
@@ -29,7 +29,7 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
     setLoading(true)
     const latest = new Map<string, PollEvent>()
     const receivedByKey = new Map<string, number>()
-    const subscriptions = new Set<NDKSubscription>()
+    const subscriptions = new Set<EventSubscription>()
     const timers = new Set<ReturnType<typeof setTimeout>>()
     let received = 0
     let batch: ReturnType<typeof setTimeout> | undefined
@@ -41,12 +41,12 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
     }
     if (poll.relays.length > 8) setLimited(true)
     const options = {
-      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+      cacheUsage: CacheMode.PARALLEL,
       ...(poll.relays.length ? {relayUrls: poll.relays.slice(0, 8)} : {}),
     }
     const {history, live} = pollResponseQueries(poll)
     const allowed = live.authors ? new Set(live.authors) : undefined
-    const onEvent = (event: NDKEvent, historical: boolean) => {
+    const onEvent = (event: AppEvent, historical: boolean) => {
       if (!active) return
       const raw = event.rawEvent() as Event
       if (allowed && !allowed.has(raw.pubkey)) return
@@ -77,7 +77,7 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
     }
     // Start live delivery before the historical scan so votes cast during it are retained.
     if (!closed) {
-      const subscription = ndk().subscribe(
+      const subscription = nostr().subscribe(
         {...live, since: Math.floor(Date.now() / 1000)},
         {...options, closeOnEose: false},
         false
@@ -93,7 +93,7 @@ export default function usePollResponses(poll: Poll | null, closed: boolean) {
       while (running < 2 && next < history.length) {
         const filters = history[next++]
         running++
-        const subscription = ndk().subscribe(
+        const subscription = nostr().subscribe(
           filters,
           {...options, closeOnEose: true},
           false

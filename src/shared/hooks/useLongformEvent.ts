@@ -1,14 +1,14 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect} from "react"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 /**
  * Custom hook for fetching longform events with memcaching
  * Designed specifically for NIP-23 longform content articles
  */
 export function useLongformEvent(naddrData: nip19.AddressPointer | null) {
-  const [event, setEvent] = useState<NDKEvent | null>(null)
+  const [event, setEvent] = useState<AppEvent | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,7 +23,7 @@ export function useLongformEvent(naddrData: nip19.AddressPointer | null) {
     setLoading(true)
     setError(null)
 
-    ndk()
+    nostr()
       .fetchEvent({
         authors: [naddrData.pubkey],
         kinds: [naddrData.kind],

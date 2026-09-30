@@ -1,4 +1,4 @@
-import {NDKFilter} from "@/lib/ndk"
+import {EventFilter} from "@/lib/nostr"
 import {KIND_CLASSIFIED} from "@/utils/constants"
 
 // Helper function to build market feed config
@@ -11,7 +11,7 @@ export function buildMarketFeedConfig(
   const hasCategory = Boolean(category?.trim())
 
   if (hasCategory || additionalTags.length > 0 || selectedGeohash || searchQuery) {
-    const filter: NDKFilter = {
+    const filter: EventFilter = {
       kinds: [KIND_CLASSIFIED],
     }
 

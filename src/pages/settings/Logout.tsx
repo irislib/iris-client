@@ -5,7 +5,7 @@ import {useDraftStore} from "@/stores/draft"
 import {MouseEvent, useEffect, useState} from "react"
 import {useNavigate} from "@/navigation"
 import localforage from "localforage"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {useWalletProviderStore} from "@/stores/walletProvider"
@@ -68,7 +68,7 @@ function Logout() {
   }, [activeProviderType, activeNWCId, nwcConnections, getBalance])
 
   async function cleanupNDK() {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
     ndkInstance.signer = undefined
     ndkInstance.pool.relays.forEach((relay) => {
       relay.disconnect()
@@ -149,7 +149,7 @@ function Logout() {
         error("Error cleaning up stores:", e)
       }
 
-      log("[Logout] Cleaning up NDK")
+      log("[Logout] Cleaning up NostrClient")
       await withTimeout(cleanupNDK(), 3000)
       log("[Logout] Resetting user store")
       const {reset} = useUserStore.getState()

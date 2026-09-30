@@ -1,5 +1,5 @@
 import {useMemo} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {parseZapReceipt} from "@/utils/nostr"
 import {useGroupAccess} from "./GroupContext"
 import {isVisibleGroupZap} from "./activity"
@@ -26,7 +26,7 @@ export function useGroupZaps(targetId: string, enabled = true) {
   return useMemo(
     () =>
       source.events.flatMap((raw) => {
-        const zap = parseZapReceipt(new NDKEvent(undefined, raw))
+        const zap = parseZapReceipt(new AppEvent(undefined, raw))
         return zap && isVisibleGroupZap(zap, targetId, group) ? [zap] : []
       }),
     [source.events, group, targetId]

@@ -7,7 +7,7 @@ import {confirm} from "@/utils/utils"
 import Dexie from "dexie"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
-import {getWorkerTransport} from "@/utils/ndk"
+import {getWorkerTransport} from "@/utils/nostrClient"
 
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -254,7 +254,7 @@ export default function LocalData() {
         )
       } else {
         // Fallback: just delete the main one
-        const db = new Dexie("treelike-nostr")
+        const db = new Dexie("iris-pubsub")
         await db.delete()
         const db2 = new Dexie("irisdb-nostr")
         await db2.delete()

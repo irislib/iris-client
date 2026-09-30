@@ -1,6 +1,6 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useMemo, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import Dropdown from "@/shared/components/ui/Dropdown"
@@ -19,11 +19,11 @@ import {publishGroupEvent} from "@/groups/publish"
 import {useToastStore} from "@/stores/toast"
 
 interface FeedItemRepostProps {
-  event: NDKEvent
+  event: AppEvent
   showReactionCounts?: boolean
 }
 
-const repostCache = new LRUCache<string, Map<string, NDKEvent>>({
+const repostCache = new LRUCache<string, Map<string, AppEvent>>({
   maxSize: 100,
 })
 
@@ -37,7 +37,7 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
   const canParticipate = !group || group.canParticipate
   const myPubKey = useUserStore((state) => state.publicKey)
 
-  const [reposts, setReposts] = useState<Map<string, NDKEvent>>(
+  const [reposts, setReposts] = useState<Map<string, AppEvent>>(
     () => repostCache.get(event.id) || new Map()
   )
   const repostsByAuthor = useMemo(
@@ -105,9 +105,9 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
 
     try {
       // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
-      const sub = ndk().subscribe(filter, {closeOnEose: !group})
+      const sub = nostr().subscribe(filter, {closeOnEose: !group})
 
-      sub?.on("event", (repostEvent: NDKEvent) => {
+      sub?.on("event", (repostEvent: AppEvent) => {
         if (shouldHideUser(repostEvent.pubkey)) return
         setReposts((previous) => {
           const next = new Map(previous)

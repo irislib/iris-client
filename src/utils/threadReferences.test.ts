@@ -1,6 +1,6 @@
 import {beforeAll, describe, expect, it} from "vitest"
 import {matchFilter} from "nostr-tools"
-import NDK, {NDKEvent, NDKPrivateKeySigner, type NostrEvent} from "@/lib/ndk"
+import NostrClient, {AppEvent, SecretKeySigner, type NostrEvent} from "@/lib/nostr"
 import {
   buildReplySubscriptionFilters,
   getEventReplyReference,
@@ -8,23 +8,23 @@ import {
   getThreadReferenceRoute,
 } from "./threadReferences"
 
-const ndk = new NDK()
-ndk.signer = NDKPrivateKeySigner.generate()
+const nostr = new NostrClient()
+nostr.signer = SecretKeySigner.generate()
 
 describe("threadReferences", () => {
-  let note: NDKEvent
-  let article: NDKEvent
-  let articleReply: NDKEvent
-  let nestedArticleReply: NDKEvent
+  let note: AppEvent
+  let article: AppEvent
+  let articleReply: AppEvent
+  let nestedArticleReply: AppEvent
 
   beforeAll(async () => {
-    note = new NDKEvent(ndk, {
+    note = new AppEvent(nostr, {
       kind: 1,
       content: "root note",
     } as NostrEvent)
     await note.sign()
 
-    article = new NDKEvent(ndk, {
+    article = new AppEvent(nostr, {
       kind: 30023,
       content: "root article",
       tags: [["d", "article-slug"]],

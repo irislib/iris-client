@@ -2,8 +2,8 @@ import {useUserStore} from "@/stores/user"
 import {useState, MouseEvent} from "react"
 import {useNavigate} from "@/navigation"
 import localforage from "localforage"
-import {ndk} from "@/utils/ndk"
-import {NDKEvent} from "@/lib/ndk"
+import {nostr} from "@/utils/nostrClient"
+import {AppEvent} from "@/lib/nostr"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {SettingsButton} from "@/shared/components/settings/SettingsButton"
@@ -33,7 +33,7 @@ function DeleteAccount() {
   const navigate = useNavigate()
 
   async function cleanupNDK() {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
     ndkInstance.signer = undefined
     ndkInstance.pool.relays.forEach((relay) => {
       relay.disconnect()
@@ -96,7 +96,7 @@ function DeleteAccount() {
         error("Error revoking current device:", e)
       }
 
-      log("[Logout] Cleaning up NDK")
+      log("[Logout] Cleaning up NostrClient")
       await withTimeout(cleanupNDK(), 3000)
       log("[Logout] Resetting user store")
       const {reset} = useUserStore.getState()
@@ -133,7 +133,7 @@ function DeleteAccount() {
 
       try {
         // Publish deleted profile
-        const user = ndk().getUser({pubkey: store.publicKey})
+        const user = nostr().getUser({pubkey: store.publicKey})
         if (user) {
           user.profile = {name: "Account deleted", deleted: "true" as string}
           await user.publish()
@@ -141,7 +141,7 @@ function DeleteAccount() {
         }
 
         // Publish empty follow list
-        const emptyFollowList = new NDKEvent(ndk(), {
+        const emptyFollowList = new AppEvent(nostr(), {
           kind: KIND_CONTACTS,
           pubkey: store.publicKey,
           content: "",

@@ -1,11 +1,11 @@
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import {useState, useRef, useCallback, useMemo} from "react"
 import FeedItem from "../event/FeedItem/FeedItem"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {DISPLAY_INCREMENT} from "./utils"
 
 interface UnknownUserEventsProps {
-  eventsByUnknownUsers: NDKEvent[]
+  eventsByUnknownUsers: AppEvent[]
   showRepliedTo: boolean
   asReply: boolean
 }

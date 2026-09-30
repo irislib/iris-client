@@ -1,11 +1,11 @@
-import {Hexpubkey, NDKEvent} from "@/lib/ndk"
+import {Hexpubkey, AppEvent} from "@/lib/nostr"
 import {useState} from "react"
 
 import ReportReasonForm from "./ReportReasonForm.tsx"
 
 interface ReportContentProps {
   user: Hexpubkey
-  event?: NDKEvent
+  event?: AppEvent
   onClose?: () => void
 }
 

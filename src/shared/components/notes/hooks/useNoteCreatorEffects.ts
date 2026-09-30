@@ -1,9 +1,9 @@
 import {useEffect, RefObject} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 interface UseNoteCreatorEffectsParams {
   autofocus: boolean
-  quotedEvent?: NDKEvent
+  quotedEvent?: AppEvent
   textareaRef: RefObject<HTMLTextAreaElement | null>
   expandOnFocus: boolean
   text: string

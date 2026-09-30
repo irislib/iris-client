@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useState} from "react"
 import {nip19} from "nostr-tools"
 
@@ -15,7 +15,7 @@ import {useRebroadcast} from "@/shared/hooks/useRebroadcast"
 import {getMuteLabel, getUnmuteLabel} from "@/utils/muteLabels"
 
 type FeedItemDropdownProps = {
-  event: NDKEvent
+  event: AppEvent
   onClose: () => void
 }
 

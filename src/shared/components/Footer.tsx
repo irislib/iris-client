@@ -11,7 +11,7 @@ import {formatAmount} from "@/utils/utils"
 import {useUserStore} from "@/stores/user"
 import {useWalletStore} from "@/stores/wallet"
 import {useLocation} from "@/navigation"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {isReadOnlyMode} from "@/utils/auth"
 
 type MenuItem = {
@@ -91,7 +91,7 @@ const Footer = () => {
           {MENU_ITEMS.map(
             (item, index) =>
               (myPubKey || !item.loggedInOnly) &&
-              (!item.requireSigner || (item.requireSigner && ndk().signer)) && (
+              (!item.requireSigner || (item.requireSigner && nostr().signer)) && (
                 <FooterNavItem key={index} item={item} />
               )
           )}

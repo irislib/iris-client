@@ -234,12 +234,12 @@ const ndkMock = vi.hoisted(() => {
   return {
     subscriptions,
     subscribe,
-    initNDK: vi.fn(() => Promise.resolve()),
-    ndk: () => ({subscribe}),
+    initNostr: vi.fn(() => Promise.resolve()),
+    nostr: () => ({subscribe}),
     reset() {
       subscriptions.splice(0)
       subscribe.mockClear()
-      this.initNDK.mockClear()
+      this.initNostr.mockClear()
     },
   }
 })
@@ -255,10 +255,10 @@ vi.mock("@/stores/socialGraph", () => ({
   useSocialGraphStore: graphStoreMock.useSocialGraphStore,
 }))
 vi.mock("nostr-social-graph", () => ({SocialGraph: socialGraphMock.FakeSocialGraph}))
-vi.mock("@/utils/ndk", () => ({ndk: ndkMock.ndk, initNDK: ndkMock.initNDK}))
-vi.mock("@/lib/ndk", () => ({
-  NDKSubscription: class NDKSubscription {},
-  NDKSubscriptionCacheUsage: {ONLY_RELAY: "ONLY_RELAY"},
+vi.mock("@/utils/nostrClient", () => ({nostr: ndkMock.nostr, initNostr: ndkMock.initNostr}))
+vi.mock("@/lib/nostr", () => ({
+  EventSubscription: class EventSubscription {},
+  CacheMode: {ONLY_RELAY: "ONLY_RELAY"},
 }))
 vi.mock("localforage", () => ({default: storageMock}))
 vi.mock("@/utils/createDebugLogger", () => ({

@@ -1,10 +1,10 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {LRUCache} from "typescript-lru-cache"
-import {getMainThreadDb} from "@/lib/ndk-cache/db"
-import {deserialize} from "@/lib/ndk/events/serializer"
+import {getMainThreadDb} from "@/lib/nostr/db"
+import {deserialize} from "@/lib/nostr"
 
 // Hot cache for recently accessed events - immutable, no revalidation needed
-const eventCache = new LRUCache<string, NDKEvent>({
+const eventCache = new LRUCache<string, AppEvent>({
   maxSize: 200,
 })
 
@@ -12,7 +12,7 @@ const eventCache = new LRUCache<string, NDKEvent>({
  * Get event by ID from cache or IDB.
  * Returns immediately if cached, otherwise fetches from IDB.
  */
-export async function getEvent(eventId: string): Promise<NDKEvent | null> {
+export async function getEvent(eventId: string): Promise<AppEvent | null> {
   // Check hot cache first
   const cached = eventCache.get(eventId)
   if (cached) return cached
@@ -23,7 +23,7 @@ export async function getEvent(eventId: string): Promise<NDKEvent | null> {
     const stored = await db.events.get(eventId)
     if (stored) {
       const nostrEvent = deserialize(stored.event)
-      const ndkEvent = new NDKEvent(undefined, nostrEvent)
+      const ndkEvent = new AppEvent(undefined, nostrEvent)
       eventCache.set(eventId, ndkEvent)
       return ndkEvent
     }
@@ -38,14 +38,14 @@ export async function getEvent(eventId: string): Promise<NDKEvent | null> {
  * Get event synchronously from cache only.
  * Returns null if not cached.
  */
-export function getEventSync(eventId: string): NDKEvent | null {
+export function getEventSync(eventId: string): AppEvent | null {
   return eventCache.get(eventId) || null
 }
 
 /**
  * Add event to cache (called when event received from relay).
  */
-export function cacheEvent(event: NDKEvent): void {
+export function cacheEvent(event: AppEvent): void {
   if (event.id) {
     eventCache.set(event.id, event)
   }

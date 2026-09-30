@@ -1,7 +1,7 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {getSocialGraph, handleSocialGraphEvent} from "@/utils/socialGraph"
 import {NostrEvent} from "nostr-social-graph"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_MUTE_LIST, KIND_FLAG_LIST} from "@/utils/constants"
 import {clearVisibilityCache} from "@/utils/visibility"
 
@@ -55,7 +55,7 @@ const updateMuteList = async (
 ): Promise<string[]> => {
   const newTags = validEntries.map((entry: string) => ["p", entry.trim()])
 
-  const muteEvent = new NDKEvent(ndk())
+  const muteEvent = new AppEvent(nostr())
   muteEvent.kind = KIND_MUTE_LIST
   muteEvent.tags = newTags
 
@@ -89,7 +89,7 @@ export const flagUser = async (
 
   flaggedUsers.add(pubkey)
 
-  const flagEvent = new NDKEvent(ndk())
+  const flagEvent = new AppEvent(nostr())
   flagEvent.kind = KIND_FLAG_LIST
   flagEvent.content = JSON.stringify({
     reason,

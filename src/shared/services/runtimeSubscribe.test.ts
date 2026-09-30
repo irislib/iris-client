@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
-import {NDKSubscriptionCacheUsage} from "@/lib/ndk"
+import {CacheMode} from "@/lib/nostr"
 
 import {createRuntimeSubscribe} from "./runtimeSubscribe"
 
@@ -31,7 +31,7 @@ const createNdk = () => {
 
   return {
     calls,
-    ndk: {
+    nostr: {
       pool: {
         connectedRelays: () => [{url: "wss://relay.one"}, {url: "wss://relay.two"}],
       },
@@ -53,8 +53,8 @@ afterEach(() => {
 
 describe("createRuntimeSubscribe", () => {
   it("starts a relay-only backfill for newly added DM authors", () => {
-    const {ndk, calls} = createNdk()
-    const subscribe = createRuntimeSubscribe(ndk as never)
+    const {nostr, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(nostr as never)
     const onEvent = vi.fn()
 
     const unsubscribe = subscribe(
@@ -77,7 +77,7 @@ describe("createRuntimeSubscribe", () => {
     })
     expect(calls[1]?.opts).toMatchObject({
       closeOnEose: true,
-      cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+      cacheUsage: CacheMode.ONLY_RELAY,
       relayUrls: ["wss://relay.one", "wss://relay.two"],
     })
 
@@ -92,8 +92,8 @@ describe("createRuntimeSubscribe", () => {
   it("deduplicates overlapping live and backfill events until the entry expires", () => {
     vi.useFakeTimers()
     vi.setSystemTime(1_000_000)
-    const {ndk, calls} = createNdk()
-    const subscribe = createRuntimeSubscribe(ndk as never)
+    const {nostr, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(nostr as never)
     const onEvent = vi.fn()
     const event = {id: "same-event"}
 
@@ -112,8 +112,8 @@ describe("createRuntimeSubscribe", () => {
   })
 
   it("bounds remembered event ids", () => {
-    const {ndk, calls} = createNdk()
-    const subscribe = createRuntimeSubscribe(ndk as never)
+    const {nostr, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(nostr as never)
     const onEvent = vi.fn()
 
     subscribe({kinds: [1060], authors: [ALICE]}, onEvent)
@@ -127,8 +127,8 @@ describe("createRuntimeSubscribe", () => {
   })
 
   it("backfills only authors that were not already tracked", () => {
-    const {ndk, calls} = createNdk()
-    const subscribe = createRuntimeSubscribe(ndk as never)
+    const {nostr, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(nostr as never)
 
     subscribe({kinds: [1060], authors: [ALICE, BOB]}, vi.fn())
     subscribe({kinds: [1060], authors: [BOB, CAROL]}, vi.fn())
@@ -147,8 +147,8 @@ describe("createRuntimeSubscribe", () => {
   })
 
   it("tracks author removal when a subscription is cleaned up", () => {
-    const {ndk, calls} = createNdk()
-    const subscribe = createRuntimeSubscribe(ndk as never)
+    const {nostr, calls} = createNdk()
+    const subscribe = createRuntimeSubscribe(nostr as never)
 
     const unsubscribe = subscribe({kinds: [1060], authors: [ALICE]}, vi.fn())
     unsubscribe()

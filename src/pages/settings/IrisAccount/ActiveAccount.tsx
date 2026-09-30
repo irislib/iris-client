@@ -1,5 +1,5 @@
 import AccountName from "./AccountName"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 
@@ -15,13 +15,13 @@ export default function ActiveAccount({
   myPub = "",
 }: ActiveAccountProps) {
   async function saveProfile(nip05: string) {
-    const user = ndk().getUser({pubkey: myPub})
+    const user = nostr().getUser({pubkey: myPub})
     user.profile = user.profile || {nip05}
     user.publish()
   }
 
   const onClick = async () => {
-    const profile = ndk().getUser({pubkey: myPub}).profile
+    const profile = nostr().getUser({pubkey: myPub}).profile
     const newNip = name + "@iris.to"
     const timeout = setTimeout(() => {
       saveProfile(newNip)

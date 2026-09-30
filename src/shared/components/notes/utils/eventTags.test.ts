@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 import {matchFilter} from "nostr-tools"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {buildEventTags, buildReplyTags} from "./eventTags"
 
 const ROOT_ID = "a".repeat(64)
@@ -8,8 +8,8 @@ const PARENT_ID = "b".repeat(64)
 const PARENT_AUTHOR = "c".repeat(64)
 const REPLIER = "d".repeat(64)
 
-function createReplyingEvent(tags: string[][]): NDKEvent {
-  return new NDKEvent(undefined, {
+function createReplyingEvent(tags: string[][]): AppEvent {
+  return new AppEvent(undefined, {
     id: PARENT_ID,
     kind: 1,
     pubkey: PARENT_AUTHOR,
@@ -60,7 +60,7 @@ describe("buildReplyTags", () => {
     ])
   })
 
-  it("preserves prebuilt reply tags when augmenting an ndk-created reply event", () => {
+  it("preserves prebuilt reply tags when augmenting an nostr-created reply event", () => {
     const initialReplyTags = [
       ["e", ROOT_ID, "", "root"],
       ["e", PARENT_ID, "", "reply"],

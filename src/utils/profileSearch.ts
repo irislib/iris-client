@@ -1,12 +1,12 @@
-import {NDKUserProfile} from "@/lib/ndk"
-import {getWorkerTransport} from "@/utils/ndk"
+import {UserProfile} from "@/lib/nostr"
+import {getWorkerTransport} from "@/utils/nostrClient"
 import type {SearchResult} from "@/utils/profileSearchData"
 
 export type {SearchResult} from "@/utils/profileSearchData"
 
 // Profile events are now handled directly in relay-worker when kind 0 events arrive
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function handleProfile(pubKey: string, profile: NDKUserProfile) {}
+export function handleProfile(pubKey: string, profile: UserProfile) {}
 
 export function search(
   query: string,

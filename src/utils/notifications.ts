@@ -3,7 +3,7 @@ import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
-import {NDKTag, NDKEvent} from "@/lib/ndk"
+import {EventTag, AppEvent} from "@/lib/nostr"
 import debounce from "lodash/debounce"
 import {base64} from "@scure/base"
 import IrisAPI, {NotificationSubscription, PushNotifications} from "./IrisAPI"
@@ -31,7 +31,7 @@ interface ReactedTime {
 }
 
 export interface NotificationEvent {
-  event: NDKEvent
+  event: AppEvent
   user: string // pubkey of the user (author or zapper)
   time: number
   content?: string
@@ -45,7 +45,7 @@ export interface Notification {
   kind: number
   time: number
   content: string
-  tags?: NDKTag[]
+  tags?: EventTag[]
 }
 
 export const notifications = new SortedMap<string, Notification>([], "time")

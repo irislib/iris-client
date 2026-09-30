@@ -1,22 +1,22 @@
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {shouldHideUser} from "@/utils/visibility"
 import {useSocialGraph} from "@/utils/socialGraph"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useEffect, useMemo, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_REPOST} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {isVisibleGroupActivity} from "@/groups/activity"
 import {useGroupActivity} from "@/groups/useGroupActivity"
 
-export default function Reposts({event}: {event: NDKEvent}) {
+export default function Reposts({event}: {event: AppEvent}) {
   const group = useGroupAccess()
   const memberReposts = useGroupActivity(
     [{kinds: [KIND_REPOST, 16], "#e": [event.id]}],
     1
   )
   const socialGraph = useSocialGraph()
-  const [reactions, setReactions] = useState<Map<string, NDKEvent>>(new Map())
+  const [reactions, setReactions] = useState<Map<string, AppEvent>>(new Map())
 
   useEffect(() => {
     try {
@@ -26,9 +26,9 @@ export default function Reposts({event}: {event: NDKEvent}) {
         kinds: [KIND_REPOST, 16],
         ["#e"]: [event.id],
       }
-      const sub = ndk().subscribe(filter)
+      const sub = nostr().subscribe(filter)
 
-      sub?.on("event", (event: NDKEvent) => {
+      sub?.on("event", (event: AppEvent) => {
         if (shouldHideUser(event.pubkey)) return
         setReactions((prev) => {
           const existing = prev.get(event.pubkey)

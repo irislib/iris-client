@@ -1,6 +1,6 @@
 import {useMemo, useState} from "react"
-import {NDKEvent, type NDKFilter} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {AppEvent, type EventFilter} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {getEventGroup} from "./activity"
 import {groupAddress} from "./model"
@@ -14,7 +14,7 @@ export function useGroupFeed(
   viewer: string,
   scope: GroupFeedScope,
   pollsOnly: boolean,
-  published: NDKEvent[]
+  published: AppEvent[]
 ) {
   const [historyLimit, setHistoryLimit] = useState(40)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -30,7 +30,7 @@ export function useGroupFeed(
     [access.membership, viewer, scope]
   )
   const selectedAuthors = authors.slice(0, 512)
-  const filter: NDKFilter = {
+  const filter: EventFilter = {
     kinds: pollsOnly ? [1068] : [1, 1068],
     "#h": [access.ref.id],
     "#a": [address],
@@ -54,7 +54,7 @@ export function useGroupFeed(
     const allowed = new Set(selectedAuthors)
     const candidates = [
       ...published,
-      ...result.events.map((event) => new NDKEvent(ndk(), event)),
+      ...result.events.map((event) => new AppEvent(nostr(), event)),
     ]
     const seen = new Set<string>()
     return candidates.filter((event) => {

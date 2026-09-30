@@ -1,6 +1,6 @@
 import {useEffect, Dispatch} from "react"
 import {useDraftStore} from "@/stores/draft"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
 import {NoteCreatorState, NoteCreatorAction} from "./useNoteCreatorState"
 
@@ -30,7 +30,7 @@ export function useNoteDraft(
   draftKey: string,
   state: NoteCreatorState,
   dispatch: Dispatch<NoteCreatorAction>,
-  quotedEvent?: NDKEvent
+  quotedEvent?: AppEvent
 ) {
   const draftStore = useDraftStore()
   const hasHydrated = draftStore.hasHydrated

@@ -1,21 +1,21 @@
 import {useEffect, useCallback, MouseEvent, useState, memo} from "react"
 import ErrorBoundary from "../ui/ErrorBoundary"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import RelativeTime from "./RelativeTime"
 import {useNavigate} from "@/navigation"
 import {UserRow} from "../user/UserRow"
 import {RawEvent} from "@/utils/nostr"
 import HyperText from "../HyperText"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 interface EventBorderlessProps {
-  event?: RawEvent | NDKEvent
+  event?: RawEvent | AppEvent
   eventId?: string
   contentOnly?: boolean
 }
 
-function isRawEvent(event: RawEvent | NDKEvent): event is RawEvent {
+function isRawEvent(event: RawEvent | AppEvent): event is RawEvent {
   return (event as RawEvent).kind !== undefined
 }
 
@@ -41,7 +41,7 @@ function EventBorderless({
   useEffect(() => {
     if (event || !eventId) return
 
-    ndk()
+    nostr()
       .fetchEvent(eventId)
       .then((e) => {
         if (e) setEvent(e)

@@ -1,11 +1,11 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {memo} from "react"
 import Carousel from "../embed/media/Carousel"
 import HyperText from "../HyperText"
 import {extractImetaImages} from "@/shared/utils/imetaUtils"
 
 interface PictureFirstProps {
-  event: NDKEvent
+  event: AppEvent
   truncate?: number
   standalone?: boolean
 }

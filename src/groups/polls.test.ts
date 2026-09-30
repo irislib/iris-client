@@ -464,9 +464,9 @@ describe("bounded snapshot provenance", () => {
         ?.memberSnapshotLimited
     ).toBe(true)
   })
-  it("measures only signed draft fields even when callers hold cyclic NDK state", () => {
+  it("measures only signed draft fields even when callers hold cyclic NostrClient state", () => {
     const event = pollEvent(buildPollElectorateTags(electorate()))
-    Object.assign(event, {ndk: {event}})
+    Object.assign(event, {nostr: {event}})
     expect(() => assertPollSize(event)).not.toThrow()
     expect(parsePoll(event)).not.toBeNull()
   })

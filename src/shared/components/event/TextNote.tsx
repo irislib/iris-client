@@ -1,10 +1,10 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 import HyperText from "@/shared/components/HyperText.tsx"
 import ErrorBoundary from "../ui/ErrorBoundary"
 
 type TextNoteProps = {
-  event: NDKEvent
+  event: AppEvent
   truncate?: number
 }
 

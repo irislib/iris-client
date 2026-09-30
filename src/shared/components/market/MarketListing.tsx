@@ -1,6 +1,6 @@
 import {extractMarketData} from "@/shared/utils/marketUtils"
 import ErrorBoundary from "../ui/ErrorBoundary"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import MarketDetails from "./MarketDetails"
 import MarketImage from "./MarketImage"
 import HyperText from "../HyperText"
@@ -8,7 +8,7 @@ import {CategoryLabel} from "./CategoryLabel"
 import {useNavigate} from "@/navigation"
 
 type MarketListingProps = {
-  event: NDKEvent
+  event: AppEvent
   truncate?: number
   isTruncated?: boolean
 }
@@ -20,7 +20,7 @@ function CategoryTags({
   event,
   showCategories,
 }: {
-  event: NDKEvent
+  event: AppEvent
   showCategories: boolean
 }) {
   const navigate = useNavigate()
@@ -51,7 +51,7 @@ function CategoryTags({
 /**
  * Component for truncated market listings
  */
-function TruncatedMarketListing({event}: {event: NDKEvent}) {
+function TruncatedMarketListing({event}: {event: AppEvent}) {
   const {title, price, imageUrl, summary} = extractMarketData(event)
 
   return (
@@ -79,7 +79,7 @@ function FullMarketListing({
   event,
   isStandalone,
 }: {
-  event: NDKEvent
+  event: AppEvent
   isStandalone: boolean
 }) {
   const {title, price, imageUrl, content, tags} = extractMarketData(event)

@@ -1,8 +1,8 @@
 import {memo, useState, useEffect} from "react"
 import EventBorderless from "@/shared/components/event/EventBorderless"
 import {KIND_LONG_FORM_CONTENT} from "@/utils/constants"
-import {NDKEvent} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {AppEvent} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 interface AuthorArticlesFeedProps {
@@ -18,20 +18,20 @@ const AuthorArticlesFeed = memo(function AuthorArticlesFeed({
   maxItems = 5,
   visibilitySnapshot,
 }: AuthorArticlesFeedProps) {
-  const [events, setEvents] = useState<NDKEvent[]>([])
+  const [events, setEvents] = useState<AppEvent[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
     setEvents([])
 
-    const subscription = ndk().subscribe({
+    const subscription = nostr().subscribe({
       kinds: [KIND_LONG_FORM_CONTENT],
       authors: [authorPubkey],
       limit: maxItems + 1, // Get extra in case current article is included
     })
 
-    subscription.on("event", (event: NDKEvent) => {
+    subscription.on("event", (event: AppEvent) => {
       if (visibilitySnapshot?.shouldHideAlgorithmicEvent(event)) return
 
       setEvents((prev) => {

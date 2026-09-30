@@ -1,6 +1,6 @@
 import {DebugSession} from "@/debug/DebugSession"
 import {useSettingsStore} from "@/stores/settings"
-import {ndk} from "./ndk"
+import {nostr} from "@/utils/nostrClient"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {getShareableAppOrigin} from "@/utils/utils"
@@ -79,8 +79,8 @@ class DebugManager {
           }
         }
 
-        // Get NDK subscription manager info
-        const ndkInstance = ndk()
+        // Get NostrClient subscription manager info
+        const ndkInstance = nostr()
         const subManager = ndkInstance.subManager
 
         // Prepare compact subscription data for debug session
@@ -101,7 +101,7 @@ class DebugManager {
             return compactFilter
           })
 
-          subscriptionsData[id] = {
+          subscriptionsData[String(id)] = {
             filters: compactFilters,
             relays: Array.from(subscription.relayFilters?.keys() || []),
           }

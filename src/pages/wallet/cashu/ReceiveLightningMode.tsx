@@ -7,7 +7,7 @@ import {RiFileCopyLine, RiCheckLine} from "@remixicon/react"
 import CopyButton from "@/shared/components/button/CopyButton"
 import {decode} from "light-bolt11-decoder"
 import {useQRCode} from "../hooks/useQRCode"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 
@@ -94,7 +94,7 @@ export default function ReceiveLightningMode({
 
         if (!hasMint) {
           // Try to get default mint from npub.cash
-          const signer = ndk().signer
+          const signer = nostr().signer
           if (signer) {
             const info = await getNPubCashInfo(signer)
             if (info?.mintUrl) {

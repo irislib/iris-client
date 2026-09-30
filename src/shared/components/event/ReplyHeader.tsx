@@ -1,7 +1,7 @@
 import {RiReplyLine} from "@remixicon/react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {Name} from "@/shared/components/user/Name"
 
 interface ReplyHeaderProps {
@@ -9,13 +9,13 @@ interface ReplyHeaderProps {
 }
 
 function ReplyHeader({repliedToEventId}: ReplyHeaderProps) {
-  const [repliedToEvent, setRepliedToEvent] = useState<NDKEvent | null>(null)
+  const [repliedToEvent, setRepliedToEvent] = useState<AppEvent | null>(null)
 
   useEffect(() => {
     if (!repliedToEventId) return
 
-    // Use NDK's built-in cache via fetchEvent
-    ndk()
+    // Use NostrClient's built-in cache via fetchEvent
+    nostr()
       .fetchEvent(repliedToEventId)
       .then((event) => {
         if (event) setRepliedToEvent(event)

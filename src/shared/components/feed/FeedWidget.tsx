@@ -5,10 +5,10 @@ import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import MediaFeed from "./MediaFeed"
 import {DisplayAsSelector} from "./DisplayAsSelector"
 import ZapAllButton from "./ZapAllButton"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 
 interface FeedWidgetProps {
-  events: NDKEvent[]
+  events: AppEvent[]
   loading: boolean
   loadMore?: () => void
   loadMoreKey?: string

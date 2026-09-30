@@ -1,10 +1,10 @@
 import {lazy, Suspense} from "react"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import "leaflet/dist/leaflet.css"
 
 interface GeohashMapProps {
   geohashes?: string[]
-  feedEvents?: NDKEvent[]
+  feedEvents?: AppEvent[]
   onGeohashSelect?: (geohash: string) => void
   height?: string
   className?: string

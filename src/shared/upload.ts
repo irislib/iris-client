@@ -3,9 +3,9 @@ import {
   calculateVideoMetadata,
 } from "@/shared/components/embed/media/mediaUtils"
 import type {EncryptionMeta} from "@/types/global"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_HTTP_AUTH} from "@/utils/constants"
 import {uploadToBlossom} from "./upload/blossom"
 import type {MediaServer} from "./upload/types"
@@ -31,7 +31,7 @@ async function uploadToNip96(
 
   // Create a NIP-98 event for authentication
   const currentTime = Math.floor(Date.now() / 1000)
-  const event = new NDKEvent(ndk(), {
+  const event = new AppEvent(nostr(), {
     kind: KIND_HTTP_AUTH, // NIP-98 HTTP authentication
     tags: [
       ["u", url],

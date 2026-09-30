@@ -1,5 +1,5 @@
 import {createContext, useContext, useMemo, type ReactNode} from "react"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import {Link} from "@/navigation"
 import {groupAddress, type GroupRef} from "./model"
 import {groupPath, useGroup, type GroupAccess} from "./useGroup"
@@ -53,7 +53,7 @@ export function GroupEventScope({
   event,
   children,
 }: {
-  event?: NDKEvent
+  event?: AppEvent
   children: ReactNode
 }) {
   const parent = useGroupAccess()

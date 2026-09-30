@@ -126,7 +126,7 @@ function CashuTokenComponent({match, event}: EmbedComponentProps) {
         // We sent this token originally, now redeeming it ourselves
         senderPubkey = myPubKey
       } else if (event?.pubkey) {
-        // Normal receive from someone else (NDKEvent with pubkey)
+        // Normal receive from someone else (AppEvent with pubkey)
         senderPubkey = event.pubkey
       } else {
         // Rumor (encrypted DM) - pubkey not directly available

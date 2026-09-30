@@ -54,15 +54,15 @@ vi.mock("@/stores/ui", () => ({
   },
 }))
 
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => mocks.ndkInstance,
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => mocks.ndkInstance,
 }))
 
-vi.mock("@/lib/ndk", () => ({
-  NDKPrivateKeySigner: class {
+vi.mock("@/lib/nostr", () => ({
+  SecretKeySigner: class {
     constructor(public readonly privateKey: string) {}
   },
-  NDKEvent: class {
+  AppEvent: class {
     kind = 0
     content = ""
     publish = vi.fn()

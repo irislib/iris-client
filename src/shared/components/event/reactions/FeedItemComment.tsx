@@ -1,7 +1,7 @@
-import {NDKEvent, NDKFilter} from "@/lib/ndk"
+import {AppEvent, EventFilter} from "@/lib/nostr"
 import {shouldHideEvent} from "@/utils/visibility"
 import {useEffect, useMemo, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
@@ -20,11 +20,11 @@ import {
 } from "@/utils/threadReferences"
 
 interface FeedItemCommentProps {
-  event: NDKEvent
+  event: AppEvent
   showReactionCounts?: boolean
 }
 
-const repliesByEventCache = new LRUCache<string, Map<string, NDKEvent>>({maxSize: 100})
+const repliesByEventCache = new LRUCache<string, Map<string, AppEvent>>({maxSize: 100})
 
 function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProps) {
   const group = useGroupAccess()
@@ -36,7 +36,7 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
     32,
     showReactionCounts
   )
-  const [replies, setReplies] = useState<Map<string, NDKEvent>>(
+  const [replies, setReplies] = useState<Map<string, AppEvent>>(
     () => repliesByEventCache.get(threadReference) || new Map()
   )
   const replyCount = useMemo(
@@ -71,14 +71,14 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
     if (!showReactionCounts || group) return
 
     setReplies(repliesByEventCache.get(threadReference) || new Map())
-    const filters: NDKFilter[] = buildReplySubscriptionFilters(event)
+    const filters: EventFilter[] = buildReplySubscriptionFilters(event)
 
     try {
       // Group activity stays live; ordinary feeds close at EOSE to bound subscriptions.
-      const subs = filters.map((filter) => ndk().subscribe(filter, {closeOnEose: !group}))
+      const subs = filters.map((filter) => nostr().subscribe(filter, {closeOnEose: !group}))
 
       subs.forEach((sub) =>
-        sub?.on("event", (e: NDKEvent) => {
+        sub?.on("event", (e: AppEvent) => {
           if (shouldHideEvent(e)) return
           if (
             getEventRootReference(e) !== threadReference &&

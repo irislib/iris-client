@@ -9,10 +9,10 @@ import PublicChatHeader from "./PublicChatHeader"
 import {useEffect, useState, useRef} from "react"
 import MessageForm from "../message/MessageForm"
 import {MessageType} from "../message/Message"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {Helmet} from "react-helmet"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import debounce from "lodash/debounce"
 
 let publicKey = useUserStore.getState().publicKey
@@ -94,7 +94,7 @@ const PublicChat = () => {
     if (!/^[0-9a-f]{64}$/i.test(id)) return
 
     // Set up subscription for channel messages
-    const sub = ndk().subscribe({
+    const sub = nostr().subscribe({
       kinds: [KIND_CHANNEL_MESSAGE],
       "#e": [id],
     })
@@ -151,7 +151,7 @@ const PublicChat = () => {
       }
 
       // Create channel message event (kind 42)
-      const event = new NDKEvent(ndk())
+      const event = new AppEvent(nostr())
       event.kind = KIND_CHANNEL_MESSAGE
       event.content = content
 
@@ -201,7 +201,7 @@ const PublicChat = () => {
 
     try {
       // Create reaction event (kind 7)
-      const event = new NDKEvent(ndk())
+      const event = new AppEvent(nostr())
       event.kind = KIND_REACTION
       event.content = emoji
 

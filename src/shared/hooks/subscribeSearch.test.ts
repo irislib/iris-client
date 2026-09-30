@@ -1,5 +1,5 @@
 import {afterEach, expect, it, vi} from "vitest"
-import NDK, {NDKEvent, NDKRelay, NDKSubscription} from "@/lib/ndk"
+import NostrClient, {AppEvent, Relay, EventSubscription} from "@/lib/nostr"
 import {subscribeSearch} from "./subscribeSearch"
 
 afterEach(() => {
@@ -9,22 +9,22 @@ afterEach(() => {
 
 it("uses the most selective word index without waiting for unrelated fallbacks", async () => {
   vi.useFakeTimers()
-  const ndk = new NDK()
-  const relay = new NDKRelay("wss://search.example", undefined, ndk)
+  const nostr = new NostrClient()
+  const relay = new Relay("wss://search.example", undefined, nostr)
   const onProgress = vi.fn()
   const boundaries = new Map([
     ["iris", 100],
     ["marketplace", 900],
     ["iris marketplace", 10],
   ])
-  ndk.transportPlugins.push({
+  nostr.transportPlugins.push({
     name: "worker-transport",
     onSubscribe(subscription, filters) {
       const term = filters[0].search
       if (!term) return // A slow ordinary relay must not hold back text results.
       const timer = setTimeout(() => {
         subscription.eventReceived(
-          new NDKEvent(ndk, {
+          new AppEvent(nostr, {
             id: term,
             pubkey: "a".repeat(64),
             kind: 1,
@@ -40,7 +40,7 @@ it("uses the most selective word index without waiting for unrelated fallbacks",
     },
   })
   const search = subscribeSearch(
-    ndk,
+    nostr,
     [undefined, "iris marketplace", "iris", "marketplace"].map((search) => ({
       kinds: [1],
       search,
@@ -63,16 +63,13 @@ it("uses the most selective word index without waiting for unrelated fallbacks",
 
 it("waits for indexed results instead of ordinary relay completion", async () => {
   vi.useFakeTimers()
-  const ndk = new NDK()
-  // An ordinary relay without search support completes before the index.
-  const ordinaryStart = vi
-    .spyOn(NDKSubscription.prototype, "start")
-    .mockImplementation(function (this: NDKSubscription) {
-      this.emit("eose", this)
-      return []
-    })
-  const relay = new NDKRelay("wss://search.example", undefined, ndk)
-  const event = new NDKEvent(ndk, {
+  const nostr = new NostrClient()
+  // Search must stay in the worker and never create a second relay runtime.
+  const ordinaryStart = vi.spyOn(nostr, "getRuntime").mockImplementation(() => {
+    throw new Error("Unexpected main-thread relay runtime")
+  })
+  const relay = new Relay("wss://search.example", undefined, nostr)
+  const event = new AppEvent(nostr, {
     id: "matching-note",
     pubkey: "a".repeat(64),
     kind: 1,
@@ -80,7 +77,7 @@ it("waits for indexed results instead of ordinary relay completion", async () =>
     content: "marketplace for iris",
     tags: [],
   })
-  ndk.transportPlugins.push({
+  nostr.transportPlugins.push({
     name: "worker-transport",
     onSubscribe(subscription) {
       const timer = setTimeout(() => {
@@ -93,7 +90,7 @@ it("waits for indexed results instead of ordinary relay completion", async () =>
   const onEvent = vi.fn()
   const onProgress = vi.fn()
   const search = subscribeSearch(
-    ndk,
+    nostr,
     [{kinds: [1], search: "iris marketplace", until: 1000}],
     onEvent,
     () => false,
@@ -114,12 +111,12 @@ it.each([false, true])(
   "retries an interrupted index page (partial: %s)",
   async (partial) => {
     vi.useFakeTimers()
-    const ndk = new NDK()
-    const relay = new NDKRelay("wss://search.example", undefined, ndk)
+    const nostr = new NostrClient()
+    const relay = new Relay("wss://search.example", undefined, nostr)
     const textRequests: number[] = []
     const onProgress = vi.fn()
     const onEvent = vi.fn()
-    ndk.transportPlugins.push({
+    nostr.transportPlugins.push({
       name: "worker-transport",
       onSubscribe(subscription, filters) {
         const filter = filters[0]
@@ -129,7 +126,7 @@ it.each([false, true])(
           if (partial) {
             setTimeout(() => {
               subscription.eventReceived(
-                new NDKEvent(ndk, {
+                new AppEvent(nostr, {
                   id: "partial-match",
                   pubkey: "c".repeat(64),
                   kind: 1,
@@ -144,7 +141,7 @@ it.each([false, true])(
           return
         }
         const timer = setTimeout(() => {
-          const event = new NDKEvent(ndk, {
+          const event = new AppEvent(nostr, {
             id: filter.search ? "recent-match" : "old-tag-match",
             pubkey: (filter.search ? "a" : "b").repeat(64),
             kind: 1,
@@ -159,7 +156,7 @@ it.each([false, true])(
       },
     })
     const search = subscribeSearch(
-      ndk,
+      nostr,
       [
         {kinds: [1], search: "iris", until: 1000},
         {kinds: [1], "#t": ["iris"], until: 1000},

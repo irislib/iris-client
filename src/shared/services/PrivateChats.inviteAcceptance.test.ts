@@ -163,8 +163,8 @@ vi.mock("@/stores/privateMessages", () => ({
   },
 }))
 
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => mocks.ndkInstance,
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => mocks.ndkInstance,
 }))
 
 vi.mock("@/utils/dmEventHandler", () => ({
@@ -177,7 +177,7 @@ vi.mock("@/utils/groupMessageHandler", () => ({
   cleanupGroupMessageListener: vi.fn(),
 }))
 
-vi.mock("@/lib/ndk", () => {
+vi.mock("@/lib/nostr", () => {
   class MockNDKEvent {
     id = "mock-event-id"
     created_at = Math.floor(Date.now() / 1000)
@@ -193,8 +193,8 @@ vi.mock("@/lib/ndk", () => {
 
   return {
     default: MockNDK,
-    NDKEvent: MockNDKEvent,
-    NDKSubscriptionCacheUsage: {
+    AppEvent: MockNDKEvent,
+    CacheMode: {
       PARALLEL: "PARALLEL",
       ONLY_RELAY: "ONLY_RELAY",
     },

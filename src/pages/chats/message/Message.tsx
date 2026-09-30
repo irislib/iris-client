@@ -11,7 +11,7 @@ import ReplyPreview from "./ReplyPreview"
 import classNames from "classnames"
 import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_CHANNEL_CREATE, KIND_CHAT_SETTINGS, KIND_REACTION} from "@/utils/constants"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {isOnlyEmoji} from "@/utils/textFormatting"
@@ -116,7 +116,7 @@ const Message = ({
       "#e": [message.id],
     }
 
-    const sub = ndk().subscribe(filter)
+    const sub = nostr().subscribe(filter)
 
     sub.on("event", (reactionEvent) => {
       if (!reactionEvent || !reactionEvent.id) return

@@ -6,8 +6,8 @@ import {
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useEffect, useState, useMemo} from "react"
 import {NostrEvent} from "nostr-social-graph"
-import {NDKEvent, NDKSubscription} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {AppEvent, EventSubscription} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 
 const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
   const socialGraph = useSocialGraph()
@@ -30,18 +30,18 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
     if (!pubKeyHex) return
 
     let cancelled = false
-    let subscription: NDKSubscription | null = null
+    let subscription: EventSubscription | null = null
     let latestTimestamp = 0
 
     const subscribe = async () => {
       await socialGraphLoaded
       if (cancelled) return
 
-      subscription = ndk().subscribe(
+      subscription = nostr().subscribe(
         {kinds: [3], authors: [pubKeyHex]},
         {
-          onEvent: (event: NDKEvent) => {
-            event.ndk = ndk()
+          onEvent: (event: AppEvent) => {
+            event.nostr = nostr()
             if (event.created_at && event.created_at > latestTimestamp) {
               latestTimestamp = event.created_at
               handleSocialGraphEvent(event as NostrEvent)

@@ -1,11 +1,11 @@
 import {describe, expect, it, vi} from "vitest"
-import NDK, {NDKEvent, NDKPrivateKeySigner} from "../lib/ndk"
+import NostrClient, {AppEvent, SecretKeySigner} from "@/lib/nostr"
 import {verifyRelayEvent} from "./relay-signature-verifier"
 
 async function createSignedEvent() {
-  const ndk = new NDK()
-  ndk.signer = NDKPrivateKeySigner.generate()
-  const event = new NDKEvent(ndk)
+  const nostr = new NostrClient()
+  nostr.signer = SecretKeySigner.generate()
+  const event = new AppEvent(nostr)
   event.kind = 1
   event.content = "valid"
   await event.sign()
@@ -13,13 +13,11 @@ async function createSignedEvent() {
 }
 
 describe("verifyRelayEvent", () => {
-  it("verifies directly in JavaScript without calling NDK's configured verifier", async () => {
+  it("verifies app and plain events directly in JavaScript", async () => {
     const event = await createSignedEvent()
-    const configuredVerifier = vi.fn()
-    event.ndk!.signatureVerificationFunction = configuredVerifier
 
     expect(verifyRelayEvent(event, null)).toBe(true)
-    expect(configuredVerifier).not.toHaveBeenCalled()
+    expect(verifyRelayEvent(event.rawEvent(), null)).toBe(true)
 
     event.content = "tampered"
     expect(verifyRelayEvent(event, null)).toBe(false)

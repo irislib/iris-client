@@ -1,7 +1,7 @@
 import {ChangeEvent, Dispatch, SetStateAction} from "react"
-import {LnPayCb, NDKEvent, zapInvoiceFromEvent, NDKUserProfile} from "@/lib/ndk"
+import {LnPayCb, AppEvent, zapInvoiceFromEvent, UserProfile} from "@/lib/nostr"
 import {savePaymentMetadata} from "@/stores/paymentMetadata"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {getZapAmount} from "@/utils/nostr"
 import {KIND_ZAP_RECEIPT, DEBUG_NAMESPACES} from "@/utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -42,8 +42,8 @@ interface UseZapModalHandlersParams {
   zapRefresh: boolean
 
   // Props
-  event: NDKEvent
-  profile: NDKUserProfile | null
+  event: AppEvent
+  profile: UserProfile | null
   onClose: () => void
 }
 
@@ -158,7 +158,7 @@ export function useZapModalHandlers(params: UseZapModalHandlersParams) {
                       params.zapDonationMinAmount
                     )
 
-                    const ndkInstance = ndk()
+                    const ndkInstance = nostr()
                     const signer = ndkInstance.signer
                     if (signer) {
                       await sendDonationZaps(
@@ -195,7 +195,7 @@ export function useZapModalHandlers(params: UseZapModalHandlersParams) {
           }, 100)
         }
 
-        // Always return undefined to let NDK know we're handling payment via QR
+        // Always return undefined to let NostrClient know we're handling payment via QR
         return undefined
       }
 
@@ -208,7 +208,7 @@ export function useZapModalHandlers(params: UseZapModalHandlersParams) {
 
       // Create zap invoice manually
       const {createZapInvoice} = await import("@/utils/nostr")
-      const ndkInstance = ndk()
+      const ndkInstance = nostr()
       const signer = ndkInstance.signer
       if (!signer) {
         throw new Error("No signer available")
@@ -252,9 +252,9 @@ export function useZapModalHandlers(params: UseZapModalHandlersParams) {
       ["#e"]: [params.event.id],
     }
     try {
-      const sub = ndk().subscribe(filter)
+      const sub = nostr().subscribe(filter)
 
-      sub?.on("event", async (zapEvent: NDKEvent) => {
+      sub?.on("event", async (zapEvent: AppEvent) => {
         sub.stop()
         const receiptInvoice = zapEvent.tagValue("bolt11")
         if (receiptInvoice) {

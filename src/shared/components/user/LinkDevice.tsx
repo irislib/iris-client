@@ -6,7 +6,7 @@ import {
   buildLinkInviteUrl,
   listenForLinkInviteAcceptance,
 } from "@/shared/services/PrivateChats"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import Icon from "@/shared/components/Icons/Icon"
 import {getShareableAppOrigin} from "@/utils/utils"
 
@@ -52,7 +52,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
           invite,
           async (ownerPubkey) => {
             try {
-              ndk().signer = undefined
+              nostr().signer = undefined
               useUserStore.setState({
                 publicKey: ownerPubkey,
                 privateKey: "",

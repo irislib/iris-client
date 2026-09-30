@@ -1,8 +1,8 @@
-import {calculateRelaySetFromEvent, type NDKEvent, type NDKRelaySet} from "./ndk"
+import {calculateRelaySetFromEvent, type AppEvent, type RelaySet} from "@/lib/nostr"
 
 /** Publish signed state without an optimistic cache entry or subscription echo. */
-export async function publishConfirmedEvent(event: NDKEvent, supplied?: NDKRelaySet) {
-  const instance = event.ndk
+export async function publishConfirmedEvent(event: AppEvent, supplied?: RelaySet) {
+  const instance = event.nostr
   if (!instance || !event.sig) throw new Error("A signed event is required.")
   const relays =
     supplied ??

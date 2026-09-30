@@ -1,6 +1,6 @@
 import {GroupEventScope} from "@/groups/GroupContext"
 import {useEffect, useMemo, useState, useRef, memo} from "react"
-import {NDKEvent, NDKSubscription} from "@/lib/ndk"
+import {AppEvent, EventSubscription} from "@/lib/nostr"
 import classNames from "classnames"
 
 import {isRepost, getZappingUser} from "@/utils/nostr.ts"
@@ -37,7 +37,7 @@ import {
 } from "@/utils/threadReferences"
 
 type FeedItemProps = {
-  event?: NDKEvent
+  event?: AppEvent
   eventId?: string
   authorHints?: string[]
   truncate?: number
@@ -48,7 +48,7 @@ type FeedItemProps = {
   asEmbed?: boolean
   asRepliedTo?: boolean
   asReply?: boolean
-  onEvent?: (event: NDKEvent) => void
+  onEvent?: (event: AppEvent) => void
   borderTop?: boolean
   highlightAsNew?: boolean
   showAuthorInZapReceipts?: boolean
@@ -74,7 +74,7 @@ function FeedItem({
   const [expanded, setExpanded] = useState(false)
   const [hasActualReplies, setHasActualReplies] = useState(false)
   const navigate = useNavigate()
-  const subscriptionRef = useRef<NDKSubscription | null>(null)
+  const subscriptionRef = useRef<EventSubscription | null>(null)
   const {content} = useSettingsStore()
   const myPubKey = usePublicKey()
 
@@ -119,10 +119,10 @@ function FeedItem({
     return getEventIdHex(initialEvent || eventId)
   }, [initialEvent, eventId])
 
-  const [event, setEvent] = useState<NDKEvent | undefined>(initialEvent)
+  const [event, setEvent] = useState<AppEvent | undefined>(initialEvent)
   const [loadingEvent, setLoadingEvent] = useState<boolean>(!initialEvent && !!eventId)
-  const [referredEvent, setReferredEvent] = useState<NDKEvent | undefined>()
-  const [optimisticReplies, setOptimisticReplies] = useState<NDKEvent[]>([])
+  const [referredEvent, setReferredEvent] = useState<AppEvent | undefined>()
+  const [optimisticReplies, setOptimisticReplies] = useState<AppEvent[]>([])
 
   const repliedToReference = useMemo(
     () => (event ? getEventReplyReference(event) : undefined),

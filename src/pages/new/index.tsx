@@ -1,13 +1,13 @@
 import Header from "@/shared/components/header/Header"
 import InlineNoteCreator from "@/shared/components/create/InlineNoteCreator"
 import {useNavigate} from "@/navigation"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
 
 function NewNote() {
   const navigate = useNavigate()
 
-  const handlePublish = (event: NDKEvent) => {
+  const handlePublish = (event: AppEvent) => {
     // Navigate to the newly created post
     if (event?.id) {
       const nevent = nip19.neventEncode({

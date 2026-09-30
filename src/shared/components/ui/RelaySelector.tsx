@@ -1,5 +1,5 @@
 import {useState} from "react"
-import {DEFAULT_RELAYS} from "@/utils/ndk"
+import {DEFAULT_RELAYS} from "@/utils/nostrClient"
 
 interface RelaySelectorProps {
   selectedRelay?: string

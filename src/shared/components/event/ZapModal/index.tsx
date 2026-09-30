@@ -1,5 +1,5 @@
 import {Dispatch, FormEvent, SetStateAction} from "react"
-import {NDKEvent, NDKUserProfile} from "@/lib/ndk"
+import {AppEvent, UserProfile} from "@/lib/nostr"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {useZapModalState} from "./useZapModalState"
 import {useZapModalHandlers} from "./useZapModalHandlers"
@@ -13,8 +13,8 @@ import {ZAP_AMOUNTS} from "./constants"
 
 interface ZapModalProps {
   onClose: () => void
-  event: NDKEvent
-  profile: NDKUserProfile | null
+  event: AppEvent
+  profile: UserProfile | null
   setZapped: Dispatch<SetStateAction<boolean>>
   initialInvoice?: string
   initialAmount?: string

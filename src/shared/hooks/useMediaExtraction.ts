@@ -1,5 +1,5 @@
 import {useCallback, useRef} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {IMAGE_REGEX, VIDEO_REGEX} from "@/shared/components/embed/media/MediaEmbed"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {extractImetaImages} from "@/shared/utils/imetaUtils"
@@ -7,14 +7,14 @@ import {extractImetaImages} from "@/shared/utils/imetaUtils"
 export interface MediaItem {
   type: "image" | "video"
   url: string
-  event: NDKEvent
+  event: AppEvent
 }
 
 export function useMediaExtraction() {
   // Cache for parsed media from events to avoid re-parsing
   const mediaCache = useRef(new Map<string, MediaItem[]>())
 
-  const extractMediaFromEvent = useCallback((event: NDKEvent): MediaItem[] => {
+  const extractMediaFromEvent = useCallback((event: AppEvent): MediaItem[] => {
     // Check cache first
     if (mediaCache.current.has(event.id)) {
       return mediaCache.current.get(event.id)!
@@ -69,7 +69,7 @@ export function useMediaExtraction() {
   }, [])
 
   const calculateAllMedia = useCallback(
-    (events: NDKEvent[]): MediaItem[] => {
+    (events: AppEvent[]): MediaItem[] => {
       const deduplicated = new Map<string, MediaItem>()
 
       // Use cached extraction

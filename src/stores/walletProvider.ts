@@ -153,7 +153,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
         })
 
         try {
-          // No longer need NDK for NWC connection
+          // No longer need NostrClient for NWC connection
 
           // Parse the NWC connection string
           // Format: nostr+walletconnect://<pubkey>?relay=<relay>&secret=<secret>
@@ -246,7 +246,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
 
         // Clean up active wallet
         if (state.activeWallet) {
-          // NDK wallets don't need explicit disconnect
+          // NostrClient wallets don't need explicit disconnect
         }
 
         set({
@@ -546,7 +546,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
       },
 
       cleanup: () => {
-        // NDK cleanup is handled automatically
+        // NostrClient cleanup is handled automatically
       },
 
       // Wallet operations
@@ -571,7 +571,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
             (section: {name: string}) => section.name === "amount"
           )
           const invoiceAmountMsat =
-            amountSection && "value" in amountSection ? parseInt(amountSection.value) : 0
+            amountSection && "value" in amountSection ? parseInt(String(amountSection.value)) : 0
           const invoiceAmountSat = Math.ceil(invoiceAmountMsat / 1000)
 
           // Get available mints with balance
@@ -755,7 +755,7 @@ export const useWalletProviderStore = create<WalletProviderState>()(
             return null
           }
 
-          // NDK wallets don't have a direct getInfo method
+          // NostrClient wallets don't have a direct getInfo method
           return null
         } catch (err) {
           error("Failed to get wallet info:", err)

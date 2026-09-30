@@ -35,8 +35,8 @@ const ndkMocks = vi.hoisted(() => {
   }
 })
 
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({subscribe: ndkMocks.subscribe}),
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({subscribe: ndkMocks.subscribe}),
 }))
 
 vi.mock("@/stores/user", () => ({

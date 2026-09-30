@@ -1,10 +1,10 @@
 import {useRef, useState, type FormEvent} from "react"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import Modal from "@/shared/components/ui/Modal"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {ProfileLink} from "@/shared/components/user/ProfileLink"
 import {usePublicKey} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {groupAddress, verifyGroupElectorateEvidence, type GroupRef} from "../model"
 import {
   assertPollSize,
@@ -24,7 +24,7 @@ interface PollCreatorProps {
   snapshotLoading?: boolean
   snapshotError?: string
   onClose: () => void
-  onPublished: (event: NDKEvent) => void
+  onPublished: (event: AppEvent) => void
 }
 
 export default function PollCreator({
@@ -96,7 +96,7 @@ export default function PollCreator({
         throw new Error(
           verification.reason || "The voter snapshot could not be verified."
         )
-      const relays = pollRelayUrls(ndk().explicitRelayUrls)
+      const relays = pollRelayUrls(nostr().explicitRelayUrls)
       if (!relays.length) throw new Error("Connect to a relay before creating a poll.")
       const draft = {
         kind: KIND_POLL,

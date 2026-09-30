@@ -337,12 +337,12 @@ test("For You shows cached recommendations while other recommended posts are una
   // Keep it in the real hot cache without publishing it to the test relay.
   await page.evaluate(async (event) => {
     const cachePath = "/src/utils/eventCache.ts"
-    const ndkPath = "/src/lib/ndk/index.ts"
-    const [{cacheEvent}, {NDKEvent}] = await Promise.all([
+    const eventPath = "/src/lib/nostr/index.ts"
+    const [{cacheEvent}, {AppEvent}] = await Promise.all([
       import(cachePath),
-      import(ndkPath),
+      import(eventPath),
     ])
-    cacheEvent(new NDKEvent(undefined, event))
+    cacheEvent(new AppEvent(undefined, event))
   }, cachedPost)
   await publishEvents(
     [cachedPost.id, ...Array.from({length: 4}, () => createUser().publicKey)].map((id) =>
@@ -441,7 +441,7 @@ test("logged-in relay subscriptions survive page suspension and recover after wo
   // Use a stable app subscription: UI pagination can otherwise replace a feed
   // subscription during recovery and conceal the dropped-subscription bug.
   await page.evaluate(async (publicKey) => {
-    const modulePath = "/src/utils/ndk.ts"
+    const modulePath = "/src/utils/nostrClient.ts"
     const {ndk} = await import(modulePath)
     const target = window as typeof window & {recoveredEvents: string[]}
     target.recoveredEvents = []

@@ -1,12 +1,12 @@
 import {extractMarketData} from "@/shared/utils/marketUtils"
 import {RiImageLine} from "@remixicon/react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import ProxyImg from "../ProxyImg"
 import {Link} from "@/navigation"
 import {nip19} from "nostr-tools"
 
 type MarketGridItemProps = {
-  event: NDKEvent
+  event: AppEvent
   shouldBlur?: boolean
   width?: number
 }

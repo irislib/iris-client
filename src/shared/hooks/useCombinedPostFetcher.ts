@@ -1,5 +1,5 @@
 import {useState, useEffect, useRef, useCallback, useLayoutEffect} from "react"
-import {NDKEvent, NDKFilter} from "@/lib/ndk"
+import {AppEvent, EventFilter} from "@/lib/nostr"
 import {addSeenEventId} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
 import {useUserStore} from "@/stores/user"
@@ -8,7 +8,7 @@ import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 interface CombinedPostFetcherCache {
   scopeKey?: string
-  events?: NDKEvent[]
+  events?: AppEvent[]
   hasLoadedInitial?: boolean
 }
 
@@ -39,7 +39,7 @@ export default function useCombinedPostFetcher({
   popularRatio = 0.5,
   excludeOwnPosts = false,
 }: CombinedPostFetcherProps) {
-  const [events, setEvents] = useState<NDKEvent[]>([])
+  const [events, setEvents] = useState<AppEvent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
   const hasLoadedInitial = useRef(false)
   const myPubKey = useUserStore((state) => state.publicKey)
@@ -144,7 +144,7 @@ export default function useCombinedPostFetcher({
       if (allIds.length === 0) {
         return []
       }
-      const postFilter: NDKFilter = {
+      const postFilter: EventFilter = {
         ids: allIds,
       }
 

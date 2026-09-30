@@ -4,7 +4,7 @@ import Header from "@/shared/components/header/Header"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import {RelayStats} from "@/shared/components/RelayStats"
-import {NDKFilter} from "@/lib/ndk"
+import {EventFilter} from "@/lib/nostr"
 import Feed from "@/shared/components/feed/Feed.tsx"
 import {useParams, useNavigate} from "@/navigation"
 import Widget from "@/shared/components/ui/Widget"
@@ -66,7 +66,7 @@ function RelayPage() {
     ? storeSetShowEventsByUnknownUsers
     : setLocalShowEventsByUnknownUsers
 
-  const filters: NDKFilter = useMemo(
+  const filters: EventFilter = useMemo(
     () => ({
       kinds: [KIND_TEXT_NOTE],
       limit: 100,

@@ -24,8 +24,8 @@ const mocks = vi.hoisted(() => {
   }
 })
 
-vi.mock("./ndk", () => ({
-  ndk: () => ({subscribe: mocks.subscribe}),
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({subscribe: mocks.subscribe}),
 }))
 
 vi.mock("./eventCache", () => ({
@@ -36,7 +36,7 @@ vi.mock("./eventCache", () => ({
 
 import {fetchEventsReliable} from "./fetchEventsReliable"
 import {getEvent, getEventSync} from "./eventCache"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 
 describe("fetchEventsReliable", () => {
   beforeEach(() => {
@@ -53,7 +53,7 @@ describe("fetchEventsReliable", () => {
   it.each(["memory", "disk"])(
     "displays a partial %s cache hit without waiting for the missing post timeout",
     async (source) => {
-      const cached = {id: "cached"} as NDKEvent
+      const cached = {id: "cached"} as AppEvent
       if (source === "memory") {
         vi.mocked(getEventSync).mockImplementation((id) =>
           id === cached.id ? cached : null
@@ -68,7 +68,7 @@ describe("fetchEventsReliable", () => {
         {ids: [cached.id, "missing"]},
         {timeout: 4000, settleAfterMs: 300}
       )
-      let received: NDKEvent[] | undefined
+      let received: AppEvent[] | undefined
       void result.promise.then((events) => (received = events))
 
       await vi.advanceTimersByTimeAsync(300)

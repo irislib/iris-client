@@ -6,7 +6,7 @@ import {
   claimNPubCashTokens,
   extractMintFromToken,
 } from "@/lib/npubcash"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import type {EnrichedHistoryEntry} from "./useHistoryEnrichment"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -96,8 +96,8 @@ export function useWalletRefresh(
         const data = await refreshData()
 
         // Also check npub.cash
-        if (myPubKey && ndk().signer) {
-          const signer = ndk().signer
+        if (myPubKey && nostr().signer) {
+          const signer = nostr().signer
           if (signer) {
             const balance = await getNPubCashBalance(signer)
             if (balance > 0) {

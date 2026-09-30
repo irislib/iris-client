@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
-import {NDKFilter} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {EventFilter} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_REACTION, KIND_REPOST, DEBUG_NAMESPACES} from "@/utils/constants"
 import {getTag} from "@/utils/nostr"
 import {PopularityFilters} from "./usePopularityFilters"
@@ -92,7 +92,7 @@ export default function useReactionSubscription(
 
     const now = Math.floor(Date.now() / 1000)
 
-    const reactionFilter: NDKFilter = {
+    const reactionFilter: EventFilter = {
       kinds: [KIND_REACTION, KIND_REPOST],
       since,
       until: oldestEventAt.current || now,
@@ -100,7 +100,7 @@ export default function useReactionSubscription(
       limit,
     }
 
-    const sub = ndk().subscribe(reactionFilter)
+    const sub = nostr().subscribe(reactionFilter)
 
     let signalCount = 0
     sub.on("event", (event) => {

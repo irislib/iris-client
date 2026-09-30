@@ -83,9 +83,14 @@
     "@cashu/cashu-ts": "^3.7.1",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.42/fips-core-0.0.42.tgz",
+    "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.29/fips-transport-webrtc-0.0.45.tgz",
     "@gandlaf21/bc-ur": "^1.1.12",
-    "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz",
-    "@hashtree/index": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz",
+    "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-core-0.3.2.tgz",
+    "@hashtree/dexie": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-dexie-0.1.11.tgz",
+    "@hashtree/fips-transport": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-fips-transport-0.4.11.tgz",
+    "@hashtree/index": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-index-0.1.14.tgz",
+    "@hashtree/worker": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-worker-0.4.4.tgz",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@remixicon/react": "^4.9.0",
@@ -106,6 +111,7 @@
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.174/nostr-double-ratchet-0.0.174.tgz",
+    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.9/nostr-pubsub-0.5.9.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
@@ -161,11 +167,15 @@
     "workbox-routing": "^7.4.1",
     "workbox-strategies": "^7.4.1",
     "workbox-window": "^7.4.1",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.29/fips-transport-websocket-0.0.3.tgz"
   },
   "pnpm": {
     "patchedDependencies": {
       "nostr-social-graph": "patches/nostr-social-graph.patch"
+    },
+    "overrides": {
+      "dexie": "$dexie"
     }
   }
 }

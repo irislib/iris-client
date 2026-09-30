@@ -1,15 +1,15 @@
-import NDK, {NDKEvent, NDKFilter, NDKPrivateKeySigner} from "@/lib/ndk"
+import NostrClient, {AppEvent, EventFilter, SecretKeySigner} from "@/lib/nostr"
 import {generateSecretKey, getPublicKey, nip44} from "nostr-tools"
 import {bytesToHex, hexToBytes} from "@noble/hashes/utils.js"
 import {KIND_DEBUG_DATA} from "@/utils/constants"
 
 export class DebugSession {
-  private ndk: NDK
+  private nostr: NostrClient
   private privateKey: Uint8Array
   private privateKeyHex: string
   private publicKey: string
   private conversationKey: Uint8Array
-  private signer: NDKPrivateKeySigner
+  private signer: SecretKeySigner
 
   constructor(privateKey?: string) {
     // 1. Create nostr private key if not given
@@ -28,15 +28,15 @@ export class DebugSession {
     this.conversationKey = nip44.getConversationKey(this.privateKey, this.publicKey)
 
     // Create signer
-    this.signer = new NDKPrivateKeySigner(this.privateKeyHex)
+    this.signer = new SecretKeySigner(this.privateKeyHex)
 
-    // 2. Create NDK instance that connects to temp.iris.to
-    this.ndk = new NDK({
+    // 2. Create NostrClient instance that connects to temp.iris.to
+    this.nostr = new NostrClient({
       explicitRelayUrls: ["wss://temp.iris.to"],
       signer: this.signer,
     })
 
-    this.ndk.connect()
+    this.nostr.connect()
   }
 
   /**
@@ -47,7 +47,7 @@ export class DebugSession {
   async publish(k: string, v: unknown): Promise<void> {
     const content = nip44.encrypt(JSON.stringify(v), this.conversationKey)
 
-    const event = new NDKEvent(this.ndk)
+    const event = new AppEvent(this.nostr)
     event.kind = KIND_DEBUG_DATA
     event.content = content
     event.tags = [["d", k]]
@@ -60,14 +60,14 @@ export class DebugSession {
    * @param callback Function called when the key's value changes
    * @returns Unsubscribe function
    */
-  subscribe(k: string, callback: (v: unknown, event: NDKEvent) => void): () => void {
-    const filter: NDKFilter = {
+  subscribe(k: string, callback: (v: unknown, event: AppEvent) => void): () => void {
+    const filter: EventFilter = {
       kinds: [KIND_DEBUG_DATA],
       authors: [this.publicKey],
       "#d": [k],
     }
 
-    const subscription = this.ndk.subscribe(filter)
+    const subscription = this.nostr.subscribe(filter)
 
     subscription.on("event", (event) => {
       try {
@@ -102,7 +102,7 @@ export class DebugSession {
    * Check if connected to a specific relay
    */
   isConnectedToRelay(relayUrl: string): boolean {
-    const relay = this.ndk.pool.relays.get(relayUrl)
+    const relay = this.nostr.pool.relays.get(relayUrl)
     return relay?.connected || false
   }
 
@@ -111,7 +111,7 @@ export class DebugSession {
    */
   getRelayStatuses(): Record<string, boolean> {
     const statuses: Record<string, boolean> = {}
-    for (const [url, relay] of this.ndk.pool.relays) {
+    for (const [url, relay] of this.nostr.pool.relays) {
       statuses[url] = relay.connected
     }
     return statuses
@@ -121,7 +121,7 @@ export class DebugSession {
    * Close the debug session and disconnect from relays
    */
   close(): void {
-    // NDK doesn't have a direct close method, but we can disconnect
-    this.ndk.pool.relays.forEach((relay) => relay.disconnect())
+    // NostrClient doesn't have a direct close method, but we can disconnect
+    this.nostr.pool.relays.forEach((relay) => relay.disconnect())
   }
 }

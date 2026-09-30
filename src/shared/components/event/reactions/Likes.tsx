@@ -1,10 +1,10 @@
 import {UserRow} from "@/shared/components/user/UserRow.tsx"
 import {ReactionContent} from "./ReactionContent"
 import {useSocialGraph} from "@/utils/socialGraph"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useReactionsByAuthor} from "@/shared/hooks/useReactions"
 
-export default function Likes({event}: {event: NDKEvent}) {
+export default function Likes({event}: {event: AppEvent}) {
   const socialGraph = useSocialGraph()
   const reactions = useReactionsByAuthor(event.id)
 

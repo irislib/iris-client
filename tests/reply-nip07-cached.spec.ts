@@ -1,5 +1,12 @@
 import {test, expect, type Page} from "@playwright/test"
-import {nip19} from "nostr-tools"
+import {nip19, finalizeEvent, getPublicKey, type EventTemplate} from "nostr-tools"
+
+const signerKey = new Uint8Array(32).fill(17)
+test.beforeEach(async ({page}) => {
+  await page.exposeFunction("signTestEvent", (event: EventTemplate) =>
+    finalizeEvent(event, signerKey)
+  )
+})
 
 const seedCachedEvent = async (
   page: Page,
@@ -13,64 +20,32 @@ const seedCachedEvent = async (
   }
 ) => {
   await page.evaluate(async (cachedEvent) => {
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("treelike-nostr")
-
-      request.onupgradeneeded = () => {
-        const db = request.result
-        const createObjectStore = (
-          name: string,
-          options: {keyPath?: string | string[]; autoIncrement?: boolean},
-          indexes: Array<[string, string | string[]]> = []
-        ) => {
-          if (db.objectStoreNames.contains(name)) return
-          const store = db.createObjectStore(name, options)
-          indexes.forEach(([indexName, keyPath]) => store.createIndex(indexName, keyPath))
-        }
-
-        createObjectStore("profiles", {keyPath: "pubkey"})
-        createObjectStore("events", {keyPath: "id"}, [
-          ["kind", "kind"],
-          ["priority", "priority"],
-        ])
-        createObjectStore("eventTags", {keyPath: "tagValue"})
-        createObjectStore("nip05", {keyPath: "nip05"})
-        createObjectStore("lnurl", {keyPath: "pubkey"})
-        createObjectStore("relayStatus", {keyPath: "url"})
-        createObjectStore("unpublishedEvents", {keyPath: "id"})
-        createObjectStore("eventRelays", {keyPath: ["eventId", "relayUrl"]}, [
-          ["eventId", "eventId"],
-        ])
-        createObjectStore("decryptedEvents", {keyPath: "id"})
-        createObjectStore("cacheData", {keyPath: "key"}, [["cachedAt", "cachedAt"]])
-      }
-
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => {
-        const db = request.result
-        const tx = db.transaction("events", "readwrite")
-        tx.objectStore("events").put({
-          id: cachedEvent.id,
-          pubkey: cachedEvent.pubkey,
-          kind: cachedEvent.kind,
-          createdAt: cachedEvent.createdAt,
-          event: cachedEvent.serialized,
-          sig: cachedEvent.sig,
-          priority: 1,
-        })
-        tx.oncomplete = () => {
-          db.close()
-          resolve()
-        }
-        tx.onerror = () => reject(tx.error)
-      }
+    const {getMainThreadDb} = await import("/src/lib/nostr/db.ts")
+    const serialized = JSON.parse(cachedEvent.serialized)
+    const event = {
+      id: cachedEvent.id,
+      pubkey: cachedEvent.pubkey,
+      kind: cachedEvent.kind,
+      created_at: cachedEvent.createdAt,
+      tags: serialized[4],
+      content: serialized[5],
+      sig: cachedEvent.sig,
+    }
+    await getMainThreadDb().events.put({
+      id: event.id,
+      pubkey: event.pubkey,
+      kind: event.kind,
+      createdAt: event.created_at,
+      event: JSON.stringify(event),
+      sig: event.sig,
+      tagIndex: event.tags.map((tag: string[]) => `${tag[0]}:${tag[1]}`),
     })
   }, event)
 }
 
 test("NIP-07 login can reply to a cached post detail event", async ({page}) => {
   const consoleMessages: string[] = []
-  const myPubkey = "1".repeat(64)
+  const myPubkey = getPublicKey(signerKey)
   const rootAuthor = "2".repeat(64)
   const parentAuthor = "3".repeat(64)
   const rootId = "4".repeat(64)
@@ -95,7 +70,7 @@ test("NIP-07 login can reply to a cached post detail event", async ({page}) => {
 
     window.nostr = {
       getPublicKey: async () => pubkey,
-      signEvent: async (event) => ({...event, sig: "7".repeat(128)}),
+      signEvent: async (event) => (window as any).signTestEvent(event),
       getRelays: async () => ({}),
     }
   }, myPubkey)
@@ -145,7 +120,7 @@ test("NIP-07 login can reply to a cached post detail event", async ({page}) => {
 test("important NIP-07 reply failures keep the draft and show a toast", async ({
   page,
 }) => {
-  const myPubkey = "1".repeat(64)
+  const myPubkey = getPublicKey(signerKey)
   const parentAuthor = "3".repeat(64)
   const parentId = "8".repeat(64)
   const parentContent = "Cached parent with rejected NIP-07 reply signing"
@@ -208,8 +183,8 @@ test("important NIP-07 reply failures keep the draft and show a toast", async ({
   await expect(replyInput).toHaveValue(replyDraft)
 })
 
-test("NIP-07 login can like a cached post without an attached NDK", async ({page}) => {
-  const myPubkey = "1".repeat(64)
+test("NIP-07 login can like a cached post without an attached client", async ({page}) => {
+  const myPubkey = getPublicKey(signerKey)
   const noteAuthor = "2".repeat(64)
   const noteId = "4".repeat(64)
   const noteContent = "Cached note to like through NIP-07"
@@ -235,7 +210,7 @@ test("NIP-07 login can like a cached post without an attached NDK", async ({page
       getPublicKey: async () => pubkey,
       signEvent: async (event) => {
         ;(window as Window & {signedKinds?: number[]}).signedKinds?.push(event.kind)
-        return {...event, sig: "7".repeat(128)}
+        return (window as any).signTestEvent(event)
       },
       getRelays: async () => ({}),
     }
@@ -285,7 +260,7 @@ test("NIP-07 login can like a cached post without an attached NDK", async ({page
 })
 
 test("important NIP-07 reaction failures roll back and show a toast", async ({page}) => {
-  const myPubkey = "1".repeat(64)
+  const myPubkey = getPublicKey(signerKey)
   const noteAuthor = "2".repeat(64)
   const noteId = "5".repeat(64)
   const noteContent = "Cached note with rejected NIP-07 signing"

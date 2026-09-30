@@ -5,7 +5,7 @@ import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
 import SearchInput from "@/shared/components/ui/SearchInput"
 import {marketStore} from "@/stores/marketstore"
 import {GeohashMap} from "@/shared/components/geohash/GeohashMap"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import Feed from "@/shared/components/feed/Feed"
 import {RiMapPinLine} from "@remixicon/react"
 import {CategoryLabel} from "@/shared/components/market/CategoryLabel"
@@ -16,7 +16,7 @@ interface MarketFiltersProps {
   mapHeight?: string
   categoriesHeight?: string
   includeSearch?: boolean
-  mapEvents?: NDKEvent[]
+  mapEvents?: AppEvent[]
 }
 
 export default function MarketFilters({
@@ -42,7 +42,7 @@ export default function MarketFilters({
   const [availableTags, setAvailableTags] = useState<
     {tag: string; userCount: number; cooccurrenceScore?: number}[]
   >([])
-  const [localMapEvents, setLocalMapEvents] = useState<NDKEvent[]>([])
+  const [localMapEvents, setLocalMapEvents] = useState<AppEvent[]>([])
 
   // Use provided map events if available, otherwise use local collection
   const mapEvents = providedMapEvents || localMapEvents

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {SubscriberBadge} from "@/shared/components/user/SubscriberBadge"
-import {getMainThreadDb} from "@/lib/ndk-cache/db"
+import {getMainThreadDb} from "@/lib/nostr/db"
 import ActiveAccount from "./ActiveAccount"
 import ChallengeForm from "./ChallengeForm"
 import {useUserStore} from "@/stores/user"

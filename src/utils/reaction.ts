@@ -1,11 +1,11 @@
-import {NDKEvent, NDKPublishError, NostrEvent} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {AppEvent, PublishError, NostrEvent} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_REACTION, KIND_TEXT_NOTE} from "./constants"
 import {getEventGroup, inheritGroupTags} from "@/groups/activity"
 import {publishGroupEvent} from "@/groups/publish"
 
 export function isRelayPublishFailure(error: unknown): boolean {
-  if (error instanceof NDKPublishError) return true
+  if (error instanceof PublishError) return true
 
   const message = error instanceof Error ? error.message : String(error)
   return (
@@ -29,15 +29,15 @@ export function getReactionPublishErrorMessage(error: unknown): string | null {
  * If the target event has an expiration tag, the reaction will inherit it
  */
 export async function reactWithExpiration(
-  event: NDKEvent,
+  event: AppEvent,
   content: string,
   extraTags: string[][] = []
-): Promise<NDKEvent> {
-  const eventNdk = event.ndk ?? ndk()
+): Promise<AppEvent> {
+  const eventNdk = event.nostr ?? nostr()
   eventNdk.assertSigner()
 
   // Create reaction event
-  const reactionEvent = new NDKEvent(eventNdk, {
+  const reactionEvent = new AppEvent(eventNdk, {
     kind: KIND_REACTION,
     content,
   } as NostrEvent)

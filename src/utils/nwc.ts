@@ -1,12 +1,7 @@
-import {ndk} from "@/utils/ndk"
-import {
-  NDKEvent,
-  NDKPrivateKeySigner,
-  NDKRelay,
-  NDKRelaySet,
-  NDKSubscription,
-} from "@/lib/ndk"
+import {nostr} from "@/utils/nostrClient"
+import {AppEvent, SecretKeySigner, Relay, RelaySet, EventSubscription} from "@/lib/nostr"
 import {nip04} from "nostr-tools"
+import {publishConfirmedEvent} from "@/lib/publishConfirmedEvent"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
@@ -37,9 +32,9 @@ export interface NWCResponse {
 
 export class SimpleNWCWallet {
   private config: NWCConfig
-  private signer: NDKPrivateKeySigner
-  private relays: NDKRelay[] = []
-  private subscription: NDKSubscription | undefined
+  private signer: SecretKeySigner
+  private relays: Relay[] = []
+  private subscription: EventSubscription | undefined
   private pendingRequests = new Map<
     string,
     {
@@ -51,16 +46,16 @@ export class SimpleNWCWallet {
 
   constructor(config: NWCConfig) {
     this.config = config
-    this.signer = new NDKPrivateKeySigner(config.secret)
+    this.signer = new SecretKeySigner(config.secret)
   }
 
   async connect(): Promise<void> {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
 
     // Connect to specified relays
     for (const relayUrl of this.config.relayUrls) {
       try {
-        const relay = ndkInstance.pool.getRelay(relayUrl, true, true)
+        const relay = ndkInstance.pool.getRelay(relayUrl, true)
         if (relay) {
           this.relays.push(relay)
           // Ensure relay is connected
@@ -77,7 +72,7 @@ export class SimpleNWCWallet {
   }
 
   private async subscribeToResponses() {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
     const pubkey = await this.signer.user().then((u) => u.pubkey)
 
     log(
@@ -86,7 +81,7 @@ export class SimpleNWCWallet {
     )
 
     // Create subscription with explicit relay set
-    const relaySet = NDKRelaySet.fromRelayUrls(this.config.relayUrls, ndkInstance)
+    const relaySet = RelaySet.fromRelayUrls(this.config.relayUrls, ndkInstance)
     this.subscription = ndkInstance.subscribe(
       {
         kinds: [NWC_RESPONSE_KIND],
@@ -95,11 +90,11 @@ export class SimpleNWCWallet {
       },
       {
         closeOnEose: false,
-        relaySet: relaySet,
-      }
+      },
+      relaySet
     )
 
-    this.subscription.on("event", async (event: NDKEvent) => {
+    this.subscription.on("event", async (event: AppEvent) => {
       // Get the request ID from the e tag
       const requestId = event.tagValue("e")
 
@@ -137,7 +132,7 @@ export class SimpleNWCWallet {
     method: string,
     params: Record<string, unknown> = {}
   ): Promise<NWCResponse> {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
 
     // Create the request
     const request: NWCRequest = {method, params}
@@ -151,11 +146,11 @@ export class SimpleNWCWallet {
     )
 
     // Create the event
-    const event = new NDKEvent(ndkInstance)
+    const event = new AppEvent(ndkInstance)
     event.kind = NWC_REQUEST_KIND
     event.content = encrypted
     event.tags = [["p", this.config.pubkey]]
-    event.ndk = ndkInstance
+    event.nostr = ndkInstance
 
     // Sign with our signer
     await event.sign(this.signer)
@@ -176,8 +171,18 @@ export class SimpleNWCWallet {
       `📤 NWC: Publishing request ${event.id} for ${method} to relays:`,
       this.config.relayUrls
     )
-    const relaySet = NDKRelaySet.fromRelayUrls(this.config.relayUrls, ndkInstance)
-    await event.publish(relaySet)
+    const relaySet = RelaySet.fromRelayUrls(this.config.relayUrls, ndkInstance)
+    // A wallet action must not be queued for an unexpected later payment.
+    try {
+      await publishConfirmedEvent(event, relaySet)
+    } catch (error) {
+      const pending = this.pendingRequests.get(event.id)
+      if (pending) {
+        clearTimeout(pending.timeout)
+        this.pendingRequests.delete(event.id)
+        pending.reject(error instanceof Error ? error : new Error(String(error)))
+      }
+    }
 
     // Wait for response
     return responsePromise

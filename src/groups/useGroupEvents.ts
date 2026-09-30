@@ -1,7 +1,7 @@
 import {useCallback, useSyncExternalStore} from "react"
 import {matchFilters, type Event} from "nostr-tools"
-import {NDKSubscriptionCacheUsage, type NDKFilter, type NDKSubscription} from "@/lib/ndk"
-import {ndk} from "@/utils/ndk"
+import {CacheMode, type EventFilter, type EventSubscription} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {GroupEventBuffer} from "./GroupEventBuffer"
 import {isVisibleGroupZap} from "./activity"
 import type {GroupRef} from "./model"
@@ -13,7 +13,7 @@ export type GroupEventSnapshot = {
   error?: string
 }
 export interface GroupEventOptions {
-  liveFilters?: NDKFilter[]
+  liveFilters?: EventFilter[]
   perAuthorCap?: number
   factTargets?: string[]
   refreshKey?: string | number
@@ -25,18 +25,18 @@ const HISTORY_BATCH = 16
 const HISTORY_CONCURRENCY = 2
 const HISTORY_TIMEOUT = 12_000
 const PARTIAL_ERROR = "Some content couldn’t load."
-type Subscribe = (filters: NDKFilter[], closeOnEose: boolean) => NDKSubscription
+type Subscribe = (filters: EventFilter[], closeOnEose: boolean) => EventSubscription
 const defaultSubscribe: Subscribe = (filters, closeOnEose) =>
-  ndk().subscribe(
+  nostr().subscribe(
     filters,
-    // Keep the explicit batch bound on the wire too; NDK otherwise combines
+    // Keep the explicit batch bound on the wire too; NostrClient otherwise combines
     // concurrent collections into a larger relay request.
-    {closeOnEose, groupable: false, cacheUsage: NDKSubscriptionCacheUsage.PARALLEL},
+    {closeOnEose, groupable: false, cacheUsage: CacheMode.PARALLEL},
     false
   )
 
 // An empty array is an impossible constraint, never permission for a broad query.
-const possibleFilters = (filters: NDKFilter[]) =>
+const possibleFilters = (filters: EventFilter[]) =>
   filters.filter(
     (filter) =>
       !Object.entries(filter).some(
@@ -52,10 +52,10 @@ const possibleFilters = (filters: NDKFilter[]) =>
 
 /** Use one live REQ. Precise original filters still guard every received event. */
 export function consolidateGroupLiveFilters(
-  filters: NDKFilter[],
+  filters: EventFilter[],
   since: number
-): NDKFilter[] {
-  const groups = new Map<string, NDKFilter>()
+): EventFilter[] {
+  const groups = new Map<string, EventFilter>()
   for (const filter of possibleFilters(filters)) {
     const {authors, limit: _limit, ...rest} = filter
     const normalized = {...rest, since: Math.max(since, filter.since ?? since)}
@@ -81,24 +81,24 @@ export function consolidateGroupLiveFilters(
       broad[key] = [...new Set(values.flat())]
     else if (values.every((item) => item === value)) broad[key] = value
   }
-  return [broad as NDKFilter]
+  return [broad as EventFilter]
 }
 
 /** Shared bounded history with a live stream started before the first history read. */
 export class GroupEventCollection {
   private listeners = new Set<() => void>()
-  private subscriptions = new Set<NDKSubscription>()
+  private subscriptions = new Set<EventSubscription>()
   private timers = new Set<ReturnType<typeof setTimeout>>()
   private batchTimer?: ReturnType<typeof setTimeout>
   private generation = 0
   private started = false
   private buffer: GroupEventBuffer
-  private filters: NDKFilter[]
-  private liveAdmission: NDKFilter[]
+  private filters: EventFilter[]
+  private liveAdmission: EventFilter[]
   private snapshot: GroupEventSnapshot = LOADING
 
   constructor(
-    filters: NDKFilter[],
+    filters: EventFilter[],
     cap: number,
     options: GroupEventOptions = {},
     private source: Subscribe = defaultSubscribe
@@ -159,7 +159,7 @@ export class GroupEventCollection {
     this.listeners.forEach((listener) => listener())
   }
 
-  private receive(event: Event, filters: NDKFilter[], epoch: number) {
+  private receive(event: Event, filters: EventFilter[], epoch: number) {
     if (!this.started || epoch !== this.generation) return
     try {
       if (!matchFilters(filters, event)) return
@@ -173,7 +173,7 @@ export class GroupEventCollection {
     }
   }
 
-  private close(sub: NDKSubscription) {
+  private close(sub: EventSubscription) {
     this.subscriptions.delete(sub)
     try {
       sub.stop()
@@ -190,7 +190,7 @@ export class GroupEventCollection {
       Math.floor(Date.now() / 1000)
     )
     if (liveFilters.length) {
-      let live: NDKSubscription | undefined
+      let live: EventSubscription | undefined
       try {
         live = this.source(liveFilters, false)
         this.subscriptions.add(live)
@@ -203,7 +203,7 @@ export class GroupEventCollection {
         this.snapshot = {...this.snapshot, error: PARTIAL_ERROR}
       }
     }
-    const batches: NDKFilter[][] = []
+    const batches: EventFilter[][] = []
     for (let i = 0; i < this.filters.length; i += HISTORY_BATCH)
       batches.push(this.filters.slice(i, i + HISTORY_BATCH))
     let next = 0
@@ -220,7 +220,7 @@ export class GroupEventCollection {
       ) {
         const batch = batches[next++]
         running++
-        let sub: NDKSubscription | undefined
+        let sub: EventSubscription | undefined
         let timer: ReturnType<typeof setTimeout> | undefined
         let finished = false
         const finish = (failed = false) => {
@@ -244,7 +244,18 @@ export class GroupEventCollection {
           sub.on("event", (event) => {
             if (!finished) this.receive(event.rawEvent() as Event, batch, epoch)
           })
-          sub.on("eose", () => finish())
+          sub.on("eose", () => {
+            const completion = sub?.completion
+            const relays =
+              completion?.sources.filter((source) => /^wss?:/.test(source.id)) ?? []
+            // Peer history is opportunistic; successful relay history still
+            // completes the requested page. A timeout is never an empty result.
+            finish(
+              !!completion &&
+                !completion.complete &&
+                !(relays.length && relays.every((source) => source.complete))
+            )
+          })
           timer = setTimeout(() => finish(true), HISTORY_TIMEOUT)
           this.timers.add(timer)
           sub.start()
@@ -278,7 +289,7 @@ const emptySubscribe = () => () => {}
 const emptySnapshot = () => EMPTY
 
 export function useGroupEvents(
-  filters: NDKFilter[],
+  filters: EventFilter[],
   cap = 2000,
   options: GroupEventOptions = {}
 ) {

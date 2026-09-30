@@ -5,15 +5,35 @@ const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"
 const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
-  "@hashtree/core": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-core-0.3.2.tgz",
+  "nostr-pubsub": {
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.9/nostr-pubsub-0.5.9.tgz",
     integrity:
-      "sha512-DAMUpGBcRk6JgecIU5T3AS18gAiXpiwYG2mULq+mec9noWmaVUFBnkMt+ur12IjKik9G146z1cQV5y/oZ7MgFA==",
+      "sha512-upQs1cQzd5NitTGhwLinmfR96wmBn5EU8+D71Y61hEp5rQpa0JiXq2KSBtKbsbAt/OZoM8VUV4jofvBJvyd/Xg==",
+  },
+  "@hashtree/worker": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-worker-0.4.4.tgz",
+    integrity:
+      "sha512-QS/NfriLsQMacxbK0cpt5XBq1zRdAAp2rGtlYa2uhgvNX9u64LIkkWFqVDbs1UQmp3SQ8XGbly99aKKML4j8uQ==",
+  },
+  "@hashtree/fips-transport": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-fips-transport-0.4.11.tgz",
+    integrity:
+      "sha512-cjCZ8kuoWpiLgnkfidOhbja4JoBpfo98x8zd0vwmvJrD5VWnNIvsYrKq+qlIyegw4mQ4PETiF3fNyb3lQ//nuw==",
+  },
+  "@hashtree/dexie": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-dexie-0.1.11.tgz",
+    integrity:
+      "sha512-s3hxH4n9KsoyMELuFPJ81fXoOhx6js5PM/E6elR7LKLKX2fZxRkeBL+QHtYk9uQfbCitssEoU4jli8l+IR7DGw==",
+  },
+  "@hashtree/core": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-core-0.3.2.tgz",
+    integrity:
+      "sha512-OLd2ARbYKt9s7wipMX58OhJwZQ6XwIdkuJ+Zfp+NNz3rjXDV8kYl67S9HlrXOj5eSsy5SbN/JuKS8QuwXzEiRQ==",
   },
   "@hashtree/index": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.7/hashtree-index-0.1.14.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-index-0.1.14.tgz",
     integrity:
-      "sha512-nEpHCj+l5aFs0oELah4DbeQwlNEAaAU3qtCZxiRTd2hLjFwbT/zlXaynatESzc5pUX2aVhYCO6aCUEjR9Cds1g==",
+      "sha512-HErzNAkVSZWRIIgLKhyPfhfkUbR7BZ4hn+D4xnrIC/z8hPVmH6O4HVZ90OJ4Y3KgcK9zM3ggrf60HOwmMLzatw==",
   },
   "@iris/release-tools": {
     url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.2/iris-release-tools-0.1.1.tgz",

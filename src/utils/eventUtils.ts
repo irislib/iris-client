@@ -1,17 +1,17 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {KIND_REPOST, KIND_TEXT_NOTE} from "@/utils/constants"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {
   getEventReplyReference,
   getEventRootReference,
   getHexEventIdFromThreadReference,
 } from "./threadReferences"
 
-export function getEventReplyingTo(event: NDKEvent) {
+export function getEventReplyingTo(event: AppEvent) {
   return getHexEventIdFromThreadReference(getEventReplyReference(event))
 }
 
-export function isRepost(event: NDKEvent) {
+export function isRepost(event: AppEvent) {
   if (event.kind === KIND_REPOST) {
     return true
   }
@@ -24,7 +24,7 @@ export function isRepost(event: NDKEvent) {
   return false
 }
 
-export function getEventRoot(event: NDKEvent) {
+export function getEventRoot(event: AppEvent) {
   return getHexEventIdFromThreadReference(getEventRootReference(event))
 }
 
@@ -38,9 +38,9 @@ export type RawEvent = {
   pubkey: string
 }
 
-export const NDKEventFromRawEvent = (rawEvent: RawEvent): NDKEvent => {
-  const ndkEvent = new NDKEvent()
-  ndkEvent.ndk = ndk()
+export const eventFromRawEvent = (rawEvent: RawEvent): AppEvent => {
+  const ndkEvent = new AppEvent()
+  ndkEvent.nostr = nostr()
   ndkEvent.kind = rawEvent.kind
   ndkEvent.id = rawEvent.id
   ndkEvent.content = rawEvent.content

@@ -1,9 +1,16 @@
+import {
+  verifyNostrEvent,
+  localIndexSource,
+  SOURCE_PRIORITY_LOCAL_INDEX,
+} from "nostr-pubsub"
+import type {Event, EventTemplate} from "nostr-tools"
+import {serveNostrSource, connectNostrSource} from "@hashtree/worker/nostr-source-port"
 /**
  * Relay Worker
  *
- * Runs NDK with actual WebSocket relay connections in a worker thread.
- * Main thread communicates via NDKWorkerTransport.
- * Cache operations delegated to separate cache worker.
+ * Runs NostrClient with actual WebSocket relay connections in a worker thread.
+ * Main thread communicates via WorkerTransport.
+ * Owns the persistent event store and sends verified events to the main thread.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -23,8 +30,13 @@ self.onunhandledrejection = (event: PromiseRejectionEvent) => {
   event.preventDefault()
 }
 
-import NDK, {nip19, NDKRelaySet} from "../lib/ndk"
-import {publishConfirmedEvent} from "../lib/publishConfirmedEvent"
+import NostrClient, {
+  nip19,
+  AppEvent,
+  CacheMode,
+  Relay,
+  type EventFilter,
+} from "@/lib/nostr"
 import {
   getRemoteProfileSearchDebounceMs,
   initSearchIndex,
@@ -38,17 +50,14 @@ import {
 } from "./profile-search"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 import {buildWorkerRelayUrls} from "../utils/relayRuntime"
-import {NDKEvent} from "../lib/ndk/events"
-import {NDKSubscriptionCacheUsage, type NDKFilter} from "../lib/ndk/subscription"
-import {NDKRelay} from "../lib/ndk/relay"
-import NDKCacheAdapterDexie, {db} from "../lib/ndk-cache"
+import EventCache, {db} from "@/lib/nostr/cache"
 import {fromHex, type CID} from "@hashtree/core"
 import type {
   WorkerMessage,
   WorkerResponse,
   WorkerSubscribeOpts,
   WorkerPublishOpts,
-} from "../lib/ndk-transport-types"
+} from "../lib/nostr-transport-types"
 import type {SettingsState} from "../stores/settings"
 import {DEFAULT_WORKER_RELAYS, SEARCH_RELAYS} from "../shared/constants/relays"
 import {verifyRelayEvent, type WasmEventVerifier} from "./relay-signature-verifier"
@@ -72,10 +81,10 @@ async function loadWasm() {
   }
 }
 
-// Types imported from ndk-transport-types.ts
+// Types imported from nostr-transport-types.ts
 
-let ndk: NDK
-let cache: NDKCacheAdapterDexie
+let nostr: NostrClient
+let cache: EventCache
 const subscriptions = new Map<string, any>()
 const connectedRelays = new Set<string>() // Track relays that were connected before offline
 let settings: SettingsState | undefined
@@ -171,7 +180,7 @@ async function handleSearch(requestId: number, query: string) {
 }
 
 // Attach status change listeners to a relay
-function attachRelayListeners(relay: NDKRelay) {
+function attachRelayListeners(relay: Relay) {
   const handler = (eventType: string) => {
     log(`[Relay Worker] ${relay.url} ${eventType}, status: ${relay.status}`)
     broadcastRelayStatus()
@@ -266,7 +275,7 @@ async function resolveLatestProfileSearchTreeRoot(
       return null
     }
 
-    const ndkEvents = await ndk.fetchEvents({
+    const ndkEvents = await nostr.fetchEvents({
       kinds: [30078],
       authors: [decoded.data],
       "#d": [treeName],
@@ -289,6 +298,34 @@ async function resolveLatestProfileSearchTreeRoot(
   }
 }
 
+let sourceBridge: ReturnType<typeof connectNostrSource> | undefined
+let closeCacheBridge: (() => void) | undefined
+let statusTimer: ReturnType<typeof setInterval> | undefined
+const authRequests = new Map<
+  string,
+  {resolve: (event: Event) => void; reject: (error: Error) => void}
+>()
+function requestAuthSignature(_relay: string, event: EventTemplate): Promise<Event> {
+  return new Promise((resolve, reject) => {
+    const id = crypto.randomUUID()
+    const timer = setTimeout(() => {
+      authRequests.delete(id)
+      reject(new Error("Authentication signing timed out"))
+    }, 10000)
+    authRequests.set(id, {
+      resolve: (event) => {
+        clearTimeout(timer)
+        resolve(event)
+      },
+      reject: (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    })
+    self.postMessage({type: "signAuth", id, event} satisfies WorkerResponse)
+  })
+}
+
 async function initialize(
   relayUrls?: string[],
   initialSettings?: SettingsState,
@@ -304,16 +341,12 @@ async function initialize(
       log("[Relay Worker] Settings initialized:", settings)
     }
 
-    // Initialize Dexie cache for writing only (main thread handles reads)
-    log("[Relay Worker] Initializing cache adapter...")
-    cache = new NDKCacheAdapterDexie({
-      dbName: "treelike-nostr",
-      saveSig: true,
-      eventCacheSize: 5000,
-    })
-    log("[Relay Worker] Cache adapter ready (write-only, main thread queries)")
+    // One durable store backs event history, offline reads, and the pending outbox.
+    log("[Relay Worker] Initializing event store...")
+    cache = new EventCache()
+    log("[Relay Worker] Event store ready")
 
-    // Initialize NDK with relay connections
+    // Initialize NostrClient with relay connections
     const relaysToUse = buildWorkerRelayUrls({
       relayUrls,
       defaultRelayUrls: DEFAULT_WORKER_RELAYS,
@@ -322,18 +355,15 @@ async function initialize(
       ),
       disableExtraRelayUrls,
     })
-    log("[Relay Worker] Creating NDK with relays:", relaysToUse)
+    log("[Relay Worker] Creating NostrClient with relays:", relaysToUse)
 
-    ndk = new NDK({
+    nostr = new NostrClient({
       explicitRelayUrls: relaysToUse,
-      cacheAdapter: cache, // For writing fresh events to cache
+      signAuthEvent: requestAuthSignature,
+      verifyEvent: (event) => verifyRelayEvent(event, wasmVerifier),
+      cacheAdapter: cache,
       enableOutboxModel: false,
-      negentropyEnabled: settings?.network.negentropyEnabled ?? false,
     })
-
-    // Setup custom sig verification with wasm fallback
-    ndk.signatureVerificationFunction = async (event: NDKEvent) =>
-      verifyRelayEvent(event, wasmVerifier)
 
     // Lazy load wasm in background
     loadWasm()
@@ -346,7 +376,7 @@ async function initialize(
     initSearchFromDexie()
 
     // Forward relay notices to main thread
-    ndk.pool?.on("notice", (relay: NDKRelay, notice: string) => {
+    nostr.pool?.on("notice", (relay: Relay, notice: string) => {
       self.postMessage({
         type: "notice",
         relay: relay.url,
@@ -356,21 +386,24 @@ async function initialize(
 
     // Connect to relays (non-blocking - don't wait for all relays)
     log("[Relay Worker] Starting relay connections...")
-    ndk
+    nostr
       .connect()
       .then(() => {
-        log(`[Relay Worker] All relays connected`)
+        log(`[Relay Worker] Runtime initialized`)
       })
       .catch((err) => {
         error(`[Relay Worker] Relay connection error:`, err)
       })
 
     // Attach status listeners immediately
-    ndk.pool?.relays.forEach((relay) => {
+    nostr.pool?.relays.forEach((relay) => {
       attachRelayListeners(relay)
     })
 
-    log(`[Relay Worker] Initialized with ${ndk.pool?.relays.size || 0} relays`)
+    log(`[Relay Worker] Initialized with ${nostr.pool?.relays.size || 0} relays`)
+
+    if (statusTimer) clearInterval(statusTimer)
+    statusTimer = setInterval(broadcastRelayStatus, 2000)
 
     // Signal ready immediately - don't wait for relay connections
     self.postMessage({type: "ready"} as WorkerResponse)
@@ -385,11 +418,11 @@ async function initialize(
 
 function handleSubscribe(
   subId: string,
-  filters: NDKFilter[],
+  filters: EventFilter[],
   opts?: WorkerSubscribeOpts
 ) {
-  if (!ndk) {
-    error("[Relay Worker] NDK not initialized")
+  if (!nostr) {
+    error("[Relay Worker] NostrClient not initialized")
     return
   }
 
@@ -414,13 +447,13 @@ function handleSubscribe(
   const cacheOnly = destinations.includes("cache") && !destinations.includes("relay")
   const relayOnly = destinations.includes("relay") && !destinations.includes("cache")
 
-  let cacheUsage: NDKSubscriptionCacheUsage
+  let cacheUsage: CacheMode
   if (cacheOnly) {
-    cacheUsage = NDKSubscriptionCacheUsage.ONLY_CACHE
+    cacheUsage = CacheMode.ONLY_CACHE
   } else if (relayOnly) {
-    cacheUsage = NDKSubscriptionCacheUsage.ONLY_RELAY
+    cacheUsage = CacheMode.ONLY_RELAY
   } else {
-    cacheUsage = NDKSubscriptionCacheUsage.PARALLEL
+    cacheUsage = CacheMode.PARALLEL
   }
 
   log(`[Relay Worker] Using cacheUsage: ${cacheUsage}`)
@@ -430,7 +463,7 @@ function handleSubscribe(
   const shouldGroup = cacheOnly ? false : (opts?.groupable ?? true)
   const groupableDelay = shouldGroup ? (opts?.groupableDelay ?? 100) : undefined
 
-  const sub = ndk.subscribe(filters, {
+  const sub = nostr.subscribe(filters, {
     isolated: opts?.isolated,
     relayUrls:
       opts?.relayUrls ??
@@ -444,7 +477,7 @@ function handleSubscribe(
     waitForCacheBeforeRelays: opts?.waitForCacheBeforeRelays,
   })
 
-  sub.on("event", (event: NDKEvent, relay, _sub, fromCache) => {
+  sub.on("event", (event: AppEvent, relay, _sub, fromCache) => {
     const rawEvent = event.rawEvent()
     self.postMessage({
       type: "event",
@@ -479,7 +512,7 @@ function handleSubscribe(
       self.postMessage({
         type: "event",
         subId,
-        event: event instanceof NDKEvent ? event.rawEvent() : event,
+        event: event instanceof AppEvent ? event.rawEvent() : event,
         relay: relay?.url,
         fromCache,
       } as WorkerResponse)
@@ -490,6 +523,7 @@ function handleSubscribe(
     self.postMessage({
       type: "eose",
       subId,
+      completion: sub.completion,
     } as WorkerResponse)
 
     // Auto-cleanup cache-only subs after EOSE
@@ -515,74 +549,32 @@ async function handlePublish(
   relayUrls?: string[],
   opts?: WorkerPublishOpts
 ) {
-  if (!ndk) {
+  if (!nostr) {
     self.postMessage({
       type: "error",
       id,
-      error: "NDK not initialized",
+      error: "NostrClient not initialized",
     } as WorkerResponse)
     return
   }
 
   try {
-    const event = new NDKEvent(ndk, eventData)
-
-    // Verify signature if requested (e.g., WebRTC events from untrusted sources)
-    if (opts?.verifySignature) {
-      const isValid = verifyRelayEvent(event, wasmVerifier)
-      if (!isValid) {
-        warn(
-          "[Relay Worker] Invalid signature for event from:",
-          opts.source,
-          eventData.id
-        )
-        self.postMessage({
-          type: "error",
-          id,
-          error: "Invalid signature",
-        } as WorkerResponse)
-        return
-      }
-    }
-
-    const destinations = opts?.publishTo || ["relay"]
-
-    // Dispatch to local subscriptions if requested
-    if (destinations.includes("subscriptions")) {
-      log(
-        "[Relay Worker] Dispatching to subscriptions:",
-        eventData.id,
-        "source:",
-        opts?.source
-      )
-      const fakeRelay = {url: opts?.source || "__local__"} as NDKRelay
-      ndk.subManager.dispatchEvent(event, fakeRelay, false)
-    }
-
-    // Cache handled automatically by NDK cache adapter on dispatch
-
-    // Publish to relays if requested
+    const runtime = nostr.getRuntime()
+    const destinations = opts?.publishTo ?? ["relay"]
     if (!destinations.includes("relay")) {
-      self.postMessage({
-        type: "published",
-        id,
-      } as WorkerResponse)
+      await runtime.ingest(eventData, opts?.source ?? "local")
+      self.postMessage({type: "published", id} as WorkerResponse)
       return
     }
-
-    log("[Relay Worker] Publishing event:", eventData.id)
-
-    const relaySet = relayUrls?.length
-      ? NDKRelaySet.fromRelayUrls(relayUrls, ndk)
-      : undefined
-    if (opts?.requireAck) await publishConfirmedEvent(event, relaySet)
-    else await event.publish(relaySet, 10_000, 1)
-
-    log("[Relay Worker] Event published successfully:", eventData.id)
-    self.postMessage({
-      type: "published",
-      id,
-    } as WorkerResponse)
+    const result = await runtime.publish(eventData, {
+      relays: relayUrls,
+      requireAck: opts?.requireAck,
+    })
+    if (opts?.requireAck && !result.remoteAccepted)
+      throw new Error("No relay confirmed the event.")
+    if (!result.remoteAccepted && !result.queued)
+      throw new Error("Publication was not accepted")
+    self.postMessage({type: "published", id, publishResult: result} as WorkerResponse)
   } catch (err) {
     error("[Relay Worker] Publish failed:", err)
     self.postMessage({
@@ -594,17 +586,15 @@ async function handlePublish(
 }
 
 function getRelayStatuses() {
-  if (!ndk?.pool) return []
-
-  return Array.from(ndk.pool.relays.values()).map((relay) => ({
-    url: relay.url,
-    status: relay.status,
-    stats: {
-      attempts: relay.connectivity?.connectionStats.attempts || 0,
-      success: relay.connectivity?.connectionStats.success || 0,
-      connectedAt: (relay.connectivity as any)?.connectedAt,
-    },
-  }))
+  if (!nostr) return []
+  return nostr
+    .getRuntime()
+    .getRelayStats()
+    .map((relay) => ({
+      url: relay.url,
+      status: relay.connected ? 5 : 0,
+      stats: {attempts: 0, success: relay.connected ? 1 : 0},
+    }))
 }
 
 function handleGetRelayStatus(requestId: string) {
@@ -625,69 +615,43 @@ function broadcastRelayStatus() {
 }
 
 function handleAddRelay(url: string) {
-  if (!ndk?.pool) return
-  const relay = new NDKRelay(url, undefined, ndk)
+  if (!nostr?.pool) return
+  const relay = new Relay(url, undefined, nostr)
   attachRelayListeners(relay)
-  ndk.pool.addRelay(relay) // This will connect automatically
+  nostr.pool.addRelay(relay) // This will connect automatically
   broadcastRelayStatus()
 }
 
 function handleRemoveRelay(url: string) {
-  if (!ndk?.pool) return
-  const relay = ndk.pool.relays.get(url)
-  if (relay) {
-    relay.disconnect()
-    ndk.pool.relays.delete(url)
-  }
+  nostr?.pool.removeRelay(url)
+  broadcastRelayStatus()
 }
-
+const pausedRelays = new Set<string>()
+function applyRelayState() {
+  nostr
+    ?.getRuntime()
+    .setRelays([...nostr.pool.relays.keys()].filter((url) => !pausedRelays.has(url)))
+  broadcastRelayStatus()
+}
 function handleConnectRelay(url: string) {
-  if (!ndk?.pool) return
-  const relay = ndk.pool.relays.get(url)
-  relay?.connect()
+  pausedRelays.delete(url)
+  nostr?.pool.getRelay(url)
+  applyRelayState()
 }
-
 function handleDisconnectRelay(url: string) {
-  if (!ndk?.pool) return
-  const relay = ndk.pool.relays.get(url)
-  relay?.disconnect()
+  pausedRelays.add(url)
+  applyRelayState()
 }
-
-function handleReconnectDisconnected(reason: string) {
-  if (!ndk?.pool) return
-
-  log(`[Relay Worker] ${reason}, checking relay connections...`)
-
-  // Force immediate reconnection only for relays that were connected before
-  // NDKRelayStatus: DISCONNECTED=1, RECONNECTING=2, FLAPPING=3, CONNECTING=4, CONNECTED=5+
-  for (const relay of ndk.pool.relays.values()) {
-    if (relay.status < 5 && connectedRelays.has(relay.url)) {
-      log(`[Relay Worker] Forcing reconnection to ${relay.url} (status: ${relay.status})`)
-      relay.connect()
-    }
-  }
+function handleReconnectDisconnected(_reason: string) {
+  applyRelayState()
+  void nostr?.getRuntime().retryPending()
 }
-
 function handleBrowserOffline() {
-  if (!ndk?.pool) return
-
-  log("[Relay Worker] Browser offline event received, disconnecting all relays")
-
-  // Immediately disconnect all connected relays
-  for (const relay of ndk.pool.relays.values()) {
-    if (relay.status >= 5) {
-      // CONNECTED or higher
-      log(`[Relay Worker] Disconnecting ${relay.url} due to browser offline`)
-      relay.disconnect()
-    }
-  }
+  nostr?.getRuntime().setRelays([])
+  broadcastRelayStatus()
 }
-
 function handleBrowserOnline() {
-  if (!ndk?.pool) return
-
-  log("[Relay Worker] Browser online event received, reconnecting relays")
-  handleReconnectDisconnected("Browser came online")
+  handleReconnectDisconnected("Browser online")
 }
 
 async function handleGetStats(id: string) {
@@ -726,6 +690,7 @@ async function handleGetStats(id: string) {
       stats: {
         totalEvents,
         eventsByKind,
+        pubsub: nostr?.getRuntime().metrics(),
       },
     } as WorkerResponse)
   } catch (err) {
@@ -746,20 +711,17 @@ function handleClose() {
   subscriptions.forEach((sub) => sub.stop())
   subscriptions.clear()
 
-  // Disconnect from relays
-  if (ndk?.pool) {
-    ndk.pool.relays.forEach((relay) => relay.disconnect())
-  }
+  if (statusTimer) clearInterval(statusTimer)
+  sourceBridge?.close()
+  closeCacheBridge?.()
+  for (const pending of authRequests.values()) pending.reject(new Error("Worker closed"))
+  authRequests.clear()
+  void nostr?.close()
 }
 
 function handleUpdateSettings(newSettings: SettingsState) {
   log("[Relay Worker] Updating settings:", newSettings)
   settings = newSettings
-
-  // Update NDK negentropy setting if initialized
-  if (ndk) {
-    ndk.negentropyEnabled = settings.network.negentropyEnabled
-  }
 }
 
 // Listen for network status changes in worker
@@ -789,9 +751,47 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         await initialize(relays, data.settings, data.disableExtraRelayUrls)
         break
 
+      case "authSigned": {
+        const request = id ? authRequests.get(id) : undefined
+        if (request && id) {
+          authRequests.delete(id)
+          if (data.error) request.reject(new Error(data.error))
+          else request.resolve(data.event as Event)
+        }
+        break
+      }
+      case "peerCache": {
+        if (!data.port) break
+        closeCacheBridge?.()
+        closeCacheBridge = serveNostrSource(data.port, {
+          id: "client-cache",
+          query: async (filters, options) => {
+            const report = await nostr
+              .getRuntime()
+              .query(filters, {...options, cache: "cache-only"})
+            return {
+              events: report.events.map((event) => ({
+                event: verifyNostrEvent(event),
+                source: localIndexSource("client-cache"),
+                priority: SOURCE_PRIORITY_LOCAL_INDEX,
+              })),
+              complete: report.complete,
+            }
+          },
+        })
+        break
+      }
+      case "peerSource":
+        if (data.port && nostr) {
+          sourceBridge?.close()
+          sourceBridge = connectNostrSource(data.port, "fips", "queued")
+          nostr.getRuntime().addSource(sourceBridge.source)
+        }
+        break
+
       case "subscribe":
         if (id && filters) {
-          handleSubscribe(id, filters as NDKFilter[], subscribeOpts)
+          handleSubscribe(id, filters as EventFilter[], subscribeOpts)
         }
         break
 

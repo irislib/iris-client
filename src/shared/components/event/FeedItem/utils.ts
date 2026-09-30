@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useNavigate} from "@/navigation"
 import {nip19} from "nostr-tools"
 import {MouseEvent} from "react"
@@ -13,8 +13,8 @@ export const isTextSelected = () => {
 
 export function onClick(
   e: MouseEvent<HTMLDivElement>,
-  event: NDKEvent | undefined,
-  ReferredEvent: NDKEvent | undefined,
+  event: AppEvent | undefined,
+  ReferredEvent: AppEvent | undefined,
   eventId: string | undefined,
   navigate: ReturnType<typeof useNavigate>
 ) {

@@ -1,13 +1,13 @@
-import {getTag, NDKEventFromRawEvent} from "@/utils/nostr.ts"
-import {NDKEvent} from "@/lib/ndk"
+import {getTag, eventFromRawEvent} from "@/utils/nostr.ts"
+import {AppEvent} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_REPOST, KIND_REACTION, KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {Hex} from "@/shared/utils/Hex"
 
 export const handleEventContent = (
-  event: NDKEvent,
-  setReferredEvent: (event: NDKEvent) => void
+  event: AppEvent,
+  setReferredEvent: (event: AppEvent) => void
 ): (() => void) | undefined => {
   try {
     if (
@@ -22,15 +22,15 @@ export const handleEventContent = (
         // ignore
       }
       if (originalEvent && originalEvent?.id) {
-        const ndkEvent = NDKEventFromRawEvent(originalEvent)
+        const ndkEvent = eventFromRawEvent(originalEvent)
         setReferredEvent(ndkEvent)
         return undefined // No cleanup needed
       } else {
         const eTag = getTag("e", event.tags)
         if (eTag) {
-          const sub = ndk().subscribe({ids: [eTag]})
+          const sub = nostr().subscribe({ids: [eTag]})
 
-          sub.on("event", (fetchedEvent: NDKEvent) => {
+          sub.on("event", (fetchedEvent: AppEvent) => {
             if (fetchedEvent && fetchedEvent.id) {
               setReferredEvent(fetchedEvent)
               sub.stop()
@@ -69,7 +69,7 @@ const tryParseHex = (eventId: string) => {
   }
 }
 
-export const getEventIdHex = (eventOrId?: NDKEvent | string) => {
+export const getEventIdHex = (eventOrId?: AppEvent | string) => {
   if (!eventOrId) return null
   if (typeof eventOrId !== "string") return eventOrId.id
   return tryDecodeNip19(eventOrId) || tryParseHex(eventOrId) || null

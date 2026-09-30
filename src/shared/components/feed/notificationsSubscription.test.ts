@@ -117,8 +117,8 @@ vi.mock("@/utils/nostr.ts", () => ({
   getZapAmount: mocks.getZapAmount,
 }))
 vi.mock("@/utils/eventCache", () => ({cacheEvent: vi.fn()}))
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({
     subscribe: () => {
       const subscription = new mocks.FakeSubscription()
       mocks.subscriptions.push(subscription)

@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 import {eventComparator} from "../components/feed/utils"
-import {NDKEvent, NDKFilter} from "@/lib/ndk"
+import {AppEvent, EventFilter} from "@/lib/nostr"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {
   shouldHideUser,
@@ -11,7 +11,7 @@ import {useSocialGraph} from "@/utils/socialGraph"
 import {seenEventIds} from "@/utils/memcache"
 import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {hasMedia} from "@/shared/components/embed"
 import {hasImageOrVideo} from "@/shared/utils/mediaUtils"
 import {type FeedConfig} from "@/stores/feed"
@@ -23,21 +23,21 @@ import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
 import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
 
 interface FutureEvent {
-  event: NDKEvent
+  event: AppEvent
   timer: NodeJS.Timeout
 }
 
 interface UseFeedEventsProps {
-  filters: NDKFilter
+  filters: EventFilter
   cacheKey: string
   displayCount: number
   feedConfig: FeedConfig
-  sortFn?: (a: NDKEvent, b: NDKEvent) => number
+  sortFn?: (a: AppEvent, b: AppEvent) => number
   relayUrls?: string[]
   bottomVisibleEventTimestamp?: number
   displayAs?: "list" | "grid"
-  subscriptionFilters?: NDKFilter[]
-  injectedEvents?: NDKEvent[]
+  subscriptionFilters?: EventFilter[]
+  injectedEvents?: AppEvent[]
   visibilitySnapshot?: AlgorithmicVisibilitySnapshot | null
   enabled?: boolean
 }
@@ -61,7 +61,7 @@ export default function useFeedEvents({
     () => createPostSearchMatcher(filters.search || ""),
     [filters.search]
   )
-  const searchResultsRef = useRef<NDKEvent[]>([])
+  const searchResultsRef = useRef<AppEvent[]>([])
   const searchController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
   const [searchProgress, setSearchProgress] = useState<SearchProgress>({
     loading: false,
@@ -73,15 +73,15 @@ export default function useFeedEvents({
   bottomVisibleEventTimestampRef.current = bottomVisibleEventTimestamp
   const myPubKey = useUserStore((state) => state.publicKey)
   const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
-  const [newEvents, setNewEvents] = useState(new Map<string, NDKEvent>())
+  const [newEvents, setNewEvents] = useState(new Map<string, AppEvent>())
   const eventSort = useMemo(
     () =>
       sortFn
-        ? ([, a]: [string, NDKEvent], [, b]: [string, NDKEvent]) => sortFn(a, b)
+        ? ([, a]: [string, AppEvent], [, b]: [string, AppEvent]) => sortFn(a, b)
         : eventComparator,
     [sortFn]
   )
-  const eventsRef = useRef(new SortedMap<string, NDKEvent>([], eventSort))
+  const eventsRef = useRef(new SortedMap<string, AppEvent>([], eventSort))
   // Buffer for future events (max 20 entries, sorted by timestamp)
   const futureEventsRef = useRef(
     new SortedMap<string, FutureEvent>(
@@ -143,7 +143,7 @@ export default function useFeedEvents({
       clearTimeout(futureEvent.timer)
     }
     futureEventsRef.current.clear()
-    eventsRef.current = new SortedMap<string, NDKEvent>([], eventSort)
+    eventsRef.current = new SortedMap<string, AppEvent>([], eventSort)
     searchResultsRef.current = []
     oldestRef.current = undefined
     setUntilTimestamp(undefined)
@@ -176,9 +176,9 @@ export default function useFeedEvents({
     return feedConfig.relayUrls.map(normalizeRelay)
   }, [JSON.stringify(feedConfig.relayUrls)])
 
-  const shouldAcceptEventRef = useRef<(event: NDKEvent) => boolean>(() => false)
+  const shouldAcceptEventRef = useRef<(event: AppEvent) => boolean>(() => false)
 
-  shouldAcceptEventRef.current = (event: NDKEvent) => {
+  shouldAcceptEventRef.current = (event: AppEvent) => {
     if (!event.created_at) return false
 
     // Early exit: excludeSeen check (combined duplicate checks)
@@ -280,7 +280,7 @@ export default function useFeedEvents({
   }, [])
 
   // Add future event to buffer with individual timer
-  const addFutureEvent = useCallback((event: NDKEvent) => {
+  const addFutureEvent = useCallback((event: AppEvent) => {
     if (!event.created_at) return
 
     const now = Math.floor(Date.now() / 1000)
@@ -338,7 +338,7 @@ export default function useFeedEvents({
   }
 
   const addEventToMain = useCallback(
-    (event: NDKEvent, markLoadDone = false) => {
+    (event: AppEvent, markLoadDone = false) => {
       if (!event?.id || !event.created_at) return
       if (eventsRef.current.has(event.id)) return
 
@@ -371,7 +371,7 @@ export default function useFeedEvents({
     [cacheKey, feedConfig.id, feedConfig.name]
   )
 
-  const filteredEvents = useMemo((): NDKEvent[] => {
+  const filteredEvents = useMemo((): AppEvent[] => {
     if (filters.search) return searchResultsRef.current
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
@@ -379,7 +379,7 @@ export default function useFeedEvents({
   }, [eventsVersion, filters.search])
 
   const additionalSearchResults = useMemo(() => {
-    const groups = new Map<string, NDKEvent[]>()
+    const groups = new Map<string, AppEvent[]>()
     if (!filters.search) return groups
     const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
     for (const event of eventsRef.current.values()) {
@@ -466,7 +466,7 @@ export default function useFeedEvents({
       }
     }, 500)
 
-    const handleEvent = (event: NDKEvent) => {
+    const handleEvent = (event: AppEvent) => {
       if (generation !== feedGenerationRef.current) return
       if (!event?.id || !event.created_at) return
       if (eventsRef.current.has(event.id)) return
@@ -519,7 +519,7 @@ export default function useFeedEvents({
 
     const controller = filters.search
       ? subscribeSearch(
-          ndk(),
+          nostr(),
           resolvedSubscriptionFilters,
           handleEvent,
           () => searchResultsRef.current.length <= displayCountRef.current,
@@ -547,7 +547,7 @@ export default function useFeedEvents({
     const subs = controller
       ? []
       : resolvedSubscriptionFilters.map((subscriptionFilter) => {
-          const sub = ndk().subscribe(
+          const sub = nostr().subscribe(
             subscriptionFilter,
             relayUrls ? {relayUrls} : undefined
           )

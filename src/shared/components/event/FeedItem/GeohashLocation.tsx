@@ -1,9 +1,9 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {RiMapPinLine} from "@remixicon/react"
 import {Link} from "@/navigation"
 
 interface GeohashLocationProps {
-  event: NDKEvent
+  event: AppEvent
   className?: string
 }
 

@@ -1,11 +1,11 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import Markdown from "markdown-to-jsx/react"
 import ProxyImg from "../ProxyImg"
 import {useNavigate} from "@/navigation"
 import {nip19} from "nostr-tools"
 
 interface LongFormProps {
-  event: NDKEvent
+  event: AppEvent
   standalone: boolean | undefined
 }
 

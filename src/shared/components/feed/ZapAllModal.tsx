@@ -1,26 +1,26 @@
 import {useState, ChangeEvent, useRef, useEffect} from "react"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {RiCheckLine, RiCloseLine, RiPlayFill} from "@remixicon/react"
 import Modal from "@/shared/components/ui/Modal"
 import {usePublicKey, useUserStore} from "@/stores/user"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {createAndPublishZapInvoice} from "@/utils/zapUtils"
 import {savePaymentMetadata} from "@/stores/paymentMetadata"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {getCachedName} from "@/utils/nostr"
 import FeedItem from "../event/FeedItem/FeedItem"
 import Icon from "../Icons/Icon"
 
 interface ZapAllModalProps {
-  events: NDKEvent[]
+  events: AppEvent[]
   onClose: () => void
 }
 
 interface ZapProgress {
   total: number
   current: number
-  currentEvent: NDKEvent | null
+  currentEvent: AppEvent | null
   totalZapped: number
   completed: boolean
   error?: string
@@ -99,7 +99,7 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
   }
 
   // Check if the current user has already zapped an event
-  const hasAlreadyZapped = async (event: NDKEvent): Promise<boolean> => {
+  const hasAlreadyZapped = async (event: AppEvent): Promise<boolean> => {
     if (!myPubKey) return false
 
     return new Promise((resolve) => {
@@ -109,10 +109,10 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
       }
 
       try {
-        const sub = ndk().subscribe(filter)
+        const sub = nostr().subscribe(filter)
         let found = false
 
-        sub?.on("event", (zapEvent: NDKEvent) => {
+        sub?.on("event", (zapEvent: AppEvent) => {
           // Check if this zap is from me
           const description = zapEvent.tags?.find((t) => t[0] === "description")?.[1]
           if (description) {
@@ -147,7 +147,7 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
   }
 
   const startZapCampaign = async () => {
-    const ndkInstance = ndk()
+    const ndkInstance = nostr()
     const signer = ndkInstance.signer
 
     if (!signer) {
@@ -233,7 +233,7 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
 
       try {
         // Get author profile to get lightning address
-        const author = ndk().getUser({pubkey: event.pubkey})
+        const author = nostr().getUser({pubkey: event.pubkey})
         await author.fetchProfile()
 
         const lud16 = author.profile?.lud16
@@ -355,7 +355,7 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
               <button
                 onClick={startZapCampaign}
                 className="btn btn-primary flex-1"
-                disabled={!hasWallet || !ndk().signer}
+                disabled={!hasWallet || !nostr().signer}
               >
                 <RiPlayFill className="w-5 h-5" />
                 Start
@@ -365,9 +365,9 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
               </button>
             </div>
 
-            {(!hasWallet || !ndk().signer) && (
+            {(!hasWallet || !nostr().signer) && (
               <div className="text-sm text-error">
-                {!ndk().signer ? "No signer available" : "No wallet connected"}
+                {!nostr().signer ? "No signer available" : "No wallet connected"}
               </div>
             )}
           </>

@@ -3,7 +3,7 @@
 import {act, createElement} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-import type {NDKEvent} from "@/lib/ndk"
+import type {AppEvent} from "@/lib/nostr"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
 type VisibilityEvent = Parameters<
@@ -40,7 +40,7 @@ type HookProps = Parameters<typeof useCombinedPostFetcher>[0]
 type HookResult = ReturnType<typeof useCombinedPostFetcher>
 
 const event = (id: string, pubkey = "author") =>
-  ({id, pubkey, tags: []}) as unknown as NDKEvent
+  ({id, pubkey, tags: []}) as unknown as AppEvent
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -143,7 +143,7 @@ describe("useCombinedPostFetcher", () => {
 
   it("does not commit an in-flight fetch after its source scope changes", async () => {
     const oldEvent = event("old-scope-event")
-    const pendingFetch = deferred<NDKEvent[]>()
+    const pendingFetch = deferred<AppEvent[]>()
     const unsubscribe = vi.fn()
     mocks.fetchEventsReliable.mockReturnValue({
       promise: pendingFetch.promise,
@@ -287,7 +287,7 @@ describe("useCombinedPostFetcher", () => {
   it("queues a newly ready source while a partial-source fetch is in flight", async () => {
     const chronologicalEvent = event("chronological-in-flight")
     const popularEvent = event("popular-ready-during-fetch")
-    const partialFetch = deferred<NDKEvent[]>()
+    const partialFetch = deferred<AppEvent[]>()
     const getNextPopular = vi.fn(() => [popularEvent.id])
     const getNextChronological = vi
       .fn<() => string[]>()

@@ -1,21 +1,21 @@
 import {
-  NDKEvent,
-  NDKUserProfile,
-  NDKSubscription,
-  NDKSubscriptionCacheUsage,
+  AppEvent,
+  UserProfile,
+  EventSubscription,
+  CacheMode,
   profileFromEvent,
-} from "@/lib/ndk"
+} from "@/lib/nostr"
 import {handleProfile} from "@/utils/profileSearch"
 import {PublicKey} from "@/shared/utils/PublicKey"
 import {useCallback, useEffect, useMemo, useSyncExternalStore} from "react"
 import {addUsernameToCache} from "@/utils/usernameCache"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {KIND_METADATA} from "@/utils/constants"
-import {getMainThreadDb} from "@/lib/ndk-cache/db"
+import {getMainThreadDb} from "@/lib/nostr/db"
 import {updateNameCache} from "@/utils/profileName"
 
 // In-memory store for profiles that are actively being rendered on screen.
-const profileStore = new Map<string, NDKUserProfile>()
+const profileStore = new Map<string, UserProfile>()
 const pendingProfileLoads = new Map<string, Promise<void>>()
 
 // Subscribers per pubkey
@@ -28,7 +28,7 @@ function notifySubscribers(pubKeyHex: string) {
   }
 }
 
-function sanitizeProfileForUi(profile?: NDKUserProfile | null): NDKUserProfile | null {
+function sanitizeProfileForUi(profile?: UserProfile | null): UserProfile | null {
   if (!profile) return null
 
   const displayName =
@@ -89,7 +89,7 @@ function loadProfileFromDb(pubKeyHex: string) {
 }
 
 // Subscription manager - one subscription per pubkey
-const activeSubscriptions = new Map<string, {sub: NDKSubscription; refCount: number}>()
+const activeSubscriptions = new Map<string, {sub: EventSubscription; refCount: number}>()
 
 function subscribeToProfile(pubKeyHex: string) {
   const existing = activeSubscriptions.get(pubKeyHex)
@@ -98,18 +98,18 @@ function subscribeToProfile(pubKeyHex: string) {
     return () => unsubscribeFromProfile(pubKeyHex)
   }
 
-  const sub = ndk().subscribe(
+  const sub = nostr().subscribe(
     {kinds: [KIND_METADATA], authors: [pubKeyHex]},
     {
       closeOnEose: true,
-      cacheUsage: NDKSubscriptionCacheUsage.PARALLEL,
+      cacheUsage: CacheMode.PARALLEL,
     }
   )
 
   activeSubscriptions.set(pubKeyHex, {sub, refCount: 1})
 
   let latest = profileStore.get(pubKeyHex)?.created_at || 0
-  sub.on("event", (event: NDKEvent) => {
+  sub.on("event", (event: AppEvent) => {
     if (event.pubkey === pubKeyHex && event.kind === KIND_METADATA) {
       if (!event.created_at || event.created_at <= latest) return
 
@@ -164,7 +164,7 @@ export default function useProfile(pubKey?: string, subscribe = true) {
     void loadProfileFromDb(pubKeyHex)
   }, [pubKeyHex])
 
-  // Subscribe to NDK updates
+  // Subscribe to NostrClient updates
   useEffect(() => {
     if (!pubKeyHex || !subscribe) return
     return subscribeToProfile(pubKeyHex)

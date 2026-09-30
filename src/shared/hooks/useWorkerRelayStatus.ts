@@ -1,5 +1,5 @@
 import {useState, useEffect} from "react"
-import {getWorkerTransport} from "@/utils/ndk"
+import {getWorkerTransport} from "@/utils/nostrClient"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 

@@ -1,4 +1,4 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {EmbedEvent} from "../components/embed"
 
 export interface ImetaMediaItem {
@@ -52,7 +52,7 @@ export function parseImetaTag(tag: string[]): ImetaData {
 /**
  * Extracts media items from imeta tags in an event
  */
-export function extractImetaImages(event: NDKEvent): ImetaMediaItem[] {
+export function extractImetaImages(event: AppEvent): ImetaMediaItem[] {
   return event.tags
     .filter((tag) => tag[0] === "imeta")
     .map((tag) => {
@@ -75,7 +75,7 @@ export function extractImetaImages(event: NDKEvent): ImetaMediaItem[] {
  * Gets parsed imeta data for a specific URL
  */
 export function getImetaDataForUrl(
-  event: NDKEvent | EmbedEvent,
+  event: AppEvent | EmbedEvent,
   url: string
 ): ImetaData | undefined {
   if (!event?.tags) return undefined

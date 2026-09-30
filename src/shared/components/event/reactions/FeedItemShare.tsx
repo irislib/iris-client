@@ -1,8 +1,8 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {nip19} from "nostr-tools"
 import {RiShare2Line} from "@remixicon/react"
 
-const FeedItemShare = ({event}: {event: NDKEvent}) => {
+const FeedItemShare = ({event}: {event: AppEvent}) => {
   if (!navigator.share) {
     return null
   }

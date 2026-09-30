@@ -123,8 +123,8 @@ vi.mock("@/stores/privateMessages", () => ({
 
 vi.mock("@/utils/auth", () => ({hasWriteAccess: () => mocks.writeAccess}))
 
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({
     pool: {
       connectedRelays: mocks.connectedRelays,
       connect: mocks.connect,
@@ -162,7 +162,7 @@ vi.mock("./deviceLabels", () => ({
   getLinkedDeviceRegistrationLabels: vi.fn(),
 }))
 
-vi.mock("@/lib/ndk", () => {
+vi.mock("@/lib/nostr", () => {
   class MockNDKEvent {
     id: string
 
@@ -193,7 +193,7 @@ vi.mock("@/lib/ndk", () => {
 
   return {
     default: class MockNDK {},
-    NDKEvent: MockNDKEvent,
+    AppEvent: MockNDKEvent,
   }
 })
 

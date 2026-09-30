@@ -9,7 +9,7 @@ import {
 } from "@/utils/profileSearchData"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
 import {nip19} from "nostr-tools"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {NOSTR_REGEX, HEX_REGEX, NIP05_REGEX} from "@/utils/validation"
 
 const DEFAULT_DISTANCE = 999
@@ -69,7 +69,7 @@ export function useSearch({
       // Don't clear setValue here - let the parent handle it
       return
     } else if (v.match(NIP05_REGEX)) {
-      ndk()
+      nostr()
         .getUserFromNip05(v)
         .then((user) => {
           if (user) {

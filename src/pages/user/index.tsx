@@ -18,7 +18,7 @@ import {useSocialGraph} from "@/utils/socialGraph"
 import ProfileHeader from "./ProfileHeader"
 import ProfileDropdownButton from "@/shared/components/user/ProfileDropdownButton"
 import {useUserStore} from "@/stores/user"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import {
   KIND_TEXT_NOTE,
@@ -150,7 +150,7 @@ function useHasMarketEvents(pubKey: string) {
     // Reset state when pubKey changes
     setHasMarketEvents(false)
 
-    const sub = ndk().subscribe({
+    const sub = nostr().subscribe({
       kinds: [KIND_CLASSIFIED],
       authors: [pubKey],
       limit: 1,
@@ -177,7 +177,7 @@ function useHasArticles(pubKey: string) {
 
     setHasArticles(false)
 
-    const sub = ndk().subscribe({
+    const sub = nostr().subscribe({
       kinds: [KIND_LONG_FORM_CONTENT],
       authors: [pubKey],
       limit: 1,

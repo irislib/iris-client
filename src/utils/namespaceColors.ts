@@ -51,7 +51,7 @@ export function getNamespaceColor(namespace: string): string {
     return colorCache.get(namespace)!
   }
 
-  // Use root namespace (e.g., "ndk" from "ndk:relay:conn")
+  // Use root namespace (e.g., "nostr" from "nostr:relay:conn")
   const rootNamespace = namespace.split(":")[0]
   const hash = hashString(rootNamespace)
   const color = NAMESPACE_COLORS[hash % NAMESPACE_COLORS.length]

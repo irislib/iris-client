@@ -1,8 +1,8 @@
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
 import {useState, FormEvent} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 const PublicChannelCreateStep = () => {
   const navigate = useNavigate()
@@ -32,7 +32,7 @@ const PublicChannelCreateStep = () => {
         picture,
         relays: [],
       }
-      const event = new NDKEvent(ndk())
+      const event = new AppEvent(nostr())
       event.kind = 40
       event.content = JSON.stringify(metadata)
       await event.publish()

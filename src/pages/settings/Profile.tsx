@@ -7,10 +7,10 @@ import {Name} from "@/shared/components/user/Name"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile from "@/shared/hooks/useProfile"
 import {useEffect, useMemo, useState} from "react"
-import {NDKEvent, NDKSubscriptionCacheUsage, profileFromEvent} from "@/lib/ndk"
+import {AppEvent, CacheMode, profileFromEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {
   profileEditorValues,
@@ -75,10 +75,10 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     }
     // A UI/cache projection is not a complete metadata document. Fetch the source
     // event before allowing edits to replace it, and fail closed if unavailable.
-    void ndk()
+    void nostr()
       .fetchEvent(
         {kinds: [0], authors: [myPubKey]},
-        {cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY}
+        {cacheUsage: CacheMode.ONLY_RELAY}
       )
       .then((event) => {
         const data = readProfileMetadata(
@@ -120,10 +120,10 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     const savedEdits = edits
     const metadata = {...currentSource.metadata, ...savedEdits}
     try {
-      const event = new NDKEvent(ndk())
+      const event = new AppEvent(nostr())
       event.kind = 0
       event.content = JSON.stringify(metadata)
-      const signer = ndk().signer
+      const signer = nostr().signer
       if (!signer || (await signer.user()).pubkey !== myPubKey) {
         throw new Error("Profile signer changed")
       }

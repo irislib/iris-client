@@ -1,6 +1,6 @@
 import {RiErrorWarningLine, RiGithubFill} from "@remixicon/react"
 import {ElementType, ReactNode, useEffect, useMemo, useRef, useState} from "react"
-import {NDKUserProfile} from "@/lib/ndk"
+import {UserProfile} from "@/lib/nostr"
 import {useLocation, useNavigate} from "@/navigation"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {nip05, nip19} from "nostr-tools"
@@ -21,7 +21,7 @@ type ExternalIdentities = {
 }
 
 interface ProfileDetailsProps {
-  displayProfile: NDKUserProfile | undefined
+  displayProfile: UserProfile | undefined
   externalIdentities: ExternalIdentities | undefined
   pubKey: string
 }

@@ -3,17 +3,17 @@ import {
   FallbackStore,
   HashTree,
   LinkType,
-  MemoryStore,
   nhashDecode,
   nhashEncode,
   type BlossomServer,
   type CID,
   type TreeEntry,
 } from "@hashtree/core"
+import {localBlocks} from "@/lib/fileStore"
 import {SearchIndex} from "@hashtree/index"
 import Fuse from "fuse.js"
 
-import {db} from "../lib/ndk-cache"
+import {db} from "@/lib/nostr/cache"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 
 const FUSE_KEYS = ["name", "aliases", "nip05", "pubKey"]
@@ -187,7 +187,7 @@ function createRemoteSearch(): RemoteSearchContext | null {
       servers: parseBlossomServers(import.meta.env.VITE_BLOSSOM_SERVERS),
     })
     const store = new FallbackStore({
-      primary: new MemoryStore(),
+      primary: localBlocks,
       fallbacks: [remoteStore],
       timeout: REMOTE_SEARCH_CACHE_TIMEOUT_MS,
     })

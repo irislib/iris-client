@@ -23,7 +23,7 @@ import classNames from "classnames"
 import {nip19} from "nostr-tools"
 import Icon from "../Icons/Icon"
 import SearchInput from "./SearchInput"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 import {NOSTR_REGEX, HEX_REGEX, NIP05_REGEX} from "@/utils/validation"
 import {useUIStore} from "@/stores/ui"
 const MAX_RESULTS = 6
@@ -137,7 +137,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
         onSelect(withoutPrefix)
         return
       } else if (withoutPrefix.match(NIP05_REGEX)) {
-        ndk()
+        nostr()
           .getUserFromNip05(withoutPrefix)
           .then((user) => {
             if (user) {

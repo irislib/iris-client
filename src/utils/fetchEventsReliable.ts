@@ -1,5 +1,5 @@
-import {ndk} from "./ndk"
-import type {NDKEvent, NDKFilter, NDKSubscription} from "@/lib/ndk"
+import {nostr} from "@/utils/nostrClient"
+import type {AppEvent, EventFilter, EventSubscription} from "@/lib/nostr"
 import {createDebugLogger} from "./createDebugLogger"
 import {DEBUG_NAMESPACES} from "./constants"
 import {getEvent, getEventSync, cacheEvent} from "./eventCache"
@@ -12,7 +12,7 @@ interface FetchOptions {
 }
 
 interface FetchResult {
-  promise: Promise<NDKEvent[]>
+  promise: Promise<AppEvent[]>
   unsubscribe: () => void
 }
 
@@ -20,23 +20,23 @@ interface FetchResult {
  * Reliable event fetching that doesn't rely on broken EOSE logic.
  * Uses subscribe internally and waits for completion or timeout.
  *
- * @param filters - NDK filters
+ * @param filters - NostrClient filters
  * @param opts - Options including timeout (default: no timeout)
  * @returns {promise, unsubscribe} - Promise resolves with events, unsubscribe cleans up subscription
  */
 export function fetchEventsReliable(
-  filters: NDKFilter | NDKFilter[],
+  filters: EventFilter | EventFilter[],
   opts?: FetchOptions
 ): FetchResult {
-  const events = new Map<string, NDKEvent>()
+  const events = new Map<string, AppEvent>()
   const filterArray = Array.isArray(filters) ? filters : [filters]
   let resolved = false
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined
   let warningHandle: ReturnType<typeof setTimeout> | undefined
   let settleHandle: ReturnType<typeof setTimeout> | undefined
-  let sub: NDKSubscription
+  let sub: EventSubscription
 
-  const finalize = (resolve: (value: NDKEvent[]) => void) => {
+  const finalize = (resolve: (value: AppEvent[]) => void) => {
     if (resolved) return
     resolved = true
     if (timeoutHandle) clearTimeout(timeoutHandle)
@@ -69,7 +69,7 @@ export function fetchEventsReliable(
     }
   }
 
-  const promise = new Promise<NDKEvent[]>((resolve) => {
+  const promise = new Promise<AppEvent[]>((resolve) => {
     // Log request info
     if (requestedIds.size > 0) {
       log(
@@ -111,7 +111,7 @@ export function fetchEventsReliable(
     continueAfterIdbCheck()
   })
 
-  function startSubscription(resolve: (value: NDKEvent[]) => void) {
+  function startSubscription(resolve: (value: AppEvent[]) => void) {
     const scheduleSettle = () => {
       if (
         requestedIds.size === 0 ||
@@ -126,13 +126,13 @@ export function fetchEventsReliable(
 
     // Use groupable subscriptions for ID queries to batch them together
     const isIdQuery = requestedIds.size > 0
-    sub = ndk().subscribe(filterArray, {
+    sub = nostr().subscribe(filterArray, {
       closeOnEose: false, // Keep subscription open
       groupable: isIdQuery, // Group ID-based queries
       groupableDelay: isIdQuery ? 200 : undefined, // 200ms delay to collect IDs
     })
 
-    sub.on("event", (event: NDKEvent) => {
+    sub.on("event", (event: AppEvent) => {
       events.set(event.id, event)
       cacheEvent(event) // Add to hot cache
       log(`[fetchEventsReliable] Received event: ${event.id.slice(0, 8)}`)
@@ -216,9 +216,9 @@ export function fetchEventsReliable(
  * Fetch a single event reliably
  */
 export function fetchEventReliable(
-  filter: string | NDKFilter,
+  filter: string | EventFilter,
   opts?: FetchOptions
-): {promise: Promise<NDKEvent | null>; unsubscribe: () => void} {
+): {promise: Promise<AppEvent | null>; unsubscribe: () => void} {
   const filterObj = typeof filter === "string" ? {ids: [filter]} : filter
   const {promise, unsubscribe} = fetchEventsReliable(filterObj, opts)
   return {

@@ -1,4 +1,4 @@
-import {NDKEvent, NDKFilter, NDKSubscriptionCacheUsage} from "@/lib/ndk"
+import {AppEvent, EventFilter, CacheMode} from "@/lib/nostr"
 import {
   buildRuntimeBackfillFilters,
   RuntimeSubscriptionTracker,
@@ -44,14 +44,14 @@ interface RuntimeSubscribeNdk {
     connectedRelays: () => Array<{url: string}>
   }
   subscribe: (
-    filter: NDKFilter,
+    filter: EventFilter,
     opts: {
       closeOnEose: boolean
-      cacheUsage: NDKSubscriptionCacheUsage
+      cacheUsage: CacheMode
       relayUrls?: string[]
     }
   ) => {
-    on: (event: "event", handler: (event: NDKEvent) => void) => void
+    on: (event: "event", handler: (event: AppEvent) => void) => void
     start: () => void
     stop: () => void
   }
@@ -59,7 +59,7 @@ interface RuntimeSubscribeNdk {
 
 export const createRuntimeSubscribe = (
   ndkInstance: RuntimeSubscribeNdk,
-  cacheUsage: NDKSubscriptionCacheUsage = NDKSubscriptionCacheUsage.PARALLEL
+  cacheUsage: CacheMode = CacheMode.PARALLEL
 ): NostrSubscribe => {
   const tracker = new RuntimeSubscriptionTracker()
 
@@ -67,7 +67,7 @@ export const createRuntimeSubscribe = (
     const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
     const relayOptions = relayUrls.length > 0 ? {relayUrls} : {}
     const {forward, dispose} = createDeduplicatingForwarder(onEvent)
-    const forwardEvent = (event: NDKEvent) => {
+    const forwardEvent = (event: AppEvent) => {
       const rawEvent =
         typeof (event as {rawEvent?: () => unknown}).rawEvent === "function"
           ? (event as {rawEvent: () => unknown}).rawEvent()
@@ -77,7 +77,7 @@ export const createRuntimeSubscribe = (
 
     const registered = tracker.registerFilter(filter)
 
-    const liveSubscription = ndkInstance.subscribe(filter as NDKFilter, {
+    const liveSubscription = ndkInstance.subscribe(filter as EventFilter, {
       closeOnEose: false,
       cacheUsage,
       ...relayOptions,
@@ -89,9 +89,9 @@ export const createRuntimeSubscribe = (
       registered,
       DIRECT_MESSAGE_BACKFILL_LIMIT
     ).map((backfillFilter) =>
-      ndkInstance.subscribe(backfillFilter as NDKFilter, {
+      ndkInstance.subscribe(backfillFilter as EventFilter, {
         closeOnEose: true,
-        cacheUsage: NDKSubscriptionCacheUsage.ONLY_RELAY,
+        cacheUsage: CacheMode.ONLY_RELAY,
         ...relayOptions,
       })
     )

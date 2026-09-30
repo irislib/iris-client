@@ -1,7 +1,7 @@
 import {KeyboardEvent, Dispatch, RefObject} from "react"
 import {useNavigate} from "@/navigation"
 import {nip19} from "nostr-tools"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import {ImetaTag} from "@/stores/draft"
 import {SearchResult} from "@/utils/profileSearch"
 import {NoteCreatorState, NoteCreatorAction} from "./useNoteCreatorState"
@@ -14,7 +14,7 @@ interface UseNoteCreatorHandlersParams {
     | false
     | {
         success: boolean
-        event: NDKEvent | null
+        event: AppEvent | null
         eventId: string | null
       }
   >
@@ -31,10 +31,10 @@ interface UseNoteCreatorHandlersParams {
   expandOnFocus: boolean
   isFocused: boolean
   setIsFocused: (focused: boolean) => void
-  replyingTo?: NDKEvent
+  replyingTo?: AppEvent
   navigateOnPublish?: boolean
   onClose?: () => void
-  onPublishCallback?: (event: NDKEvent) => void
+  onPublishCallback?: (event: AppEvent) => void
 }
 
 export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {

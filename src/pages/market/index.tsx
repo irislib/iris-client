@@ -6,7 +6,7 @@ import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {Helmet} from "react-helmet"
 import {useIsTwoColumnLayout} from "@/shared/hooks/useIsTwoColumnLayout"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import MarketFilters from "./components/MarketFilters"
 import {marketStore} from "@/stores/marketstore"
 import {buildMarketFeedConfig} from "./utils"
@@ -16,7 +16,7 @@ export default function MarketPage() {
   const isInTwoColumnLayout = useIsTwoColumnLayout()
   const displayAs = useUIStore((state) => state.marketDisplayAs)
   const setMarketDisplayAs = useUIStore((state) => state.setMarketDisplayAs)
-  const [mapEvents, setMapEvents] = useState<NDKEvent[]>([])
+  const [mapEvents, setMapEvents] = useState<AppEvent[]>([])
 
   // Parse URL params directly without state to avoid stale values
   const params = new URLSearchParams(window.location.search)
@@ -27,7 +27,7 @@ export default function MarketPage() {
 
   // Callback to collect events for the map and track categories
   const handleMarketEvent = useCallback(
-    async (event: NDKEvent) => {
+    async (event: AppEvent) => {
       // Create a filter key to track when filters change
       const currentFilterKey = `${category}-${selectedGeohash}-${searchQuery}-${additionalTags.join(",")}`
 

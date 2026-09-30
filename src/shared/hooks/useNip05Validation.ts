@@ -1,6 +1,6 @@
 import {nip05VerificationCache} from "@/utils/memcache"
 import {useEffect, useState} from "react"
-import {ndk} from "@/utils/ndk"
+import {nostr} from "@/utils/nostrClient"
 
 export function useNip05Validation(pubkey: string, nip05?: string) {
   const [isValid, setIsValid] = useState<boolean | null>(null)
@@ -21,7 +21,7 @@ export function useNip05Validation(pubkey: string, nip05?: string) {
     }
 
     // Start validation
-    ndk()
+    nostr()
       .getUser({hexpubkey: pubkey})
       ?.validateNip05(nip05)
       .then((result) => {

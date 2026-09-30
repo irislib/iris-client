@@ -3,23 +3,23 @@ import {act} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 import {finalizeEvent, getPublicKey} from "nostr-tools"
-import {NDKEvent, type NDKFilter} from "@/lib/ndk"
+import {AppEvent, type EventFilter} from "@/lib/nostr"
 import {groupTags} from "@/groups/model"
 import type {GroupActivityAccess} from "@/groups/activity"
 import {useReactionsByAuthor} from "./useReactions"
 
 const state = vi.hoisted(() => ({
   access: null as (GroupActivityAccess & {visiblePubkeys: Set<string>}) | null,
-  listeners: new Set<(event: NDKEvent) => void>(),
-  filters: [] as NDKFilter[][],
+  listeners: new Set<(event: AppEvent) => void>(),
+  filters: [] as EventFilter[][],
 }))
 vi.mock("@/groups/GroupContext", () => ({useGroupAccess: () => state.access}))
 vi.mock("@/utils/visibility", () => ({shouldHideUser: () => false}))
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({
-    subscribe: (filters: NDKFilter[]) => {
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({
+    subscribe: (filters: EventFilter[]) => {
       state.filters.push(filters)
-      let listener: (event: NDKEvent) => void
+      let listener: (event: AppEvent) => void
       return {
         on: (name: string, callback: typeof listener) => {
           if (name === "event") {
@@ -40,7 +40,7 @@ const outsider = getPublicKey(otherKey)
 const ref = {creator: author, id: "00000000-0000-4000-8000-000000000001"}
 const targetId = "f".repeat(64)
 const reaction = (secret: Uint8Array, time = 100) =>
-  new NDKEvent(
+  new AppEvent(
     undefined,
     finalizeEvent(
       {

@@ -2,14 +2,14 @@ import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import {INITIAL_DISPLAY_COUNT, DISPLAY_INCREMENT} from "./utils"
 import {useMemo, useCallback, useState} from "react"
 import MediaModal from "../media/MediaModal"
-import {NDKEvent} from "@/lib/ndk"
+import {AppEvent} from "@/lib/nostr"
 import ImageGridItem from "./ImageGridItem"
 import {useMediaExtraction} from "@/shared/hooks/useMediaExtraction"
 import {useMediaModal} from "@/shared/hooks/useMediaModal"
 import {useMediaCache} from "@/shared/hooks/useMediaCache"
 
 interface MediaFeedProps {
-  events: (NDKEvent | {id: string})[]
+  events: (AppEvent | {id: string})[]
   eventsToHighlight?: Set<string>
 }
 
@@ -34,7 +34,7 @@ export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
   }, [events.length, displayCount])
 
   const handleImageClick = useCallback(
-    (event: NDKEvent, clickedUrl: string) => {
+    (event: AppEvent, clickedUrl: string) => {
       // Use all available events for modal, not just fetched ones
       const allFetchedEvents = Array.from(fetchedEventsMap.values())
 
@@ -53,7 +53,7 @@ export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
           // Skip unfetched events for now (they'll be fetched on demand)
           return null
         })
-        .filter(Boolean) as NDKEvent[]
+        .filter(Boolean) as AppEvent[]
 
       // Ensure the clicked event is included in allEvents
       // Only add if not already present to prevent duplicates

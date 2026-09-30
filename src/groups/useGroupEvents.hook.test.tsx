@@ -7,9 +7,9 @@ import {useGroupEvents} from "./useGroupEvents"
 const state = vi.hoisted(() => ({
   subs: [] as {stopped: boolean; closeOnEose: boolean; eose?: () => void}[],
 }))
-vi.mock("@/lib/ndk", () => ({NDKSubscriptionCacheUsage: {PARALLEL: "PARALLEL"}}))
-vi.mock("@/utils/ndk", () => ({
-  ndk: () => ({
+vi.mock("@/lib/nostr", () => ({CacheMode: {PARALLEL: "PARALLEL"}}))
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({
     subscribe: (_filters: unknown, options: {closeOnEose: boolean}) => {
       const sub = {
         stopped: false,
