@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/mmalmi/cashu.me",
+  "commit": "517fb6eef6e16e36766efd5c301eddce1babe906",
+  "upstream": "5af04372de69ba0b117dc3c2cb87526c12a06200",
+  "integration": "Client adds offline registration, normalizes the direct entry URL and corrects icon paths; wallet source is built unchanged."
+}

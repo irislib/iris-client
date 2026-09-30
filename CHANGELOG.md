@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.29 - 2026-09-30
+
+- Reuse message-server connections in the recovery wallet while keeping saved funds, keys, and signer sessions.
+- Reopen a previously visited recovery wallet offline, including direct links.
+- Keep recovery-wallet updates separate from other open Iris tabs.
+
 ## 2.5.28 - 2026-09-30
 
 - Recover peer connections sooner when handshake messages or connection answers are lost.
