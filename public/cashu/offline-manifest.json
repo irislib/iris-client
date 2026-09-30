@@ -1,6 +1,6 @@
 {
-  "version": "3f377727205c3066b8ff83cc5caf600f03b773bc1e357aed5d0d97079036b65a",
-  "worker": "service-worker.3f377727205c3066b8ff83cc5caf600f03b773bc1e357aed5d0d97079036b65a.js",
+  "version": "fcae0384ee967138281132291065bb7a5b296df701d71a8823f9974668d88c0e",
+  "worker": "service-worker.fcae0384ee967138281132291065bb7a5b296df701d71a8823f9974668d88c0e.js",
   "files": {
     "assets/AlreadyRunning.e5d40027.js": "b3c3e01bd87bbe9e5bd4629bc4379406783cdc802517d7f9242a5fff5d2d7791",
     "assets/AndroidPWAPrompt.e0fc5436.js": "4cd42b046019828ce4faa688f02ce7577f2d3030bd953538769cf462b878b39e",
@@ -93,9 +93,9 @@
     "icons/icon-512x512.png": "54f6971eba7069d551ec219321a7bf991eddbe75748438d204b66ea2de4f1ead",
     "icons/ms-icon-144x144.png": "8fd0e2a0d6a088e59b89c97665018e44bbd5fe7e08cbcb6cab483eedb7d077ae",
     "icons/safari-pinned-tab.svg": "0cc4ac0adb0950bf7f8055533d6d5ca9a4c525f2562b31238bc2aa7ca89e60bf",
-    "index.html": "d118342dcc242f412ff2d7b390ad5106d3a6c4a5d9453aaa3f0a48be72dd1c77",
+    "index.html": "e6de0777303f3c2cb85994f5cf25b4dbe0616b8febb4a70048d346c5bc1747f1",
     "nostr-icon.svg": "81a52e60058705c3f80801d439479adab8f181137d09a1088dad8fcca0790064",
-    "offline.js": "f8aad7ceb7406bafb5f560769ce6f4690a85730fe2c064ada3939c7eadeddfab",
+    "offline.js": "b533b8d13452e5c78fb17d319eb4317b5d5851e6c111ba4a95df5d1159a4d334",
     "provenance.json": "944bcd2731d2edd7f94c7df53b2238019c841dd14c57cf37f029890e277ecf1b",
     "screenshots/narrow-1.png": "a30590402e52088ea9bd202d831ffac91bdb7d898baecd63a788328756b80401",
     "screenshots/narrow-2.png": "6431172fc7aa78030f987ab74ee7b60fde15b1979854979bf96f5009c17922c8",

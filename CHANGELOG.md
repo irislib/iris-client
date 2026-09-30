@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.30 - 2026-09-30
+
+- Keep the recovery wallet working offline when the web host redirects its entry page.
+- Recover an older wallet cache when reopening it from Iris.
+
 ## 2.5.29 - 2026-09-30
 
 - Reuse message-server connections in the recovery wallet while keeping saved funds, keys, and signer sessions.

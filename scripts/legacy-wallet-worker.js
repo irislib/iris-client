@@ -79,10 +79,18 @@ self.addEventListener("fetch", (event) => {
     (async () => {
       const cache = await caches.open(cacheName)
       const saved = await cache.match(key)
-      if (saved) return saved
-      const response = await fetch(new Request(key, {integrity: files.get(key)}))
-      if (response.ok) await cache.put(key, response.clone())
-      return response
+      const response =
+        saved ?? (await fetch(new Request(key, {integrity: files.get(key)})))
+      if (!saved && response.ok) await cache.put(key, response.clone())
+      // Static hosts can redirect index.html to /. Navigation requests reject
+      // redirected cached responses, although their verified bytes are valid.
+      return response.redirected
+        ? new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: response.headers,
+          })
+        : response
     })()
   )
 })

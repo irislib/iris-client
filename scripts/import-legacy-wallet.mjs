@@ -25,7 +25,7 @@ await writeFile(
   path.join(target, "index.html"),
   index
     .replaceAll(/href=\/icons\/(\d+x\d+)\.png/g, "href=/cashu/icons/favicon-$1.png")
-    .replace("<head>", '<head><script src="/cashu/offline.js"></script>')
+    .replace("<head>", '<head><script type="module" src="/cashu/offline.js"></script>')
 )
 await cp(
   path.join(root, "scripts/legacy-wallet-offline.js"),
