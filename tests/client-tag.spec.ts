@@ -1,5 +1,5 @@
 import {test, expect, type Page} from "@playwright/test"
-import type {EventTemplate} from "nostr-tools"
+import {finalizeEvent, getPublicKey, type Event, type EventTemplate} from "nostr-tools"
 
 async function createPost(page: Page, content: string) {
   await page.goto("/")
@@ -15,12 +15,13 @@ test("public activity uses the standard iris tag and honors the persisted opt-ou
   page,
 }, testInfo) => {
   const signedEvents: EventTemplate[] = []
+  const signerKey = new Uint8Array(32).fill(17)
   await page.exposeFunction("captureSignedEvent", (event: EventTemplate) => {
     signedEvents.push(event)
+    return finalizeEvent(event, signerKey)
   })
-  await page.addInitScript(() => {
+  await page.addInitScript((pubkey) => {
     window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
-    const pubkey = "1".repeat(64)
     if (!localStorage.getItem("user-storage")) {
       localStorage.setItem(
         "user-storage",
@@ -60,16 +61,15 @@ test("public activity uses the standard iris tag and honors the persisted opt-ou
     window.nostr = {
       getPublicKey: async () => pubkey,
       signEvent: async (event) => {
-        await (
+        return (
           window as Window & {
-            captureSignedEvent: (event: unknown) => Promise<void>
+            captureSignedEvent: (event: unknown) => Promise<Event>
           }
         ).captureSignedEvent(event)
-        return {...event, sig: "7".repeat(128)}
       },
       getRelays: async () => ({}),
     }
-  })
+  }, getPublicKey(signerKey))
 
   await createPost(page, "Client attribution enabled")
   const post = signedEvents.find(
