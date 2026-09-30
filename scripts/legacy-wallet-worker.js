@@ -42,11 +42,19 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(cacheName)
       // Atomic static response batch: no API URLs or wallet data are included.
-      await cache.addAll(
-        [...files].map(
-          ([url, integrity]) => new Request(url, {cache: "no-cache", integrity})
+      try {
+        await cache.addAll(
+          [...files].map(
+            ([url, integrity]) => new Request(url, {cache: "no-cache", integrity})
+          )
         )
-      )
+      } catch (error) {
+        const inUse = [self.registration.active, self.registration.waiting].some(
+          (worker) => worker?.scriptURL === self.location.href
+        )
+        if (!inUse) await caches.delete(cacheName)
+        throw error
+      }
       await retireUnusedCaches()
     })()
   )
