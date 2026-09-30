@@ -145,7 +145,10 @@ test("seed-only connectivity stays amber and disconnects clear the visible peer 
     await expect(
       instance.page.getByTestId("connectivity-indicator").first()
     ).toHaveAttribute("data-connection-state", "servers")
-    await expect(settings.getByText("No peers connected yet.")).toBeVisible()
+    await expect(
+      settings.getByRole("heading", {name: "Peers (1)", exact: true})
+    ).toBeVisible()
+    await expect(settings.getByText("No peers connected yet.")).toHaveCount(0)
     await instance.page.evaluate(async () => {
       const {getPeerRuntime} = await import("/src/lib/peerRuntime.ts")
       await (await getPeerRuntime())?.close()

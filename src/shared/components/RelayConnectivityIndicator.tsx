@@ -21,15 +21,15 @@ export const RelayConnectivityIndicator = ({
 }: RelayConnectivityIndicatorProps) => {
   const {showRelayIndicator} = useUIStore()
   const workerRelays = useWorkerRelayStatus()
-  const {peerCount, seedCount} = usePeerNetwork()
+  const {peerCount, webRtcPeerCount, seedCount} = usePeerNetwork()
   const location = useLocation()
 
   const relayCount = workerRelays.relays.filter((r) => r.status >= 5).length
-  const connectionCount = relayCount + peerCount + seedCount
-  const description = `${peerCount} ${peerCount === 1 ? "peer" : "peers"}, ${relayCount} ${relayCount === 1 ? "relay" : "relays"}, ${seedCount} ${seedCount === 1 ? "seed" : "seeds"} connected`
+  const connectionCount = relayCount + peerCount
+  const description = `${peerCount} ${peerCount === 1 ? "peer" : "peers"} (${seedCount} ${seedCount === 1 ? "seed" : "seeds"}), ${relayCount} ${relayCount === 1 ? "relay" : "relays"} connected`
 
   const getColorClass = () => {
-    if (peerCount > 0) return "text-[#3fb950]"
+    if (webRtcPeerCount > 0) return "text-[#3fb950]"
     if (connectionCount > 0) return "text-warning"
     return "text-error"
   }
@@ -37,7 +37,7 @@ export const RelayConnectivityIndicator = ({
   const targetPath = getNetworkSettingsPath(location.pathname)
   let connectionState = "disconnected"
   if (connectionCount > 0) connectionState = "servers"
-  if (peerCount > 0) connectionState = "peers"
+  if (webRtcPeerCount > 0) connectionState = "peers"
 
   if (!showRelayIndicator) return null
 
@@ -61,13 +61,12 @@ export const OfflineIndicator = ({className = ""}: {className?: string}) => {
   const {showRelayIndicator} = useUIStore()
   const isOnline = useOnlineStatus()
   const workerRelays = useWorkerRelayStatus()
-  const {peerCount, seedCount} = usePeerNetwork()
+  const {peerCount} = usePeerNetwork()
   const location = useLocation()
   const relayCount = workerRelays.relays.filter((r) => r.status >= 5).length
   const targetPath = getNetworkSettingsPath(location.pathname)
 
-  if (showRelayIndicator || peerCount + seedCount > 0 || (isOnline && relayCount > 0))
-    return null
+  if (showRelayIndicator || peerCount > 0 || (isOnline && relayCount > 0)) return null
 
   return (
     <Link

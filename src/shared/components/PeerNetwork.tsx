@@ -1,11 +1,12 @@
 import {usePeerNetwork} from "@/shared/hooks/usePeerNetwork"
+import type {ReactNode} from "react"
 import {formatTraffic} from "@/lib/peerNetworkStats"
 import {Link} from "@/navigation"
 import {SettingsGroup} from "./settings/SettingsGroup"
 import {PeerBandwidthChart} from "./PeerBandwidthChart"
 
 export function PeerNetworkSummary() {
-  const {peerCount, seedCount} = usePeerNetwork()
+  const {peerCount, webRtcPeerCount, seedCount} = usePeerNetwork()
   return (
     <Link
       to="/settings/network"
@@ -13,7 +14,7 @@ export function PeerNetworkSummary() {
       data-testid="network-peer-summary"
     >
       <span
-        className={`h-2 w-2 rounded-full ${peerCount ? "bg-[#3fb950]" : "bg-base-content/30"}`}
+        className={`h-2 w-2 rounded-full ${webRtcPeerCount ? "bg-[#3fb950]" : "bg-base-content/30"}`}
         aria-hidden="true"
       />
       <span>
@@ -30,7 +31,28 @@ export function PeerNetworkSummary() {
 
 const transportLabels: Record<string, string> = {
   webrtc: "WebRTC",
-  websocket: "WebSocket seed",
+  websocket: "FIPS WebSocket seed",
+}
+
+function TransportLabel({
+  transport,
+  plural = false,
+}: {
+  transport: string
+  plural?: boolean
+}) {
+  if (transport !== "websocket") return transportLabels[transport] ?? transport
+  return (
+    <a
+      href="https://fips.network"
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline decoration-dotted underline-offset-2 hover:text-base-content"
+    >
+      {transportLabels.websocket}
+      {plural ? "s" : ""}
+    </a>
+  )
 }
 
 export function PeerNetworkSettings() {
@@ -66,7 +88,7 @@ export function PeerNetworkSettings() {
                   {peer.peerId.slice(0, 10)}…{peer.peerId.slice(-6)}
                 </div>
                 <div className="text-xs text-base-content/60">
-                  {transportLabels[peer.transport] ?? peer.transport} · Connected
+                  <TransportLabel transport={peer.transport} /> · Connected
                 </div>
               </div>
               <div className="text-xs text-right tabular-nums text-base-content/60 shrink-0">
@@ -90,7 +112,7 @@ export function PeerNetworkSettings() {
             {["webrtc", "websocket"].map((transport) => (
               <TrafficRow
                 key={transport}
-                label={transportLabels[transport]}
+                label={<TransportLabel transport={transport} plural />}
                 totals={transports[transport]}
                 rates={rates[transport]}
               />
@@ -112,7 +134,7 @@ function TrafficRow({
   totals,
   rates,
 }: {
-  label: string
+  label: ReactNode
   totals?: {bytesReceived: number; bytesSent: number}
   rates?: {bytesReceived: number; bytesSent: number}
 }) {

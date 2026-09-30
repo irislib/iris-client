@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.32 - 2026-09-30
+
+- Label seed connections as FIPS WebSocket seeds and link to fips.network in Network settings.
+- Shorten the bandwidth legend to Up and Down.
+- Include WebSocket seeds in peer counts and avoid showing an empty peer state while connected to seeds.
+
 ## 2.5.31 - 2026-09-30
 
 - Show connected peers alongside relays in the Network sidebar.

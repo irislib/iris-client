@@ -46,11 +46,11 @@ export function PeerBandwidthChart({history}: {history: PeerNetworkSnapshot["his
       <div className="flex gap-4 text-xs text-base-content/60">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[#3fb950]" />
-          Upload
+          Up
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[#58a6ff]" />
-          Download
+          Down
         </span>
       </div>
     </div>
