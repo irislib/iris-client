@@ -20,6 +20,8 @@ test("user sees a highlighted notification when a followed user likes their post
     await pageA.goto(`/${nip19.npubEncode(userB.publicKey)}`)
     const profileActions = pageA.getByTestId("profile-header-actions")
     await profileActions.getByRole("button", {name: "Follow", exact: true}).click()
+    // A followed profile shows "Unfollow" while the pointer rests on the button.
+    await pageA.mouse.move(0, 0)
     await expect(
       profileActions.getByRole("button", {name: "Following", exact: true})
     ).toBeVisible()
