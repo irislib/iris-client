@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.34 - 2026-10-01
+
+- Recover interrupted peer handshakes and queued messages, clear stale routes on restart, and clean up failed browser connections.
+
 ## 2.5.33 - 2026-10-01
 
 - Reply to FIPS link-quality reports so seed connections can leave their fast startup reporting cadence.
