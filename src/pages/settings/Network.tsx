@@ -5,6 +5,7 @@ import {useUIStore} from "@/stores/ui"
 import {RelayList} from "@/shared/components/RelayList"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
+import {PeerNetworkSettings} from "@/shared/components/PeerNetwork"
 
 export function Network() {
   const {
@@ -111,6 +112,8 @@ export function Network() {
               </div>
             </SettingsGroupItem>
           </SettingsGroup>
+
+          <PeerNetworkSettings />
 
           <SettingsGroup title="Relays">
             <SettingsGroupItem isLast>

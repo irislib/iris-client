@@ -6,6 +6,7 @@ import {useUserStore} from "@/stores/user"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 
 import {localBlocks} from "./fileStore"
+import {observePeerNetwork, setPeerNetworkStatus} from "./peerNetworkStats"
 const DEVICE_KEY = "iris-client:fips-device-secret"
 let retainedEventReader: NostrEventReader | undefined
 export function setRetainedEventReader(reader: NostrEventReader) {
@@ -36,6 +37,7 @@ function deviceKey() {
 export function getPeerRuntime(): Promise<PeerRuntime | null> {
   return (pending ??= start().catch((error) => {
     pending = undefined
+    setPeerNetworkStatus("unavailable")
     console.warn(
       "Peer network unavailable",
       error instanceof Error ? error.message : String(error)
@@ -46,7 +48,11 @@ export function getPeerRuntime(): Promise<PeerRuntime | null> {
 async function start(): Promise<PeerRuntime | null> {
   const {createBrowserHashtreeNostrProvider, supportsBrowserHashtreeFips} =
     await import("@hashtree/fips-transport/browser")
-  if (!supportsBrowserHashtreeFips()) return null
+  if (!supportsBrowserHashtreeFips()) {
+    setPeerNetworkStatus("unsupported")
+    return null
+  }
+  setPeerNetworkStatus("starting")
   const user = useUserStore.getState()
   const overrides = import.meta.env.VITE_E2E
     ? window.__IRIS_FIPS_TEST_CONFIG__
@@ -77,7 +83,16 @@ async function start(): Promise<PeerRuntime | null> {
         Promise.resolve({events: [], complete: false}),
     },
   })
-  return {provider, source: provider.nostrSource, close: () => provider.stop()}
+  const stopObserving = observePeerNetwork(provider)
+  return {
+    provider,
+    source: provider.nostrSource,
+    close: async () => {
+      stopObserving()
+      await provider.stop()
+      pending = undefined
+    },
+  }
 }
 
 declare global {

@@ -83,15 +83,18 @@ test.describe("Stack Navigation", () => {
     await enableHeaderConnectivity(page)
     await signUp(page)
 
-    const relayIndicator = page.locator('[title*="relays connected"]').first()
+    const relayIndicator = page.getByTestId("connectivity-indicator").first()
     await expect(relayIndicator).toBeVisible({timeout: 15000})
 
     await relayIndicator.click()
     await expect(page).toHaveURL(/\/settings\/network$/)
+    const peerSettings = page.getByTestId("peer-network-settings")
+    await expect(peerSettings.getByRole("heading", {name: /^Peers/})).toBeVisible()
+    await expect(peerSettings.getByTestId("peer-traffic")).toContainText("WebRTC")
+    await expect(peerSettings.getByTestId("peer-traffic")).toContainText("Received")
+    await expect(peerSettings.getByTestId("peer-bandwidth-chart")).toBeVisible()
 
-    const relayIndicatorOnNetworkPage = page
-      .locator('[title*="relays connected"]')
-      .first()
+    const relayIndicatorOnNetworkPage = page.getByTestId("connectivity-indicator").first()
     await expect(relayIndicatorOnNetworkPage).toBeVisible({timeout: 15000})
     await relayIndicatorOnNetworkPage.click()
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.31 - 2026-09-30
+
+- Show connected peers alongside relays in the Network sidebar.
+- Show WebRTC peers, seed connections, live bandwidth and session traffic in Network settings.
+- Turn the connectivity indicator green when connected to peers and amber for server-only connections.
+
 ## 2.5.30 - 2026-09-30
 
 - Keep the recovery wallet working offline when the web host redirects its entry page.

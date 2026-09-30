@@ -26,7 +26,7 @@ test("relay status updates when going offline and back online", async ({
   await page.waitForTimeout(5000)
 
   // Find relay connectivity indicator - it shows count (use first visible one)
-  const relayIndicator = page.locator('[title*="relays connected"]').first()
+  const relayIndicator = page.getByTestId("connectivity-indicator").first()
   await expect(relayIndicator).toBeVisible({timeout: 10000})
 
   // Get initial relay count text

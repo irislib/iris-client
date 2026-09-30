@@ -3,6 +3,7 @@ import {useUserStore} from "@/stores/user"
 import {RelayList} from "./RelayList"
 import Widget from "@/shared/components/ui/Widget"
 import {useWorkerRelayStatus} from "@/shared/hooks/useWorkerRelayStatus"
+import {PeerNetworkSummary} from "./PeerNetwork"
 
 interface RelayStatsProps {
   background?: boolean
@@ -29,9 +30,13 @@ export function RelayStats({background = true}: RelayStatsProps = {}) {
       <div className="p-3">
         <Link to="/settings/network" className="inline-block mb-2">
           <h3 className="font-semibold text-sm opacity-80 hover:opacity-100 cursor-pointer transition-opacity underline decoration-dotted underline-offset-2">
-            Network ({connectedCount}/{totalEnabled})
+            Network
           </h3>
         </Link>
+        <PeerNetworkSummary />
+        <div className="text-xs text-base-content/60 mb-1">
+          Relays ({connectedCount}/{totalEnabled})
+        </div>
         <RelayList
           compact={true}
           showDelete={true}

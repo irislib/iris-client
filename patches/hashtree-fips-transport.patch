@@ -1,0 +1,359 @@
+diff --git a/dist/browserProvider.d.ts b/dist/browserProvider.d.ts
+index 941f178..34ed7df 100644
+--- a/dist/browserProvider.d.ts
++++ b/dist/browserProvider.d.ts
+@@ -1,6 +1,8 @@
+ import { type FipsNostrPubsubClientOptions, type RuntimeSource } from 'nostr-pubsub';
+ import { type Store } from '@hashtree/core';
+ import { FipsNode, type FipsIdentity, type Logger } from '@fips/core';
++import { type BrowserNetworkSnapshot } from './browserStats.js';
++export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
+ import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
+ import { WebSocketTransport } from '@fips/transport-websocket';
+ import { type FipsBlobRouteSource, type HashtreeWorkerP2PProvider } from './workerProvider.js';
+@@ -34,6 +36,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
+     readonly node: FipsNode;
+     readonly localPeerId: string;
+     listConnectedPeerIds(): string[];
++    getNetworkStats(): BrowserNetworkSnapshot;
+     readonly webRtcTransport: WebRtcTransport;
+     readonly webSocketTransport: WebSocketTransport;
+     stop(): Promise<void>;
+@@ -55,5 +58,3 @@ export interface BrowserHashtreeNostrProvider extends BrowserHashtreeFipsProvide
+ }
+ /** Files and events share one authenticated FIPS node, identity and set of links. */
+ export declare function createBrowserHashtreeNostrProvider(options: BrowserHashtreeNostrProviderOptions): Promise<BrowserHashtreeNostrProvider>;
+-export {};
+-//# sourceMappingURL=browserProvider.d.ts.map
+\ No newline at end of file
+diff --git a/dist/browserProvider.js b/dist/browserProvider.js
+index 51b936e..b0422ab 100644
+--- a/dist/browserProvider.js
++++ b/dist/browserProvider.js
+@@ -1,6 +1,7 @@
+ import { FipsNostrPubsubClient, FipsNostrPubsubEventSource } from 'nostr-pubsub';
+ import { fromHex, toHex } from '@hashtree/core';
+ import { FipsNode, identityFromSecretKey, } from '@fips/core';
++import { BrowserNetworkStats } from './browserStats.js';
+ import { WebRtcTransport } from '@fips/transport-webrtc';
+ import { WebSocketTransport } from '@fips/transport-websocket';
+ import { DEFAULT_FIPS_DISCOVERY_APP, DEFAULT_FIPS_WEBSOCKET_SEED_URLS, } from './constants.js';
+@@ -47,9 +48,10 @@ export async function createBrowserHashtreeFipsProvider(options) {
+         allowIncomingPeer: options.allowIncomingPeer,
+         logger: options.logger,
+     });
++    const networkStats = new BrowserNetworkStats();
+     const node = new FipsNode({
+         identity,
+-        transports: [webSocketTransport, webRtcTransport],
++        transports: [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)],
+         forwarding: options.forwarding ?? true,
+         routingMode: 'reply_learned',
+         logger: options.logger,
+@@ -64,6 +66,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+         candidatePeerIds: () => [...adjacentPeers],
+     });
+     const removePeerListener = node.on('peer', (data) => {
++        networkStats.peer(data);
+         const peer = data;
+         if (!peer.remotePubkey)
+             return;
+@@ -80,6 +83,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+         stopped = true;
+         removePeerListener();
+         adjacentPeers.clear();
++        networkStats.clearPeers();
+         provider.close();
+         await node.stop();
+     };
+@@ -96,6 +100,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+         node,
+         localPeerId: toHex(identity.publicKey),
+         listConnectedPeerIds: () => [...adjacentPeers],
++        getNetworkStats: () => networkStats.snapshot(),
+         webRtcTransport,
+         webSocketTransport,
+         stop,
+@@ -163,4 +168,3 @@ export async function createBrowserHashtreeNostrProvider(options) {
+         },
+     };
+ }
+-//# sourceMappingURL=browserProvider.js.map
+\ No newline at end of file
+diff --git a/dist/browserStats.d.ts b/dist/browserStats.d.ts
+new file mode 100644
+index 0000000..fe3aedd
+--- /dev/null
++++ b/dist/browserStats.d.ts
+@@ -0,0 +1,26 @@
++import type { PeerEvent, Transport } from '@fips/core';
++export interface TrafficTotals {
++    bytesSent: number;
++    bytesReceived: number;
++}
++export interface BrowserPeerStats extends TrafficTotals {
++    peerId: string;
++    transport: string;
++    address: string;
++}
++export interface BrowserNetworkSnapshot {
++    peers: BrowserPeerStats[];
++    transports: Record<string, TrafficTotals>;
++}
++/** FIPS packet bytes at the transport boundary, including control and forwarded
++ * traffic. Excludes carrier overhead and Nostr signalling. Totals last until stop. */
++export declare class BrowserNetworkStats {
++    private readonly peers;
++    private readonly totals;
++    private key;
++    peer(event: PeerEvent): void;
++    clearPeers(): void;
++    snapshot(): BrowserNetworkSnapshot;
++    private traffic;
++    observe(transport: Transport): Transport;
++}
+diff --git a/dist/browserStats.js b/dist/browserStats.js
+new file mode 100644
+index 0000000..cc65d58
+--- /dev/null
++++ b/dist/browserStats.js
+@@ -0,0 +1,76 @@
++/** FIPS packet bytes at the transport boundary, including control and forwarded
++ * traffic. Excludes carrier overhead and Nostr signalling. Totals last until stop. */
++export class BrowserNetworkStats {
++    peers = new Map();
++    totals = new Map();
++    key(address) {
++        return `${address.transport}:${address.addr}`;
++    }
++    peer(event) {
++        const key = this.key(event.remoteAddr);
++        if (event.state === 'disconnected') {
++            this.peers.delete(key);
++            return;
++        }
++        if (this.peers.get(key)?.peerId === event.remotePubkey)
++            return;
++        this.peers.set(key, {
++            peerId: event.remotePubkey,
++            transport: event.remoteAddr.transport,
++            address: event.remoteAddr.addr,
++            bytesSent: 0,
++            bytesReceived: 0,
++        });
++    }
++    clearPeers() {
++        this.peers.clear();
++    }
++    snapshot() {
++        return {
++            peers: [...this.peers.values()].map((peer) => ({ ...peer })),
++            transports: Object.fromEntries([...this.totals].map(([name, totals]) => [name, { ...totals }])),
++        };
++    }
++    traffic(address, direction, bytes) {
++        const total = this.totals.get(address.transport);
++        total[direction] += bytes;
++        const peer = this.peers.get(this.key(address));
++        if (peer)
++            peer[direction] += bytes;
++    }
++    observe(transport) {
++        this.totals.set(transport.type, { bytesSent: 0, bytesReceived: 0 });
++        return {
++            type: transport.type,
++            mtu: transport.mtu,
++            maxFrameBytes: transport.maxFrameBytes,
++            identityMayChangeAtAddress: transport.identityMayChangeAtAddress,
++            start: (context) => transport.start({
++                ...context,
++                onPacket: (packet) => {
++                    this.traffic(packet.remoteAddr, 'bytesReceived', packet.data.byteLength);
++                    context.onPacket(packet);
++                },
++                onConnectionState: (event) => {
++                    if (event.state === 'disconnected' || event.state === 'failed') {
++                        this.peers.delete(this.key(event.remoteAddr));
++                    }
++                    context.onConnectionState?.(event);
++                },
++            }),
++            stop: () => transport.stop(),
++            connect: (address) => transport.connect(address),
++            send: async (address, packet) => {
++                await transport.send(address, packet);
++                this.traffic(address, 'bytesSent', packet.byteLength);
++            },
++            close: transport.close?.bind(transport),
++            discover: transport.discover?.bind(transport),
++            resolve: transport.resolve?.bind(transport),
++            companionTransports: transport.companionTransports?.bind(transport),
++            handlePeerRestart: transport.handlePeerRestart?.bind(transport),
++            handleSessionEstablished: transport.handleSessionEstablished?.bind(transport),
++            handleLinkNegotiation: transport.handleLinkNegotiation?.bind(transport),
++        };
++    }
++}
+diff --git a/src/browserProvider.ts b/src/browserProvider.ts
+index 68513cd..9f7cb56 100644
+--- a/src/browserProvider.ts
++++ b/src/browserProvider.ts
+@@ -5,7 +5,10 @@ import {
+   identityFromSecretKey,
+   type FipsIdentity,
+   type Logger,
++  type PeerEvent,
+ } from '@fips/core';
++import { BrowserNetworkStats, type BrowserNetworkSnapshot } from './browserStats.js';
++export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
+ import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
+ import { WebSocketTransport } from '@fips/transport-websocket';
+ import {
+@@ -52,6 +55,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
+   readonly node: FipsNode;
+   readonly localPeerId: string;
+   listConnectedPeerIds(): string[];
++  getNetworkStats(): BrowserNetworkSnapshot;
+   readonly webRtcTransport: WebRtcTransport;
+   readonly webSocketTransport: WebSocketTransport;
+   stop(): Promise<void>;
+@@ -100,9 +104,10 @@ export async function createBrowserHashtreeFipsProvider(
+     allowIncomingPeer: options.allowIncomingPeer,
+     logger: options.logger,
+   });
++  const networkStats = new BrowserNetworkStats();
+   const node = new FipsNode({
+     identity,
+-    transports: [webSocketTransport, webRtcTransport],
++    transports: [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)],
+     forwarding: options.forwarding ?? true,
+     routingMode: 'reply_learned',
+     logger: options.logger,
+@@ -117,6 +122,7 @@ export async function createBrowserHashtreeFipsProvider(
+     candidatePeerIds: () => [...adjacentPeers],
+   });
+   const removePeerListener = node.on('peer', (data) => {
++    networkStats.peer(data as PeerEvent);
+     const peer = data as { remotePubkey?: string; state?: string };
+     if (!peer.remotePubkey) return;
+     if (peer.state === 'connected') adjacentPeers.add(peer.remotePubkey);
+@@ -130,6 +136,7 @@ export async function createBrowserHashtreeFipsProvider(
+     stopped = true;
+     removePeerListener();
+     adjacentPeers.clear();
++    networkStats.clearPeers();
+     provider.close();
+     await node.stop();
+   };
+@@ -145,6 +152,7 @@ export async function createBrowserHashtreeFipsProvider(
+     node,
+     localPeerId: toHex(identity.publicKey),
+     listConnectedPeerIds: () => [...adjacentPeers],
++    getNetworkStats: () => networkStats.snapshot(),
+     webRtcTransport,
+     webSocketTransport,
+     stop,
+diff --git a/src/browserStats.ts b/src/browserStats.ts
+new file mode 100644
+index 0000000..8d58ff5
+--- /dev/null
++++ b/src/browserStats.ts
+@@ -0,0 +1,98 @@
++import type { PeerEvent, Transport, TransportAddress } from '@fips/core';
++
++export interface TrafficTotals {
++  bytesSent: number;
++  bytesReceived: number;
++}
++
++export interface BrowserPeerStats extends TrafficTotals {
++  peerId: string;
++  transport: string;
++  address: string;
++}
++
++export interface BrowserNetworkSnapshot {
++  peers: BrowserPeerStats[];
++  transports: Record<string, TrafficTotals>;
++}
++
++/** FIPS packet bytes at the transport boundary, including control and forwarded
++ * traffic. Excludes carrier overhead and Nostr signalling. Totals last until stop. */
++export class BrowserNetworkStats {
++  private readonly peers = new Map<string, BrowserPeerStats>();
++  private readonly totals = new Map<string, TrafficTotals>();
++
++  private key(address: TransportAddress): string {
++    return `${address.transport}:${address.addr}`;
++  }
++
++  peer(event: PeerEvent): void {
++    const key = this.key(event.remoteAddr);
++    if (event.state === 'disconnected') {
++      this.peers.delete(key);
++      return;
++    }
++    if (this.peers.get(key)?.peerId === event.remotePubkey) return;
++    this.peers.set(key, {
++      peerId: event.remotePubkey,
++      transport: event.remoteAddr.transport,
++      address: event.remoteAddr.addr,
++      bytesSent: 0,
++      bytesReceived: 0,
++    });
++  }
++
++  clearPeers(): void {
++    this.peers.clear();
++  }
++
++  snapshot(): BrowserNetworkSnapshot {
++    return {
++      peers: [...this.peers.values()].map((peer) => ({ ...peer })),
++      transports: Object.fromEntries([...this.totals].map(([name, totals]) => [name, { ...totals }])),
++    };
++  }
++
++  private traffic(address: TransportAddress, direction: keyof TrafficTotals, bytes: number): void {
++    const total = this.totals.get(address.transport)!;
++    total[direction] += bytes;
++    const peer = this.peers.get(this.key(address));
++    if (peer) peer[direction] += bytes;
++  }
++
++  observe(transport: Transport): Transport {
++    this.totals.set(transport.type, { bytesSent: 0, bytesReceived: 0 });
++    return {
++      type: transport.type,
++      mtu: transport.mtu,
++      maxFrameBytes: transport.maxFrameBytes,
++      identityMayChangeAtAddress: transport.identityMayChangeAtAddress,
++      start: (context) => transport.start({
++        ...context,
++        onPacket: (packet) => {
++          this.traffic(packet.remoteAddr, 'bytesReceived', packet.data.byteLength);
++          context.onPacket(packet);
++        },
++        onConnectionState: (event) => {
++          if (event.state === 'disconnected' || event.state === 'failed') {
++            this.peers.delete(this.key(event.remoteAddr));
++          }
++          context.onConnectionState?.(event);
++        },
++      }),
++      stop: () => transport.stop(),
++      connect: (address) => transport.connect(address),
++      send: async (address, packet) => {
++        await transport.send(address, packet);
++        this.traffic(address, 'bytesSent', packet.byteLength);
++      },
++      close: transport.close?.bind(transport),
++      discover: transport.discover?.bind(transport),
++      resolve: transport.resolve?.bind(transport),
++      companionTransports: transport.companionTransports?.bind(transport),
++      handlePeerRestart: transport.handlePeerRestart?.bind(transport),
++      handleSessionEstablished: transport.handleSessionEstablished?.bind(transport),
++      handleLinkNegotiation: transport.handleLinkNegotiation?.bind(transport),
++    };
++  }
++}

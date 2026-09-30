@@ -7,6 +7,7 @@ import {
 } from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {randomBytes} from "node:crypto"
 // Same real FIPS seed fixture used by Iris Social; no file or event storage in the seed.
 import {
   startLocalFipsWebSocketSeed,
@@ -28,6 +29,10 @@ async function client(browser: Browser): Promise<{context: BrowserContext; page:
   await context.addInitScript((seedUrl) => {
     window.__IRIS_FIPS_TEST_CONFIG__ = {relays: ["ws://127.0.0.1:7777"], seeds: [seedUrl]}
     window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
+    localStorage.setItem(
+      "ui-storage",
+      JSON.stringify({state: {showRelayIndicator: true}, version: 0})
+    )
   }, seed.url)
   // A remote file service cannot accidentally satisfy the test.
   await context.route("https://**/*", (route) => route.abort())
@@ -62,12 +67,50 @@ test("cached encrypted attachment is served across real browser peers without fi
     await expect
       .poll(async () => (await peers(second.page)).length, {timeout: 30000})
       .toBeGreaterThan(0)
-    const bytes = Array.from({length: 32000}, (_, i) => (i * 31 + 17) % 256)
+    for (const instance of [first, second]) {
+      await expect(
+        instance.page.getByTestId("connectivity-indicator").first()
+      ).toHaveAttribute("data-connection-state", "peers", {timeout: 30000})
+    }
+    const bytes = Array.from(randomBytes(32000))
     const nhash = await first.page.evaluate(async (bytes) => {
       const {uploadFile} = await import("/src/lib/hashtree.ts")
       return (await uploadFile(new File([new Uint8Array(bytes)], "peer-photo.bin"))).nhash
     }, bytes)
     expect(await download(second.page, nhash)).toEqual(bytes)
+    // The visible network status must distinguish a real WebRTC link from the seed.
+    await expect(
+      second.page.getByTestId("connectivity-indicator").first()
+    ).toHaveAttribute("data-connection-state", "peers", {timeout: 30000})
+    await second.page.getByTestId("connectivity-indicator").first().click()
+    const settings = second.page.getByTestId("peer-network-settings")
+    await expect(
+      settings.locator('[data-testid="network-peer"][data-transport="webrtc"]').first()
+    ).toBeVisible()
+    await expect(settings.getByText("WebRTC · Connected").first()).toBeVisible()
+    await expect
+      .poll(async () =>
+        second.page.evaluate(async () => {
+          const {getPeerNetworkSnapshot} = await import("/src/lib/peerNetworkStats.ts")
+          return getPeerNetworkSnapshot().transports.webrtc?.bytesReceived ?? 0
+        })
+      )
+      .toBeGreaterThan(bytes.length)
+    await expect(settings.getByTestId("peer-bandwidth-chart")).toBeVisible()
+    await second.page.screenshot({path: "work/network-desktop.png", fullPage: true})
+    await second.page.setViewportSize({width: 390, height: 844})
+    await expect(settings).toBeVisible()
+    expect(
+      await second.page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth
+      )
+    ).toBe(true)
+    await second.page.screenshot({path: "work/network-mobile.png", fullPage: true})
+    await settings.getByTestId("peer-bandwidth-chart").scrollIntoViewIfNeeded()
+    await second.page.screenshot({
+      path: "work/network-mobile-traffic.png",
+      fullPage: true,
+    })
     // Cached encrypted chunks survive app/worker restart.
     await second.page.reload()
     expect(await download(second.page, nhash)).toEqual(bytes)
@@ -85,6 +128,32 @@ test("cached encrypted attachment is served across real browser peers without fi
   } finally {
     await first.context.close()
     await second.context.close()
+  }
+})
+
+test("seed-only connectivity stays amber and disconnects clear the visible peer list", async ({
+  browser,
+}) => {
+  const instance = await client(browser)
+  try {
+    await instance.page.getByTestId("connectivity-indicator").first().click()
+    const settings = instance.page.getByTestId("peer-network-settings")
+    await expect(settings.locator('[data-transport="websocket"]').first()).toBeVisible({
+      timeout: 30000,
+    })
+    await expect(settings.locator('[data-transport="webrtc"]')).toHaveCount(0)
+    await expect(
+      instance.page.getByTestId("connectivity-indicator").first()
+    ).toHaveAttribute("data-connection-state", "servers")
+    await expect(settings.getByText("No peers connected yet.")).toBeVisible()
+    await instance.page.evaluate(async () => {
+      const {getPeerRuntime} = await import("/src/lib/peerRuntime.ts")
+      await (await getPeerRuntime())?.close()
+    })
+    await expect(settings.getByTestId("network-peer")).toHaveCount(0)
+    await expect(settings.getByText("Peer network unavailable.")).toBeVisible()
+  } finally {
+    await instance.context.close()
   }
 })
 
