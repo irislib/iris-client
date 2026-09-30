@@ -4,6 +4,7 @@
 
 - Recover peer connections sooner when handshake messages or connection answers are lost.
 - Retain linked-device names from the shared messaging runtime.
+- Save new posts to the offline outbox before clearing the draft or opening the post.
 
 ## 2.5.27 - 2026-09-30
 

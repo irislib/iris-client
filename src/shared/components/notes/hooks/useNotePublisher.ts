@@ -84,12 +84,9 @@ export function useNotePublisher(params: UseNotePublisherParams) {
         await publishGroupEvent(event)
       } else {
         await event.sign()
+        // Publication commits the offline outbox before the draft is cleared.
+        await event.publish()
         cacheEvent(event)
-        // Fire and forget - event is already cached for offline-first behavior
-        // Don't await relay responses as that causes spinner to hang
-        event.publish().catch((error) => {
-          console.error("Failed to publish note:", error)
-        })
       }
       setPublishing(false)
       params.onPublishSuccess()
