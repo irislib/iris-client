@@ -66,9 +66,11 @@ describe("portable smoke page errors", () => {
 })
 
 describe("portable smoke console errors", () => {
-  it("tolerates failed external media while keeping app and unknown requests fatal", async () => {
+  it.each([
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: the server responded with a status of 503 ()",
+  ])("tolerates unavailable external media: %s", async (error) => {
     const {shouldIgnoreConsoleError} = await importPortableSmokeModule()
-    const error = "Failed to load resource: net::ERR_FAILED"
     const origin = "http://127.0.0.1:1234"
     const request = {url: "https://example.com/post.webp", resourceType: "image", origin}
 

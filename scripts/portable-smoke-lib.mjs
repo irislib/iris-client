@@ -22,7 +22,9 @@ function contentTypeFor(filePath) {
 
 export function shouldIgnoreConsoleError(text, request) {
   if (
-    /^Failed to load resource: net::ERR_FAILED\b/.test(text) &&
+    /^Failed to load resource: (?:net::ERR_FAILED\b|the server responded with a status of 5\d\d\b)/.test(
+      text
+    ) &&
     request &&
     ["image", "media"].includes(request.resourceType) &&
     new URL(request.url).origin !== request.origin
