@@ -6,34 +6,28 @@ const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
   "nostr-pubsub": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.9/nostr-pubsub-0.5.9.tgz",
-    integrity:
-      "sha512-upQs1cQzd5NitTGhwLinmfR96wmBn5EU8+D71Y61hEp5rQpa0JiXq2KSBtKbsbAt/OZoM8VUV4jofvBJvyd/Xg==",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.11/nostr-pubsub-0.5.11.tgz",
+    integrity: "sha512-wyHDPvyDPSQo6JRuof5tx5Mn2WdA6W6asiGR+VEKF9hRKGNfobAcbWlShGtCmJFLa/tjAVj8vY5tGbxfrgOJrQ==",
   },
   "@hashtree/worker": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-worker-0.4.4.tgz",
-    integrity:
-      "sha512-QS/NfriLsQMacxbK0cpt5XBq1zRdAAp2rGtlYa2uhgvNX9u64LIkkWFqVDbs1UQmp3SQ8XGbly99aKKML4j8uQ==",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-worker-0.4.5.tgz",
+    integrity: "sha512-b6DPm6KwiBy31s+Uz6y+MDakp8mP4HLXWi7wxhB8YapbkiRPB9XOdn9eSgPL2sUMkO/uFCKGnqEF6uQ4Et/5Tg==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-fips-transport-0.4.11.tgz",
-    integrity:
-      "sha512-cjCZ8kuoWpiLgnkfidOhbja4JoBpfo98x8zd0vwmvJrD5VWnNIvsYrKq+qlIyegw4mQ4PETiF3fNyb3lQ//nuw==",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-fips-transport-0.4.12.tgz",
+    integrity: "sha512-PzJdi3IAnkqQ8H3mDM1WSYBRcdcVYnolQcFEvfeLfsj0JfXIWCBX2gkS53PZvZPPLgDGP/rLY1NBXDFs+a4nqw==",
   },
   "@hashtree/dexie": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-dexie-0.1.11.tgz",
-    integrity:
-      "sha512-s3hxH4n9KsoyMELuFPJ81fXoOhx6js5PM/E6elR7LKLKX2fZxRkeBL+QHtYk9uQfbCitssEoU4jli8l+IR7DGw==",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-dexie-0.1.11.tgz",
+    integrity: "sha512-NGe+rKVuyBrhlWeIemO0Hzd/mAcuN+PqpXYeg508dlvwuRrl+0GNIwRwPVh7e7Zg5VlwiKaN6E5itp9W6EZEGg==",
   },
   "@hashtree/core": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-core-0.3.2.tgz",
-    integrity:
-      "sha512-OLd2ARbYKt9s7wipMX58OhJwZQ6XwIdkuJ+Zfp+NNz3rjXDV8kYl67S9HlrXOj5eSsy5SbN/JuKS8QuwXzEiRQ==",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-core-0.3.2.tgz",
+    integrity: "sha512-OLd2ARbYKt9s7wipMX58OhJwZQ6XwIdkuJ+Zfp+NNz3rjXDV8kYl67S9HlrXOj5eSsy5SbN/JuKS8QuwXzEiRQ==",
   },
   "@hashtree/index": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.8/hashtree-index-0.1.14.tgz",
-    integrity:
-      "sha512-HErzNAkVSZWRIIgLKhyPfhfkUbR7BZ4hn+D4xnrIC/z8hPVmH6O4HVZ90OJ4Y3KgcK9zM3ggrf60HOwmMLzatw==",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-index-0.1.14.tgz",
+    integrity: "sha512-5JAekyGQAb+6yhXramZhzaKZ8I8HpVrnDd6SZCF6y3sYOLge2zAPep0MpPJtYpNsD3HdXCIhUL1JK40YvKCgHA==",
   },
   "@iris/release-tools": {
     url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.2/iris-release-tools-0.1.1.tgz",
