@@ -55,6 +55,23 @@ function sanitizeProfileForUi(profile?: UserProfile | null): UserProfile | null 
   }
 }
 
+// Local saves must refresh mounted consumers even after relay history has closed.
+// Compare with the current store so late cache/relay results cannot undo a save.
+export function updateProfileFromEvent(event: AppEvent) {
+  if (event.kind !== KIND_METADATA) return
+  const current = profileStore.get(event.pubkey)
+  if (current && (current.created_at ?? 0) >= event.created_at) return
+
+  const profile = sanitizeProfileForUi(profileFromEvent(event))
+  if (!profile) return
+  if (profile.nip05) addUsernameToCache(event.pubkey, profile.nip05, true)
+  profileStore.set(event.pubkey, profile)
+  updateNameCache(event.pubkey, profile)
+  handleProfile(event.pubkey, profile)
+  notifySubscribers(event.pubkey)
+  cleanupProfile(event.pubkey)
+}
+
 function cleanupProfile(pubKeyHex: string) {
   if (subscribers.has(pubKeyHex)) return
   if (activeSubscriptions.has(pubKeyHex)) return
@@ -108,22 +125,10 @@ function subscribeToProfile(pubKeyHex: string) {
 
   activeSubscriptions.set(pubKeyHex, {sub, refCount: 1})
 
-  let latest = profileStore.get(pubKeyHex)?.created_at || 0
   sub.on("event", (event: AppEvent) => {
     if (event.pubkey === pubKeyHex && event.kind === KIND_METADATA) {
-      if (!event.created_at || event.created_at <= latest) return
-
-      latest = event.created_at
       try {
-        const newProfile = sanitizeProfileForUi(profileFromEvent(event))
-        if (!newProfile) return
-        if (newProfile.nip05) {
-          addUsernameToCache(pubKeyHex, newProfile.nip05, true)
-        }
-        profileStore.set(pubKeyHex, newProfile)
-        updateNameCache(pubKeyHex, newProfile)
-        handleProfile(pubKeyHex, newProfile)
-        notifySubscribers(pubKeyHex)
+        updateProfileFromEvent(event)
       } catch {
         // Invalid profile event
       }

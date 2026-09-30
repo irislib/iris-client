@@ -5,9 +5,9 @@ import {SettingsButton} from "@/shared/components/settings/SettingsButton"
 import {Avatar} from "@/shared/components/user/Avatar"
 import {Name} from "@/shared/components/user/Name"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
-import useProfile from "@/shared/hooks/useProfile"
-import {useEffect, useMemo, useState} from "react"
-import {AppEvent, CacheMode, profileFromEvent} from "@/lib/nostr"
+import useProfile, {updateProfileFromEvent} from "@/shared/hooks/useProfile"
+import {useEffect, useId, useMemo, useState} from "react"
+import {AppEvent, CacheMode} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
 import {nostr} from "@/utils/nostrClient"
@@ -27,6 +27,7 @@ export function ProfileSettings() {
 
 function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const navigate = useNavigate()
+  const aboutId = useId()
 
   const profileUpload = useFileUpload({
     onUpload: (url: string) => setProfileField("picture", url),
@@ -102,6 +103,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   }, [saveState])
 
   function setProfileField(field: ProfileEditorField, value: string) {
+    setSaveState("idle")
     setEdits((prev) => {
       const next = {...prev}
       if (value === baseValues[field]) delete next[field]
@@ -119,6 +121,8 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     try {
       const event = new AppEvent(nostr())
       event.kind = 0
+      // Consecutive saves in the same second must replace the previous profile.
+      event.created_at = Math.max(event.created_at, currentSource.createdAt + 1)
       event.content = JSON.stringify(metadata)
       const signer = nostr().signer
       if (!signer || (await signer.user()).pubkey !== myPubKey) {
@@ -127,6 +131,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
       // Metadata strings are data, not post text to rewrite into Nostr mentions.
       await event.sign(signer, {skipContentTagging: true})
       await event.publish()
+      updateProfileFromEvent(event)
       setSource((current) =>
         current && current.createdAt > (event.created_at ?? 0)
           ? current
@@ -139,8 +144,6 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
           )
         )
       )
-      const {updateNameCache} = await import("@/utils/profileName")
-      updateNameCache(myPubKey, profileFromEvent(event))
       setSaveState("saved")
     } catch {
       setSaveState("idle")
@@ -159,25 +162,6 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     }
     return defaultLabel
   }
-
-  const SaveButton = () => (
-    <SettingsButton
-      label={(() => {
-        if (saveState === "saving") return "Saving..."
-        if (saveState === "saved") return "Saved"
-        return "Save Changes"
-      })()}
-      onClick={onSaveProfile}
-      disabled={
-        !currentSource ||
-        !isEdited ||
-        saveState === "saving" ||
-        profileUpload.uploading ||
-        bannerUpload.uploading
-      }
-      isLast
-    />
-  )
 
   if (!myPubKey) {
     return null
@@ -225,22 +209,35 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
             className="space-y-6"
             disabled={!currentSource || saveState === "saving"}
           >
-            <SettingsGroup>
-              <SaveButton />
-            </SettingsGroup>
-
             <SettingsGroup title="Personal Information">
               <SettingsInputItem
                 label="Name"
+                modified={edits.display_name !== undefined}
                 value={String(newProfile?.display_name || "")}
                 placeholder="Your name"
                 onChange={(value) => setProfileField("display_name", value)}
               />
 
-              <SettingsGroupItem>
+              <SettingsGroupItem
+                className={edits.about !== undefined ? "bg-primary/10" : ""}
+              >
                 <div className="flex flex-col space-y-2">
-                  <label className="text-base font-normal">About</label>
+                  <label
+                    htmlFor={aboutId}
+                    className="flex items-center gap-2 text-base font-normal"
+                  >
+                    About
+                    {edits.about !== undefined && (
+                      <span id={`${aboutId}-modified`} className="text-xs text-primary">
+                        Unsaved
+                      </span>
+                    )}
+                  </label>
                   <textarea
+                    id={aboutId}
+                    aria-describedby={
+                      edits.about !== undefined ? `${aboutId}-modified` : undefined
+                    }
                     placeholder="About yourself"
                     className="bg-transparent border-none p-0 text-base focus:outline-none placeholder:text-base-content/40 resize-none min-h-[4em] w-full"
                     value={newProfile?.about || ""}
@@ -251,6 +248,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
 
               <SettingsInputItem
                 label="Website"
+                modified={edits.website !== undefined}
                 value={newProfile?.website || ""}
                 placeholder="https://example.com"
                 onChange={(value) => setProfileField("website", value)}
@@ -262,6 +260,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
             <SettingsGroup title="Profile Picture">
               <SettingsInputItem
                 label="Image URL"
+                modified={edits.picture !== undefined}
                 value={newProfile?.picture || ""}
                 placeholder="https://example.com/image.jpg"
                 onChange={(value) => setProfileField("picture", value)}
@@ -294,6 +293,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
             <SettingsGroup title="Banner Image">
               <SettingsInputItem
                 label="Image URL"
+                modified={edits.banner !== undefined}
                 value={newProfile?.banner || ""}
                 placeholder="https://example.com/banner.jpg"
                 onChange={(value) => setProfileField("banner", value)}
@@ -325,6 +325,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
             <SettingsGroup title="Verification & Payment">
               <SettingsInputItem
                 label="Lightning Address"
+                modified={edits.lud16 !== undefined}
                 value={newProfile?.lud16 || ""}
                 placeholder="user@wallet.com"
                 onChange={(value) => setProfileField("lud16", value)}
@@ -333,6 +334,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
 
               <SettingsInputItem
                 label="user@domain verification (NIP-05)"
+                modified={edits.nip05 !== undefined}
                 value={newProfile?.nip05 || ""}
                 placeholder="user@example.com"
                 onChange={(value) => setProfileField("nip05", value)}
@@ -345,12 +347,32 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                 isLast
               />
             </SettingsGroup>
-
-            <SettingsGroup>
-              <SaveButton />
-            </SettingsGroup>
           </fieldset>
         </div>
+        {(isEdited || saveState !== "idle") && (
+          <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] md:bottom-0 z-20 -mx-4 mt-6 flex items-center justify-between gap-4 bg-base-200 p-4">
+            <p role="status" className="text-sm text-base-content/70">
+              {
+                {idle: "Unsaved changes", saving: "Saving…", saved: "Changes saved"}[
+                  saveState
+                ]
+              }
+            </p>
+            <button
+              className="btn btn-primary"
+              onClick={onSaveProfile}
+              disabled={
+                !currentSource ||
+                !isEdited ||
+                saveState === "saving" ||
+                profileUpload.uploading ||
+                bannerUpload.uploading
+              }
+            >
+              Save Changes
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

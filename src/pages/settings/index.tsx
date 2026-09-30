@@ -195,7 +195,7 @@ function Settings() {
         data-header-scroll-target
       >
         <div className="pt-[calc(4rem+env(safe-area-inset-top))] md:pt-0 flex w-full flex-col h-full">
-          <div className="flex w-full flex-1">
+          <div className="flex w-full flex-1 min-h-0">
             <nav
               className={`sticky top-0 w-full lg:w-64 p-4 lg:h-screen bg-base-200 ${
                 isSettingsRoot ? "block" : "hidden"
