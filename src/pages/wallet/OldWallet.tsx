@@ -8,7 +8,10 @@ export default function OldWallet() {
   useEffect(() => {
     let mounted = true
     const timeout = setTimeout(() => mounted && setReady(true), 5000)
-    const loader = `${import.meta.env.BASE_URL}cashu/offline.js`
+    const loader = new URL(
+      `${import.meta.env.BASE_URL}cashu/offline.js`,
+      document.baseURI
+    ).href
     import(/* @vite-ignore */ loader)
       .then(({updateLegacyWallet}) => {
         clearTimeout(timeout)

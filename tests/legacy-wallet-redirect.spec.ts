@@ -53,6 +53,10 @@ test("the wallet recovers an installed redirected cache through its parent view"
   const address = server.address()
   if (!address || typeof address === "string") throw new Error("Missing test port")
   const origin = `http://127.0.0.1:${address.port}`
+  await context.route("**/*", (route) =>
+    new URL(route.request().url()).origin === origin ? route.continue() : route.abort()
+  )
+  await context.routeWebSocket("**/*", (socket) => socket.close())
   const errors: string[] = []
   page.on("pageerror", (error) => errors.push(error.message))
   try {
@@ -83,8 +87,7 @@ test("the wallet recovers an installed redirected cache through its parent view"
       )
     ).toBe(true)
     const broken = await context.newPage()
-    await broken.goto(`${origin}/cashu/index.html`).catch(() => {})
-    expect(broken.url()).toBe("chrome-error://chromewebdata/")
+    await expect(broken.goto(`${origin}/cashu/index.html`)).rejects.toThrow(/net::ERR_/)
     await broken.close()
 
     // No cache clearing, unregistering or forced worker activation: the actual
