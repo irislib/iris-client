@@ -72,6 +72,7 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return
   const url = new URL(event.request.url)
   url.search = ""
+  url.hash = ""
   const key = event.request.mode === "navigate" && routes.has(url.href) ? index : url.href
   if (!files.has(key)) return
   event.respondWith(
