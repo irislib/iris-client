@@ -22,7 +22,7 @@ export function PrivateContactDetails({
   const [noteDirty, setNoteDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
-  const {status, needsSigner} = usePrivateContactSyncStatus()
+  const {status} = usePrivateContactSyncStatus()
   useEffect(() => {
     if (!nameDirty) setNameInput(nickname ?? "")
   }, [nickname, nameDirty])
@@ -95,10 +95,10 @@ export function PrivateContactDetails({
           >
             {saving ? "Saving…" : "Save"}
           </button>
-          {["error", "pending", "loading", "syncing"].includes(status) && (
+          {["error", "pending", "queueing"].includes(status) && (
             <span className="text-xs text-base-content/60">Waiting to sync</span>
           )}
-          {needsSigner && (
+          {status === "error" && (
             <button
               type="button"
               className="underline"

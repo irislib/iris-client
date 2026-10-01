@@ -1,3 +1,4 @@
+import type {OnEventMeta, Rumor} from "nostr-double-ratchet"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
@@ -26,14 +27,31 @@ type CapturedSessionEventCallback = (
 ) => void
 
 let capturedCallback: CapturedSessionEventCallback | null = null
+let durableCallback:
+  ((event: Rumor, from: string, meta?: OnEventMeta) => Promise<void>) | undefined
+const durableReceive = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock("./privateContactControl", () => ({
+  PRIVATE_CONTACT_CONTROL_KIND: 10452,
+  receivePrivateContactControl: durableReceive,
+}))
 
 const sessionManager = {
   init: vi.fn().mockResolvedValue(undefined),
+  onDurableSessionEvent: vi.fn(
+    (_kinds: readonly number[], callback: NonNullable<typeof durableCallback>) => {
+      durableCallback = callback
+      return () => {
+        durableCallback = undefined
+      }
+    }
+  ),
   onSessionEvent: vi.fn((cb: CapturedSessionEventCallback) => {
     capturedCallback = cb
     return () => {}
   }),
   sendReceipt: vi.fn().mockResolvedValue(undefined),
+  setExpirationForPeer: vi.fn().mockResolvedValue(undefined),
+  setExpirationForGroup: vi.fn().mockResolvedValue(undefined),
   getSessionUserRecords: vi.fn(() => new Map()),
 }
 
@@ -46,7 +64,9 @@ vi.mock("./socialGraph", () => ({
   }),
 }))
 
-vi.mock("@/shared/services/PrivateChats", () => ({}))
+vi.mock("@/shared/services/PrivateChats", () => ({
+  refreshOwnAppKeysFromRelay: vi.fn(async () => false),
+}))
 
 import {
   attachNdrRuntimeEventListener,
@@ -612,5 +632,55 @@ describe("dmEventHandler receipts", () => {
     expect(
       usePrivateMessagesStore.getState().events.get(THEIR_LINKED_DEVICE_PUBKEY)
     ).toBeUndefined()
+  })
+})
+
+describe("durable private control admission", () => {
+  const rumor: Rumor = {
+    id: "e".repeat(64),
+    pubkey: MY_PUBKEY,
+    created_at: 1,
+    kind: 10452,
+    tags: [],
+    content: "{}",
+  }
+  const meta = {senderOwnerPubkey: MY_PUBKEY, senderDevicePubkey: SIBLING_DEVICE_PUBKEY}
+  beforeEach(() => {
+    cleanupNdrRuntimeEventListener()
+    durableReceive.mockReset().mockResolvedValue(undefined)
+    useUserStore.setState({publicKey: MY_PUBKEY})
+    useDevicesStore.setState({
+      identityPubkey: MY_DEVICE_PUBKEY,
+      registeredDevices: [{identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1}],
+      appKeysManagerReady: true,
+      sessionManagerReady: true,
+      hasLocalAppKeys: true,
+      lastEventTimestamp: 1,
+      isCurrentDeviceRegistered: true,
+    })
+    attachNdrRuntimeEventListener(sessionManager)
+  })
+  it("retains a new sibling journal row until the current roster includes it, then awaits durable application", async () => {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    await expect(durableCallback(rumor, MY_PUBKEY, meta)).rejects.toThrow(
+      "linked device list"
+    )
+    expect(durableReceive).not.toHaveBeenCalled()
+    useDevicesStore.setState({
+      registeredDevices: [
+        {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+        {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+      ],
+    })
+    durableReceive.mockRejectedValueOnce(new Error("disk full"))
+    await expect(durableCallback(rumor, MY_PUBKEY, meta)).rejects.toThrow("disk full")
+    await durableCallback(rumor, MY_PUBKEY, meta)
+    expect(durableReceive).toHaveBeenCalledTimes(2)
+  })
+  it("cannot acknowledge an old account journal after the UI switches accounts", async () => {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    useUserStore.setState({publicKey: THEIR_PUBKEY})
+    await expect(durableCallback(rumor, MY_PUBKEY, meta)).rejects.toThrow("not ready")
+    expect(durableReceive).not.toHaveBeenCalled()
   })
 })

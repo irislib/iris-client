@@ -1,3 +1,6 @@
+vi.mock("@/utils/privateContactMigration", () => ({
+  migrateStoredPrivateContacts: vi.fn(async () => {}),
+}))
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const mocks = vi.hoisted(() => {
@@ -81,6 +84,7 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
   const actual = await importOriginal<typeof import("nostr-double-ratchet")>()
 
   class MockNdrRuntime {
+    retireLegacyPrivateContactSync = vi.fn(async () => {})
     constructor(_options: unknown) {}
 
     onStateChange(callback: (state: typeof mocks.runtimeState) => void) {

@@ -19,6 +19,7 @@ let capturedCallback: SessionEventCallback | null = null
 
 const sessionManager = {
   init: vi.fn().mockResolvedValue(undefined),
+  onDurableSessionEvent: vi.fn(() => () => {}),
   onSessionEvent: vi.fn((cb: SessionEventCallback) => {
     capturedCallback = cb
     return () => {}

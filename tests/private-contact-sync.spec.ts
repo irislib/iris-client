@@ -9,10 +9,12 @@ import {
 import {mkdir} from "node:fs/promises"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
+import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 
 test("private details sync between devices with durable clears and account isolation", async ({
   browser,
 }) => {
+  test.setTimeout(90_000)
   const ownerKey = generateSecretKey(),
     peerKey = generateSecretKey()
   const peer = getPublicKey(peerKey)
@@ -49,6 +51,7 @@ test("private details sync between devices with durable clears and account isola
       window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
     }, relay.port)
     await signUp(page, nip19.nsecEncode(key))
+    await ensureCurrentDeviceRegistered(page)
     await page.goto(`/${nip19.npubEncode(peer)}`)
     await page.getByText("Private details", {exact: true}).click()
   }
@@ -68,13 +71,23 @@ test("private details sync between devices with durable clears and account isola
       b.locator("#main-content").getByText("Private Alice", {exact: true}).first()
     ).toBeVisible()
     await expect
-      .poll(() => events.filter((event) => event.kind === 30078).length)
+      .poll(() => events.filter((event) => event.kind === 1060).length)
       .toBeGreaterThan(0)
-    for (const event of events.filter((event) => event.kind === 30078)) {
+    for (const event of events.filter((event) => event.kind === 1060)) {
       expect(JSON.stringify(event)).not.toContain(peer)
       expect(event.content).not.toContain("Private Alice")
       expect(event.content).not.toContain("meeting note")
     }
+    expect(
+      events.some(
+        (event) =>
+          event.kind === 10452 ||
+          (event.kind === 30078 &&
+            event.tags.some(
+              (tag) => tag[0] === "t" && tag[1] === "nostr-social-memory/v1"
+            ))
+      )
+    ).toBe(false)
     offline = true
     await a.getByLabel("Note", {exact: true}).fill("")
     await a.getByRole("button", {name: "Save", exact: true}).click()

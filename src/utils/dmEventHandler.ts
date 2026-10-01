@@ -1,3 +1,4 @@
+import {DEVICE_LABEL_CONTROL_KIND, receivePrivateDeviceLabel} from "./privateDeviceLabels"
 import {
   PRIVATE_CONTACT_CONTROL_KIND,
   receivePrivateContactControl,
@@ -36,6 +37,7 @@ const {error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 type SessionEventRuntime = Pick<
   NdrRuntime,
   | "onSessionEvent"
+  | "onDurableSessionEvent"
   | "getSessionUserRecords"
   | "setExpirationForPeer"
   | "setExpirationForGroup"
@@ -43,6 +45,7 @@ type SessionEventRuntime = Pick<
 >
 
 let unsubscribeRuntimeEvents: (() => void) | null = null
+let unsubscribeDurableEvents: (() => void) | null = null
 
 const upsertReceiptRecipient = (
   existing:
@@ -75,20 +78,58 @@ const upsertReceiptRecipient = (
 }
 
 export const cleanupNdrRuntimeEventListener = () => {
+  unsubscribeDurableEvents?.()
+  unsubscribeDurableEvents = null
   unsubscribeRuntimeEvents?.()
   unsubscribeRuntimeEvents = null
 }
 
+const pendingPrivateRosterReads = new Map<string, number>()
 export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
+  const account = useUserStore.getState().publicKey
   try {
     unsubscribeRuntimeEvents?.()
+    unsubscribeDurableEvents?.()
+    unsubscribeDurableEvents = runtime.onDurableSessionEvent(
+      [PRIVATE_CONTACT_CONTROL_KIND, DEVICE_LABEL_CONTROL_KIND],
+      async (event, _from, meta) => {
+        if (!account || useUserStore.getState().publicKey !== account)
+          throw new Error("Private account is not ready")
+        const state = useDevicesStore.getState()
+        if (
+          !state.sessionManagerReady ||
+          !state.appKeysManagerReady ||
+          (!state.hasLocalAppKeys && state.lastEventTimestamp <= 0)
+        )
+          throw new Error("Device list is not ready")
+        const sender = meta?.senderDevicePubkey || meta?.fromDeviceId
+        if (
+          meta?.senderOwnerPubkey === account &&
+          sender &&
+          sender !== state.identityPubkey &&
+          state.isCurrentDeviceRegistered &&
+          !state.registeredDevices.some((device) => device.identityPubkey === sender)
+        ) {
+          if (Date.now() - (pendingPrivateRosterReads.get(account) ?? 0) > 30_000) {
+            pendingPrivateRosterReads.set(account, Date.now())
+            void import("@/shared/services/PrivateChats")
+              .then(({refreshOwnAppKeysFromRelay}) => refreshOwnAppKeysFromRelay(account))
+              .catch(() => {})
+          }
+          throw new Error("Waiting for the linked device list")
+        }
+        if (event.kind === PRIVATE_CONTACT_CONTROL_KIND)
+          await receivePrivateContactControl(event, meta)
+        else await receivePrivateDeviceLabel(event, meta)
+        if (useUserStore.getState().publicKey !== account)
+          throw new Error("Account changed")
+      }
+    )
     unsubscribeRuntimeEvents = runtime.onSessionEvent((event, pubKey, meta) => {
       const {publicKey} = useUserStore.getState()
       if (!publicKey) return
-      if (event.kind === PRIVATE_CONTACT_CONTROL_KIND) {
-        void receivePrivateContactControl(event, meta).catch(() => {})
+      if ([PRIVATE_CONTACT_CONTROL_KIND, DEVICE_LABEL_CONTROL_KIND].includes(event.kind))
         return
-      }
 
       const {registeredDevices, identityPubkey} = useDevicesStore.getState()
       const isOwnDevice =
