@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const appDir = path.resolve(__dirname, "..")
 const defaultWorkerCompatibilityDate = "2026-03-26"
-const wranglerVersion = "4"
+const wranglerVersion = "4.112.0"
 
 export const defaultSiteTreeName = "iris-client-site"
 
