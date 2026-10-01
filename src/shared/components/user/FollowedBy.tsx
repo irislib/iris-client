@@ -35,7 +35,10 @@ export default function FollowedBy({pubkey}: {pubkey: string}) {
   }
 
   return (
-    <div className="flex flex-row items-center gap-2 text-sm text-base-content/50">
+    <div
+      data-testid="profile-follow-explanation"
+      className="flex flex-row items-center gap-2 text-sm text-base-content/50"
+    >
       <Badge pubKeyHex={pubkey} />
       {!!followedByFriendsArray.length && (
         <div className="flex flex-row items-center">
@@ -56,7 +59,8 @@ export default function FollowedBy({pubkey}: {pubkey: string}) {
       {followDistance === 1 && totalFollowedByFriends === 0 && (
         <div className="text-gray-light">Followed by you</div>
       )}
-      {![1, 3].includes(followDistance) && totalFollowedByFriends < 1 && (
+      {followDistance === 0 && <div className="text-gray-light">You</div>}
+      {![0, 1, 3].includes(followDistance) && totalFollowedByFriends < 1 && (
         <div className="text-gray-light">Not followed by anyone you follow</div>
       )}
       {followDistance === 3 && (

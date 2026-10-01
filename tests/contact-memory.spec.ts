@@ -149,21 +149,17 @@ test("private favorites and approved names survive profile changes and chat relo
     await followButton.click()
     await page.mouse.move(0, 0)
     await expect(
-      page.getByTestId("profile-hero-avatar").getByTitle("Following", {exact: true})
+      page
+        .getByTestId("profile-follow-explanation")
+        .getByTitle("Following", {exact: true})
     ).toBeVisible()
     const graphBadge = page
-      .getByTestId("profile-hero-avatar")
+      .getByTestId("profile-follow-explanation")
       .getByTitle("Following", {exact: true})
     await expect(graphBadge).toHaveCSS("background-color", "rgb(10, 132, 255)")
-    const badgeBounds = await graphBadge.boundingBox()
-    const avatarBounds = await graphBadge.locator("..").boundingBox()
-    expect(badgeBounds && avatarBounds).toBeTruthy()
-    expect(badgeBounds!.y + badgeBounds!.height / 2).toBeLessThan(
-      avatarBounds!.y + avatarBounds!.height / 2
-    )
-    expect(badgeBounds!.x + badgeBounds!.width / 2).toBeGreaterThan(
-      avatarBounds!.x + avatarBounds!.width / 2
-    )
+    await expect(
+      page.getByTestId("profile-hero-avatar").getByTitle("Following", {exact: true})
+    ).toHaveCount(0)
     await expect(page.getByText("Followed by you", {exact: true})).toBeVisible()
     expect(published.filter((event) => event.kind === 3).at(-1)?.tags).toContainEqual([
       "p",
@@ -176,7 +172,9 @@ test("private favorites and approved names survive profile changes and chat relo
     })
     await followButton.click()
     await expect(
-      page.getByTestId("profile-hero-avatar").getByTitle("Following", {exact: true})
+      page
+        .getByTestId("profile-follow-explanation")
+        .getByTitle("Following", {exact: true})
     ).toHaveCount(0)
     expect(published.filter((event) => event.kind === 3).at(-1)?.tags).not.toContainEqual(
       ["p", peer]

@@ -94,6 +94,7 @@ const ProfileHeader = ({
               <Avatar
                 pubKey={pubKey}
                 width={PROFILE_AVATAR_WIDTH}
+                showBadge={false}
                 backgroundClassName="bg-base-200"
               />
             </span>
