@@ -677,49 +677,60 @@ describe("durable private control admission", () => {
     await durableCallback(rumor, MY_PUBKEY, meta)
     expect(durableReceive).toHaveBeenCalledTimes(2)
   })
-  it.each([false, true])("retains a control until this device is registered (sender cached: %s)", async (senderCached) => {
-    if (!durableCallback) throw new Error("Missing durable listener")
-    useDevicesStore.setState({
-      isCurrentDeviceRegistered: false,
-      registeredDevices: senderCached
-        ? [{identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1}]
-        : [],
-    })
-    const acknowledge = vi.fn()
-    const replay = async () => {
-      await durableCallback!(rumor, MY_PUBKEY, meta)
-      acknowledge()
-    }
-    await expect(replay()).rejects.toThrow("linked device list")
-    expect(acknowledge).not.toHaveBeenCalled()
-    expect(durableReceive).not.toHaveBeenCalled()
+  it.each([false, true])(
+    "retains a control until this device is registered (sender cached: %s)",
+    async (senderCached) => {
+      if (!durableCallback) throw new Error("Missing durable listener")
+      useDevicesStore.setState({
+        isCurrentDeviceRegistered: false,
+        registeredDevices: senderCached
+          ? [{identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1}]
+          : [],
+      })
+      const acknowledge = vi.fn()
+      const replay = async () => {
+        await durableCallback!(rumor, MY_PUBKEY, meta)
+        acknowledge()
+      }
+      await expect(replay()).rejects.toThrow("linked device list")
+      expect(acknowledge).not.toHaveBeenCalled()
+      expect(durableReceive).not.toHaveBeenCalled()
 
-    useDevicesStore.setState({
-      isCurrentDeviceRegistered: true,
-      registeredDevices: [
-        {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 2},
-        {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1},
-      ],
-    })
-    let finishSave: (() => void) | undefined
-    durableReceive.mockImplementationOnce(() => new Promise<void>((resolve) => { finishSave = resolve }))
-    const delivery = replay()
-    expect(durableReceive).toHaveBeenCalledTimes(1)
-    expect(acknowledge).not.toHaveBeenCalled()
-    if (!finishSave) throw new Error("Durable save was not started")
-    finishSave()
-    await delivery
-    expect(acknowledge).toHaveBeenCalledTimes(1)
-  })
+      useDevicesStore.setState({
+        isCurrentDeviceRegistered: true,
+        registeredDevices: [
+          {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 2},
+          {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1},
+        ],
+      })
+      let finishSave: (() => void) | undefined
+      durableReceive.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishSave = resolve
+          })
+      )
+      const delivery = replay()
+      expect(durableReceive).toHaveBeenCalledTimes(1)
+      expect(acknowledge).not.toHaveBeenCalled()
+      if (!finishSave) throw new Error("Durable save was not started")
+      finishSave()
+      await delivery
+      expect(acknowledge).toHaveBeenCalledTimes(1)
+    }
+  )
   it("acknowledges repeated unsupported sibling snapshots without blocking contact saves", async () => {
     if (!durableCallback) throw new Error("Missing durable listener")
     expect(sessionManager.onDurableSessionEvent).toHaveBeenLastCalledWith(
-      expect.arrayContaining([10449, 10450, 10452, 10453]), expect.any(Function)
+      expect.arrayContaining([10449, 10450, 10452, 10453]),
+      expect.any(Function)
     )
-    useDevicesStore.setState({registeredDevices: [
-      {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
-      {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
-    ]})
+    useDevicesStore.setState({
+      registeredDevices: [
+        {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+        {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+      ],
+    })
     const pending = new Map<string, Rumor>()
     const deliver = async (event: Rumor) => {
       pending.set(event.id, event)
@@ -751,14 +762,17 @@ describe("durable private control admission", () => {
     // A rejected recipient or owner is conclusive even before the roster catches up.
     await deliver({...event, id: "wrong-recipient", tags: [["p", THEIR_PUBKEY]]})
     await deliver({...event, id: "wrong-owner"}, THEIR_PUBKEY, {
-      ...meta, senderOwnerPubkey: THEIR_PUBKEY,
+      ...meta,
+      senderOwnerPubkey: THEIR_PUBKEY,
     })
     expect([...pending.keys()]).toEqual([event.id])
     expect(durableReceive).not.toHaveBeenCalled()
-    useDevicesStore.setState({registeredDevices: [
-      {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
-      {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
-    ]})
+    useDevicesStore.setState({
+      registeredDevices: [
+        {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+        {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+      ],
+    })
     await deliver(event)
     expect(pending.size).toBe(0)
     expect(durableReceive).not.toHaveBeenCalled()
