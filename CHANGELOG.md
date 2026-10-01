@@ -4,6 +4,7 @@
 
 - Keep peer connections and transfers working when a delayed connection offer arrives.
 - Avoid unexpected page reloads during the first visit to a development server.
+- Sync private contact details and device names through encrypted device sessions, retaining queued changes across reconnects.
 
 ## 2.5.35 - 2026-10-01
 
