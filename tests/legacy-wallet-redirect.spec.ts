@@ -107,6 +107,39 @@ test("the wallet recovers an installed redirected cache through its parent view"
     await page.waitForTimeout(5500)
     await expect(page.locator('iframe[title="Legacy Cashu Wallet"]')).toHaveCount(0)
     releaseHelper!()
+    // The replacement worker precaches the real wallet before activation. Wait
+    // for that lifecycle event instead of spending the UI assertion's budget on
+    // installation while concurrent release tests fetch the same assets.
+    await page.evaluate(async (oldWorker) => {
+      const registration = await navigator.serviceWorker.getRegistration("/cashu/")
+      if (!registration) throw new Error("Wallet worker registration disappeared")
+      await new Promise<void>((resolve, reject) => {
+        const workers = new Set<ServiceWorker>()
+        const cleanup = () => {
+          registration.removeEventListener("updatefound", watch)
+          for (const worker of workers) worker.removeEventListener("statechange", check)
+        }
+        const check = () => {
+          if (registration.active && !registration.active.scriptURL.endsWith(oldWorker)) {
+            cleanup()
+            resolve()
+          } else if ([...workers].some((worker) => worker.state === "redundant")) {
+            cleanup()
+            reject(new Error("Replacement wallet worker failed to install"))
+          }
+        }
+        const watch = () => {
+          const worker = registration.installing || registration.waiting
+          if (worker && !workers.has(worker)) {
+            workers.add(worker)
+            worker.addEventListener("statechange", check)
+          }
+          check()
+        }
+        registration.addEventListener("updatefound", watch)
+        watch()
+      })
+    }, oldWorker)
     const wallet = page.frameLocator('iframe[title="Legacy Cashu Wallet"]')
     await expect(wallet.locator("#q-app")).not.toBeEmpty()
     expect(
