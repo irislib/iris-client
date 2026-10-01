@@ -9,6 +9,7 @@ import {nostr} from "@/utils/nostrClient"
 import {getUnmuteLabel} from "@/utils/muteLabels"
 import {NostrEvent} from "nostr-social-graph"
 import {enqueueContactListPublish} from "@/utils/contactListPublishQueue"
+import {useContactMemoryStore} from "@/stores/contactMemory"
 
 const lastContactListTimestamps = new Map<string, number>()
 
@@ -97,6 +98,8 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
 
         await event.publish()
         handleSocialGraphEvent(event as unknown as NostrEvent)
+        if (nextIsFollowing)
+          useContactMemoryStore.getState().remember(myPubKey, pubKeyHex)
       })
       setUpdated((updated) => updated + 1)
     } catch (error) {
@@ -124,6 +127,7 @@ export function FollowButton({pubKey, small = true}: {pubKey: string; small?: bo
       onClick={handleClick}
       disabled={isPublishing}
       aria-busy={isPublishing}
+      title={isMuted ? undefined : "Your follows are public"}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >

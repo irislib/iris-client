@@ -21,6 +21,9 @@ import useProfile from "@/shared/hooks/useProfile.ts"
 import Modal from "@/shared/components/ui/Modal.tsx"
 import Icon from "@/shared/components/Icons/Icon"
 import {Helmet} from "react-helmet"
+import {ContactMemoryControls} from "@/shared/components/user/ContactMemoryControls"
+import {useContactMemoryStore} from "@/stores/contactMemory"
+import {useContactMemory} from "@/shared/hooks/useContactMemory"
 
 const ProfileHeader = ({
   pubKey,
@@ -35,6 +38,7 @@ const ProfileHeader = ({
     [pubKey]
   )
   const myPubKey = useUserStore((state) => state.publicKey)
+  const memory = useContactMemory(pubKeyHex)
   const nip05valid = useNip05Validation(pubKey, profile?.nip05)
 
   const [showProfilePhotoModal, setShowProfilePhotoModal] = useState(false)
@@ -43,6 +47,7 @@ const ProfileHeader = ({
   const navigate = useNavigate()
 
   const handleStartChat = () => {
+    useContactMemoryStore.getState().remember(myPubKey, pubKeyHex)
     // Navigate directly to chat with userPubKey
     // The chats store will handle session creation automatically
     navigate("/chats/chat", {
@@ -88,7 +93,6 @@ const ProfileHeader = ({
             >
               <Avatar
                 pubKey={pubKey}
-                showBadge={false}
                 width={PROFILE_AVATAR_WIDTH}
                 backgroundClassName="bg-base-200"
               />
@@ -108,7 +112,11 @@ const ProfileHeader = ({
 
             <div className="flex flex-row gap-2" data-testid="profile-header-actions">
               {myPubKey && pubKeyHex && (
-                <button className="btn btn-circle btn-neutral" onClick={handleStartChat}>
+                <button
+                  className="btn btn-circle btn-neutral"
+                  onClick={handleStartChat}
+                  aria-label="Start chat"
+                >
                   <Icon name="mail-outline" className="w-6 h-6" />
                 </button>
               )}
@@ -144,6 +152,7 @@ const ProfileHeader = ({
               </small>
             )}
           </div>
+          <ContactMemoryControls pubkey={pubKeyHex} showFavorite />
           <ProfileDetails
             pubKey={pubKey}
             displayProfile={profile || undefined}
@@ -161,7 +170,8 @@ const ProfileHeader = ({
         )}
         <Helmet>
           <title>
-            {profile?.name ||
+            {memory?.accepted_name ||
+              profile?.name ||
               profile?.display_name ||
               profile?.username ||
               profile?.nip05?.split("@")[0] ||

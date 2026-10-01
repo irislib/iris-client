@@ -7,7 +7,6 @@ import {
   type ReactNode,
 } from "react"
 import ErrorBoundary from "@/shared/components/ui/ErrorBoundary"
-import {getMillisecondTimestamp} from "nostr-double-ratchet"
 import Message, {MessageType} from "../message/Message"
 import {groupMessages} from "../utils/messageGrouping"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
@@ -17,6 +16,7 @@ import {KIND_REACTION} from "@/utils/constants"
 import ReverseVirtualScroll from "@/shared/components/ui/ReverseVirtualScroll"
 import {formatDayLabel} from "@/utils/utils"
 import {sendGroupEvent} from "../utils/groupMessaging"
+import {withLocalChatNotices, type LocalChatNotice} from "../utils/localChatNotices"
 
 interface ChatContainerProps {
   messages: SortedMap<string, MessageType>
@@ -31,6 +31,7 @@ interface ChatContainerProps {
   onSendReaction?: (messageId: string, emoji: string) => Promise<void>
   groupId?: string
   groupMembers?: string[]
+  localNotices?: LocalChatNotice[]
 }
 
 const INITIAL_RENDER_COUNT = 25
@@ -49,6 +50,7 @@ const ChatContainer = ({
   onSendReaction,
   groupId,
   groupMembers,
+  localNotices = [],
 }: ChatContainerProps) => {
   const [showScrollDown, setShowScrollDown] = useState(false)
   const [renderCount, setRenderCount] = useState(INITIAL_RENDER_COUNT)
@@ -101,6 +103,7 @@ const ChatContainer = ({
   }
 
   const canLoadMore = renderCount < messages.size
+  const timeline = withLocalChatNotices(messageGroups, localNotices, !canLoadMore)
 
   // Create reaction handler for groups
   const handleReaction = async (messageId: string, emoji: string) => {
@@ -146,7 +149,7 @@ const ChatContainer = ({
 
   useLayoutEffect(() => {
     if (wasAtBottomRef.current) scrollToBottom()
-  }, [messages.size])
+  }, [messages.size, localNotices.length])
 
   // Reset render count when total messages decrease (e.g., chat switched)
   useEffect(() => {
@@ -231,7 +234,7 @@ const ChatContainer = ({
         className="flex flex-col flex-1 space-y-4 p-4 relative overflow-y-auto overflow-x-hidden pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(10rem+env(safe-area-inset-bottom))] md:pt-4 md:pb-4"
         data-header-scroll-target
       >
-        {messages.size === 0 ? (
+        {timeline.length === 0 ? (
           <>
             <div className="flex-grow" />
             <div className="text-center text-base-content/70 my-8">
@@ -249,11 +252,11 @@ const ChatContainer = ({
                   Scroll up to load older messages
                 </div>
               )}
-              {messageGroups.map((group, index) => {
-                const groupTimestamp = getMillisecondTimestamp(group[0])
+              {timeline.map((entry, index) => {
+                const groupTimestamp = entry.timestamp
                 const groupDate = formatDayLabel(groupTimestamp)
                 const prevGroupTimestamp =
-                  index > 0 ? getMillisecondTimestamp(messageGroups[index - 1][0]) : null
+                  index > 0 ? timeline[index - 1].timestamp : null
                 const prevGroupDate = prevGroupTimestamp
                   ? formatDayLabel(prevGroupTimestamp)
                   : null
@@ -267,22 +270,32 @@ const ChatContainer = ({
                         </span>
                       </div>
                     )}
-                    <div className="flex flex-col gap-[2px]">
-                      <ErrorBoundary>
-                        {group.map((message, messageIndex) => (
-                          <Message
-                            key={message.id}
-                            message={message}
-                            isFirst={messageIndex === 0}
-                            isLast={messageIndex === group.length - 1}
-                            sessionId={sessionId}
-                            onReply={readOnly ? undefined : () => onReply(message)}
-                            showAuthor={showAuthor}
-                            onSendReaction={readOnly ? undefined : handleReaction}
-                          />
-                        ))}
-                      </ErrorBoundary>
-                    </div>
+                    {entry.type === "notice" ? (
+                      <p
+                        className="text-center text-xs text-base-content/60 break-words"
+                        data-testid="contact-name-history"
+                      >
+                        {entry.notice.content}{" "}
+                        <span className="opacity-70">· Only you</span>
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-[2px]">
+                        <ErrorBoundary>
+                          {entry.messages.map((message, messageIndex) => (
+                            <Message
+                              key={message.id}
+                              message={message}
+                              isFirst={messageIndex === 0}
+                              isLast={messageIndex === entry.messages.length - 1}
+                              sessionId={sessionId}
+                              onReply={readOnly ? undefined : () => onReply(message)}
+                              showAuthor={showAuthor}
+                              onSendReaction={readOnly ? undefined : handleReaction}
+                            />
+                          ))}
+                        </ErrorBoundary>
+                      </div>
+                    )}
                   </div>
                 )
               })}

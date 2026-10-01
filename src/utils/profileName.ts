@@ -2,6 +2,15 @@ import {LRUCache} from "typescript-lru-cache"
 import {type Profile} from "@/lib/nostr/db"
 import {UserProfile} from "@/lib/nostr"
 import AnimalName from "./AnimalName"
+import {useContactMemoryStore} from "@/stores/contactMemory"
+import {useUserStore} from "@/stores/user"
+import {publicProfileName} from "./publicProfileName"
+
+function acceptedName(pubKey: string) {
+  return useContactMemoryStore.getState().accounts[useUserStore.getState().publicKey]?.[
+    pubKey
+  ]?.accepted_name
+}
 
 type ProfileLike = Profile | UserProfile | null | undefined
 
@@ -18,6 +27,8 @@ const nameCache = new LRUCache<string, string>({
  */
 export function getCachedName(pubKey: string): string {
   if (!pubKey) return ""
+  const accepted = acceptedName(pubKey)
+  if (accepted) return accepted
   const cached = nameCache.get(pubKey)
   if (cached) return cached
   return AnimalName(pubKey)
@@ -27,14 +38,7 @@ export function getCachedName(pubKey: string): string {
  * Extract display name from profile object
  */
 export function getNameFromProfile(profile: ProfileLike, pubKey: string): string {
-  if (!profile) return AnimalName(pubKey)
-
-  const name =
-    profile.name ||
-    profile.displayName ||
-    (typeof profile.display_name === "string" ? profile.display_name : undefined)
-
-  return name || AnimalName(pubKey)
+  return acceptedName(pubKey) || publicProfileName(profile) || AnimalName(pubKey)
 }
 
 /**
@@ -42,6 +46,6 @@ export function getNameFromProfile(profile: ProfileLike, pubKey: string): string
  */
 export function updateNameCache(pubKey: string, profile: ProfileLike) {
   if (!pubKey) return
-  const name = getNameFromProfile(profile, pubKey)
+  const name = publicProfileName(profile) || AnimalName(pubKey)
   nameCache.set(pubKey, name)
 }

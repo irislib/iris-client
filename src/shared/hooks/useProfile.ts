@@ -13,6 +13,8 @@ import {nostr} from "@/utils/nostrClient"
 import {KIND_METADATA} from "@/utils/constants"
 import {getMainThreadDb} from "@/lib/nostr/db"
 import {updateNameCache} from "@/utils/profileName"
+import {publicProfileName} from "@/utils/publicProfileName"
+import {useContactMemoryStore} from "@/stores/contactMemory"
 
 // In-memory store for profiles that are actively being rendered on screen.
 const profileStore = new Map<string, UserProfile>()
@@ -66,6 +68,9 @@ export function updateProfileFromEvent(event: AppEvent) {
   if (!profile) return
   if (profile.nip05) addUsernameToCache(event.pubkey, profile.nip05, true)
   profileStore.set(event.pubkey, profile)
+  useContactMemoryStore
+    .getState()
+    .observeProfile(event.pubkey, publicProfileName(profile), event.created_at)
   updateNameCache(event.pubkey, profile)
   handleProfile(event.pubkey, profile)
   notifySubscribers(event.pubkey)
@@ -93,6 +98,9 @@ function loadProfileFromDb(pubKeyHex: string) {
       const current = profileStore.get(pubKeyHex)
       if (current && (current.created_at ?? 0) >= (profile.created_at ?? 0)) return
       profileStore.set(pubKeyHex, profile)
+      useContactMemoryStore
+        .getState()
+        .observeProfile(pubKeyHex, publicProfileName(profile), profile.created_at ?? 0)
       updateNameCache(pubKeyHex, profile)
       notifySubscribers(pubKeyHex)
     })

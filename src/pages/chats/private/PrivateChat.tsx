@@ -22,6 +22,9 @@ import {useUIStore} from "@/stores/ui"
 import {deletePrivateChat} from "@/shared/services/chatDeletion"
 import {type SessionUserRecordsLike} from "@/utils/sessionRouting"
 import {isPrivateChatAccepted} from "@/utils/privateChatAcceptance"
+import {useContactMemoryStore} from "@/stores/contactMemory"
+import {useContactMemory} from "@/shared/hooks/useContactMemory"
+import {ContactMemoryControls} from "@/shared/components/user/ContactMemoryControls"
 
 const Chat = ({id}: {id: string}) => {
   // id is now userPubKey instead of sessionId
@@ -31,6 +34,10 @@ const Chat = ({id}: {id: string}) => {
   const sendReadReceipts = useMessagesStore((state) => state.sendReadReceipts)
   const sendDeliveryReceipts = useMessagesStore((state) => state.sendDeliveryReceipts)
   const myPubKey = useUserStore((state) => state.publicKey)
+  const contactMemory = useContactMemory(id)
+  useEffect(() => {
+    if (isTopOfStack) useContactMemoryStore.getState().remember(myPubKey, id)
+  }, [myPubKey, id, isTopOfStack])
   const isFollowing = useIsFollowing(myPubKey, id)
   const isLocallyAccepted = useMessageRequestsStore((state) => !!state.acceptedChats[id])
   const acceptChat = useMessageRequestsStore((state) => state.acceptChat)
@@ -209,32 +216,40 @@ const Chat = ({id}: {id: string}) => {
         sessionId={id}
         onReply={setReplyingTo}
         onSendReaction={handleSendReaction}
+        localNotices={contactMemory?.name_changes.map((change, index) => ({
+          id: `name-change-${index}`,
+          timestamp: change.accepted_at_secs * 1000,
+          content: `You approved the name change: ${change.previous_name} → ${change.accepted_name}`,
+        }))}
         bottomContent={
-          !isChatAccepted ? (
-            <div className="flex justify-center" data-testid="message-request-actions">
-              <div className="w-full max-w-lg bg-base-200 border border-custom rounded-xl p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-base-content/70">Message request</div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={handleAcceptRequest}
-                    >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm text-error hover:bg-error hover:text-error-content"
-                      onClick={handleRejectRequest}
-                    >
-                      Reject
-                    </button>
+          <>
+            <ContactMemoryControls pubkey={id} />
+            {!isChatAccepted ? (
+              <div className="flex justify-center" data-testid="message-request-actions">
+                <div className="w-full max-w-lg bg-base-200 border border-custom rounded-xl p-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm text-base-content/70">Message request</div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={handleAcceptRequest}
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm text-error hover:bg-error hover:text-error-content"
+                        onClick={handleRejectRequest}
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null
+            ) : null}
+          </>
         }
       />
       <MessageForm id={id} replyingTo={replyingTo} setReplyingTo={setReplyingTo} />

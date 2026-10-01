@@ -10,6 +10,8 @@ import {PublicKey} from "@/shared/utils/PublicKey"
 import type {SearchResult} from "@/utils/profileSearchData"
 import AnimalName from "@/utils/AnimalName.ts"
 import {AVATAR_DEFAULT_WIDTH} from "./const"
+import {useContactMemory} from "@/shared/hooks/useContactMemory"
+import {publicProfileName} from "@/utils/publicProfileName"
 
 export const Avatar = ({
   width = AVATAR_DEFAULT_WIDTH,
@@ -49,6 +51,7 @@ export const Avatar = ({
   }, [pubKey])
 
   const profile = useProfile(pubKeyHex, true)
+  const memory = useContactMemory(pubKeyHex)
   const [image, setImage] = useState(
     String(profile?.picture || profile?.image || fallbackProfile?.picture || "")
   )
@@ -92,11 +95,8 @@ export const Avatar = ({
         title={
           showTooltip
             ? String(
-                profile?.name ||
-                  profile?.displayName ||
-                  profile?.display_name ||
-                  profile?.username ||
-                  profile?.nip05?.split("@")[0] ||
+                memory?.accepted_name ||
+                  publicProfileName(profile) ||
                   fallbackProfile?.name ||
                   fallbackProfile?.nip05?.split("@")[0] ||
                   (pubKeyHex && AnimalName(pubKeyHex))

@@ -5,6 +5,8 @@ import {useMemo} from "react"
 import useProfile from "@/shared/hooks/useProfile.ts"
 import type {SearchResult} from "@/utils/profileSearchData"
 import animalName from "@/utils/AnimalName"
+import {useContactMemory} from "@/shared/hooks/useContactMemory"
+import {publicProfileName} from "@/utils/publicProfileName"
 
 export function Name({
   pubKey,
@@ -28,13 +30,11 @@ export function Name({
   }, [pubKey])
 
   const profile = useProfile(pubKey, true)
+  const memory = useContactMemory(pubKeyHex)
 
   const name =
-    profile?.display_name ||
-    profile?.displayName ||
-    profile?.name ||
-    profile?.username ||
-    profile?.nip05?.split("@")[0] ||
+    memory?.accepted_name ||
+    publicProfileName(profile) ||
     fallbackProfile?.name ||
     fallbackProfile?.nip05?.split("@")[0]
 
@@ -46,7 +46,7 @@ export function Name({
       return ""
     }
     return animalName(pubKeyHex)
-  }, [profile, pubKeyHex])
+  }, [name, pubKeyHex])
 
   return (
     <span
