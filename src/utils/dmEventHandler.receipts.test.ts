@@ -737,17 +737,30 @@ describe("durable private control admission", () => {
     expect(durableReceive).toHaveBeenCalledTimes(1)
     expect(pending.size).toBe(0)
   })
-  it("does not acknowledge unsupported controls before sender and recipient authorization", async () => {
+  it("retains an unresolved sibling but drains rejected owner or recipient controls", async () => {
     if (!durableCallback) throw new Error("Missing durable listener")
     const event = {...rumor, kind: 10449, tags: [["p", MY_PUBKEY]]}
-    await expect(durableCallback(event, MY_PUBKEY, meta)).rejects.toThrow("linked device list")
+    const pending = new Map<string, Rumor>()
+    const deliver = async (value: Rumor, from = MY_PUBKEY, senderMeta = meta) => {
+      pending.set(value.id, value)
+      await durableCallback!(value, from, senderMeta)
+      pending.delete(value.id)
+    }
+    await expect(deliver(event)).rejects.toThrow("linked device list")
+    expect(pending.size).toBe(1)
+    // A rejected recipient or owner is conclusive even before the roster catches up.
+    await deliver({...event, id: "wrong-recipient", tags: [["p", THEIR_PUBKEY]]})
+    await deliver({...event, id: "wrong-owner"}, THEIR_PUBKEY, {
+      ...meta, senderOwnerPubkey: THEIR_PUBKEY,
+    })
+    expect([...pending.keys()]).toEqual([event.id])
+    expect(durableReceive).not.toHaveBeenCalled()
     useDevicesStore.setState({registeredDevices: [
       {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
       {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
     ]})
-    await expect(durableCallback({...event, tags: [["p", THEIR_PUBKEY]]}, MY_PUBKEY, meta)).rejects.toThrow("not authorized")
-    await expect(durableCallback(event, THEIR_PUBKEY, meta)).rejects.toThrow("not authorized")
-    await durableCallback(event, MY_PUBKEY, meta)
+    await deliver(event)
+    expect(pending.size).toBe(0)
     expect(durableReceive).not.toHaveBeenCalled()
   })
   it("cannot acknowledge an old account journal after the UI switches accounts", async () => {

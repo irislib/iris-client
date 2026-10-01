@@ -111,6 +111,16 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
         )
           throw new Error("Device list is not ready")
         const sender = meta?.senderDevicePubkey || meta?.fromDeviceId
+        const unsupported = unsupportedPrivateKinds.includes(event.kind)
+        // Rejected traffic can leave the local inbox without accepting a setting.
+        // Only a potentially valid sibling with an unresolved roster must retry.
+        if (unsupported && (
+          _from !== account || meta?.senderOwnerPubkey !== account || !sender ||
+          sender === state.identityPubkey ||
+          (event.pubkey !== account && event.pubkey !== sender) ||
+          !event.tags.some((tag) => tag[0] === "p" && tag[1] === account) ||
+          event.tags.some((tag) => tag[0] === "p" && tag[1] !== account)
+        )) return
         if (
           meta?.senderOwnerPubkey === account &&
           sender &&
@@ -126,17 +136,7 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
           }
           throw new Error("Waiting for the linked device list")
         }
-        if (unsupportedPrivateKinds.includes(event.kind)) {
-          if (
-            _from !== account || meta?.senderOwnerPubkey !== account || !sender ||
-            sender === state.identityPubkey || !state.isCurrentDeviceRegistered ||
-            !state.registeredDevices.some((device) => device.identityPubkey === sender) ||
-            (event.pubkey !== account && event.pubkey !== sender) ||
-            !event.tags.some((tag) => tag[0] === "p" && tag[1] === account) ||
-            event.tags.some((tag) => tag[0] === "p" && tag[1] !== account)
-          ) throw new Error("Private control is not authorized")
-          return
-        }
+        if (unsupported) return
         if (event.kind === PRIVATE_CONTACT_CONTROL_KIND)
           await receivePrivateContactControl(event, meta)
         else await receivePrivateDeviceLabel(event, meta)
