@@ -37,14 +37,14 @@ export const Badge = ({
     let badgeClass
     if (distance === 0) {
       tooltip = "You"
-      badgeClass = "bg-primary"
+      badgeClass = "bg-[#0a84ff]"
     } else if (distance === 1) {
       tooltip = "Following"
-      badgeClass = "bg-primary"
+      badgeClass = "bg-[#0a84ff]"
     } else if (distance === 2) {
       const followedByFriends = socialGraph.followedByFriends(pubKeyHex)
       tooltip = `Followed by ${followedByFriends.size} friends`
-      badgeClass = followedByFriends.size > 10 ? "bg-accent" : "bg-neutral"
+      badgeClass = followedByFriends.size > 10 ? "bg-[#d4a017]" : "bg-[#8e8e93]"
     }
     return (
       <span
