@@ -84,6 +84,14 @@ export const cleanupNdrRuntimeEventListener = () => {
   unsubscribeRuntimeEvents = null
 }
 
+// Client has no per-chat notification mute or pin setting. Consume authenticated
+// sibling snapshots for those known controls without retaining an unused inbox.
+const unsupportedPrivateKinds = [10449, 10450]
+const durablePrivateKinds = [
+  PRIVATE_CONTACT_CONTROL_KIND,
+  DEVICE_LABEL_CONTROL_KIND,
+  ...unsupportedPrivateKinds,
+]
 const pendingPrivateRosterReads = new Map<string, number>()
 export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
   const account = useUserStore.getState().publicKey
@@ -91,7 +99,7 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
     unsubscribeRuntimeEvents?.()
     unsubscribeDurableEvents?.()
     unsubscribeDurableEvents = runtime.onDurableSessionEvent(
-      [PRIVATE_CONTACT_CONTROL_KIND, DEVICE_LABEL_CONTROL_KIND],
+      durablePrivateKinds,
       async (event, _from, meta) => {
         if (!account || useUserStore.getState().publicKey !== account)
           throw new Error("Private account is not ready")
@@ -118,6 +126,17 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
           }
           throw new Error("Waiting for the linked device list")
         }
+        if (unsupportedPrivateKinds.includes(event.kind)) {
+          if (
+            _from !== account || meta?.senderOwnerPubkey !== account || !sender ||
+            sender === state.identityPubkey || !state.isCurrentDeviceRegistered ||
+            !state.registeredDevices.some((device) => device.identityPubkey === sender) ||
+            (event.pubkey !== account && event.pubkey !== sender) ||
+            !event.tags.some((tag) => tag[0] === "p" && tag[1] === account) ||
+            event.tags.some((tag) => tag[0] === "p" && tag[1] !== account)
+          ) throw new Error("Private control is not authorized")
+          return
+        }
         if (event.kind === PRIVATE_CONTACT_CONTROL_KIND)
           await receivePrivateContactControl(event, meta)
         else await receivePrivateDeviceLabel(event, meta)
@@ -128,8 +147,7 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
     unsubscribeRuntimeEvents = runtime.onSessionEvent((event, pubKey, meta) => {
       const {publicKey} = useUserStore.getState()
       if (!publicKey) return
-      if ([PRIVATE_CONTACT_CONTROL_KIND, DEVICE_LABEL_CONTROL_KIND].includes(event.kind))
-        return
+      if (durablePrivateKinds.includes(event.kind)) return
 
       const {registeredDevices, identityPubkey} = useDevicesStore.getState()
       const isOwnDevice =

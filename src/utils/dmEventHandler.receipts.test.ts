@@ -711,6 +711,45 @@ describe("durable private control admission", () => {
     await delivery
     expect(acknowledge).toHaveBeenCalledTimes(1)
   })
+  it("acknowledges repeated unsupported sibling snapshots without blocking contact saves", async () => {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    expect(sessionManager.onDurableSessionEvent).toHaveBeenLastCalledWith(
+      expect.arrayContaining([10449, 10450, 10452, 10453]), expect.any(Function)
+    )
+    useDevicesStore.setState({registeredDevices: [
+      {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+      {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+    ]})
+    const pending = new Map<string, Rumor>()
+    const deliver = async (event: Rumor) => {
+      pending.set(event.id, event)
+      await durableCallback!(event, MY_PUBKEY, meta)
+      pending.delete(event.id)
+    }
+    for (let index = 0; index < 20; index++) {
+      for (const kind of [10449, 10450]) {
+        await deliver({...rumor, id: `${kind}-${index}`, kind, tags: [["p", MY_PUBKEY]]})
+        expect(pending.size).toBe(0)
+      }
+    }
+    expect(durableReceive).not.toHaveBeenCalled()
+    await deliver(rumor)
+    expect(durableReceive).toHaveBeenCalledTimes(1)
+    expect(pending.size).toBe(0)
+  })
+  it("does not acknowledge unsupported controls before sender and recipient authorization", async () => {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    const event = {...rumor, kind: 10449, tags: [["p", MY_PUBKEY]]}
+    await expect(durableCallback(event, MY_PUBKEY, meta)).rejects.toThrow("linked device list")
+    useDevicesStore.setState({registeredDevices: [
+      {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+      {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+    ]})
+    await expect(durableCallback({...event, tags: [["p", THEIR_PUBKEY]]}, MY_PUBKEY, meta)).rejects.toThrow("not authorized")
+    await expect(durableCallback(event, THEIR_PUBKEY, meta)).rejects.toThrow("not authorized")
+    await durableCallback(event, MY_PUBKEY, meta)
+    expect(durableReceive).not.toHaveBeenCalled()
+  })
   it("cannot acknowledge an old account journal after the UI switches accounts", async () => {
     if (!durableCallback) throw new Error("Missing durable listener")
     useUserStore.setState({publicKey: THEIR_PUBKEY})
