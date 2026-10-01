@@ -1,3 +1,6 @@
+vi.mock("@/utils/privateContactMigration", () => ({
+  migrateStoredPrivateContacts: vi.fn(async () => {}),
+}))
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import type {NdrRuntimeOptions, NostrPublish} from "nostr-double-ratchet"
 
@@ -46,6 +49,7 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
   const actual = await importOriginal<typeof import("nostr-double-ratchet")>()
 
   class MockNdrRuntime {
+    retireLegacyPrivateContactSync = vi.fn(async () => {})
     constructor(options: NdrRuntimeOptions) {
       mocks.runtimeOptions = options
     }

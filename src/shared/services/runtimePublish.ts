@@ -1,3 +1,7 @@
+import {
+  assertPrivatePublicationPolicy,
+  coversLegacyPrivateRoster,
+} from "./privatePublishPolicy"
 import type {NostrPublishContext} from "nostr-double-ratchet"
 import localforage from "localforage"
 import type {VerifiedEvent} from "nostr-tools"
@@ -49,6 +53,7 @@ export const createRuntimePublish = (options: RuntimePublishOptions) => {
     if (context && groupCancellations.has(context.groupId))
       throw new DOMException("Group publications cancelled", "AbortError")
     if (!event.id || !event.sig) throw new Error("Cannot queue an unsigned event")
+    assertPrivatePublicationPolicy(event)
     const key = prefix + event.id
     const pending = enqueuing.get(key)
     if (pending) return pending
@@ -79,6 +84,7 @@ export const createRuntimePublish = (options: RuntimePublishOptions) => {
       const row = await storage.getItem<PendingPublication>(key)
       signal.throwIfAborted()
       if (!row) return
+      assertPrivatePublicationPolicy(row.event)
       const groupController = row.context ? new AbortController() : undefined
       if (groupController) groupAttempts.set(groupController, row.context!.groupId)
       const attemptSignal = groupController
@@ -102,6 +108,15 @@ export const createRuntimePublish = (options: RuntimePublishOptions) => {
       // Keep retries until the ACK and host callback succeed for the active account.
       signal.throwIfAborted()
       await storage.removeItem(key)
+      if (row.event.kind === 37368) {
+        for (const blockedKey of await storage.keys()) {
+          if (!blockedKey.startsWith(prefix)) continue
+          const blocked = await storage.getItem<PendingPublication>(blockedKey)
+          signal.throwIfAborted()
+          if (blocked && coversLegacyPrivateRoster(row.event, blocked.event))
+            await storage.removeItem(blockedKey)
+        }
+      }
     })().finally(() => inFlight.delete(key))
     inFlight.set(key, publishing)
     return publishing

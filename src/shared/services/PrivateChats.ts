@@ -1,3 +1,4 @@
+import {migrateStoredPrivateContacts} from "@/utils/privateContactMigration"
 import {hexToBytes} from "@noble/hashes/utils.js"
 import {LocalForageStorageAdapter} from "../../session/StorageAdapter"
 import {
@@ -171,6 +172,22 @@ export const closePrivateMessaging = (): void => {
   cleanupNdrRuntimeEventListener()
   cleanupGroupMessageListener()
   closeRuntime()
+}
+
+const privateRuntimeMigration = new WeakMap<NdrRuntime, Promise<void>>()
+const initializePrivateRuntime = async (instance: NdrRuntime, owner: string) => {
+  let ready = privateRuntimeMigration.get(instance)
+  if (!ready) {
+    ready = (async () => {
+      await migrateStoredPrivateContacts(owner)
+      await instance.retireLegacyPrivateContactSync(owner)
+    })()
+    privateRuntimeMigration.set(instance, ready)
+    void ready.catch(() => privateRuntimeMigration.delete(instance))
+  }
+  await ready
+  if (useUserStore.getState().publicKey !== owner) throw new Error("Account changed")
+  return instance.initForOwner(owner)
 }
 
 const getRuntime = (): NdrRuntime => {
@@ -369,7 +386,7 @@ const initializeRuntime = (
   if (!runtimeInitialization) {
     runtimeInitialization = (async () => {
       await awaitGroupsHydration()
-      await currentRuntime.initForOwner(ownerPubkey)
+      await initializePrivateRuntime(currentRuntime, ownerPubkey)
       await currentRuntime.syncGroups(
         Object.values(useGroupsStore.getState().groups),
         ownerPubkey
@@ -439,7 +456,7 @@ export const registerDevice = async (timeoutMs?: number): Promise<void> => {
   const labels = await getCurrentDeviceRegistrationLabels()
 
   await ensureNdkConnected()
-  await getRuntime().initForOwner(publicKey)
+  await initializePrivateRuntime(getRuntime(), publicKey)
   await getRuntime().registerCurrentDevice({
     ownerPubkey: publicKey,
     timeoutMs,
@@ -453,7 +470,7 @@ export const revokeDevice = async (identityPubkey: string): Promise<number> => {
   const publicKey = requireOwnerPublicKey()
 
   await ensureNdkConnected()
-  await getRuntime().initForOwner(publicKey)
+  await initializePrivateRuntime(getRuntime(), publicKey)
   const createdAt = await getRuntime().revokeDevice({
     ownerPubkey: publicKey,
     identityPubkey,

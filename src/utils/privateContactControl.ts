@@ -1,31 +1,36 @@
 import {getEventHash} from "nostr-tools"
 import type {OnEventMeta, Rumor} from "nostr-double-ratchet"
-import {
-  validatePrivateContactDocument,
-  type PrivateContactDocument,
-} from "nostr-social-graph/privateContactSync"
 import {useDevicesStore} from "@/stores/devices"
 import {useUserStore} from "@/stores/user"
-const getPubkey = () => useUserStore.getState().publicKey
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
-import {getPrivateContactDocuments, mergePrivateContacts} from "./privateContactSync"
-
-export const PRIVATE_CONTACT_CONTROL_KIND = 10451
+const getPubkey = () => useUserStore.getState().publicKey
+const deviceState = () => useDevicesStore.getState()
+import {
+  PRIVATE_CONTACT_CONTROL_KIND,
+  buildPrivateContactControl,
+  buildPrivateContactRequest,
+  parsePrivateContactControl,
+  type PrivateContactDocument,
+  type PrivateContactControl,
+} from "nostr-social-graph/privateContactSyncV2"
+import {sendPrivateDeviceLabels} from "./privateDeviceLabels"
+import {mergePrivateContacts, queuePrivateContacts} from "./privateContactSync"
+export {PRIVATE_CONTACT_CONTROL_KIND}
 const replayed = new Map<string, number>()
-const pending = new Map<string, {owner: string; document: PrivateContactDocument}>()
-let sending: Promise<void> | undefined
-let retry: ReturnType<typeof setTimeout> | undefined
-
+const replaying = new Map<string, Promise<void>>()
 function canSend(owner: string) {
+  const state = deviceState()
   return (
     getPubkey() === owner &&
-    useDevicesStore.getState().canSendPrivateMessages &&
-    !useDevicesStore.getState().privateMessagingBlocked
+    state.isCurrentDeviceRegistered &&
+    state.canSendPrivateMessages &&
+    !state.privateMessagingBlocked
   )
 }
-async function send(owner: string, payload: object) {
+async function send(owner: string, payload: PrivateContactControl): Promise<boolean> {
+  if (!canSend(owner)) return false
   const runtime = getNdrRuntime()
-  if (!canSend(owner)) throw new Error("Private device sync is not ready")
+  if (!canSend(owner)) return false
   const event = {
     kind: PRIVATE_CONTACT_CONTROL_KIND,
     pubkey: owner,
@@ -33,62 +38,42 @@ async function send(owner: string, payload: object) {
     tags: [["p", owner]],
     content: JSON.stringify(payload),
   }
-  await runtime.sendEvent(owner, {...event, id: getEventHash(event)})
+  const rumor = {...event, id: getEventHash(event)}
+  const accepted = await runtime.sendEvent(owner, rumor)
+  return canSend(owner) && accepted?.id === rumor.id
 }
-function drain(): Promise<void> {
-  if (sending) return sending
-  const run = (async () => {
-    clearTimeout(retry)
-    retry = undefined
-    try {
-      for (const [key, item] of pending) {
-        if (getPubkey() !== item.owner) {
-          pending.delete(key)
-          continue
-        }
-        await send(item.owner, {
-          type: "private-contact-sync",
-          v: 1,
-          document: item.document,
-        })
-        if (pending.get(key) === item) pending.delete(key)
-      }
-    } catch {
-      // The core document is already durable; retry until NDR can durably queue its sibling copy.
-      retry = setTimeout(() => {
-        void drain()
-      }, 5000)
-    }
-  })()
-  sending = run.finally(() => {
-    sending = undefined
-    if (pending.size && !retry)
-      retry = setTimeout(() => {
-        void drain()
-      }, 0)
-  })
-  return sending
-}
+/** The shared controller keeps pending documents until this durable NDR handoff succeeds. */
 export function sendPrivateContactDocument(
   owner: string,
   document: PrivateContactDocument
-) {
-  pending.set(`${owner}:${document.contact}`, {owner, document})
-  return drain()
+): Promise<boolean> {
+  return send(owner, buildPrivateContactControl(document))
 }
-export async function requestPrivateContactSync(owner: string) {
+export async function requestPrivateContactSync(owner: string): Promise<void> {
   if (!canSend(owner)) return
-  await send(owner, {type: "private-contact-sync", v: 1, request: true})
-  for (const document of getPrivateContactDocuments()) {
-    if (!canSend(owner)) return
-    await sendPrivateContactDocument(owner, document)
-  }
+  await queuePrivateContacts(owner)
+  await sendPrivateDeviceLabels(owner)
+  if (!(await send(owner, buildPrivateContactRequest(owner))))
+    throw new Error("Private device sync is not ready")
 }
-export async function receivePrivateContactControl(rumor: Rumor, meta?: OnEventMeta) {
+export async function receivePrivateContactControl(
+  rumor: Rumor,
+  meta?: OnEventMeta
+): Promise<void> {
   const owner = getPubkey(),
-    state = useDevicesStore.getState()
+    state = deviceState()
   const sender = meta?.senderDevicePubkey || meta?.fromDeviceId
   if (
+    rumor.kind === PRIVATE_CONTACT_CONTROL_KIND &&
+    owner &&
+    meta?.senderOwnerPubkey === owner &&
+    (!state.sessionManagerReady ||
+      !state.appKeysManagerReady ||
+      (!state.hasLocalAppKeys && state.lastEventTimestamp <= 0))
+  )
+    throw new Error("Device list is not ready")
+  if (
+    rumor.kind !== PRIVATE_CONTACT_CONTROL_KIND ||
     !owner ||
     meta?.senderOwnerPubkey !== owner ||
     !sender ||
@@ -99,29 +84,33 @@ export async function receivePrivateContactControl(rumor: Rumor, meta?: OnEventM
     rumor.content.length > 32_000
   )
     return
-  let payload
+  let payload: PrivateContactControl
   try {
-    payload = JSON.parse(rumor.content)
+    payload = parsePrivateContactControl(JSON.parse(rumor.content), owner)
   } catch {
     return
   }
-  if (payload?.type !== "private-contact-sync" || payload.v !== 1) return
-  if (payload.request === true && payload.document === undefined) {
-    const key = `${owner}:${sender}`
-    if (Date.now() - (replayed.get(key) ?? 0) < 30_000) return
-    replayed.set(key, Date.now())
-    for (const document of getPrivateContactDocuments()) {
-      if (!canSend(owner)) return
-      await sendPrivateContactDocument(owner, document)
-    }
-  } else if (payload.request === undefined && payload.document !== undefined) {
-    try {
-      validatePrivateContactDocument(payload.document, owner)
-    } catch {
-      return
-    }
+  if (payload.type === "private-contact-sync") {
     await mergePrivateContacts(owner, [payload.document])
+    return
   }
+  const key = `${owner}:${sender}`
+  const active = replaying.get(key)
+  if (active) {
+    await active
+    return
+  }
+  if (Date.now() - (replayed.get(key) ?? 0) < 30_000) return
+  const replay = queuePrivateContacts(owner)
+    .then(() => sendPrivateDeviceLabels(owner))
+    .then(() => {
+      replayed.set(key, Date.now())
+    })
+    .finally(() => {
+      replaying.delete(key)
+    })
+  replaying.set(key, replay)
+  await replay
 }
 
 let started = false
@@ -131,7 +120,7 @@ export function startPrivateContactBridge() {
   let last = ""
   const reconcile = () => {
     const account = getPubkey(),
-      state = useDevicesStore.getState()
+      state = deviceState()
     const roster = canSend(account)
       ? `${account}:${state.registeredDevices
           .map((device) => device.identityPubkey)
@@ -143,10 +132,14 @@ export function startPrivateContactBridge() {
       void requestPrivateContactSync(account).catch(() => {
         last = ""
       })
+    } else if (!roster) {
+      last = ""
     }
-    if (!roster) last = ""
   }
   useDevicesStore.subscribe(reconcile)
   useUserStore.subscribe(reconcile)
+  window.addEventListener("online", reconcile)
+  const timer = setInterval(reconcile, 5000)
+  window.addEventListener("pagehide", () => clearInterval(timer), {once: true})
   reconcile()
 }
