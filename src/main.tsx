@@ -83,6 +83,8 @@ const initializeApp = async () => {
   // Start NostrClient initialization in background (non-blocking)
   import("@/utils/nostrClient").then(async ({initNostr}) => {
     await initNostr()
+    const {startPrivateContactSync} = await import("@/utils/privateContactSync")
+    startPrivateContactSync()
     log("✅ NostrClient initialized")
 
     // Initialize AppKeysManager first (fast), then DelegateManager in parallel

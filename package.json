@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.34",
+  "version": "2.5.35",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -112,7 +112,7 @@
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.175/nostr-double-ratchet-0.0.175.tgz",
     "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz",
-    "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz",
+    "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
     "qrcode": "^1.5.4",
@@ -125,6 +125,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.48/fips-transport-websocket-0.0.8.tgz",
     "@iris/release-tools": "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.6/iris-release-tools-0.1.1.tgz",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/container-queries": "^0.1.1",
@@ -167,12 +168,10 @@
     "workbox-routing": "^7.4.1",
     "workbox-strategies": "^7.4.1",
     "workbox-window": "^7.4.1",
-    "ws": "^8.21.1",
-    "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.48/fips-transport-websocket-0.0.8.tgz"
+    "ws": "^8.21.1"
   },
   "pnpm": {
     "patchedDependencies": {
-      "nostr-social-graph": "patches/nostr-social-graph.patch",
       "@hashtree/fips-transport@0.4.17": "patches/hashtree-fips-transport.patch"
     },
     "overrides": {

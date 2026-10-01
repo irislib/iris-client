@@ -11,9 +11,6 @@ patchedDependencies:
   '@hashtree/fips-transport@0.4.17':
     hash: 4qkogbdjlnvrq2nuczl7p7jkbm
     path: patches/hashtree-fips-transport.patch
-  nostr-social-graph:
-    hash: rwdgsudffqej7cvo4x5x56keku
-    path: patches/nostr-social-graph.patch
 
 importers:
 
@@ -51,7 +48,7 @@ importers:
         version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-index-0.1.14.tgz
       '@hashtree/worker':
         specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-worker-0.4.7.tgz
-        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-worker-0.4.7.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3))(typescript@5.9.3)
+        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-worker-0.4.7.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz(typescript@5.9.3))(typescript@5.9.3)
       '@noble/curves':
         specifier: ^2.2.0
         version: 2.2.0
@@ -116,8 +113,8 @@ importers:
         specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz
         version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-social-graph:
-        specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz
-        version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3)
+        specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz
+        version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz(typescript@5.9.3)
       nostr-tools:
         specifier: ^2.24.1
         version: 2.24.1(typescript@5.9.3)
@@ -2845,9 +2842,9 @@ packages:
     peerDependencies:
       nostr-tools: '>=2.23.3 <3'
 
-  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz:
-    resolution: {integrity: sha512-7bR840Fmz7wYaHi0P9fXxxKlQSphFARmj2VBMIQdFvrNT584bj6ci18GaeJ49OghutUot/FwHmPOTjYqmg6koA==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz}
-    version: 2.0.1
+  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz:
+    resolution: {integrity: sha512-j3QNMC9XDg77Pc5L7biR1alfQmzKQh+I60Al9Ovu7ee4EatM3iKf02JgsTPVLaDyFu1/3l+KxqfiAqYRGOLvvw==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz}
+    version: 2.0.2
 
   nostr-tools@2.24.1:
     resolution: {integrity: sha512-KdrKjC74n/rr6J3eCSfZj8dcbZFvolHYe4S22SefNZ5YWbhHiB0KL/mmJjEZ0u6B9mZK0YcQtl+WQ46KzwapeQ==}
@@ -4757,7 +4754,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@hashtree/worker@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-worker-0.4.7.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3))(typescript@5.9.3)':
+  '@hashtree/worker@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-worker-0.4.7.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       '@hashtree/core': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-core-0.3.2.tgz
       '@hashtree/dexie': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-dexie-0.1.11.tgz
@@ -4769,7 +4766,7 @@ snapshots:
       nostr-pubsub: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-tools: 2.24.1(typescript@5.9.3)
     optionalDependencies:
-      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3)
+      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
@@ -6612,7 +6609,7 @@ snapshots:
       '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/v0.2.0/fips-tcp-0.2.0.tgz
       nostr-tools: 2.24.1(typescript@5.9.3)
 
-  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.1/nostr-social-graph-2.0.1.tgz(patch_hash=rwdgsudffqej7cvo4x5x56keku)(typescript@5.9.3):
+  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.2/nostr-social-graph-2.0.2.tgz(typescript@5.9.3):
     dependencies:
       '@msgpack/msgpack': 3.1.3
       '@noble/hashes': 2.2.0

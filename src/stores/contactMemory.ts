@@ -9,11 +9,19 @@ import {
 } from "@/utils/contactMemory"
 
 interface ContactMemoryState {
-  accounts: Record<string, Record<string, ContactMemory>>
+  accounts: Record<
+    string,
+    Record<string, ContactMemory & {nickname?: string | null; note?: string | null}>
+  >
   latestNames: Record<string, {name: string | null; createdAt: number}>
   observeProfile: (pubkey: string, name: string | null, createdAt: number) => void
   remember: (account: string, pubkey: string) => void
   setFavorite: (account: string, pubkey: string, favorite: boolean) => void
+  projectPrivateContact: (
+    account: string,
+    pubkey: string,
+    values: {favorite: boolean; nickname: string | null; note: string | null}
+  ) => void
   approveName: (
     account: string,
     pubkey: string,
@@ -28,6 +36,17 @@ export const useContactMemoryStore = create<ContactMemoryState>()(
     (set) => ({
       accounts: {},
       latestNames: {},
+      projectPrivateContact: (account, pubkey, values) =>
+        set((state) => {
+          const contacts = state.accounts[account] ?? {}
+          const memory = observeContactName(
+            contacts[pubkey] ?? emptyContactMemory(),
+            state.latestNames[pubkey]?.name ?? null
+          )
+          const next = {...memory, ...values}
+          if (JSON.stringify(next) === JSON.stringify(contacts[pubkey])) return state
+          return {accounts: {...state.accounts, [account]: {...contacts, [pubkey]: next}}}
+        }),
       observeProfile: (pubkey, name, createdAt) =>
         set((state) => {
           const latest = state.latestNames[pubkey]

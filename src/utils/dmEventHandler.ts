@@ -1,3 +1,7 @@
+import {
+  PRIVATE_CONTACT_CONTROL_KIND,
+  receivePrivateContactControl,
+} from "./privateContactControl"
 import {useUserStore} from "@/stores/user"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useDevicesStore} from "@/stores/devices"
@@ -81,6 +85,10 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
     unsubscribeRuntimeEvents = runtime.onSessionEvent((event, pubKey, meta) => {
       const {publicKey} = useUserStore.getState()
       if (!publicKey) return
+      if (event.kind === PRIVATE_CONTACT_CONTROL_KIND) {
+        void receivePrivateContactControl(event, meta).catch(() => {})
+        return
+      }
 
       const {registeredDevices, identityPubkey} = useDevicesStore.getState()
       const isOwnDevice =

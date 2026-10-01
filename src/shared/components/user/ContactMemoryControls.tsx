@@ -3,6 +3,9 @@ import {useContactMemory} from "@/shared/hooks/useContactMemory"
 import {useContactMemoryStore} from "@/stores/contactMemory"
 import {useUserStore} from "@/stores/user"
 import {pendingContactName} from "@/utils/contactMemory"
+import {useState} from "react"
+import {editPrivateContact} from "@/utils/privateContactSync"
+import {PrivateContactDetails} from "./PrivateContactDetails"
 
 export function ContactMemoryControls({
   pubkey,
@@ -15,6 +18,7 @@ export function ContactMemoryControls({
   const memory = useContactMemory(pubkey)
   const latestName = useContactMemoryStore((state) => state.latestNames[pubkey]?.name)
   const proposedName = memory ? pendingContactName(memory, latestName ?? null) : null
+  const [error, setError] = useState("")
 
   if (!account || account === pubkey) return null
 
@@ -26,11 +30,14 @@ export function ContactMemoryControls({
             type="button"
             className="btn btn-sm btn-ghost"
             aria-pressed={memory?.favorite ?? false}
-            onClick={() =>
-              useContactMemoryStore
-                .getState()
-                .setFavorite(account, pubkey, !memory?.favorite)
-            }
+            onClick={async () => {
+              setError("")
+              try {
+                await editPrivateContact(pubkey, {favorite: !memory?.favorite})
+              } catch {
+                setError("Could not save. Try again.")
+              }
+            }}
           >
             <RiStarFill
               className={`w-5 h-5 ${memory?.favorite ? "text-warning" : "opacity-40"}`}
@@ -39,6 +46,19 @@ export function ContactMemoryControls({
           </button>
           <span className="text-base-content/60">Only you can see this</span>
         </div>
+      )}
+      {showFavorite && (
+        <PrivateContactDetails
+          key={`${account}:${pubkey}`}
+          pubkey={pubkey}
+          nickname={memory?.nickname}
+          note={memory?.note}
+        />
+      )}
+      {error && (
+        <p role="alert" className="text-error">
+          {error}
+        </p>
       )}
       {showFavorite &&
         memory?.first_seen_name &&

@@ -33,6 +33,7 @@ export function Name({
   const memory = useContactMemory(pubKeyHex)
 
   const name =
+    memory?.nickname ||
     memory?.accepted_name ||
     publicProfileName(profile) ||
     fallbackProfile?.name ||

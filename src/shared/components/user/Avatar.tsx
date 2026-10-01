@@ -95,7 +95,8 @@ export const Avatar = ({
         title={
           showTooltip
             ? String(
-                memory?.accepted_name ||
+                memory?.nickname ||
+                  memory?.accepted_name ||
                   publicProfileName(profile) ||
                   fallbackProfile?.name ||
                   fallbackProfile?.nip05?.split("@")[0] ||

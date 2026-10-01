@@ -133,7 +133,7 @@ test("private favorites and approved names survive profile changes and chat relo
     expect((await memory()).accepted_name).toBe("Alice Again")
     expect((await memory()).favorite).toBe(true)
     await page.getByRole("button", {name: "Favorited", exact: true}).click()
-    expect((await memory()).favorite).toBe(false)
+    await expect.poll(async () => (await memory()).favorite).toBe(false)
     expect(
       published
         .filter((event) => event.pubkey === account.publicKey)

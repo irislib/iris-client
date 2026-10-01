@@ -171,7 +171,8 @@ const ProfileHeader = ({
         )}
         <Helmet>
           <title>
-            {memory?.accepted_name ||
+            {memory?.nickname ||
+              memory?.accepted_name ||
               profile?.name ||
               profile?.display_name ||
               profile?.username ||

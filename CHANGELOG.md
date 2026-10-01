@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.35 - 2026-10-01
+
+- Sync private favorites, nicknames, and notes between your devices and compatible Iris apps.
+- Keep offline changes until saved by a message server, with account-scoped encrypted recovery and approved-device sync.
+- Let you pause declined signer requests until you choose to retry.
+
 ## 2.5.34 - 2026-10-01
 
 - Recover interrupted peer handshakes and queued messages, clear stale routes on restart, and clean up failed browser connections.

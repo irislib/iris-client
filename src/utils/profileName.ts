@@ -7,9 +7,9 @@ import {useUserStore} from "@/stores/user"
 import {publicProfileName} from "./publicProfileName"
 
 function acceptedName(pubKey: string) {
-  return useContactMemoryStore.getState().accounts[useUserStore.getState().publicKey]?.[
-    pubKey
-  ]?.accepted_name
+  const memory =
+    useContactMemoryStore.getState().accounts[useUserStore.getState().publicKey]?.[pubKey]
+  return memory?.nickname || memory?.accepted_name
 }
 
 type ProfileLike = Profile | UserProfile | null | undefined
