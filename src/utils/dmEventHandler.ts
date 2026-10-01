@@ -107,8 +107,8 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
           meta?.senderOwnerPubkey === account &&
           sender &&
           sender !== state.identityPubkey &&
-          state.isCurrentDeviceRegistered &&
-          !state.registeredDevices.some((device) => device.identityPubkey === sender)
+          (!state.isCurrentDeviceRegistered ||
+            !state.registeredDevices.some((device) => device.identityPubkey === sender))
         ) {
           if (Date.now() - (pendingPrivateRosterReads.get(account) ?? 0) > 30_000) {
             pendingPrivateRosterReads.set(account, Date.now())

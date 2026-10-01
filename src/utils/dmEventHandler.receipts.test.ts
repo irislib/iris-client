@@ -677,6 +677,40 @@ describe("durable private control admission", () => {
     await durableCallback(rumor, MY_PUBKEY, meta)
     expect(durableReceive).toHaveBeenCalledTimes(2)
   })
+  it.each([false, true])("retains a control until this device is registered (sender cached: %s)", async (senderCached) => {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    useDevicesStore.setState({
+      isCurrentDeviceRegistered: false,
+      registeredDevices: senderCached
+        ? [{identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1}]
+        : [],
+    })
+    const acknowledge = vi.fn()
+    const replay = async () => {
+      await durableCallback!(rumor, MY_PUBKEY, meta)
+      acknowledge()
+    }
+    await expect(replay()).rejects.toThrow("linked device list")
+    expect(acknowledge).not.toHaveBeenCalled()
+    expect(durableReceive).not.toHaveBeenCalled()
+
+    useDevicesStore.setState({
+      isCurrentDeviceRegistered: true,
+      registeredDevices: [
+        {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 2},
+        {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 1},
+      ],
+    })
+    let finishSave: (() => void) | undefined
+    durableReceive.mockImplementationOnce(() => new Promise<void>((resolve) => { finishSave = resolve }))
+    const delivery = replay()
+    expect(durableReceive).toHaveBeenCalledTimes(1)
+    expect(acknowledge).not.toHaveBeenCalled()
+    if (!finishSave) throw new Error("Durable save was not started")
+    finishSave()
+    await delivery
+    expect(acknowledge).toHaveBeenCalledTimes(1)
+  })
   it("cannot acknowledge an old account journal after the UI switches accounts", async () => {
     if (!durableCallback) throw new Error("Missing durable listener")
     useUserStore.setState({publicKey: THEIR_PUBKEY})
