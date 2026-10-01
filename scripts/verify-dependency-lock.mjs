@@ -10,6 +10,11 @@ const releases = {
     integrity:
       "sha512-9Ko3aX3QLgBy+1zFFySjMpLPP70PG61fOWUkguSmfIn5xFM4m7sZa7FfrY/qJnWhFvhFYdwpVVxfWv06woY5GA==",
   },
+  "@fips/transport-webrtc": {
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.49/fips-transport-webrtc-0.0.52.tgz",
+    integrity:
+      "sha512-VT22nF8LqxjXcl8cVq/8k7xcK8c0QNXoxB3pXZ7yMI+da7LkUACjc8pIkYPCZYuIjuXuIhNzNEFYbYalGRyzTw==",
+  },
   "nostr-pubsub": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz",
     integrity:

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.36 - 2026-10-01
+
+- Keep peer connections and transfers working when a delayed connection offer arrives.
+- Avoid unexpected page reloads during the first visit to a development server.
+
 ## 2.5.35 - 2026-10-01
 
 - Sync private favorites, nicknames, and notes between your devices and compatible Iris apps.

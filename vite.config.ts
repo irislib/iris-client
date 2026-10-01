@@ -252,6 +252,13 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // Discover worker imports before a first visit can trigger an optimizer reload.
+    entries: [
+      "*.html",
+      "src/service-worker.ts",
+      "src/workers/relay-worker.ts",
+      "src/workers/profile-search.ts",
+    ],
     exclude: ["@vite/client", "@vite/env"],
     include: ["react", "react-dom"],
   },

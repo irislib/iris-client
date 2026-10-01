@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.35",
+  "version": "2.5.36",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -84,7 +84,7 @@
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
     "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.48/fips-core-0.0.48.tgz",
-    "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.48/fips-transport-webrtc-0.0.51.tgz",
+    "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.49/fips-transport-webrtc-0.0.52.tgz",
     "@gandlaf21/bc-ur": "^1.1.12",
     "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-core-0.3.2.tgz",
     "@hashtree/dexie": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-dexie-0.1.11.tgz",
