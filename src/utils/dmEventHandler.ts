@@ -114,23 +114,20 @@ export const attachNdrRuntimeEventListener = (runtime: SessionEventRuntime) => {
         const unsupported = unsupportedPrivateKinds.includes(event.kind)
         // Rejected traffic can leave the local inbox without accepting a setting.
         // Only a potentially valid sibling with an unresolved roster must retry.
+        // Native EventBuilder historically removed self p tags. Account-bound
+        // ratchet metadata authorizes absence; explicit foreign recipients do not.
         if (
-          unsupported &&
-          (_from !== account ||
-            meta?.senderOwnerPubkey !== account ||
-            !sender ||
-            sender === state.identityPubkey ||
-            (event.pubkey !== account && event.pubkey !== sender) ||
-            !event.tags.some((tag) => tag[0] === "p" && tag[1] === account) ||
-            event.tags.some((tag) => tag[0] === "p" && tag[1] !== account))
+          _from !== account ||
+          meta?.senderOwnerPubkey !== account ||
+          !sender ||
+          sender === state.identityPubkey ||
+          (event.pubkey !== account && event.pubkey !== sender) ||
+          event.tags.some((tag) => tag[0] === "p" && tag[1] !== account)
         )
           return
         if (
-          meta?.senderOwnerPubkey === account &&
-          sender &&
-          sender !== state.identityPubkey &&
-          (!state.isCurrentDeviceRegistered ||
-            !state.registeredDevices.some((device) => device.identityPubkey === sender))
+          !state.isCurrentDeviceRegistered ||
+          !state.registeredDevices.some((device) => device.identityPubkey === sender)
         ) {
           if (Date.now() - (pendingPrivateRosterReads.get(account) ?? 0) > 30_000) {
             pendingPrivateRosterReads.set(account, Date.now())

@@ -1,4 +1,7 @@
+import {readFileSync} from "node:fs"
 import type {OnEventMeta, Rumor} from "nostr-double-ratchet"
+import {parsePrivateContactControl} from "nostr-social-graph/privateContactSyncV2"
+import {validPrivateDeviceLabel} from "./privateDeviceLabelProtocol"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 import {KIND_CHAT_MESSAGE} from "@/utils/constants"
@@ -29,7 +32,16 @@ type CapturedSessionEventCallback = (
 let capturedCallback: CapturedSessionEventCallback | null = null
 let durableCallback:
   ((event: Rumor, from: string, meta?: OnEventMeta) => Promise<void>) | undefined
-const durableReceive = vi.hoisted(() => vi.fn(async () => {}))
+const durableReceive = vi.hoisted(() =>
+  vi.fn(async (_event: Rumor, _meta?: OnEventMeta) => {})
+)
+const durableLabelReceive = vi.hoisted(() =>
+  vi.fn(async (_event: Rumor, _meta?: OnEventMeta) => {})
+)
+vi.mock("./privateDeviceLabels", () => ({
+  DEVICE_LABEL_CONTROL_KIND: 10453,
+  receivePrivateDeviceLabel: durableLabelReceive,
+}))
 vi.mock("./privateContactControl", () => ({
   PRIVATE_CONTACT_CONTROL_KIND: 10452,
   receivePrivateContactControl: durableReceive,
@@ -677,9 +689,14 @@ describe("durable private control admission", () => {
     await durableCallback(rumor, MY_PUBKEY, meta)
     expect(durableReceive).toHaveBeenCalledTimes(2)
   })
-  it.each([false, true])(
-    "retains a control until this device is registered (sender cached: %s)",
-    async (senderCached) => {
+  it.each([
+    [false, false],
+    [false, true],
+    [true, false],
+    [true, true],
+  ])(
+    "retains a control until this device is registered (sender cached: %s, recipient tag: %s)",
+    async (senderCached, recipientTag) => {
       if (!durableCallback) throw new Error("Missing durable listener")
       useDevicesStore.setState({
         isCurrentDeviceRegistered: false,
@@ -689,7 +706,11 @@ describe("durable private control admission", () => {
       })
       const acknowledge = vi.fn()
       const replay = async () => {
-        await durableCallback!(rumor, MY_PUBKEY, meta)
+        await durableCallback!(
+          {...rumor, tags: recipientTag ? [["p", MY_PUBKEY]] : []},
+          MY_PUBKEY,
+          meta
+        )
         acknowledge()
       }
       await expect(replay()).rejects.toThrow("linked device list")
@@ -777,10 +798,121 @@ describe("durable private control admission", () => {
     expect(pending.size).toBe(0)
     expect(durableReceive).not.toHaveBeenCalled()
   })
+  it.each([
+    {tags: [] as string[][], accepted: true},
+    {tags: [["p", MY_PUBKEY]], accepted: true},
+    {tags: [["p", THEIR_PUBKEY]], accepted: false},
+    {
+      tags: [
+        ["p", MY_PUBKEY],
+        ["p", THEIR_PUBKEY],
+      ],
+      accepted: false,
+    },
+  ])(
+    "checks explicit recipients without requiring a native self tag: %j",
+    async ({tags, accepted}) => {
+      if (!durableCallback) throw new Error("Missing durable listener")
+      useDevicesStore.setState({
+        registeredDevices: [
+          {identityPubkey: MY_DEVICE_PUBKEY, createdAt: 1},
+          {identityPubkey: SIBLING_DEVICE_PUBKEY, createdAt: 2},
+        ],
+      })
+      await durableCallback({...rumor, tags}, MY_PUBKEY, meta)
+      expect(durableReceive).toHaveBeenCalledTimes(accepted ? 1 : 0)
+    }
+  )
   it("cannot acknowledge an old account journal after the UI switches accounts", async () => {
     if (!durableCallback) throw new Error("Missing durable listener")
     useUserStore.setState({publicKey: THEIR_PUBKEY})
     await expect(durableCallback(rumor, MY_PUBKEY, meta)).rejects.toThrow("not ready")
     expect(durableReceive).not.toHaveBeenCalled()
   })
+})
+
+it.skipIf(
+  !process.env.IRIS_PRIVATE_CONTROL_FIXTURE_INPUT &&
+    process.env.REQUIRE_PRIVATE_CONTROL_INTEROP !== "1"
+)("dispatches actual native-produced current and legacy sibling controls", async () => {
+  const input = process.env.IRIS_PRIVATE_CONTROL_FIXTURE_INPUT
+  if (!input)
+    throw new Error(
+      "IRIS_PRIVATE_CONTROL_FIXTURE_INPUT must select the native core fixture"
+    )
+  const fixture = JSON.parse(readFileSync(input, "utf8")) as {
+    version: number
+    owner: string
+    senderDevice: string
+    recipientDevice: string
+    cases: Array<{kind: number; event: Rumor; legacyEvent: Rumor}>
+  }
+  expect(fixture.version).toBe(1)
+  expect(new Set(fixture.cases.map((value) => value.kind))).toEqual(
+    new Set([10449, 10450, 10452, 10453])
+  )
+  cleanupNdrRuntimeEventListener()
+  useUserStore.setState({publicKey: fixture.owner})
+  const senderMeta = {
+    senderOwnerPubkey: fixture.owner,
+    senderDevicePubkey: fixture.senderDevice,
+  }
+  const registeredDevices = [
+    {identityPubkey: fixture.recipientDevice, createdAt: 1},
+    {identityPubkey: fixture.senderDevice, createdAt: 1},
+  ]
+  useDevicesStore.setState({
+    identityPubkey: fixture.recipientDevice,
+    registeredDevices,
+    isCurrentDeviceRegistered: true,
+    sessionManagerReady: true,
+    appKeysManagerReady: true,
+    hasLocalAppKeys: true,
+    lastEventTimestamp: 1,
+  })
+  durableReceive.mockReset().mockImplementation(async (event) => {
+    expect(
+      parsePrivateContactControl(JSON.parse(event.content), fixture.owner).type
+    ).toBe("private-contact-sync")
+  })
+  durableLabelReceive.mockReset().mockImplementation(async (event) => {
+    expect(validPrivateDeviceLabel(JSON.parse(event.content), fixture.owner)).toBe(true)
+  })
+  attachNdrRuntimeEventListener(sessionManager)
+  try {
+    if (!durableCallback) throw new Error("Missing durable listener")
+    for (const value of fixture.cases) {
+      expect(value.event.tags).toContainEqual(["p", fixture.owner])
+      expect(value.legacyEvent.tags.some((tag) => tag[0] === "p")).toBe(false)
+      for (const event of [value.event, value.legacyEvent]) {
+        const receiver =
+          value.kind === 10452
+            ? durableReceive
+            : value.kind === 10453
+              ? durableLabelReceive
+              : undefined
+        const before = receiver?.mock.calls.length ?? 0
+        useDevicesStore.setState({isCurrentDeviceRegistered: false})
+        await expect(durableCallback(event, fixture.owner, senderMeta)).rejects.toThrow(
+          "linked device list"
+        )
+        expect(receiver?.mock.calls.length ?? 0).toBe(before)
+        useDevicesStore.setState({isCurrentDeviceRegistered: true})
+        await durableCallback(event, fixture.owner, senderMeta)
+        expect(receiver?.mock.calls.length ?? 0).toBe(before + (receiver ? 1 : 0))
+        for (const tags of [
+          [["p", THEIR_PUBKEY]],
+          [
+            ["p", fixture.owner],
+            ["p", THEIR_PUBKEY],
+          ],
+        ]) {
+          await durableCallback({...event, tags}, fixture.owner, senderMeta)
+        }
+        expect(receiver?.mock.calls.length ?? 0).toBe(before + (receiver ? 1 : 0))
+      }
+    }
+  } finally {
+    cleanupNdrRuntimeEventListener()
+  }
 })
