@@ -1,6 +1,26 @@
-import {expect, test, type Page} from "@playwright/test"
+import {expect, test as base, type Page} from "@playwright/test"
+import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
 import {expectPersistedDraft} from "./utils/drafts"
+
+const test = base.extend<{localRelay: void}>({
+  localRelay: [
+    async ({page}, use) => {
+      // Measure local cleanup without timing public message-server availability.
+      // Device revocation still goes through the app's real publish/ack path.
+      const relay = await startNostrRelay({port: 0, initialEvents: []})
+      try {
+        await page.addInitScript((port) => {
+          window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+        }, relay.port)
+        await use()
+      } finally {
+        await relay.close()
+      }
+    },
+    {auto: true},
+  ],
+})
 
 test.use({serviceWorkers: "block"})
 
