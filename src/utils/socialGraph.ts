@@ -59,14 +59,14 @@ let defaultNetworkLoad:
   {publicKey: string; generation: number; promise: Promise<void>} | undefined
 
 function ensureDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
-  if (instance.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT).size > 0) {
-    return Promise.resolve()
-  }
   if (
     defaultNetworkLoad?.publicKey === publicKey &&
     defaultNetworkLoad.generation === graphSyncGeneration
   ) {
     return defaultNetworkLoad.promise
+  }
+  if (instance.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT).size > 0) {
+    return Promise.resolve()
   }
   const loading = {
     publicKey,
@@ -74,9 +74,10 @@ function ensureDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
     promise: loadDefaultNetwork(publicKey, isCurrent),
   }
   defaultNetworkLoad = loading
-  void loading.promise.finally(() => {
+  const clearLoading = () => {
     if (defaultNetworkLoad === loading) defaultNetworkLoad = undefined
-  })
+  }
+  void loading.promise.then(clearLoading, clearLoading)
   return loading.promise
 }
 
