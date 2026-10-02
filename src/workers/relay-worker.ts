@@ -362,6 +362,8 @@ async function initialize(
       signAuthEvent: requestAuthSignature,
       verifyEvent: (event) => verifyRelayEvent(event, wasmVerifier),
       cacheAdapter: cache,
+      // Bounded gap recovery shares the verified relay/cache path; initial REQ stays immediate.
+      reconciliation: {},
       enableOutboxModel: false,
     })
 

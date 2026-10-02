@@ -638,6 +638,7 @@ export class EventSubscription extends Emitter {
   }
 }
 export interface ClientOptions {
+  reconciliation?: NostrRuntimeOptions["reconciliation"]
   verifyEvent?: NostrRuntimeOptions["verifyEvent"]
   signAuthEvent?: NostrRuntimeOptions["signAuthEvent"]
   explicitRelayUrls?: string[]
@@ -665,6 +666,7 @@ export class NostrClient extends Emitter {
   enableRelayHints: boolean
   devWriteRelaySet?: RelaySet
   private verifyEvent?: NostrRuntimeOptions["verifyEvent"]
+  private reconciliation?: NostrRuntimeOptions["reconciliation"]
   private runtime?: NostrRuntime
   private signAuthEvent?: NostrRuntimeOptions["signAuthEvent"]
   pool: Emitter & {
@@ -695,6 +697,7 @@ export class NostrClient extends Emitter {
   constructor(opts: ClientOptions = {}) {
     super()
     this.verifyEvent = opts.verifyEvent
+    this.reconciliation = opts.reconciliation
     this.signAuthEvent = opts.signAuthEvent
     this.enableOutboxModel = opts.enableOutboxModel ?? false
     this.discoveryRelayUrls = relayHintsFromUrls(opts.discoveryRelayUrls ?? [])
@@ -739,6 +742,7 @@ export class NostrClient extends Emitter {
       batchWindowMs: 20,
       historyTimeoutMs: 5000,
       verifyEvent: this.verifyEvent,
+      reconciliation: this.reconciliation,
       signAuthEvent:
         this.signAuthEvent ??
         (async (_relay, draft) => {
