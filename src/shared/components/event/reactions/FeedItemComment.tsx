@@ -2,6 +2,7 @@ import {AppEvent, EventFilter} from "@/lib/nostr"
 import {shouldHideEvent} from "@/utils/visibility"
 import {useEffect, useMemo, useState} from "react"
 import {nostr} from "@/utils/nostrClient"
+import {useVisibilityRevision} from "@/shared/hooks/useVisibilityRevision"
 
 import Modal from "@/shared/components/ui/Modal.tsx"
 import {formatAmount} from "@/utils/utils.ts"
@@ -27,6 +28,7 @@ interface FeedItemCommentProps {
 const repliesByEventCache = new LRUCache<string, Map<string, AppEvent>>({maxSize: 100})
 
 function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProps) {
+  const visibilityRevision = useVisibilityRevision()
   const group = useGroupAccess()
   const canParticipate = !group || group.canParticipate
   const myPubKey = useUserStore((state) => state.publicKey)
@@ -48,7 +50,7 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
           (getEventRootReference(reply) === threadReference ||
             getEventReplyReference(reply) === threadReference)
       ).length,
-    [replies, memberReplies, group, threadReference]
+    [replies, memberReplies, group, threadReference, visibilityRevision]
   )
 
   const [isPopupOpen, setPopupOpen] = useState(false)
@@ -81,7 +83,6 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
 
       subs.forEach((sub) =>
         sub?.on("event", (e: AppEvent) => {
-          if (shouldHideEvent(e)) return
           if (
             getEventRootReference(e) !== threadReference &&
             getEventReplyReference(e) !== threadReference

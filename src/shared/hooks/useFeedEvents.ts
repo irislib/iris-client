@@ -21,6 +21,7 @@ import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
 import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
+import {useVisibilityRevision} from "./useVisibilityRevision"
 
 interface FutureEvent {
   event: AppEvent
@@ -57,6 +58,7 @@ export default function useFeedEvents({
   enabled = true,
 }: UseFeedEventsProps) {
   const socialGraph = useSocialGraph()
+  const visibilityRevision = useVisibilityRevision()
   const matchesSearch = useMemo(
     () => createPostSearchMatcher(filters.search || ""),
     [filters.search]
@@ -103,7 +105,11 @@ export default function useFeedEvents({
     () => JSON.stringify(subscriptionFilters?.length ? subscriptionFilters : [filters]),
     [filters, subscriptionFilters]
   )
-  const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}`
+  // Ordinary feeds can receive cached posts before graph hydration. Replay their
+  // cache when visibility changes instead of permanently losing those arrivals.
+  const ordinaryVisibility =
+    visibilitySnapshot || filters.search ? "" : visibilityRevision
+  const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}:${ordinaryVisibility}`
   const previousFeedIdentityRef = useRef(feedIdentity)
   const previousEventSortRef = useRef(eventSort)
   const previousVisibilityRef = useRef(visibilitySnapshot)

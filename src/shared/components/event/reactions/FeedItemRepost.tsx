@@ -17,6 +17,7 @@ import {inheritGroupTags, isVisibleGroupActivity} from "@/groups/activity"
 import {useGroupActivity} from "@/groups/useGroupActivity"
 import {publishGroupEvent} from "@/groups/publish"
 import {useToastStore} from "@/stores/toast"
+import {useVisibilityRevision} from "@/shared/hooks/useVisibilityRevision"
 
 interface FeedItemRepostProps {
   event: AppEvent
@@ -28,6 +29,7 @@ const repostCache = new LRUCache<string, Map<string, AppEvent>>({
 })
 
 function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps) {
+  const visibilityRevision = useVisibilityRevision()
   const group = useGroupAccess()
   const memberReposts = useGroupActivity(
     [{kinds: [KIND_REPOST, 16], "#e": [event.id]}],
@@ -44,13 +46,14 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
     () =>
       new Map(
         (group
-          ? memberReposts
-              .filter((event) => !shouldHideUser(event.pubkey))
-              .map((event) => [event.pubkey, event] as const)
+          ? memberReposts.map((event) => [event.pubkey, event] as const)
           : [...reposts]
-        ).filter(([, repost]) => isVisibleGroupActivity(repost, group))
+        ).filter(
+          ([, repost]) =>
+            !shouldHideUser(repost.pubkey) && isVisibleGroupActivity(repost, group)
+        )
       ),
-    [reposts, memberReposts, group]
+    [reposts, memberReposts, group, visibilityRevision]
   )
   const repostCount = repostsByAuthor.size
   const [showButtons, setShowButtons] = useState(false)
@@ -108,7 +111,6 @@ function FeedItemRepost({event, showReactionCounts = true}: FeedItemRepostProps)
       const sub = nostr().subscribe(filter, {closeOnEose: !group})
 
       sub?.on("event", (repostEvent: AppEvent) => {
-        if (shouldHideUser(repostEvent.pubkey)) return
         setReposts((previous) => {
           const next = new Map(previous)
           next.set(repostEvent.pubkey, repostEvent)

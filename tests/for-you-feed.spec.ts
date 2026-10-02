@@ -442,11 +442,11 @@ test("logged-in relay subscriptions survive page suspension and recover after wo
   // subscription during recovery and conceal the dropped-subscription bug.
   await page.evaluate(async (publicKey) => {
     const modulePath = "/src/utils/nostrClient.ts"
-    const {ndk} = await import(modulePath)
+    const {nostr} = await import(modulePath)
     const target = window as typeof window & {recoveredEvents: string[]}
     target.recoveredEvents = []
-    ndk()
-      .subscribe({kinds: [1], authors: [publicKey]}, {transports: ["worker-transport"]})
+    nostr()
+      .subscribe({kinds: [1], authors: [publicKey]})
       .on("event", (event: {content: string}) => {
         target.recoveredEvents.push(event.content)
       })

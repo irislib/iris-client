@@ -5,6 +5,7 @@ import {nostr} from "@/utils/nostrClient"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {isVisibleGroupActivity} from "@/groups/activity"
 import {useGroupActivity} from "@/groups/useGroupActivity"
+import {useVisibilityRevision} from "./useVisibilityRevision"
 
 export interface ReactionInfo {
   emoji: string
@@ -20,6 +21,7 @@ export interface ReactionInfo {
  * Returns a map of author pubkey to their latest reaction event
  */
 export function useReactionsByAuthor(eventId: string) {
+  const visibilityRevision = useVisibilityRevision()
   const group = useGroupAccess()
   const memberReactions = useGroupActivity([{kinds: [7], "#e": [eventId]}], 1)
   const [reactionsByAuthor, setReactionsByAuthor] = useState<Map<string, AppEvent>>(
@@ -38,8 +40,6 @@ export function useReactionsByAuthor(eventId: string) {
     const sub = nostr().subscribe(filter, {closeOnEose: !group})
 
     sub?.on("event", (reactionEvent: AppEvent) => {
-      if (shouldHideUser(reactionEvent.pubkey)) return
-
       const authorPubkey = reactionEvent.pubkey
 
       // Update author's latest reaction
@@ -65,13 +65,14 @@ export function useReactionsByAuthor(eventId: string) {
     () =>
       new Map(
         (group
-          ? memberReactions
-              .filter((event) => !shouldHideUser(event.pubkey))
-              .map((event) => [event.pubkey, event] as const)
+          ? memberReactions.map((event) => [event.pubkey, event] as const)
           : [...reactionsByAuthor]
-        ).filter(([, event]) => isVisibleGroupActivity(event, group))
+        ).filter(
+          ([, event]) =>
+            !shouldHideUser(event.pubkey) && isVisibleGroupActivity(event, group)
+        )
       ),
-    [reactionsByAuthor, memberReactions, group]
+    [reactionsByAuthor, memberReactions, group, visibilityRevision]
   )
 }
 

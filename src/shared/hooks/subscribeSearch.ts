@@ -93,9 +93,6 @@ export function subscribeSearch(
       }
       source.sub = nostr.subscribe(source.cursor.current, {
         relayUrls,
-        // The worker routes text queries to the search index. Main-thread
-        // relay/cache EOSEs must not finish that request before it answers.
-        transports: ["worker-transport"],
         cacheUsage: CacheMode.ONLY_RELAY,
         groupable: false,
         isolated: true,
@@ -108,7 +105,10 @@ export function subscribeSearch(
       source.sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
         if (!stopped && !settled) source.cursor.record(event, relay?.url, fromCache)
       })
-      source.sub.on("eose", () => settle())
+      source.sub.on("eose", () => {
+        // Incomplete history is retryable; it must not advance past unseen posts.
+        settle(source.sub?.completion?.complete === false)
+      })
       source.timer = setTimeout(() => settle(true), 15_000)
     }
   }

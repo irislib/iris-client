@@ -170,11 +170,10 @@ function FeedItem({
             sortType: "followDistance" as const,
             showRepliedTo: false,
             filter: buildReplyFeedFilter(event),
-            followDistance:
-              useSettingsStore.getState().content.maxFollowDistanceForReplies,
+            followDistance: content.maxFollowDistanceForReplies,
           }
         : undefined,
-    [event]
+    [event, content.maxFollowDistanceForReplies]
   )
   const replySubscriptionFilters = useMemo(
     () => (event ? buildReplySubscriptionFilters(event) : []),

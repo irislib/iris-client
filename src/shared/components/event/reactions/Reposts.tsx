@@ -8,8 +8,10 @@ import {KIND_REPOST} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {isVisibleGroupActivity} from "@/groups/activity"
 import {useGroupActivity} from "@/groups/useGroupActivity"
+import {useVisibilityRevision} from "@/shared/hooks/useVisibilityRevision"
 
 export default function Reposts({event}: {event: AppEvent}) {
+  const visibilityRevision = useVisibilityRevision()
   const group = useGroupAccess()
   const memberReposts = useGroupActivity(
     [{kinds: [KIND_REPOST, 16], "#e": [event.id]}],
@@ -29,7 +31,6 @@ export default function Reposts({event}: {event: AppEvent}) {
       const sub = nostr().subscribe(filter)
 
       sub?.on("event", (event: AppEvent) => {
-        if (shouldHideUser(event.pubkey)) return
         setReactions((prev) => {
           const existing = prev.get(event.pubkey)
           if (existing) {
@@ -56,7 +57,7 @@ export default function Reposts({event}: {event: AppEvent}) {
         (reaction) =>
           !shouldHideUser(reaction.pubkey) && isVisibleGroupActivity(reaction, group)
       ),
-    [reactions, memberReposts, group]
+    [reactions, memberReposts, group, visibilityRevision]
   )
 
   return (

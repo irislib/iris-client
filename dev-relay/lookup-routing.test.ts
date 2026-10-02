@@ -27,6 +27,74 @@ function client(options: ConstructorParameters<typeof NostrClient>[0]) {
 }
 
 describe("public lookups across incomplete relay coverage", () => {
+  it("keeps paginated histories isolated from other queries on the shared runtime", async () => {
+    const key = generateSecretKey()
+    const now = Math.floor(Date.now() / 1000)
+    const posts = [0, 1, 2, 3].map((age) =>
+      finalizeEvent(
+        {
+          kind: 1,
+          content: `post ${age}`,
+          tags: age === 3 ? [["t", "older"]] : [],
+          created_at: now - age,
+        },
+        key
+      )
+    )
+    const instance = client({explicitRelayUrls: [await relay(posts)]})
+    instance.getRuntime().addSource({
+      id: "live-peer",
+      subscribe: async () => ({close() {}}),
+    })
+    const recent = instance.subscribe(
+      {kinds: [1], limit: 2},
+      {
+        isolated: true,
+        cacheUsage: "network-only",
+      }
+    )
+    const older = instance.subscribe(
+      {kinds: [1], "#t": ["older"]},
+      {
+        isolated: true,
+        cacheUsage: "network-only",
+      }
+    )
+    const received: string[] = []
+    recent.on("event", (event) => received.push(event.id))
+    await Promise.all(
+      [recent, older].map((sub) => new Promise((resolve) => sub.once("eose", resolve)))
+    )
+    expect(received.sort()).toEqual(
+      posts
+        .slice(0, 2)
+        .map((event) => event.id)
+        .sort()
+    )
+    recent.stop()
+    older.stop()
+  })
+
+  it("reports each relay's delivery to an isolated cursor even for the same event", async () => {
+    const post = signed(1, "Shared by two relays")
+    const urls = [await relay([post]), await relay([post])]
+    const instance = client({explicitRelayUrls: urls})
+    const sub = instance.subscribe(
+      {ids: [post.id]},
+      {
+        isolated: true,
+        cacheUsage: "network-only",
+      }
+    )
+    const sources: string[] = []
+    const receive = (_event: unknown, relay?: {url: string}) => sources.push(relay!.url)
+    sub.on("event", receive)
+    sub.on("event:dup", receive)
+    await new Promise((resolve) => sub.once("eose", resolve))
+    expect(new Set(sources)).toEqual(new Set(urls.map((url) => new URL(url).toString())))
+    sub.stop()
+  })
+
   it("uses metadata directories even when author routing is disabled, without sending posts there", async () => {
     const profile = signed(0, JSON.stringify({name: "Directory profile"}))
     const primary = await relay()

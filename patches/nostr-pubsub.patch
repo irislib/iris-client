@@ -1,0 +1,255 @@
+diff --git a/dist/runtime-relays.d.ts b/dist/runtime-relays.d.ts
+index b5770e5d..113eb105 100644
+--- a/dist/runtime-relays.d.ts
++++ b/dist/runtime-relays.d.ts
+@@ -2,6 +2,7 @@ import { type SubCloser } from 'nostr-tools/abstract-pool';
+ import { type NostrEvent, type NostrFilter } from './types.js';
+ import type { NostrRuntimeOptions, RuntimeRelayStats } from './runtime-types.js';
+ type Entry = {
++    isolated: boolean;
+     relays?: readonly string[];
+     filters: NostrFilter[];
+     event: (event: NostrEvent, relay: string) => void;
+@@ -40,7 +41,7 @@ export declare class RuntimeRelays {
+     urls(): string[];
+     stats(): RuntimeRelayStats[];
+     count(): number;
+-    subscribe(filters: NostrFilter[], event: Entry['event'], state: Entry['state'], relays?: readonly string[]): SubCloser;
++    subscribe(filters: NostrFilter[], event: Entry['event'], state: Entry['state'], relays?: readonly string[], isolated?: boolean): SubCloser;
+     setRelays(urls: readonly string[]): void;
+     publishAttempts(event: NostrEvent, urls?: readonly string[]): Array<{
+         id: string;
+diff --git a/dist/runtime-relays.js b/dist/runtime-relays.js
+index b91d8f03..31b6069f 100644
+--- a/dist/runtime-relays.js
++++ b/dist/runtime-relays.js
+@@ -42,12 +42,12 @@ export class RuntimeRelays {
+         return this.relays.map((url) => ({ url, connected: statuses.get(url) ?? false }));
+     }
+     count() { return [...this.batches].reduce((total, batch) => total + batch.links.size, 0); }
+-    subscribe(filters, event, state, relays) {
++    subscribe(filters, event, state, relays, isolated = false) {
+         if (this.stopped)
+             throw new Error('Nostr runtime is closed');
+         if (filters.length > this.maxFilters || bytes(filters) > this.maxBytes)
+             throw new RangeError('Nostr subscription exceeds filter batch bounds');
+-        const entry = { relays: relays === undefined ? undefined : normalizeRelays(relays), filters: structuredClone(filters), event, state, closed: false };
++        const entry = { isolated, relays: relays === undefined ? undefined : normalizeRelays(relays), filters: structuredClone(filters), event, state, closed: false };
+         this.pending.push(entry);
+         if (!this.timer)
+             this.timer = setTimeout(() => this.flush(), this.options.batchWindowMs ?? 10);
+@@ -118,7 +118,7 @@ export class RuntimeRelays {
+         let group = [];
+         for (const entry of entries) {
+             const candidate = uniqueFilters([...group, entry]);
+-            if (group.length && (JSON.stringify(group[0].relays) !== JSON.stringify(entry.relays) || candidate.length > this.maxFilters || bytes(candidate) > this.maxBytes)) {
++            if (group.length && (entry.isolated || group[0].isolated || JSON.stringify(group[0].relays) !== JSON.stringify(entry.relays) || candidate.length > this.maxFilters || bytes(candidate) > this.maxBytes)) {
+                 this.startBatch(group);
+                 group = [];
+             }
+diff --git a/dist/runtime-types.d.ts b/dist/runtime-types.d.ts
+index 2f0fc12f..0cbf4033 100644
+--- a/dist/runtime-types.d.ts
++++ b/dist/runtime-types.d.ts
+@@ -44,6 +44,8 @@ export interface RuntimeSubscriptionHandlers {
+ }
+ export interface RuntimeSubscribeOptions {
+     cache?: RuntimeCacheMode;
++    /** Keep historical cursors scoped to their own relay requests and sources. */
++    isolated?: boolean;
+     /** Deliver older replaceable versions returned by the network without caching them.
+      * Requires cache: 'network-only'; deletion and expiration checks still apply. */
+     includeSuperseded?: boolean;
+diff --git a/dist/runtime.d.ts b/dist/runtime.d.ts
+index 11c8b7a2..183c4da5 100644
+--- a/dist/runtime.d.ts
++++ b/dist/runtime.d.ts
+@@ -30,6 +30,7 @@ export declare class NostrRuntime {
+     private startListener;
+     private wantsSource;
+     private attachSource;
++    private admit;
+     private receive;
+     private deliver;
+     private acceptsOrigin;
+diff --git a/dist/runtime.js b/dist/runtime.js
+index b3743e7f..0e0e7755 100644
+--- a/dist/runtime.js
++++ b/dist/runtime.js
+@@ -78,6 +78,9 @@ export class NostrRuntime {
+         });
+     }
+     async ingest(raw, source = 'external') {
++        return this.admit(raw, source);
++    }
++    async admit(raw, source, target) {
+         this.ensureOpen();
+         let event;
+         try {
+@@ -106,8 +109,10 @@ export class NostrRuntime {
+         pending.sources.add(source);
+         try {
+             const admission = await pending.operation;
+-            if (newSource && admission !== 'rejected' && !this.stopped)
++            if (admission !== 'rejected' && !this.stopped)
+                 for (const listener of this.interests.candidates(event)) {
++                    if (listener.options.isolated ? listener !== target && source !== 'local-publish' : !newSource)
++                        continue;
+                     if (admission === 'admitted' || listener.options.includeSuperseded)
+                         this.deliver(listener, event, { source, cached: false });
+                 }
+@@ -200,7 +205,7 @@ export class NostrRuntime {
+         if (listener.options.cache !== 'cache-only') {
+             for (const url of listener.options.relays?.map((url) => new URL(url).toString()) ?? this.relays.urls())
+                 listener.pending.add(url);
+-            const subscription = this.relays.subscribe(listener.filters, (event, source) => this.receive(listener, event, source), (source, complete, error) => this.sourceState(listener, source, complete, error), listener.options.relays);
++            const subscription = this.relays.subscribe(listener.filters, (event, source) => this.receive(listener, event, source), (source, complete, error) => this.sourceState(listener, source, complete, error), listener.options.relays, listener.options.isolated);
+             listener.closers.set('relay-transport', () => subscription.close());
+             for (const source of this.sources.values())
+                 if (this.wantsSource(listener, source.id)) {
+@@ -250,7 +255,7 @@ export class NostrRuntime {
+                 if (listener.stopped || this.sources.get(source.id) !== source)
+                     return;
+                 for (const { event } of report.events)
+-                    await this.ingest(event, source.id);
++                    await this.admit(event, source.id, listener);
+                 this.sourceState(listener, source.id, report.complete !== false);
+             }
+             else
+@@ -267,20 +272,22 @@ export class NostrRuntime {
+         if (listener.stopped)
+             return;
+         this.counters.receivedEvents++;
+-        if (listener.seen.has(event.id) || this.incoming.get(event.id)?.sources.has(source)) {
++        const key = listener.options.isolated ? `${source}:${event.id}` : event.id;
++        if (listener.seen.has(key) || (!listener.options.isolated && this.incoming.get(event.id)?.sources.has(source))) {
+             this.counters.duplicateEvents++;
+             return;
+         }
+-        void this.ingest(event, source).catch((error) => this.report(listener, error));
++        void this.admit(event, source, listener).catch((error) => this.report(listener, error));
+     }
+     deliver(listener, event, info) {
+         if (listener.stopped || !matchFilters(listener.filters, event) || !this.acceptsOrigin(listener, info))
+             return;
+-        if (listener.seen.has(event.id)) {
++        const key = listener.options.isolated ? `${info.source}:${event.id}` : event.id;
++        if (listener.seen.has(key)) {
+             this.counters.duplicateEvents++;
+             return;
+         }
+-        listener.seen.add(event.id);
++        listener.seen.add(key);
+         if (listener.seen.size > (this.options.maxSeenEventsPerSubscription ?? 4096))
+             listener.seen.delete(listener.seen.values().next().value);
+         this.counters.deliveredEvents++;
+diff --git a/src/runtime-relays.ts b/src/runtime-relays.ts
+index 4c583d3c..eb6086c4 100644
+--- a/src/runtime-relays.ts
++++ b/src/runtime-relays.ts
+@@ -5,7 +5,7 @@ import { createSimplePoolNostrRelayVerificationBoundary } from './simple-pool-re
+ import { verifyNostrEvent, type NostrEvent, type NostrFilter, type NostrVerifiedEvent } from './types.js';
+ import type { NostrRuntimeOptions, RuntimeRelayStats } from './runtime-types.js';
+ 
+-type Entry = { relays?: readonly string[]; filters: NostrFilter[]; event: (event: NostrEvent, relay: string) => void; state: (relay: string, complete: boolean, error?: string) => void; closed: boolean; batch?: Batch };
++type Entry = { isolated: boolean; relays?: readonly string[]; filters: NostrFilter[]; event: (event: NostrEvent, relay: string) => void; state: (relay: string, complete: boolean, error?: string) => void; closed: boolean; batch?: Batch };
+ type Link = { generation: number; close?: () => void; timer?: ReturnType<typeof setTimeout>; attempts: number; eosed: boolean; latest: Map<string, number> };
+ type Batch = { entries: Entry[]; links: Map<string, Link>; closed: boolean; reopenTimer?: ReturnType<typeof setTimeout> };
+ 
+@@ -45,10 +45,10 @@ export class RuntimeRelays {
+     return this.relays.map((url) => ({ url, connected: statuses.get(url) ?? false }));
+   }
+   count(): number { return [...this.batches].reduce((total, batch) => total + batch.links.size, 0); }
+-  subscribe(filters: NostrFilter[], event: Entry['event'], state: Entry['state'], relays?: readonly string[]): SubCloser {
++  subscribe(filters: NostrFilter[], event: Entry['event'], state: Entry['state'], relays?: readonly string[], isolated = false): SubCloser {
+     if (this.stopped) throw new Error('Nostr runtime is closed');
+     if (filters.length > this.maxFilters || bytes(filters) > this.maxBytes) throw new RangeError('Nostr subscription exceeds filter batch bounds');
+-    const entry: Entry = { relays: relays === undefined ? undefined : normalizeRelays(relays), filters: structuredClone(filters), event, state, closed: false };
++    const entry: Entry = { isolated, relays: relays === undefined ? undefined : normalizeRelays(relays), filters: structuredClone(filters), event, state, closed: false };
+     this.pending.push(entry);
+     if (!this.timer) this.timer = setTimeout(() => this.flush(), this.options.batchWindowMs ?? 10);
+     return { close: () => {
+@@ -104,7 +104,7 @@ export class RuntimeRelays {
+     let group: Entry[] = [];
+     for (const entry of entries) {
+       const candidate = uniqueFilters([...group, entry]);
+-      if (group.length && (JSON.stringify(group[0]!.relays) !== JSON.stringify(entry.relays) || candidate.length > this.maxFilters || bytes(candidate) > this.maxBytes)) {
++      if (group.length && (entry.isolated || group[0].isolated || JSON.stringify(group[0]!.relays) !== JSON.stringify(entry.relays) || candidate.length > this.maxFilters || bytes(candidate) > this.maxBytes)) {
+         this.startBatch(group); group = [];
+       }
+       group.push(entry);
+diff --git a/src/runtime-types.ts b/src/runtime-types.ts
+index 7cf586a0..bf719014 100644
+--- a/src/runtime-types.ts
++++ b/src/runtime-types.ts
+@@ -32,6 +32,8 @@ export interface RuntimeSubscriptionHandlers {
+ }
+ export interface RuntimeSubscribeOptions {
+   cache?: RuntimeCacheMode;
++  /** Keep historical cursors scoped to their own relay requests and sources. */
++  isolated?: boolean;
+   /** Deliver older replaceable versions returned by the network without caching them.
+    * Requires cache: 'network-only'; deletion and expiration checks still apply. */
+   includeSuperseded?: boolean;
+diff --git a/src/runtime.ts b/src/runtime.ts
+index 250e6289..8ebde9d9 100644
+--- a/src/runtime.ts
++++ b/src/runtime.ts
+@@ -80,6 +80,9 @@ export class NostrRuntime {
+     });
+   }
+   async ingest(raw: NostrEvent, source = 'external'): Promise<boolean> {
++    return this.admit(raw, source);
++  }
++  private async admit(raw: NostrEvent, source: string, target?: Listener): Promise<boolean> {
+     this.ensureOpen();
+     let event: NostrEvent;
+     try { event = verifyNostrEvent(raw, this.options.verifyEvent); }
+@@ -102,7 +105,8 @@ export class NostrRuntime {
+     pending.sources.add(source);
+     try {
+       const admission = await pending.operation;
+-      if (newSource && admission !== 'rejected' && !this.stopped) for (const listener of this.interests.candidates(event)) {
++      if (admission !== 'rejected' && !this.stopped) for (const listener of this.interests.candidates(event)) {
++        if (listener.options.isolated ? listener !== target && source !== 'local-publish' : !newSource) continue;
+         if (admission === 'admitted' || listener.options.includeSuperseded) this.deliver(listener, event, { source, cached: false });
+       }
+       return admission === 'admitted';
+@@ -167,7 +171,7 @@ export class NostrRuntime {
+     if (listener.options.cache !== 'cache-only') {
+       for (const url of listener.options.relays?.map((url) => new URL(url).toString()) ?? this.relays.urls()) listener.pending.add(url);
+       const subscription = this.relays.subscribe(listener.filters, (event, source) => this.receive(listener, event, source),
+-        (source, complete, error) => this.sourceState(listener, source, complete, error), listener.options.relays);
++        (source, complete, error) => this.sourceState(listener, source, complete, error), listener.options.relays, listener.options.isolated);
+       listener.closers.set('relay-transport', () => subscription.close());
+       for (const source of this.sources.values()) if (this.wantsSource(listener, source.id)) { listener.pending.add(source.id); void this.attachSource(listener, source); }
+     }
+@@ -199,7 +203,7 @@ export class NostrRuntime {
+           deadline: listener.options.deadline ?? Date.now() + (this.options.historyTimeoutMs ?? 10000), signal: listener.controller.signal,
+         });
+         if (listener.stopped || this.sources.get(source.id) !== source) return;
+-        for (const { event } of report.events) await this.ingest(event, source.id);
++        for (const { event } of report.events) await this.admit(event, source.id, listener);
+         this.sourceState(listener, source.id, report.complete !== false);
+       } else this.sourceState(listener, source.id, false, 'Source has no historical completion');
+     } catch (error) {
+@@ -211,13 +215,15 @@ export class NostrRuntime {
+   private receive(listener: Listener, event: NostrEvent, source: string): void {
+     if (listener.stopped) return;
+     this.counters.receivedEvents++;
+-    if (listener.seen.has(event.id) || this.incoming.get(event.id)?.sources.has(source)) { this.counters.duplicateEvents++; return; }
+-    void this.ingest(event, source).catch((error) => this.report(listener, error));
++    const key = listener.options.isolated ? `${source}:${event.id}` : event.id;
++    if (listener.seen.has(key) || (!listener.options.isolated && this.incoming.get(event.id)?.sources.has(source))) { this.counters.duplicateEvents++; return; }
++    void this.admit(event, source, listener).catch((error) => this.report(listener, error));
+   }
+   private deliver(listener: Listener, event: NostrEvent, info: RuntimeEventInfo): void {
+     if (listener.stopped || !matchFilters(listener.filters, event) || !this.acceptsOrigin(listener, info)) return;
+-    if (listener.seen.has(event.id)) { this.counters.duplicateEvents++; return; }
+-    listener.seen.add(event.id);
++    const key = listener.options.isolated ? `${info.source}:${event.id}` : event.id;
++    if (listener.seen.has(key)) { this.counters.duplicateEvents++; return; }
++    listener.seen.add(key);
+     if (listener.seen.size > (this.options.maxSeenEventsPerSubscription ?? 4096)) listener.seen.delete(listener.seen.values().next().value!);
+     this.counters.deliveredEvents++;
+     try { listener.handlers.onEvent(event, info); } catch (error) { this.report(listener, error); }

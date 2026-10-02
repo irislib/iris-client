@@ -135,7 +135,6 @@ class InMemoryEventStore {
       let matchedForThisFilter = 0
       for (const event of this.eventsSorted) {
         if (matchedForThisFilter >= limit) break
-        if (seen.has(event.id)) continue
         if (this.deletedIds.has(event.id)) continue
 
         const key = replaceableKey(event)
@@ -145,9 +144,13 @@ class InMemoryEventStore {
         }
 
         if (matchFilter(f, event)) {
-          out.push(event)
-          seen.add(event.id)
           matchedForThisFilter++
+          // Limits apply independently to each OR filter. A duplicate in an
+          // earlier filter must still count toward this filter's history limit.
+          if (!seen.has(event.id)) {
+            out.push(event)
+            seen.add(event.id)
+          }
         }
       }
     }

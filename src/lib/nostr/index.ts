@@ -810,7 +810,14 @@ export class NostrClient extends Emitter {
         onEose: (status) => sub.eoseReceived(null, status),
         onError: (error) => sub.emit("error", error),
       },
-      {cache: sub.opts.cacheUsage ?? "cache-first", relays: sub.opts.relayUrls}
+      {
+        cache: sub.opts.cacheUsage ?? "cache-first",
+        relays: sub.opts.relayUrls,
+        isolated: sub.opts.isolated,
+        // Isolated cursors measure relay history; live peers have no historical
+        // boundary and cannot establish or block a relay's pagination position.
+        sources: sub.opts.isolated ? [] : undefined,
+      }
     )
     sub.setCleanup(() => handle.close())
   }

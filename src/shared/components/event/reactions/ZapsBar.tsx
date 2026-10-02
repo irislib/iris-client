@@ -11,12 +11,14 @@ import {shouldHideUser} from "@/utils/visibility"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {useGroupZaps} from "@/groups/useGroupZaps"
 import {isVisibleGroupZap} from "@/groups/activity"
+import {useVisibilityRevision} from "@/shared/hooks/useVisibilityRevision"
 
 interface ZapsBarProps {
   event: AppEvent
 }
 
 export default function ZapsBar({event}: ZapsBarProps) {
+  const visibilityRevision = useVisibilityRevision()
   const group = useGroupAccess()
   const memberZaps = useGroupZaps(event.id)
   const [zaps, setZaps] = useState<ZapInfo[]>([])
@@ -26,7 +28,7 @@ export default function ZapsBar({event}: ZapsBarProps) {
       (group ? memberZaps : zaps).filter(
         (zap) => !shouldHideUser(zap.pubkey) && isVisibleGroupZap(zap, event.id, group)
       ),
-    [zaps, memberZaps, event.id, group]
+    [zaps, memberZaps, event.id, group, visibilityRevision]
   )
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function ZapsBar({event}: ZapsBarProps) {
       processedEvents.add(zapEvent.id)
 
       const zapInfo = parseZapReceipt(zapEvent)
-      if (zapInfo && !shouldHideUser(zapInfo.pubkey)) {
+      if (zapInfo) {
         setZaps((prev) => {
           const exists = prev.some((z) => z.id === zapEvent.id)
           if (exists) return prev

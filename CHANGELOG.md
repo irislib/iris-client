@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.38 - 2026-10-02
+
+- Recover replies and reaction counts received before the social graph finishes loading, and reapply visibility when follows, mutes, or reply-distance preferences change.
+- Keep search history requests isolated on the shared runtime so sparse relay results cannot skip newer posts; retry incomplete history without advancing its cursor.
+
 ## 2.5.37 - 2026-10-02
 
 - Discover missing profile names through metadata relays and keep mounted profiles updated after empty or incomplete history.
