@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.40 - 2026-10-02
+
+- Start cold For You feeds using completed responses from healthy relays, loading follows and mutes together while silent relays continue in the background.
+- Load the bundled discovery network only when needed, preserving personal follow and mute settings.
+
 ## 2.5.39 - 2026-10-02
 
 - Open saved discovery feeds immediately even when relays are silent and the account has no contact list.
