@@ -6,7 +6,7 @@ import {eventRegex} from "./noteRegex.ts"
 
 const NostrNote: Embed = {
   regex: eventRegex,
-  component: ({match}) => {
+  component: ({match, event}) => {
     try {
       const hex = nip19.decode(match.replace("@", ""))
       if (!hex) throw new Error(`Invalid hex: ${match}`)
@@ -14,6 +14,10 @@ const NostrNote: Embed = {
         <div className="px-4">
           <FeedItem
             eventId={hex.data as string}
+            relayHints={event?.tags
+              .filter((tag) => ["e", "q"].includes(tag[0]) && tag[1] === hex.data)
+              .map((tag) => tag[2])
+              .filter(Boolean)}
             key={hex.data as string}
             showActions={false}
             showRepliedTo={false}

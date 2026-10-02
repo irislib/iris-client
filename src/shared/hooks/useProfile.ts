@@ -126,7 +126,9 @@ function subscribeToProfile(pubKeyHex: string) {
   const sub = nostr().subscribe(
     {kinds: [KIND_METADATA], authors: [pubKeyHex]},
     {
-      closeOnEose: true,
+      // A mounted profile must receive late metadata and reconnect updates even
+      // after an empty history response. Ref counting closes it on unmount.
+      closeOnEose: false,
       cacheUsage: CacheMode.PARALLEL,
     }
   )

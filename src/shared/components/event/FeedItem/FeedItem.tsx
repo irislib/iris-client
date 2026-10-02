@@ -1,4 +1,5 @@
 import {GroupEventScope} from "@/groups/GroupContext"
+import {nip19} from "nostr-tools"
 import {useEffect, useMemo, useState, useRef, memo} from "react"
 import {AppEvent, EventSubscription} from "@/lib/nostr"
 import classNames from "classnames"
@@ -40,6 +41,7 @@ type FeedItemProps = {
   event?: AppEvent
   eventId?: string
   authorHints?: string[]
+  relayHints?: string[]
   truncate?: number
   standalone?: boolean
   showReplies?: number
@@ -58,6 +60,7 @@ function FeedItem({
   event: initialEvent,
   eventId,
   authorHints,
+  relayHints,
   standalone,
   showReplies = 0,
   truncate = standalone ? 0 : TRUNCATE_LENGTH,
@@ -118,6 +121,20 @@ function FeedItem({
   const eventIdHex = useMemo(() => {
     return getEventIdHex(initialEvent || eventId)
   }, [initialEvent, eventId])
+
+  const pointer = useMemo(() => {
+    if (!eventId?.startsWith("nevent1")) return undefined
+    try {
+      const decoded = nip19.decode(eventId)
+      return decoded.type === "nevent" ? decoded.data : undefined
+    } catch {
+      return undefined
+    }
+  }, [eventId])
+  const authorHintKey = (authorHints ?? (pointer?.author ? [pointer.author] : [])).join(
+    ","
+  )
+  const relayHintKey = [...(relayHints ?? []), ...(pointer?.relays ?? [])].join(",")
 
   const [event, setEvent] = useState<AppEvent | undefined>(initialEvent)
   const [loadingEvent, setLoadingEvent] = useState<boolean>(!initialEvent && !!eventId)
@@ -184,10 +201,13 @@ function FeedItem({
 
     if (!event && eventIdHex) {
       // No timeout - keep subscription open until event arrives or component unmounts
-      const {promise, unsubscribe: unsub} = fetchEventReliable({
-        ids: [eventIdHex],
-        authors: authorHints,
-      })
+      const {promise, unsubscribe: unsub} = fetchEventReliable(
+        {
+          ids: [eventIdHex],
+          ...(authorHintKey ? {authors: authorHintKey.split(",")} : {}),
+        },
+        {relayHints: relayHintKey ? relayHintKey.split(",") : []}
+      )
       unsubscribe = unsub
 
       promise
@@ -212,7 +232,7 @@ function FeedItem({
         subscriptionRef.current = null
       }
     }
-  }, [event, eventIdHex, authorHints])
+  }, [event, eventIdHex, authorHintKey, relayHintKey])
 
   useEffect(() => {
     if (event) {

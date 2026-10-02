@@ -7,6 +7,7 @@ import {getEvent, getEventSync, cacheEvent} from "./eventCache"
 const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 interface FetchOptions {
+  relayHints?: string[]
   timeout?: number // ms to wait before resolving, undefined = no timeout
   settleAfterMs?: number // resolve an incomplete ID batch after this much event silence
 }
@@ -127,6 +128,7 @@ export function fetchEventsReliable(
     // Use groupable subscriptions for ID queries to batch them together
     const isIdQuery = requestedIds.size > 0
     sub = nostr().subscribe(filterArray, {
+      relayHints: opts?.relayHints,
       closeOnEose: false, // Keep subscription open
       groupable: isIdQuery, // Group ID-based queries
       groupableDelay: isIdQuery ? 200 : undefined, // 200ms delay to collect IDs

@@ -24,11 +24,14 @@ export function useLongformEvent(naddrData: nip19.AddressPointer | null) {
     setError(null)
 
     nostr()
-      .fetchEvent({
-        authors: [naddrData.pubkey],
-        kinds: [naddrData.kind],
-        "#d": [naddrData.identifier],
-      })
+      .fetchEvent(
+        {
+          authors: [naddrData.pubkey],
+          kinds: [naddrData.kind],
+          "#d": [naddrData.identifier],
+        },
+        {relayHints: naddrData.relays}
+      )
       .then((fetchedEvent) => {
         if (fetchedEvent) {
           setEvent(fetchedEvent)

@@ -682,6 +682,7 @@ export class WorkerTransport {
             }
             if (
               request?.subscribeOpts?.closeOnEose &&
+              e.data.completion?.complete !== false &&
               this.subscriptionRequests.get(subId) === request
             ) {
               this.unsubscribe(subId)

@@ -1,5 +1,5 @@
 import {addContentTags} from "./contentTags"
-import {relayHints} from "./relayPolicy"
+import {attachLookupRoutes, relayHintsFromUrls} from "./lookupRouting"
 /** App domain objects. Networking, verification, batching and retries belong to nostr-pubsub. */
 import {
   finalizeEvent,
@@ -73,6 +73,7 @@ export type SubscriptionOptions = {
   closeOnEose?: boolean
   cacheUsage?: CacheMode
   relayUrls?: string[]
+  relayHints?: string[]
   groupable?: boolean
   groupableDelay?: number
   isolated?: boolean
@@ -589,11 +590,43 @@ export class EventSubscription extends Emitter {
     this.emit("event", e, relay, this, fromCache)
   }
   completion?: RuntimeCompletion
+  private historyPending = new Set<EventSubscription>()
+  private historyReports: RuntimeCompletion[] = []
+  private ownHistoryReceived = false
+  private historyEmitted = false
+  waitForHistory(sub: EventSubscription) {
+    if (this.historyEmitted) return
+    this.historyPending.add(sub)
+    sub.once("eose", () => {
+      this.historyPending.delete(sub)
+      if (sub.completion) this.historyReports.push(sub.completion)
+      this.emitHistory()
+    })
+  }
   eoseReceived(_relay?: Relay | null, completion?: RuntimeCompletion) {
     this.completion = completion
-    if (this.closed) return
+    this.ownHistoryReceived = true
+    this.emitHistory()
+  }
+  private emitHistory() {
+    if (this.closed || !this.ownHistoryReceived || this.historyPending.size) return
+    this.historyEmitted = true
+    if (this.historyReports.length) {
+      const reports = [
+        ...this.historyReports,
+        ...(this.completion ? [this.completion] : []),
+      ]
+      const complete = reports.every((report) => report.complete)
+      this.completion = {
+        complete,
+        reason: complete
+          ? "eose"
+          : (reports.find((report) => !report.complete)?.reason ?? "unavailable"),
+        sources: reports.flatMap((report) => report.sources),
+      }
+    }
     this.emit("eose", this)
-    if (this.opts.closeOnEose) this.stop()
+    if (this.opts.closeOnEose && this.completion?.complete !== false) this.stop()
   }
   stop() {
     if (this.closed) return
@@ -614,6 +647,8 @@ export interface ClientOptions {
   clientTagFilter?: (event: AppEvent) => boolean
   enableOutboxModel?: boolean
   autoConnectUserRelays?: boolean
+  discoveryRelayUrls?: string[]
+  enableRelayHints?: boolean
   [key: string]: unknown
 }
 export class NostrClient extends Emitter {
@@ -626,6 +661,8 @@ export class NostrClient extends Emitter {
   clientTagFilter?: (event: AppEvent) => boolean
   cacheAdapter?: ClientOptions["cacheAdapter"]
   enableOutboxModel = false
+  discoveryRelayUrls: string[]
+  enableRelayHints: boolean
   devWriteRelaySet?: RelaySet
   private verifyEvent?: NostrRuntimeOptions["verifyEvent"]
   private runtime?: NostrRuntime
@@ -660,6 +697,8 @@ export class NostrClient extends Emitter {
     this.verifyEvent = opts.verifyEvent
     this.signAuthEvent = opts.signAuthEvent
     this.enableOutboxModel = opts.enableOutboxModel ?? false
+    this.discoveryRelayUrls = relayHintsFromUrls(opts.discoveryRelayUrls ?? [])
+    this.enableRelayHints = opts.enableRelayHints ?? true
     this.signer = opts.signer
     this.cacheAdapter = opts.cacheAdapter
     this.explicitRelayUrls = opts.explicitRelayUrls ?? []
@@ -739,7 +778,12 @@ export class NostrClient extends Emitter {
     }
     const sub = new EventSubscription(
       this,
-      Array.isArray(filters) ? filters : [filters],
+      (Array.isArray(filters) ? filters : [filters]).map(
+        (filter) =>
+          Object.fromEntries(
+            Object.entries(filter).filter(([, value]) => value !== undefined)
+          ) as EventFilter
+      ),
       {...opts, ...(relaySet ? {relayUrls: [...relaySet.relays].map((r) => r.url)} : {})}
     )
     this.subscriptions.set(sub.subId, sub)
@@ -748,14 +792,7 @@ export class NostrClient extends Emitter {
   }
   async startSubscription(sub: EventSubscription) {
     if (sub.closed) return
-    if (
-      this.enableOutboxModel &&
-      !sub.opts.relayUrls &&
-      sub.opts.cacheUsage !== CacheMode.ONLY_CACHE &&
-      !sub.filters.some((f) => f.kinds?.includes(10002))
-    ) {
-      void this.attachAuthorRelays(sub)
-    }
+    attachLookupRoutes(this, sub)
     if (this.transportPlugins.length) {
       for (const plugin of this.transportPlugins)
         plugin.onSubscribe?.(sub, sub.filters, sub.opts)
@@ -776,32 +813,6 @@ export class NostrClient extends Emitter {
       {cache: sub.opts.cacheUsage ?? "cache-first", relays: sub.opts.relayUrls}
     )
     sub.setCleanup(() => handle.close())
-  }
-  private async attachAuthorRelays(parent: EventSubscription) {
-    const authors = [...new Set(parent.filters.flatMap((filter) => filter.authors ?? []))]
-      .filter((key) => /^[0-9a-f]{64}$/.test(key))
-      .slice(0, 64)
-    if (!authors.length) return
-    const metadata = await this.fetchEvents(
-      {kinds: [10002], authors},
-      {closeOnEose: true}
-    )
-    if (parent.closed) return
-    const urls = relayHints(metadata, "write").filter(
-      (url) => !this.explicitRelayUrls.includes(url)
-    )
-    if (!urls.length) return
-    const routed = this.subscribe(parent.filters, {
-      ...parent.opts,
-      relayUrls: urls,
-      closeOnEose: false,
-    })
-    routed.on(
-      "event",
-      (event: AppEvent, relay?: Relay, _sub?: EventSubscription, cached?: boolean) =>
-        parent.eventReceived(event, relay, cached)
-    )
-    parent.once("close", () => routed.stop())
   }
   async fetchEvents(
     filters: EventFilter | EventFilter[],
@@ -846,14 +857,23 @@ export class NostrClient extends Emitter {
       else {
         const decoded = nip19.decode(filter)
         if (decoded.type === "note") filters = {ids: [decoded.data]}
-        else if (decoded.type === "nevent") filters = {ids: [decoded.data.id]}
-        else if (decoded.type === "naddr")
+        else if (decoded.type === "nevent") {
+          filters = {ids: [decoded.data.id]}
+          opts = {
+            ...opts,
+            relayHints: [...(opts.relayHints ?? []), ...(decoded.data.relays ?? [])],
+          }
+        } else if (decoded.type === "naddr") {
           filters = {
             kinds: [decoded.data.kind],
             authors: [decoded.data.pubkey],
             "#d": [decoded.data.identifier],
           }
-        else return null
+          opts = {
+            ...opts,
+            relayHints: [...(opts.relayHints ?? []), ...(decoded.data.relays ?? [])],
+          }
+        } else return null
       }
     } else filters = filter
     const exactId =

@@ -14,6 +14,9 @@ const TEST_RELAY = ["wss://temp.iris.to/"]
 // Indexed text search; ordinary relays may ignore or reject NIP-50 filters.
 export const SEARCH_RELAYS = ["wss://search.nos.today/"]
 
+// Metadata directories supplement saved relays for names and NIP-65 discovery.
+export const PROFILE_RELAYS = ["wss://purplepag.es/"]
+
 function stripTrailingSlash(url: string) {
   return url.replace(/\/$/, "")
 }

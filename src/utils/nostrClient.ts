@@ -9,7 +9,7 @@ import NostrClient, {
 } from "@/lib/nostr"
 import {WorkerTransport} from "@/lib/nostr-transport-worker"
 import {useUserStore} from "@/stores/user"
-import {DEFAULT_RELAYS} from "@/shared/constants/relays"
+import {DEFAULT_RELAYS, PROFILE_RELAYS} from "@/shared/constants/relays"
 import {isTouchDevice} from "@/shared/utils/isTouchDevice"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -86,6 +86,11 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
     explicitRelayUrls: relayRuntime.explicitRelayUrls,
     enableOutboxModel: relayRuntime.enableOutboxModel,
     autoConnectUserRelays: relayRuntime.autoConnectUserRelays,
+    discoveryRelayUrls:
+      relayRuntime.disableExtraRelayUrls || import.meta.env.VITE_USE_TEST_RELAY
+        ? []
+        : PROFILE_RELAYS,
+    enableRelayHints: !relayRuntime.disableExtraRelayUrls,
   })
 
   // Create worker transport - it owns relay connectivity and search indexing.

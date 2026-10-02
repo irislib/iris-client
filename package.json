@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.36",
+  "version": "2.5.37",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {

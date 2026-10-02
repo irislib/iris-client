@@ -35,7 +35,7 @@ function Naddr({naddr, data}: {naddr: string; data: nip19.AddressPointer}) {
           kinds: [data.kind],
           "#d": [data.identifier],
         },
-        undefined
+        {relayHints: data.relays}
       )
       .then((e) => e && e.id && setEvent(e))
   }, [data.pubkey, data.kind, data.identifier])
@@ -57,9 +57,9 @@ function Naddr({naddr, data}: {naddr: string; data: nip19.AddressPointer}) {
 
 const NostrUser: Embed = {
   regex: /\b(?:nostr:)?(n(?:event|profile|addr)1[a-zA-Z0-9]{10,})\b/g,
-  component: ({match}) => {
+  component: ({match, event}) => {
     try {
-      const {type, data} = nip19.decode(match)
+      const {type, data} = nip19.decode(match.replace(/^nostr:/, ""))
       if (type === "nprofile") {
         return (
           <ProfileLink pubKey={data.pubkey} className="link link-info">
@@ -74,6 +74,13 @@ const NostrUser: Embed = {
             <FeedItem
               eventId={data.id}
               authorHints={authorHints}
+              relayHints={[
+                ...(data.relays ?? []),
+                ...(event?.tags
+                  .filter((tag) => ["e", "q"].includes(tag[0]) && tag[1] === data.id)
+                  .map((tag) => tag[2])
+                  .filter(Boolean) ?? []),
+              ]}
               showActions={false}
               showRepliedTo={false}
               asEmbed={true}

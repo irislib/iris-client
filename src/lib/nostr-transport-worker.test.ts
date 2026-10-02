@@ -125,6 +125,37 @@ describe("WorkerTransport search", () => {
 })
 
 describe("WorkerTransport lifecycle", () => {
+  it("delivers late events after an incomplete history report", () => {
+    const worker = new FakeWorker()
+    const transport = new WorkerTransport(() => worker as unknown as Worker)
+    const received = vi.fn()
+    try {
+      transport.connect({transportPlugins: []} as unknown as NostrClient, [])
+      worker.dispatchMessage({type: "ready"})
+      transport.subscribe("profile", [{kinds: [0]}], received, vi.fn(), {
+        closeOnEose: true,
+      })
+      worker.dispatchMessage({
+        type: "eose",
+        subId: "profile",
+        completion: {complete: false, reason: "timeout", sources: []},
+      })
+      worker.dispatchMessage({
+        type: "event",
+        subId: "profile",
+        event: {id: "late", pubkey: "a".repeat(64), kind: 0, content: "{}", tags: []},
+      })
+      expect(received).toHaveBeenCalledOnce()
+      expect(
+        worker.postedMessages.some(
+          (message) => message.type === "unsubscribe" && message.id === "profile"
+        )
+      ).toBe(false)
+    } finally {
+      transport.close()
+    }
+  })
+
   it("lets a healthy relay worker answer after the page's heartbeat timer was suspended", async () => {
     vi.useFakeTimers()
     const worker = new FakeWorker()
