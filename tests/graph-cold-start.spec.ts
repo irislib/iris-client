@@ -1,12 +1,17 @@
 import {expect, test} from "@playwright/test"
 import {finalizeEvent, generateSecretKey, getPublicKey, matchFilters} from "nostr-tools"
 import {SocialGraph} from "nostr-social-graph"
-import {WebSocketServer} from "ws"
+import {WebSocketServer, type WebSocket} from "ws"
+
+// Asset routing must reach this fixture, not a precached production graph.
+test.use({serviceWorkers: "block"})
 
 // Exercise real cold graph hydration and the relay worker, including a relay
 // that accepts requests but never completes history.
-for (const discovery of [false, true]) {
-  test(`cold ${discovery ? "discovery" : "personal"} For You hydrates mutes and posts without waiting for a silent relay`, async ({
+for (const scenario of ["personal", "discovery", "late-personal"]) {
+  const discovery = scenario !== "personal"
+  const latePersonal = scenario === "late-personal"
+  test(`cold ${scenario} For You hydrates mutes and posts without waiting for a silent relay`, async ({
     page,
   }) => {
     const user = () => {
@@ -51,6 +56,7 @@ for (const discovery of [false, true]) {
     let rootCompleted = false,
       opinionsCompleted = false
     const timers = new Set<ReturnType<typeof setTimeout>>()
+    const rootRequests = new Map<WebSocket, Set<string>>()
     server.on("connection", (socket, request) => {
       socket.on("message", (raw) => {
         const [type, id, ...filters] = JSON.parse(raw.toString())
@@ -62,9 +68,15 @@ for (const discovery of [false, true]) {
         const isRoot = filters.some((filter: {authors?: string[]}) =>
           filter.authors?.includes(viewer.pubkey)
         )
+        if (isGraph && isRoot) {
+          const ids = rootRequests.get(socket) ?? new Set<string>()
+          ids.add(id)
+          rootRequests.set(socket, ids)
+        }
         for (const event of selected.filter((event) => event.kind !== 10000)) {
           socket.send(JSON.stringify(["EVENT", id, event]))
         }
+        const graphDelay = latePersonal && !isRoot ? 1200 : 150
         const timer = setTimeout(
           () => {
             if (socket.readyState !== socket.OPEN) return
@@ -77,7 +89,7 @@ for (const discovery of [false, true]) {
               else opinionsCompleted = true
             }
           },
-          isGraph ? 150 : 0
+          isGraph ? graphDelay : 0
         )
         timers.add(timer)
       })
@@ -97,9 +109,29 @@ for (const discovery of [false, true]) {
       }
       let bundledGraphRequests = 0
       const binary = Buffer.from(await graph.toBinary())
-      await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) => {
+      await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, async (route) => {
         if (route.request().resourceType() === "script") return route.continue()
         bundledGraphRequests++
+        if (latePersonal) {
+          const contacts = finalizeEvent(
+            {
+              kind: 3,
+              created_at: now + 1,
+              content: "",
+              tags: [
+                ["p", friend.pubkey],
+                ["p", muted.pubkey],
+              ],
+            },
+            viewer.secret
+          )
+          for (const [socket, ids] of rootRequests) {
+            for (const id of ids) socket.send(JSON.stringify(["EVENT", id, contacts]))
+          }
+          // Keep the discovery fetch open while the newer contacts start an
+          // opinion query whose mute/history response deliberately arrives later.
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
         return route.fulfill({contentType: "application/octet-stream", body: binary})
       })
       await page.addInitScript(
@@ -147,7 +179,7 @@ for (const discovery of [false, true]) {
       ).toBeVisible({timeout: 4000})
       expect(Date.now() - start).toBeLessThan(4500)
       expect(rootCompleted).toBe(true)
-      expect(opinionsCompleted).toBe(!discovery)
+      expect(opinionsCompleted).toBe(!discovery || latePersonal)
       expect(bundledGraphRequests).toBe(discovery ? 1 : 0)
       expect(await page.evaluate(() => Reflect.get(window, "__mutedPostPainted"))).toBe(
         false

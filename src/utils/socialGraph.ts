@@ -641,6 +641,12 @@ async function setupSubscription(publicKey: string) {
   hydrateDirectFollowOpinions()
   await rootHistory
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  if (instance.getFollowedByUser(publicKey).size === 0) {
+    await ensureDefaultNetwork(publicKey, () =>
+      isCurrentGraphSync(syncGeneration, publicKey)
+    )
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  }
   let completedBatches = 0
   while (completedBatches < opinionBatches.length) {
     const pending = opinionBatches.slice(completedBatches)
@@ -649,17 +655,6 @@ async function setupSubscription(publicKey: string) {
     if (!isCurrentGraphSync(syncGeneration, publicKey)) return
     hydrateDirectFollowOpinions()
   }
-  if (instance.getFollowedByUser(publicKey).size === 0) {
-    await ensureDefaultNetwork(publicKey, () =>
-      isCurrentGraphSync(syncGeneration, publicKey)
-    )
-    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-  }
-  await instance.recalculateFollowDistances()
-  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-  notifyGraphChange()
-  useSocialGraphStore.getState().incrementMuteListVersion()
-
   // Freeze the hydration phase before publishing readiness. Everything after
   // this point is eventual background sync for future feed mounts.
   initialSubscriptions.forEach((subscription) => {
@@ -667,6 +662,11 @@ async function setupSubscription(publicKey: string) {
     subscription.stop()
   })
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+
+  await instance.recalculateFollowDistances()
+  if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  notifyGraphChange()
+  useSocialGraphStore.getState().incrementMuteListVersion()
 
   initialSyncDone = true
 
