@@ -61,8 +61,8 @@ interface ReactionSubscriptionCache {
 interface ChronologicalSubscriptionCache {
   authorScope?: string
   hasInitialData?: boolean
-  pendingPosts?: Map<string, number>
-  showingPosts?: Map<string, number>
+  pendingPosts?: Map<string, AppEvent>
+  showingPosts?: Map<string, AppEvent>
 }
 
 interface CombinedPostFetcherCache {

@@ -2,6 +2,7 @@ import {useState, useEffect, useRef, useCallback, useLayoutEffect} from "react"
 import {AppEvent, EventFilter} from "@/lib/nostr"
 import {addSeenEventId} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
+import {avoidConsecutiveAuthors} from "@/utils/authorDiversity"
 import {useUserStore} from "@/stores/user"
 import {fetchEventsReliable} from "@/utils/fetchEventsReliable"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
@@ -83,8 +84,10 @@ export default function useCombinedPostFetcher({
 
     const cacheMatchesScope = cache.scopeKey === scopeKey
     const cachedEvents = cacheMatchesScope
-      ? (cache.events || []).filter(
-          (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+      ? avoidConsecutiveAuthors(
+          (cache.events || []).filter(
+            (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+          )
         )
       : []
 
@@ -200,7 +203,7 @@ export default function useCombinedPostFetcher({
 
       if (generation === generationRef.current && newEvents.length > 0) {
         newEvents.forEach((event) => addSeenEventId(event.id))
-        setEvents(newEvents)
+        setEvents(avoidConsecutiveAuthors(newEvents))
         shouldFinalize = true
       } else if (newEvents.length === 0 && allEnabledSourcesReady) {
         shouldFinalize = true
@@ -253,7 +256,10 @@ export default function useCombinedPostFetcher({
         const existingIds = new Set(prevEvents.map((e) => e.id))
         const uniqueNewEvents = newEvents.filter((e) => !existingIds.has(e.id))
         return uniqueNewEvents.length > 0
-          ? [...prevEvents, ...uniqueNewEvents]
+          ? [
+              ...prevEvents,
+              ...avoidConsecutiveAuthors(uniqueNewEvents, prevEvents.at(-1)?.pubkey),
+            ]
           : prevEvents
       })
     } catch {

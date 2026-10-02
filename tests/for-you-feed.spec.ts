@@ -360,6 +360,107 @@ test("For You shows cached recommendations while other recommended posts are una
   expect(Date.now() - startedAt).toBeLessThan(2500)
 })
 
+test("For You separates prolific authors across pages and restores the same order", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const authors = [createUser(), createUser(), createUser()]
+  const now = Math.floor(Date.now() / 1000) - 60
+  const notes = authors.flatMap((author, authorIndex) =>
+    Array.from({length: 10}, (_, index) =>
+      signEvent(author, {
+        kind: 1,
+        content: `Author ${authorIndex + 1} post ${index + 1}`,
+        tags: [],
+        created_at: now - authorIndex * 10 - index,
+      })
+    )
+  )
+  // Deliver the relay's initial history together, so all three authors are
+  // available before the production feed chooses its first page.
+  await page.addInitScript(
+    (pubkeys) => {
+      const NativeWorker = window.Worker
+      window.Worker = class extends NativeWorker {
+        constructor(
+          url: string | URL,
+          options?: ConstructorParameters<typeof Worker>[1]
+        ) {
+          super(url, options)
+          if (!String(url).includes("relay-worker")) return
+          const pending = new Map<string, unknown[]>()
+          const delivered = new Set<string>()
+          let replaying = false
+          this.addEventListener("message", (event) => {
+            const data = event.data
+            if (
+              replaying ||
+              data.type !== "event" ||
+              data.event?.kind !== 1 ||
+              !pubkeys.includes(data.event?.pubkey) ||
+              delivered.has(data.subId)
+            )
+              return
+            event.stopImmediatePropagation()
+            const batch = pending.get(data.subId) ?? []
+            batch.push(data)
+            pending.set(data.subId, batch)
+            if (batch.length === 30) {
+              delivered.add(data.subId)
+              pending.delete(data.subId)
+              queueMicrotask(() => {
+                replaying = true
+                for (const message of batch) {
+                  this.dispatchEvent(new MessageEvent("message", {data: message}))
+                }
+                replaying = false
+              })
+            }
+          })
+        }
+      }
+    },
+    authors.map((author) => author.publicKey)
+  )
+  await publishEvents([
+    signEvent(viewer, {
+      kind: 3,
+      content: "",
+      tags: authors.map((author) => ["p", author.publicKey]),
+    }),
+    ...notes,
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  const posts = page.locator('#main-content [data-testid="feed-item"]')
+  const ids = () =>
+    posts.evaluateAll((items) => items.map((item) => item.getAttribute("data-event-id")!))
+  await expect.poll(() => posts.count()).toBeGreaterThanOrEqual(10)
+  const initialIds = await ids()
+  const authorById = new Map(notes.map((note) => [note.id, note.pubkey]))
+  const assertDiverse = (orderedIds: string[]) => {
+    expect(new Set(orderedIds).size).toBe(orderedIds.length)
+    for (let i = 1; i < orderedIds.length; i++) {
+      expect(authorById.get(orderedIds[i]), `adjacent posts ${i} and ${i + 1}`).not.toBe(
+        authorById.get(orderedIds[i - 1])
+      )
+    }
+  }
+  assertDiverse(initialIds)
+  await expect(async () => {
+    await posts.last().scrollIntoViewIfNeeded()
+    expect(await posts.count()).toBe(30)
+  }).toPass({timeout: 15000})
+  const allIds = await ids()
+  expect(allIds.slice(0, initialIds.length)).toEqual(initialIds)
+  expect([...allIds].sort()).toEqual(notes.map((note) => note.id).sort())
+  assertDiverse(allIds)
+  await posts.first().scrollIntoViewIfNeeded()
+  await page.screenshot({path: testInfo.outputPath("diverse-for-you.png")})
+  await page.getByRole("link", {name: "Settings", exact: true}).click()
+  await page.getByRole("link", {name: "Home", exact: true}).click()
+  await expect.poll(ids).toEqual(allIds)
+})
+
 test("a short For You feed fills with late posts and keeps paginating", async ({
   page,
 }) => {

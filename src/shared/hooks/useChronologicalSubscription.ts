@@ -1,11 +1,12 @@
 import {useEffect, useRef, useState, useCallback} from "react"
-import {EventFilter} from "@/lib/nostr"
+import {AppEvent, EventFilter} from "@/lib/nostr"
 import {nostr} from "@/utils/nostrClient"
 import {KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useUserStore} from "@/stores/user"
 import {seenEventIds} from "@/utils/memcache"
 import {getEventReplyingTo} from "@/utils/nostr"
 import useCandidateRevision from "./useCandidateRevision"
+import {orderByAuthorRound} from "@/utils/authorDiversity"
 import {
   storeOldestTimestamp,
   getStoredOldestTimestamp,
@@ -18,8 +19,8 @@ const STORAGE_KEY = "ChronologicalFilterOldestTimestamp"
 interface ChronologicalSubscriptionCache {
   authorScope?: string
   hasInitialData?: boolean
-  pendingPosts?: Map<string, number>
-  showingPosts?: Map<string, number>
+  pendingPosts?: Map<string, AppEvent>
+  showingPosts?: Map<string, AppEvent>
 }
 
 export default function useChronologicalSubscription(
@@ -38,12 +39,14 @@ export default function useChronologicalSubscription(
 
   const initialPendingPosts =
     cacheMatchesScope && cache.pendingPosts ? cache.pendingPosts : new Map()
-  const showingPosts = useRef<Map<string, number>>(
+  const showingPosts = useRef<Map<string, AppEvent>>(
     cacheMatchesScope && cache.showingPosts ? cache.showingPosts : new Map()
   )
-  const pendingPosts = useRef<Map<string, number>>(initialPendingPosts)
+  const pendingPosts = useRef<Map<string, AppEvent>>(initialPendingPosts)
   const oldestEventAt = useRef<number | null>(
-    initialPendingPosts.size > 0 ? Math.min(...initialPendingPosts.values()) : null
+    initialPendingPosts.size > 0
+      ? Math.min(...Array.from(initialPendingPosts.values(), (event) => event.created_at))
+      : null
   )
   const unfilteredEventsReceivedAfterFilterChange = useRef(0)
   const expansionsWithoutNewEvents = useRef(0)
@@ -119,7 +122,7 @@ export default function useChronologicalSubscription(
       unfilteredEventsReceivedAfterFilterChange.current += 1
 
       if (!showingPosts.current.has(event.id) && !pendingPosts.current.has(event.id)) {
-        pendingPosts.current.set(event.id, event.created_at)
+        pendingPosts.current.set(event.id, event)
         notify()
 
         if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
@@ -187,25 +190,26 @@ export default function useChronologicalSubscription(
       expandTimestamp()
     }
 
-    const top = Array.from(pendingPosts.current.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, n)
+    const chronological = Array.from(pendingPosts.current.values()).sort(
+      (a, b) => b.created_at - a.created_at
+    )
+    const previousAuthor = Array.from(showingPosts.current.values()).at(-1)?.pubkey
+    const top = orderByAuthorRound(chronological, previousAuthor).slice(0, n)
 
     const oldestEvent = top[top.length - 1]
     if (oldestEvent && filterSeen) {
-      const [, newOldestTimestamp] = oldestEvent
-      storeOldestTimestamp(STORAGE_KEY, newOldestTimestamp)
+      storeOldestTimestamp(STORAGE_KEY, Math.min(...top.map((event) => event.created_at)))
     }
 
-    top.forEach(([eventId, timestamp]) => {
-      pendingPosts.current.delete(eventId)
-      showingPosts.current.set(eventId, timestamp)
+    top.forEach((event) => {
+      pendingPosts.current.delete(event.id)
+      showingPosts.current.set(event.id, event)
     })
 
     cache.pendingPosts = pendingPosts.current
     cache.showingPosts = showingPosts.current
 
-    return top.map(([eventId]) => eventId)
+    return top.map((event) => event.id)
   }
 
   return {
