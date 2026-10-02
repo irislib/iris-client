@@ -885,12 +885,9 @@ it.skipIf(
       expect(value.event.tags).toContainEqual(["p", fixture.owner])
       expect(value.legacyEvent.tags.some((tag) => tag[0] === "p")).toBe(false)
       for (const event of [value.event, value.legacyEvent]) {
-        const receiver =
-          value.kind === 10452
-            ? durableReceive
-            : value.kind === 10453
-              ? durableLabelReceive
-              : undefined
+        let receiver: typeof durableReceive | undefined
+        if (value.kind === 10452) receiver = durableReceive
+        else if (value.kind === 10453) receiver = durableLabelReceive
         const before = receiver?.mock.calls.length ?? 0
         useDevicesStore.setState({isCurrentDeviceRegistered: false})
         await expect(durableCallback(event, fixture.owner, senderMeta)).rejects.toThrow(
