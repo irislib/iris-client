@@ -7,6 +7,7 @@ import {Name} from "@/shared/components/user/Name"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile, {updateProfileFromEvent} from "@/shared/hooks/useProfile"
 import {useEffect, useId, useMemo, useState} from "react"
+import {nip19} from "nostr-tools"
 import {AppEvent, CacheMode} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
@@ -56,6 +57,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     [currentSource]
   )
   const newProfile = {...baseValues, ...edits}
+  const npubCashAddress = `${nip19.npubEncode(myPubKey)}@npub.cash`
 
   useEffect(() => {
     if (!myPubKey) return
@@ -331,6 +333,15 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                 onChange={(value) => setProfileField("lud16", value)}
                 type="email"
               />
+
+              {!newProfile.lud16.trim() && (
+                <SettingsGroupItem
+                  className="break-all text-sm text-info"
+                  onClick={() => setProfileField("lud16", npubCashAddress)}
+                >
+                  Use {npubCashAddress}
+                </SettingsGroupItem>
+              )}
 
               <SettingsInputItem
                 label="user@domain verification (NIP-05)"
