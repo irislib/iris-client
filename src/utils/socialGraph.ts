@@ -449,10 +449,10 @@ async function setupSubscription(publicKey: string) {
   // Returning visitors already have a complete local visibility snapshot.
   // Refresh it over the open subscriptions below without making feed startup
   // depend on every configured relay completing its history response.
-  if (
-    readyGraphRoot === publicKey &&
-    instance.getFollowListCreatedAt(publicKey) !== undefined
-  ) {
+  // A completed snapshot may legitimately have no contact event (for example,
+  // a read-only/new account using discovery). Its ready marker is sufficient;
+  // requiring kind 3 made every reload wait for silent relays again.
+  if (readyGraphRoot === publicKey) {
     useSocialGraphStore.getState().setReady(true)
   }
 

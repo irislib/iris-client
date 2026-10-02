@@ -45,6 +45,8 @@ export default function useCombinedPostFetcher({
   const hasLoadedInitial = useRef(false)
   const myPubKey = useUserStore((state) => state.publicKey)
   const isLoadingRef = useRef(false)
+  const initialRequestsRef = useRef(0)
+  const initialSourcesRef = useRef(0)
   const generationRef = useRef(0)
   const activeScopeRef = useRef<string | null>(null)
   const attemptedReadinessRef = useRef<string | null>(null)
@@ -68,6 +70,8 @@ export default function useCombinedPostFetcher({
         activeScopeRef.current = null
         hasLoadedInitial.current = false
         isLoadingRef.current = false
+        initialRequestsRef.current = 0
+        initialSourcesRef.current = 0
         attemptedReadinessRef.current = null
         setEvents([])
         setLoading(false)
@@ -80,6 +84,8 @@ export default function useCombinedPostFetcher({
     generationRef.current += 1
     activeScopeRef.current = scopeKey
     isLoadingRef.current = false
+    initialRequestsRef.current = 0
+    initialSourcesRef.current = 0
     attemptedReadinessRef.current = null
 
     const cacheMatchesScope = cache.scopeKey === scopeKey
@@ -109,7 +115,7 @@ export default function useCombinedPostFetcher({
   }, [cache])
 
   const loadBatch = useCallback(
-    async (batchSize: number = 10) => {
+    async (batchSize: number = 10, claimed?: {sources: number}) => {
       if (!visibilitySnapshot) return []
 
       const popularCount = Math.floor(batchSize * normalizedPopularRatio)
@@ -125,13 +131,25 @@ export default function useCombinedPostFetcher({
         }
       }
       const takePopular = (count: number) => {
+        if (claimed && initialSourcesRef.current & 1 && !(claimed.sources & 1)) return
         if (count > 0 && popularSourceReady) {
+          const before = allIds.length
           appendIds(getNextPopular(count))
+          if (claimed && allIds.length > before) {
+            claimed.sources |= 1
+            initialSourcesRef.current |= 1
+          }
         }
       }
       const takeChronological = (count: number) => {
+        if (claimed && initialSourcesRef.current & 2 && !(claimed.sources & 2)) return
         if (count > 0 && chronologicalSourceReady) {
+          const before = allIds.length
           appendIds(getNextChronological(count))
+          if (claimed && allIds.length > before) {
+            claimed.sources |= 2
+            initialSourcesRef.current |= 2
+          }
         }
       }
 
@@ -183,7 +201,9 @@ export default function useCombinedPostFetcher({
   const loadInitial = useCallback(async () => {
     if (
       !policyReady ||
-      isLoadingRef.current ||
+      (isLoadingRef.current && initialRequestsRef.current === 0) ||
+      initialRequestsRef.current >=
+        (popularSourceEnabled && chronologicalSourceEnabled ? 2 : 1) ||
       (hasLoadedInitial.current && events.length > 0) ||
       attemptedReadinessRef.current === sourceReadinessKey
     ) {
@@ -191,19 +211,34 @@ export default function useCombinedPostFetcher({
     }
     attemptedReadinessRef.current = sourceReadinessKey
     const generation = generationRef.current
+    // Reserve each source only when it supplies IDs. A stream of unavailable
+    // recommendations cannot occupy both slots and block healthy chronology.
+    const claimed = {sources: 0}
+    initialRequestsRef.current += 1
     isLoadingRef.current = true
     setLoading(true)
     let shouldFinalize = false
 
     try {
-      let newEvents = await loadBatch(10)
-      if (newEvents.length === 0) {
-        newEvents = await loadBatch(10)
+      let newEvents = await loadBatch(10, claimed)
+      if (generation !== generationRef.current) return
+      if (newEvents.length === 0 && !hasLoadedInitial.current) {
+        newEvents = await loadBatch(10, claimed)
       }
+      if (generation !== generationRef.current) return
 
-      if (generation === generationRef.current && newEvents.length > 0) {
+      if (newEvents.length > 0) {
         newEvents.forEach((event) => addSeenEventId(event.id))
-        setEvents(avoidConsecutiveAuthors(newEvents))
+        // A newly ready source can fill the feed while an earlier ID query is
+        // still waiting. Late results append without replacing the visible page.
+        setEvents((previous) => {
+          const existing = new Set(previous.map((event) => event.id))
+          const incoming = newEvents.filter((event) => !existing.has(event.id))
+          return [
+            ...previous,
+            ...avoidConsecutiveAuthors(incoming, previous.at(-1)?.pubkey),
+          ]
+        })
         shouldFinalize = true
       } else if (newEvents.length === 0 && allEnabledSourcesReady) {
         shouldFinalize = true
@@ -215,12 +250,14 @@ export default function useCombinedPostFetcher({
     } finally {
       // Relay or cache failures must never leave the feed in a permanent spinner.
       if (generation === generationRef.current) {
+        initialSourcesRef.current &= ~claimed.sources
         if (shouldFinalize) {
           hasLoadedInitial.current = true
           cache.hasLoadedInitial = true
         }
-        isLoadingRef.current = false
-        setLoading(false)
+        initialRequestsRef.current -= 1
+        isLoadingRef.current = initialRequestsRef.current > 0
+        setLoading(isLoadingRef.current)
       }
     }
   }, [
@@ -229,6 +266,8 @@ export default function useCombinedPostFetcher({
     events.length,
     loadBatch,
     policyReady,
+    popularSourceEnabled,
+    chronologicalSourceEnabled,
     sourceReadinessKey,
   ])
 
@@ -276,8 +315,7 @@ export default function useCombinedPostFetcher({
     if (
       !policyReady ||
       !hasAnySourceReady ||
-      (hasLoadedInitial.current && events.length > 0) ||
-      loading
+      (hasLoadedInitial.current && events.length > 0)
     ) {
       return
     }

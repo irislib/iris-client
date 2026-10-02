@@ -187,6 +187,38 @@ describe("useCombinedPostFetcher", () => {
     expect(cache.events).toEqual([])
   })
 
+  it("does not retry or reserve new-scope sources when an old empty batch settles", async () => {
+    const oldFetch = deferred<AppEvent[]>()
+    const currentEvent = event("current-scope")
+    const oldProps = baseProps({
+      hasPopularData: true,
+      getNextPopular: vi.fn(() => ["old-missing"]),
+    })
+    const currentProps = baseProps({
+      sourceKey: "scope-b",
+      getNextPopular: vi.fn(() => [currentEvent.id]),
+    })
+    mocks.fetchEventsReliable
+      .mockReturnValueOnce({promise: oldFetch.promise, unsubscribe: vi.fn()})
+      .mockReturnValue({promise: Promise.resolve([currentEvent]), unsubscribe: vi.fn()})
+
+    await act(async () => root.render(createElement(TestHook, oldProps)))
+    await act(async () => root.render(createElement(TestHook, currentProps)))
+    await act(async () => {
+      oldFetch.resolve([])
+      await oldFetch.promise
+    })
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledOnce()
+    expect(latestResult?.events).toEqual([])
+
+    await act(async () =>
+      root.render(createElement(TestHook, {...currentProps, hasPopularData: true}))
+    )
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(2)
+    expect(latestResult?.events).toEqual([currentEvent])
+    expect(latestResult?.loading).toBe(false)
+  })
+
   it("waits for popular data when the feed has no chronological share", async () => {
     const popularEvent = event("popular-after-ready")
     let popularReady = false
@@ -284,7 +316,7 @@ describe("useCombinedPostFetcher", () => {
     expect(latestResult?.events.map(({id}) => id)).toEqual([popularEvent.id])
   })
 
-  it("queues a newly ready source while a partial-source fetch is in flight", async () => {
+  it("renders a newly ready source before an unavailable earlier batch settles, then appends late results", async () => {
     const chronologicalEvent = event("chronological-in-flight")
     const popularEvent = event("popular-ready-during-fetch")
     const partialFetch = deferred<AppEvent[]>()
@@ -322,17 +354,21 @@ describe("useCombinedPostFetcher", () => {
         })
       )
     })
-    expect(mocks.fetchEventsReliable).toHaveBeenCalledOnce()
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(2)
+    expect(latestResult?.events.map(({id}) => id)).toEqual([popularEvent.id])
 
     await act(async () => {
-      partialFetch.resolve([])
+      partialFetch.resolve([chronologicalEvent])
       await partialFetch.promise
       await Promise.resolve()
       await Promise.resolve()
     })
 
     expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(2)
-    expect(latestResult?.events.map(({id}) => id)).toEqual([popularEvent.id])
+    expect(latestResult?.events.map(({id}) => id)).toEqual([
+      popularEvent.id,
+      chronologicalEvent.id,
+    ])
     expect(latestResult?.loading).toBe(false)
   })
 
@@ -379,6 +415,40 @@ describe("useCombinedPostFetcher", () => {
     expect(getNextPopular).toHaveBeenNthCalledWith(2, 1)
     expect(getNextChronological).toHaveBeenCalledOnce()
     expect(latestResult?.events).toHaveLength(10)
+  })
+
+  it("does not let repeated missing recommendations occupy the healthy source's startup slot", async () => {
+    const missing = deferred<AppEvent[]>()
+    const available = event("healthy-chronology")
+    const getNextPopular = vi.fn(() => ["missing"])
+    const getNextChronological = vi.fn(() => [available.id])
+    const props = baseProps({getNextPopular, getNextChronological, hasPopularData: true})
+    mocks.fetchEventsReliable
+      .mockReturnValueOnce({promise: missing.promise, unsubscribe: vi.fn()})
+      .mockReturnValueOnce({promise: Promise.resolve([available]), unsubscribe: vi.fn()})
+    await act(async () => root.render(createElement(TestHook, props)))
+    for (const revision of ["1", "2", "3"]) {
+      await act(async () =>
+        root.render(createElement(TestHook, {...props, candidateRevision: revision}))
+      )
+    }
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledOnce()
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {
+          ...props,
+          candidateRevision: "4",
+          hasChronologicalData: true,
+        })
+      )
+    )
+    expect(latestResult?.events.map(({id}) => id)).toEqual([available.id])
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      missing.resolve([])
+      await missing.promise
+    })
+    expect(latestResult?.events.map(({id}) => id)).toEqual([available.id])
   })
 
   it("uses the captured visibility policy for initial and later batches", async () => {

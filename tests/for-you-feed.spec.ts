@@ -266,6 +266,166 @@ test("an empty For You feed displays late relay posts without another refresh", 
   ).toBeVisible({timeout: 3000})
 })
 
+test("a saved discovery graph without a contact event does not wait for silent relays", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const starter = createUser()
+  const graph = new SocialGraph(DEFAULT_ROOT)
+  graph.addFollower(DEFAULT_ROOT, starter.publicKey)
+  await graph.recalculateFollowDistances()
+  const snapshot = Array.from(await graph.toBinary())
+  // No kind-3 event exists for this read-only viewer. Restore a completed
+  // persisted snapshot, independently of the bundled discovery asset.
+  await signUp(page, nip19.npubEncode(viewer.publicKey))
+  await page.goto("/about")
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const path = "/src/stores/socialGraph.ts"
+        return (await import(path)).useSocialGraphStore.getState().isReady
+      })
+    )
+    .toBe(true)
+  await page.evaluate(
+    async ({snapshot, publicKey}) => {
+      await new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open("localforage")
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const db = open.result
+          const tx = db.transaction("keyvaluepairs", "readwrite")
+          tx.objectStore("keyvaluepairs").put(
+            {data: new Uint8Array(snapshot), readyRoot: publicKey},
+            "socialGraph"
+          )
+          tx.oncomplete = () => {
+            db.close()
+            resolve()
+          }
+          tx.onerror = () => {
+            db.close()
+            reject(tx.error)
+          }
+        }
+      })
+    },
+    {snapshot, publicKey: viewer.publicKey}
+  )
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      constructor(url: string | URL, options?: ConstructorParameters<typeof Worker>[1]) {
+        super(url, options)
+        if (String(url).includes("relay-worker"))
+          this.addEventListener("message", (event) => {
+            if (event.data.type === "eose") event.stopImmediatePropagation()
+          })
+      }
+    }
+    const schedule = window.setTimeout.bind(window)
+    window.setTimeout = ((callback, ms, ...args) =>
+      // Hold the snapshot cutoff: rendering must use the saved snapshot rather
+      // than merely beat a wall-clock performance threshold.
+      schedule(
+        ms === 8000 ? () => undefined : callback,
+        ms,
+        ...args
+      )) as typeof window.setTimeout
+  })
+  const note = signEvent(starter, {
+    kind: 1,
+    content: `saved discovery ${viewer.publicKey}`,
+    tags: [],
+    created_at: Math.floor(Date.now() / 1000) - 60,
+  })
+  await publishEvents([note])
+  const started = Date.now()
+  await page.goto("/")
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const path = "/src/stores/socialGraph.ts"
+        return (await import(path)).useSocialGraphStore.getState().isReady
+      })
+    )
+    .toBe(true)
+  await expect(
+    page.getByTestId("feed-item").filter({hasText: note.content}).first()
+  ).toBeVisible()
+  console.log(`Saved discovery first post: ${Date.now() - started}ms`)
+  await testInfo.attach("saved-discovery-first-post-ms", {
+    body: String(Date.now() - started),
+    contentType: "text/plain",
+  })
+  await page.screenshot({path: testInfo.outputPath("saved-discovery-ready.png")})
+})
+
+test("available chronological posts render while an earlier recommendation remains unavailable", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const followed = createUser()
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
+  ])
+  await signUp(page, nip19.npubEncode(viewer.publicKey))
+  await page.goto("/about")
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const path = "/src/stores/socialGraph.ts"
+        return (await import(path)).useSocialGraphStore.getState().isReady
+      })
+    )
+    .toBe(true)
+  const unavailable = createUser().publicKey
+  await publishEvents([
+    signEvent(followed, {kind: 7, content: "+", tags: [["e", unavailable]]}),
+  ])
+  await page.addInitScript(() => {
+    const schedule = window.setTimeout.bind(window)
+    window.setTimeout = ((callback, ms, ...args) =>
+      // Keep unavailable ID batches pending. Healthy, separately arriving
+      // chronology must render without waiting for this timeout to release it.
+      schedule(
+        ms === 4000 ? () => undefined : callback,
+        ms,
+        ...args
+      )) as typeof window.setTimeout
+  })
+  await page.goto("/")
+  await expect
+    .poll(() =>
+      page.evaluate(async (id) => {
+        const path = "/src/utils/memcache.ts"
+        const cache = (await import(path)).getOrCreateAlgorithmicFeedCache("for-you")
+        return cache.reactionSubscription.showingReactionCounts?.has(id) ?? false
+      }, unavailable)
+    )
+    .toBe(true)
+  const note = signEvent(followed, {
+    kind: 1,
+    content: `healthy feed ${viewer.publicKey}`,
+    tags: [],
+    created_at: Math.floor(Date.now() / 1000) - 60,
+  })
+  const started = Date.now()
+  await publishEvents([note])
+  await expect(
+    page
+      .locator('#main-content [data-testid="feed-item"]')
+      .filter({hasText: note.content})
+      .first()
+  ).toBeVisible()
+  console.log(`Healthy source first post: ${Date.now() - started}ms`)
+  await testInfo.attach("healthy-source-first-post-ms", {
+    body: String(Date.now() - started),
+    contentType: "text/plain",
+  })
+  await page.screenshot({path: testInfo.outputPath("healthy-source-ready.png")})
+})
+
 test("For You shows cached recommendations while other recommended posts are unavailable", async ({
   page,
 }) => {
