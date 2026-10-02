@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.41 - 2026-10-02
+
+- Preserve the correct people, follows, and mutes when merging imported social graphs.
+
 ## 2.5.40 - 2026-10-02
 
 - Start cold For You feeds using completed responses from healthy relays, loading follows and mutes together while silent relays continue in the background.
