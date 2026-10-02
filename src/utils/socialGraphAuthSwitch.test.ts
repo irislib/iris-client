@@ -177,6 +177,8 @@ const socialGraphMock = vi.hoisted(() => {
       return false
     }
 
+    async merge() {}
+
     async toBinary() {
       return new Uint8Array()
     }
@@ -192,6 +194,11 @@ const socialGraphMock = vi.hoisted(() => {
       accountARecalculation = undefined
       currentRoot = undefined
       follows.clear()
+      // The saved fixture already includes the bundled discovery network.
+      follows.set(
+        "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0",
+        new Set([DIRECT_FOLLOW])
+      )
     },
   }
 })
@@ -202,6 +209,7 @@ const ndkMock = vi.hoisted(() => {
   class FakeSubscription {
     readonly handlers = new Map<string, Set<Handler>>()
     stopped = false
+    completion = {complete: true, reason: "eose"}
 
     constructor(
       readonly filters: unknown,
@@ -235,7 +243,7 @@ const ndkMock = vi.hoisted(() => {
     subscriptions,
     subscribe,
     initNostr: vi.fn(() => Promise.resolve()),
-    nostr: () => ({subscribe}),
+    nostr: () => ({subscribe, explicitRelayUrls: ["wss://healthy.test"]}),
     reset() {
       subscriptions.splice(0)
       subscribe.mockClear()
@@ -308,6 +316,28 @@ const opinionSubscriptionsFor = (publicKey: string) =>
   })
 
 describe("social graph auth-switch readiness", () => {
+  it("does not use cache completion or an incomplete relay to capture cold visibility", async () => {
+    const {setupSocialGraphSubscriptions, socialGraphLoaded} =
+      await import("./socialGraph")
+    await socialGraphLoaded
+    const setup = setupSocialGraphSubscriptions()
+    await flushMicrotasks()
+    const root = rootSubscriptionFor(ACCOUNT_A)!
+    root.completion = {complete: true, reason: "cache"}
+    root.emit("eose")
+    await vi.advanceTimersByTimeAsync(300)
+    expect(graphStoreMock.useSocialGraphStore.getState().isReady).toBe(false)
+    root.completion = {complete: false, reason: "timeout"}
+    root.emit("eose")
+    await vi.advanceTimersByTimeAsync(300)
+    expect(graphStoreMock.useSocialGraphStore.getState().isReady).toBe(false)
+    root.completion = {complete: true, reason: "eose"}
+    root.emit("eose")
+    await vi.advanceTimersByTimeAsync(300)
+    await setup
+    expect(graphStoreMock.useSocialGraphStore.getState().isReady).toBe(true)
+  })
+
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
@@ -418,7 +448,7 @@ describe("social graph auth-switch readiness", () => {
     expect(hydrationSubscription?.stopped).toBe(true)
     expect(rootSubscriptions).toHaveLength(2)
     expect(rootSubscriptions[1].stopped).toBe(false)
-    expect(opinionSubscriptionsFor(DIRECT_FOLLOW)).toHaveLength(1)
+    expect(opinionSubscriptionsFor(DIRECT_FOLLOW)).toHaveLength(2)
     expect(graphStoreMock.useSocialGraphStore.getState().isReady).toBe(true)
   })
 

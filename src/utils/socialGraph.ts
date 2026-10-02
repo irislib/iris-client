@@ -1,11 +1,12 @@
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
-import {EventSubscription, CacheMode} from "@/lib/nostr"
+import {EventSubscription, CacheMode, type EventFilter} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
+import bundledGraphUrl from "nostr-social-graph/data/socialGraph.bin?url"
 // Removed static import to avoid race condition - use dynamic import in setupSubscription
 import {useMemo} from "react"
 import {KIND_CONTACTS, KIND_MUTE_LIST, DEBUG_NAMESPACES} from "@/utils/constants"
@@ -35,9 +36,7 @@ const notifyGraphChange = () => {
 
 async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
   try {
-    const binaryUrl = (await import("nostr-social-graph/data/socialGraph.bin?url"))
-      .default
-    const response = await fetch(binaryUrl)
+    const response = await fetch(bundledGraphUrl)
     const binaryData = new Uint8Array(await response.arrayBuffer())
     const graph = await SocialGraph.fromBinary(publicKey, binaryData)
     log("loaded default binary social graph of size", graph.size())
@@ -47,6 +46,75 @@ async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
     error("Failed to load default social graph, using empty graph instead:", err)
     return new SocialGraph(publicKey)
   }
+}
+
+// A signed-in user's own contacts and mutes are the startup authority. The
+// bundled discovery graph is only needed when that user has no personal network.
+const loadInitialGraph = (publicKey: string) =>
+  useUserStore.getState().publicKey === publicKey
+    ? Promise.resolve(new SocialGraph(publicKey))
+    : loadPreCrawledGraph(publicKey)
+
+let defaultNetworkLoad:
+  {publicKey: string; generation: number; promise: Promise<void>} | undefined
+
+function ensureDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
+  if (instance.getFollowedByUser(DEFAULT_SOCIAL_GRAPH_ROOT).size > 0) {
+    return Promise.resolve()
+  }
+  if (
+    defaultNetworkLoad?.publicKey === publicKey &&
+    defaultNetworkLoad.generation === graphSyncGeneration
+  ) {
+    return defaultNetworkLoad.promise
+  }
+  const loading = {
+    publicKey,
+    generation: graphSyncGeneration,
+    promise: loadDefaultNetwork(publicKey, isCurrent),
+  }
+  defaultNetworkLoad = loading
+  void loading.promise.finally(() => {
+    if (defaultNetworkLoad === loading) defaultNetworkLoad = undefined
+  })
+  return loading.promise
+}
+
+async function loadDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
+  useSocialGraphStore.getState().setReady(false)
+  const bundled = await loadPreCrawledGraph(publicKey)
+  if (!isCurrent()) return
+  // Graph instances use different numeric IDs. Replay the retained graph's
+  // public-key lists locally so both follow/mute directions and timestamps are
+  // preserved; these projections never leave the graph or enter the event cache.
+  const retained = instance.getInternalData()
+  for (const [kind, lists, timestamps] of [
+    [KIND_CONTACTS, retained.followedByUser, retained.followListCreatedAt],
+    [KIND_MUTE_LIST, retained.mutedByUser, retained.muteListCreatedAt],
+  ] as const) {
+    for (const author of new Set([...lists.keys(), ...timestamps.keys()])) {
+      bundled.handleEvent(
+        {
+          kind,
+          pubkey: retained.str(author),
+          created_at: timestamps.get(author) ?? 0,
+          tags: Array.from(lists.get(author) ?? [], (target) => [
+            "p",
+            retained.str(target),
+          ]),
+          content: "",
+          id: "",
+          sig: "",
+        },
+        true,
+        Number.POSITIVE_INFINITY
+      )
+    }
+  }
+  // Switch atomically before yielding so events arriving during distance
+  // recalculation are applied to the new graph and cannot be overwritten.
+  instance = bundled
+  await bundled.recalculateFollowDistances()
 }
 
 async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
@@ -69,16 +137,16 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
       } catch (err) {
         error("error deserializing", err)
         await localForage.removeItem("socialGraph")
-        instance = await loadPreCrawledGraph(publicKey)
+        instance = await loadInitialGraph(publicKey)
       }
     } else {
       log("no social graph found")
       await localForage.removeItem("socialGraph")
-      instance = await loadPreCrawledGraph(publicKey)
+      instance = await loadInitialGraph(publicKey)
     }
   } catch (err) {
-    error("Failed to load persisted social graph, using bundled graph instead:", err)
-    instance = await loadPreCrawledGraph(publicKey)
+    error("Failed to load persisted social graph, using initial network instead:", err)
+    instance = await loadInitialGraph(publicKey)
   } finally {
     notifyGraphChange()
   }
@@ -398,44 +466,16 @@ async function resetSubscriptionToDefault() {
     return
   }
 
+  await ensureDefaultNetwork(
+    DEFAULT_SOCIAL_GRAPH_ROOT,
+    () => syncGeneration === graphSyncGeneration && !useUserStore.getState().publicKey
+  )
+  if (syncGeneration !== graphSyncGeneration || useUserStore.getState().publicKey) return
+
   notifyGraphChange()
   useSocialGraphStore.getState().incrementMuteListVersion()
   useSocialGraphStore.getState().setReady(true)
 }
-
-const waitForInitialSubscription = (
-  subscription: EventSubscription,
-  isCurrent: () => boolean,
-  deadline: number
-) =>
-  new Promise<void>((resolve) => {
-    let settled = false
-    let eoseReceived = false
-    let settleTimer: ReturnType<typeof setTimeout> | undefined
-    const cutoffTimer = setTimeout(finish, Math.max(0, deadline - Date.now()))
-
-    function finish() {
-      if (settled) return
-      settled = true
-      if (settleTimer) clearTimeout(settleTimer)
-      clearTimeout(cutoffTimer)
-      resolve()
-    }
-    const scheduleSettledFinish = () => {
-      if (settled || !eoseReceived || !isCurrent()) return
-      if (settleTimer) clearTimeout(settleTimer)
-      settleTimer = setTimeout(
-        finish,
-        Math.min(INITIAL_SYNC_SETTLE_MS, Math.max(0, deadline - Date.now()))
-      )
-    }
-    subscription.on("event", scheduleSettledFinish)
-    subscription.on("close", finish)
-    subscription.on("eose", () => {
-      eoseReceived = true
-      scheduleSettledFinish()
-    })
-  })
 
 async function setupSubscription(publicKey: string) {
   const syncGeneration = ++graphSyncGeneration
@@ -466,17 +506,65 @@ async function setupSubscription(publicKey: string) {
     {kinds: [KIND_MUTE_LIST], authors: [publicKey], limit: 1},
   ]
   const initialSyncDeadline = Date.now() + INITIAL_SYNC_TIMEOUT_MS
-  const rootSub = getNdk().subscribe(rootFilters, {
-    // Keep cache and relay events in one ordered worker stream. Readiness uses
-    // its EOSE when available, with one global bounded snapshot cutoff below.
-    transports: ["worker-transport"],
-    waitForCacheBeforeRelays: true,
-  })
-  if (!isCurrentGraphSync(syncGeneration, publicKey)) {
-    rootSub.stop()
-    return
+  const initialSubscriptions = new Set<EventSubscription>()
+  // Each configured relay has an independent historical boundary. An absent
+  // relay must not hold a complete root/mute snapshot from a healthy one.
+  const relayUrls = getNdk().explicitRelayUrls
+  const historyRelays = relayUrls.length ? relayUrls : [undefined]
+  const subscribeHistory = (
+    filters: EventFilter | EventFilter[],
+    onEvent: (event: NostrEvent) => void
+  ) => {
+    let settled = false
+    let complete = false
+    let settleTimer: ReturnType<typeof setTimeout> | undefined
+    let finish!: () => void
+    const promise = new Promise<void>((resolve) => {
+      finish = () => {
+        if (settled) return
+        settled = true
+        if (settleTimer) clearTimeout(settleTimer)
+        clearTimeout(cutoffTimer)
+        resolve()
+      }
+    })
+    const cutoffTimer = setTimeout(finish, Math.max(0, initialSyncDeadline - Date.now()))
+    const settle = () => {
+      if (settled || !complete || !isCurrentGraphSync(syncGeneration, publicKey)) return
+      if (settleTimer) clearTimeout(settleTimer)
+      settleTimer = setTimeout(
+        finish,
+        Math.min(INITIAL_SYNC_SETTLE_MS, Math.max(0, initialSyncDeadline - Date.now()))
+      )
+    }
+    for (const relayUrl of historyRelays) {
+      const subscription = getNdk().subscribe(filters, {
+        transports: ["worker-transport"],
+        relayUrls: relayUrl ? [relayUrl] : undefined,
+        isolated: true,
+        waitForCacheBeforeRelays: true,
+      })
+      initialSubscriptions.add(subscription)
+      activeOpinionSubscriptions.add(subscription)
+      subscription.on("event", (event: NostrEvent) => {
+        onEvent(event)
+        settle()
+      })
+      subscription.on("eose", () => {
+        if (
+          subscription.completion?.complete &&
+          subscription.completion.reason === "eose"
+        ) {
+          complete = true
+          settle()
+        }
+      })
+      subscription.on("close", () => {
+        if (!isCurrentGraphSync(syncGeneration, publicKey)) finish()
+      })
+    }
+    return promise
   }
-  sub = rootSub
 
   let latestTime = 0
   let initialSyncDone = false
@@ -497,6 +585,18 @@ async function setupSubscription(publicKey: string) {
     }
 
     if (initialSyncDone) {
+      if (instance.getFollowedByUser(publicKey).size === 0) {
+        void ensureDefaultNetwork(publicKey, () =>
+          isCurrentGraphSync(syncGeneration, publicKey)
+        )
+          .then(() => {
+            if (isCurrentGraphSync(syncGeneration, publicKey)) {
+              notifyGraphChange()
+              useSocialGraphStore.getState().setReady(true)
+            }
+          })
+          .catch(error)
+      }
       queueMicrotask(() =>
         getMissingFollowLists(publicKey, () =>
           isCurrentGraphSync(syncGeneration, publicKey)
@@ -504,80 +604,67 @@ async function setupSubscription(publicKey: string) {
       )
     }
   }
-  rootSub.on("event", handleRootEvent)
 
-  const hydrateDirectFollowOpinions = async () => {
-    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-    const hydratedAuthors = new Set<string>()
-
-    // Root contact data can arrive while the first opinion batch is loading.
-    // Continue until every direct follow in the settled root snapshot was read.
-    while (
-      isCurrentGraphSync(syncGeneration, publicKey) &&
-      Date.now() < initialSyncDeadline
-    ) {
-      const authors = Array.from(instance.getFollowedByUser(publicKey)).filter(
-        (author) => !hydratedAuthors.has(author)
-      )
-      if (authors.length === 0) break
-
-      for (let index = 0; index < authors.length; index += 500) {
-        if (
-          !isCurrentGraphSync(syncGeneration, publicKey) ||
-          Date.now() >= initialSyncDeadline
-        ) {
-          break
-        }
-        const authorsBatch = authors.slice(index, index + 500)
-        const opinionSub = getNdk().subscribe(
-          {
-            kinds: [KIND_CONTACTS, KIND_MUTE_LIST],
-            authors: authorsBatch,
-          },
-          {
-            transports: ["worker-transport"],
-            waitForCacheBeforeRelays: true,
+  const opinionBatches: Promise<void>[] = []
+  const requestedAuthors = new Set<string>()
+  const hydrateDirectFollowOpinions = () => {
+    if (
+      !isCurrentGraphSync(syncGeneration, publicKey) ||
+      Date.now() >= initialSyncDeadline
+    )
+      return
+    const authors = Array.from(instance.getFollowedByUser(publicKey)).filter(
+      (author) => !requestedAuthors.has(author)
+    )
+    for (let index = 0; index < authors.length; index += 500) {
+      const authorsBatch = authors.slice(index, index + 500)
+      authorsBatch.forEach((author) => requestedAuthors.add(author))
+      opinionBatches.push(
+        subscribeHistory(
+          {kinds: [KIND_CONTACTS, KIND_MUTE_LIST], authors: authorsBatch},
+          (event) => {
+            if (isCurrentGraphSync(syncGeneration, publicKey)) {
+              handleSocialGraphEvent(event)
+            }
           }
         )
-        activeOpinionSubscriptions.add(opinionSub)
-
-        opinionSub.on("event", (event) => {
-          if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-          handleSocialGraphEvent(event as NostrEvent)
-        })
-        await waitForInitialSubscription(
-          opinionSub,
-          () => isCurrentGraphSync(syncGeneration, publicKey),
-          initialSyncDeadline
-        )
-        activeOpinionSubscriptions.delete(opinionSub)
-        opinionSub.stop()
-        authorsBatch.forEach((author) => hydratedAuthors.add(author))
-      }
-
-      await instance.recalculateFollowDistances()
+      )
     }
-    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-    notifyGraphChange()
-    // Ensure visibility caches observe the complete initial opinion snapshot,
-    // even when many mute events arrived inside the throttling window.
-    useSocialGraphStore.getState().incrementMuteListVersion()
   }
-
-  await waitForInitialSubscription(
-    rootSub,
-    () => isCurrentGraphSync(syncGeneration, publicKey),
-    initialSyncDeadline
-  )
+  // Start opinions from the cached graph immediately, then extend the same
+  // hydration as root contacts arrive instead of waiting for root EOSE first.
+  const rootHistory = subscribeHistory(rootFilters, (event) => {
+    handleRootEvent(event)
+    hydrateDirectFollowOpinions()
+  })
+  hydrateDirectFollowOpinions()
+  await rootHistory
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
-
-  await hydrateDirectFollowOpinions()
+  let completedBatches = 0
+  while (completedBatches < opinionBatches.length) {
+    const pending = opinionBatches.slice(completedBatches)
+    completedBatches = opinionBatches.length
+    await Promise.all(pending)
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+    hydrateDirectFollowOpinions()
+  }
+  if (instance.getFollowedByUser(publicKey).size === 0) {
+    await ensureDefaultNetwork(publicKey, () =>
+      isCurrentGraphSync(syncGeneration, publicKey)
+    )
+    if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  }
+  await instance.recalculateFollowDistances()
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  notifyGraphChange()
+  useSocialGraphStore.getState().incrementMuteListVersion()
 
   // Freeze the hydration phase before publishing readiness. Everything after
   // this point is eventual background sync for future feed mounts.
-  rootSub.stop()
-  if (sub === rootSub) sub = undefined
+  initialSubscriptions.forEach((subscription) => {
+    activeOpinionSubscriptions.delete(subscription)
+    subscription.stop()
+  })
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
 
   initialSyncDone = true

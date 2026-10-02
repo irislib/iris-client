@@ -230,7 +230,6 @@ export default defineConfig({
   server: {
     hmr: {
       overlay: true,
-      port: 5173,
     },
     proxy: {
       "/user": {

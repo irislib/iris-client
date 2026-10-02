@@ -93,6 +93,11 @@ test("For You uses the default network until the viewer follows someone", async 
       tags: [["p", muted.publicKey]],
       created_at: now,
     }),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  // Deliver feed posts after login so anonymous discovery cannot legitimately
+  // mark the recommendation seen before this viewer's feed is mounted.
+  await publishEvents([
     signEvent(starter, {kind: 1, content: starterContent, tags: [], created_at: now}),
     recommendedPost,
     signEvent(starter, {
@@ -104,7 +109,6 @@ test("For You uses the default network until the viewer follows someone", async 
     signEvent(muted, {kind: 1, content: mutedContent, tags: [], created_at: now}),
     signEvent(personal, {kind: 1, content: personalContent, tags: [], created_at: now}),
   ])
-  await signUp(page, nip19.nsecEncode(viewer.privateKey))
 
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(posts.filter({hasText: starterContent}).first()).toBeVisible({

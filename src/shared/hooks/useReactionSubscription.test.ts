@@ -33,6 +33,10 @@ const ndkMocks = vi.hoisted(() => {
   }
 })
 
+// These hook tests provide their own graph snapshots; do not start the app's
+// persisted/network graph loader (and its bundled asset) in jsdom.
+vi.mock("@/utils/socialGraph", () => ({getSocialGraph: vi.fn()}))
+
 vi.mock("@/utils/nostrClient", () => ({
   nostr: () => ({subscribe: ndkMocks.subscribe}),
 }))
