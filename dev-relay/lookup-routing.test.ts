@@ -62,7 +62,7 @@ describe("public lookups across incomplete relay coverage", () => {
 
   it("uses a post's relay hint alongside the saved relays", async () => {
     const post = signed(1, "Only on the hinted relay")
-    const instance = client({explicitRelayUrls: [await relay()]})
+    const instance = client({explicitRelayUrls: [await relay()], enableRelayHints: true})
     const hinted = await relay([post])
     const sub = instance.subscribe({ids: [post.id]}, {relayHints: [hinted]})
     const events: string[] = []
@@ -74,6 +74,20 @@ describe("public lookups across incomplete relay coverage", () => {
     expect((await instance.fetchEvent(pointer, {cacheUsage: "network-only"}))?.id).toBe(
       post.id
     )
+  })
+
+  it("ignores relay hints by default", async () => {
+    const post = signed(1, "Only on the hinted relay")
+    const instance = client({explicitRelayUrls: [await relay()]})
+    const hinted = await relay([post])
+    const sub = instance.subscribe({ids: [post.id]}, {relayHints: [hinted]})
+    const events: string[] = []
+    sub.on("event", (event) => events.push(event.id))
+    await new Promise((resolve) => sub.once("eose", resolve))
+    expect(events).toEqual([])
+    expect([...instance.subscriptions.values()]).toEqual([sub])
+    expect(instance.pool.relays.has(hinted)).toBe(false)
+    sub.stop()
   })
 
   it("opens author routes when a relay list arrives after initial history", async () => {

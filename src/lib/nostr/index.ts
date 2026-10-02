@@ -698,7 +698,7 @@ export class NostrClient extends Emitter {
     this.signAuthEvent = opts.signAuthEvent
     this.enableOutboxModel = opts.enableOutboxModel ?? false
     this.discoveryRelayUrls = relayHintsFromUrls(opts.discoveryRelayUrls ?? [])
-    this.enableRelayHints = opts.enableRelayHints ?? true
+    this.enableRelayHints = opts.enableRelayHints ?? false
     this.signer = opts.signer
     this.cacheAdapter = opts.cacheAdapter
     this.explicitRelayUrls = opts.explicitRelayUrls ?? []

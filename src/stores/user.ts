@@ -43,6 +43,7 @@ interface UserState {
   defaultZapComment: string
   ndkOutboxModel: boolean
   autoConnectUserRelays: boolean
+  followRelayHints: boolean
 
   zapDonationEnabled: boolean
   zapDonationRecipients: Array<{
@@ -73,6 +74,7 @@ interface UserState {
   setDefaultZapComment: (defaultZapComment: string) => void
   setNdkOutboxModel: (ndkOutboxModel: boolean) => void
   setAutoConnectUserRelays: (autoConnectUserRelays: boolean) => void
+  setFollowRelayHints: (followRelayHints: boolean) => void
   setZapDonationEnabled: (enabled: boolean) => void
   setZapDonationRecipients: (
     recipients: Array<{recipient: string; percentage: number}>
@@ -109,6 +111,7 @@ export const useUserStore = create<UserState>()(
         defaultZapComment: "",
         ndkOutboxModel: !import.meta.env.VITE_USE_LOCAL_RELAY,
         autoConnectUserRelays: !import.meta.env.VITE_USE_LOCAL_RELAY,
+        followRelayHints: false,
         zapDonationEnabled: false,
         zapDonationRecipients: [
           {
@@ -187,6 +190,7 @@ export const useUserStore = create<UserState>()(
         setNdkOutboxModel: (ndkOutboxModel: boolean) => set({ndkOutboxModel}),
         setAutoConnectUserRelays: (autoConnectUserRelays: boolean) =>
           set({autoConnectUserRelays}),
+        setFollowRelayHints: (followRelayHints: boolean) => set({followRelayHints}),
         setZapDonationEnabled: (enabled: boolean) => set({zapDonationEnabled: enabled}),
         setZapDonationRecipients: (
           recipients: Array<{recipient: string; percentage: number}>

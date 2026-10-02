@@ -90,7 +90,7 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
       relayRuntime.disableExtraRelayUrls || import.meta.env.VITE_USE_TEST_RELAY
         ? []
         : PROFILE_RELAYS,
-    enableRelayHints: !relayRuntime.disableExtraRelayUrls,
+    enableRelayHints: !relayRuntime.disableExtraRelayUrls && store.followRelayHints,
   })
 
   // Create worker transport - it owns relay connectivity and search indexing.

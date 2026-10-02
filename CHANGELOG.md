@@ -3,7 +3,8 @@
 ## 2.5.37 - 2026-10-02
 
 - Discover missing profile names through metadata relays and keep mounted profiles updated after empty or incomplete history.
-- Use relay hints from post links, embedded references, and articles, and follow author relay lists as they arrive.
+- Add an optional "Follow relay hints" network setting for post links, embedded references, and articles; keep it disabled by default.
+- Follow author relay lists as they arrive when the outbox model is enabled.
 - Preserve valid peer lookups by omitting undefined filter fields, and wait for discovery routes before completing one-shot lookups.
 
 ## 2.5.36 - 2026-10-01

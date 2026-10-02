@@ -15,6 +15,8 @@ export function Network() {
     setNdkOutboxModel,
     autoConnectUserRelays,
     setAutoConnectUserRelays,
+    followRelayHints,
+    setFollowRelayHints,
   } = useUserStore()
   const {showRelayIndicator, setShowRelayIndicator} = useUIStore()
 
@@ -49,6 +51,13 @@ export function Network() {
   const handleAutoConnectUserRelaysToggle = async (enabled: boolean) => {
     setAutoConnectUserRelays(enabled)
     // Auto-connect changes require pool reinitialization - reload required
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    window.location.reload()
+  }
+
+  const handleRelayHintsToggle = async (enabled: boolean) => {
+    setFollowRelayHints(enabled)
+    // Reload also releases any subscriptions and connections opened from hints.
     await new Promise((resolve) => setTimeout(resolve, 100))
     window.location.reload()
   }
@@ -110,6 +119,23 @@ export function Network() {
                   className="toggle toggle-primary"
                 />
               </div>
+            </SettingsGroupItem>
+            <SettingsGroupItem isLast>
+              <label className="flex justify-between items-center gap-4">
+                <div className="flex flex-col">
+                  <span>Follow relay hints</span>
+                  <span className="text-sm text-base-content/60">
+                    Connect to relays suggested by post links and references
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  aria-label="Follow relay hints"
+                  checked={followRelayHints}
+                  onChange={(e) => handleRelayHintsToggle(e.target.checked)}
+                  className="toggle toggle-primary"
+                />
+              </label>
             </SettingsGroupItem>
           </SettingsGroup>
 
