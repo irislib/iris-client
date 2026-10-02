@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.39 - 2026-10-02
+
+- Open saved discovery feeds immediately even when relays are silent and the account has no contact list.
+- Show available For You posts while another recommendation source is still waiting, preserving visibility rules and the order of already visible posts.
+
 ## 2.5.38 - 2026-10-02
 
 - Recover replies and reaction counts received before the social graph finishes loading, and reapply visibility when follows, mutes, or reply-distance preferences change.
