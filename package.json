@@ -111,7 +111,7 @@
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.176/nostr-double-ratchet-0.0.176.tgz",
-    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.13/nostr-pubsub-0.5.13.tgz",
+    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
@@ -152,6 +152,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.1.0",
     "knip": "^5.88.1",
+    "nostr-pubsub-reconcile": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz",
     "postcss": "^8.5.22",
     "prettier": "^3.9.6",
     "tailwindcss": "^3.4.19",
@@ -172,8 +173,8 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "nostr-pubsub@0.5.13": "patches/nostr-pubsub.patch",
-      "@hashtree/fips-transport@0.4.17": "patches/hashtree-fips-transport.patch"
+      "@hashtree/fips-transport@0.4.17": "patches/hashtree-fips-transport.patch",
+      "nostr-pubsub@0.5.14": "patches/nostr-pubsub.patch"
     },
     "overrides": {
       "dexie": "$dexie"
