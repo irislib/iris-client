@@ -1,17 +1,17 @@
 diff --git a/dist/browserProvider.d.ts b/dist/browserProvider.d.ts
-index 941f178..34ed7df 100644
+index 6a971f21..031a1beb 100644
 --- a/dist/browserProvider.d.ts
 +++ b/dist/browserProvider.d.ts
 @@ -1,6 +1,8 @@
  import { type FipsNostrPubsubClientOptions, type RuntimeSource } from 'nostr-pubsub';
- import { type Store } from '@hashtree/core';
+ import { type Hash, type Store } from '@hashtree/core';
  import { FipsNode, type FipsIdentity, type Logger } from '@fips/core';
 +import { type BrowserNetworkSnapshot } from './browserStats.js';
 +export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
  import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
  import { WebSocketTransport } from '@fips/transport-websocket';
  import { type FipsBlobRouteSource, type HashtreeWorkerP2PProvider } from './workerProvider.js';
-@@ -34,6 +36,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
+@@ -38,6 +40,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
      readonly node: FipsNode;
      readonly localPeerId: string;
      listConnectedPeerIds(): string[];
@@ -19,7 +19,7 @@ index 941f178..34ed7df 100644
      readonly webRtcTransport: WebRtcTransport;
      readonly webSocketTransport: WebSocketTransport;
      stop(): Promise<void>;
-@@ -55,5 +58,3 @@ export interface BrowserHashtreeNostrProvider extends BrowserHashtreeFipsProvide
+@@ -59,5 +62,3 @@ export interface BrowserHashtreeNostrProvider extends BrowserHashtreeFipsProvide
  }
  /** Files and events share one authenticated FIPS node, identity and set of links. */
  export declare function createBrowserHashtreeNostrProvider(options: BrowserHashtreeNostrProviderOptions): Promise<BrowserHashtreeNostrProvider>;
@@ -27,7 +27,7 @@ index 941f178..34ed7df 100644
 -//# sourceMappingURL=browserProvider.d.ts.map
 \ No newline at end of file
 diff --git a/dist/browserProvider.js b/dist/browserProvider.js
-index 51b936e..b0422ab 100644
+index 61e6496d..33b24f29 100644
 --- a/dist/browserProvider.js
 +++ b/dist/browserProvider.js
 @@ -1,6 +1,7 @@
@@ -50,7 +50,7 @@ index 51b936e..b0422ab 100644
          forwarding: options.forwarding ?? true,
          routingMode: 'reply_learned',
          logger: options.logger,
-@@ -64,6 +66,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+@@ -66,6 +68,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
          candidatePeerIds: () => [...adjacentPeers],
      });
      const removePeerListener = node.on('peer', (data) => {
@@ -58,7 +58,7 @@ index 51b936e..b0422ab 100644
          const peer = data;
          if (!peer.remotePubkey)
              return;
-@@ -80,6 +83,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+@@ -82,6 +85,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
          stopped = true;
          removePeerListener();
          adjacentPeers.clear();
@@ -66,7 +66,7 @@ index 51b936e..b0422ab 100644
          provider.close();
          await node.stop();
      };
-@@ -96,6 +100,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
+@@ -98,6 +102,7 @@ export async function createBrowserHashtreeFipsProvider(options) {
          node,
          localPeerId: toHex(identity.publicKey),
          listConnectedPeerIds: () => [...adjacentPeers],
@@ -74,7 +74,7 @@ index 51b936e..b0422ab 100644
          webRtcTransport,
          webSocketTransport,
          stop,
-@@ -163,4 +168,3 @@ export async function createBrowserHashtreeNostrProvider(options) {
+@@ -165,4 +170,3 @@ export async function createBrowserHashtreeNostrProvider(options) {
          },
      };
  }
@@ -82,7 +82,7 @@ index 51b936e..b0422ab 100644
 \ No newline at end of file
 diff --git a/dist/browserStats.d.ts b/dist/browserStats.d.ts
 new file mode 100644
-index 0000000..fe3aedd
+index 00000000..fe3aeddc
 --- /dev/null
 +++ b/dist/browserStats.d.ts
 @@ -0,0 +1,26 @@
@@ -114,7 +114,7 @@ index 0000000..fe3aedd
 +}
 diff --git a/dist/browserStats.js b/dist/browserStats.js
 new file mode 100644
-index 0000000..cc65d58
+index 00000000..cc65d588
 --- /dev/null
 +++ b/dist/browserStats.js
 @@ -0,0 +1,76 @@
@@ -195,7 +195,7 @@ index 0000000..cc65d58
 +    }
 +}
 diff --git a/src/browserProvider.ts b/src/browserProvider.ts
-index 68513cd..9f7cb56 100644
+index b2e33264..85748534 100644
 --- a/src/browserProvider.ts
 +++ b/src/browserProvider.ts
 @@ -5,7 +5,10 @@ import {
@@ -209,7 +209,7 @@ index 68513cd..9f7cb56 100644
  import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
  import { WebSocketTransport } from '@fips/transport-websocket';
  import {
-@@ -52,6 +55,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
+@@ -56,6 +59,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
    readonly node: FipsNode;
    readonly localPeerId: string;
    listConnectedPeerIds(): string[];
@@ -217,7 +217,7 @@ index 68513cd..9f7cb56 100644
    readonly webRtcTransport: WebRtcTransport;
    readonly webSocketTransport: WebSocketTransport;
    stop(): Promise<void>;
-@@ -100,9 +104,10 @@ export async function createBrowserHashtreeFipsProvider(
+@@ -104,9 +108,10 @@ export async function createBrowserHashtreeFipsProvider(
      allowIncomingPeer: options.allowIncomingPeer,
      logger: options.logger,
    });
@@ -229,7 +229,7 @@ index 68513cd..9f7cb56 100644
      forwarding: options.forwarding ?? true,
      routingMode: 'reply_learned',
      logger: options.logger,
-@@ -117,6 +122,7 @@ export async function createBrowserHashtreeFipsProvider(
+@@ -123,6 +128,7 @@ export async function createBrowserHashtreeFipsProvider(
      candidatePeerIds: () => [...adjacentPeers],
    });
    const removePeerListener = node.on('peer', (data) => {
@@ -237,7 +237,7 @@ index 68513cd..9f7cb56 100644
      const peer = data as { remotePubkey?: string; state?: string };
      if (!peer.remotePubkey) return;
      if (peer.state === 'connected') adjacentPeers.add(peer.remotePubkey);
-@@ -130,6 +136,7 @@ export async function createBrowserHashtreeFipsProvider(
+@@ -136,6 +142,7 @@ export async function createBrowserHashtreeFipsProvider(
      stopped = true;
      removePeerListener();
      adjacentPeers.clear();
@@ -245,7 +245,7 @@ index 68513cd..9f7cb56 100644
      provider.close();
      await node.stop();
    };
-@@ -145,6 +152,7 @@ export async function createBrowserHashtreeFipsProvider(
+@@ -151,6 +158,7 @@ export async function createBrowserHashtreeFipsProvider(
      node,
      localPeerId: toHex(identity.publicKey),
      listConnectedPeerIds: () => [...adjacentPeers],
@@ -255,7 +255,7 @@ index 68513cd..9f7cb56 100644
      stop,
 diff --git a/src/browserStats.ts b/src/browserStats.ts
 new file mode 100644
-index 0000000..8d58ff5
+index 00000000..8d58ff55
 --- /dev/null
 +++ b/src/browserStats.ts
 @@ -0,0 +1,98 @@

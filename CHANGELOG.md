@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.45 - 2026-10-04
+
+- Reconnect browser peers after a reload while keeping cached events and files available.
+- Share cached attachments after restarting the app, using one current runtime across peer transports.
+
 ## 2.5.44 - 2026-10-03
 
 - Keep profile and other feeds steady while follows and mutes update in the background, preserving loaded posts and scroll position.
