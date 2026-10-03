@@ -74,8 +74,11 @@ export default function useFeedEvents({
   const bottomVisibleEventTimestampRef = useRef(bottomVisibleEventTimestamp)
   bottomVisibleEventTimestampRef.current = bottomVisibleEventTimestamp
   const myPubKey = useUserStore((state) => state.publicKey)
-  const [newEventsFrom, setNewEventsFrom] = useState(new Set<string>())
   const [newEvents, setNewEvents] = useState(new Map<string, AppEvent>())
+  const newEventsFrom = useMemo(
+    () => new Set([...newEvents.values()].map((event) => event.pubkey)),
+    [newEvents]
+  )
   const eventSort = useMemo(
     () =>
       sortFn
@@ -84,6 +87,8 @@ export default function useFeedEvents({
     [sortFn]
   )
   const eventsRef = useRef(new SortedMap<string, AppEvent>([], eventSort))
+  const receivedEventsRef = useRef(new Map<string, AppEvent>())
+  const replayEventRef = useRef<(event: AppEvent) => void>(() => {})
   // Buffer for future events (max 20 entries, sorted by timestamp)
   const futureEventsRef = useRef(
     new SortedMap<string, FutureEvent>(
@@ -105,44 +110,21 @@ export default function useFeedEvents({
     () => JSON.stringify(subscriptionFilters?.length ? subscriptionFilters : [filters]),
     [filters, subscriptionFilters]
   )
-  // Ordinary feeds can receive cached posts before graph hydration. Replay their
-  // cache when visibility changes instead of permanently losing those arrivals.
-  const ordinaryVisibility =
-    visibilitySnapshot || filters.search ? "" : visibilityRevision
-  const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}:${ordinaryVisibility}`
+  // Background graph updates change visibility, not the identity of the feed.
+  const feedIdentity = `${cacheKey}:${subscriptionFingerprint}:${displayAs}`
   const previousFeedIdentityRef = useRef(feedIdentity)
   const previousEventSortRef = useRef(eventSort)
-  const previousVisibilityRef = useRef(visibilitySnapshot)
   const feedGenerationRef = useRef(0)
 
   useLayoutEffect(() => {
     if (
       previousFeedIdentityRef.current === feedIdentity &&
-      previousEventSortRef.current === eventSort &&
-      previousVisibilityRef.current === visibilitySnapshot
-    ) {
-      return
-    }
-    if (
-      filters.search &&
-      previousFeedIdentityRef.current === feedIdentity &&
       previousEventSortRef.current === eventSort
     ) {
-      // Graph enrichment must not erase and restart an in-flight search.
-      // Recheck existing rows so changes to personal mutes still take effect.
-      previousVisibilityRef.current = visibilitySnapshot
-      for (const [id, event] of eventsRef.current.entries()) {
-        if (!shouldAcceptEventRef.current(event)) eventsRef.current.delete(id)
-      }
-      searchResultsRef.current = searchResultsRef.current.filter(
-        shouldAcceptEventRef.current
-      )
-      setEventsVersion((version) => version + 1)
       return
     }
     previousFeedIdentityRef.current = feedIdentity
     previousEventSortRef.current = eventSort
-    previousVisibilityRef.current = visibilitySnapshot
     feedGenerationRef.current += 1
 
     for (const [, futureEvent] of futureEventsRef.current.entries()) {
@@ -150,6 +132,7 @@ export default function useFeedEvents({
     }
     futureEventsRef.current.clear()
     eventsRef.current = new SortedMap<string, AppEvent>([], eventSort)
+    receivedEventsRef.current.clear()
     searchResultsRef.current = []
     oldestRef.current = undefined
     setUntilTimestamp(undefined)
@@ -157,12 +140,12 @@ export default function useFeedEvents({
     initialLoadDoneRef.current = false
     setInitialLoadDoneState(false)
     setNewEvents(new Map())
-    setNewEventsFrom(new Set())
     setEventsVersion((version) => version + 1)
-  }, [eventSort, feedIdentity, visibilitySnapshot, filters.search])
+  }, [eventSort, feedIdentity])
 
   const resolvedSubscriptionFilters = useMemo(() => {
-    const baseFilters = subscriptionFilters?.length ? subscriptionFilters : [filters]
+    // Equivalent filter objects from parent renders must not restart subscriptions.
+    const baseFilters: EventFilter[] = JSON.parse(subscriptionFingerprint)
 
     return baseFilters.flatMap((filter) => {
       const builtFilters = buildSearchSubscriptionFilters(
@@ -173,7 +156,7 @@ export default function useFeedEvents({
 
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
-  }, [filters, subscriptionFilters, untilTimestamp])
+  }, [subscriptionFingerprint, untilTimestamp])
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -182,13 +165,15 @@ export default function useFeedEvents({
     return feedConfig.relayUrls.map(normalizeRelay)
   }, [JSON.stringify(feedConfig.relayUrls)])
 
-  const shouldAcceptEventRef = useRef<(event: AppEvent) => boolean>(() => false)
+  const shouldAcceptEventRef = useRef<
+    (event: AppEvent, alreadyVisible?: boolean) => boolean
+  >(() => false)
 
-  shouldAcceptEventRef.current = (event: AppEvent) => {
+  shouldAcceptEventRef.current = (event: AppEvent, alreadyVisible = false) => {
     if (!event.created_at) return false
 
     // Early exit: excludeSeen check (combined duplicate checks)
-    if (feedConfig.excludeSeen && seenEventIds.has(event.id)) {
+    if (!alreadyVisible && feedConfig.excludeSeen && seenEventIds.has(event.id)) {
       return false
     }
 
@@ -280,10 +265,42 @@ export default function useFeedEvents({
 
       if (!eventsRef.current.has(eventId) && shouldAcceptEventRef.current!(event)) {
         setNewEvents((prev) => new Map([...prev, [eventId, event]]))
-        setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
       }
     }
   }, [])
+
+  useLayoutEffect(() => {
+    // Recheck policy in place: clearing the list even for one frame collapses
+    // the scroll container and unmounts media, replies, and expanded post state.
+    let changed = false
+    for (const [id, event] of eventsRef.current.entries()) {
+      if (!shouldAcceptEventRef.current(event, true)) {
+        eventsRef.current.delete(id)
+        changed = true
+      }
+    }
+    if (changed) {
+      searchResultsRef.current = searchResultsRef.current.filter((event) =>
+        eventsRef.current.has(event.id)
+      )
+      setEventsVersion((version) => version + 1)
+    }
+    setNewEvents((previous) => {
+      const visible = new Map(
+        [...previous].filter(([, event]) => shouldAcceptEventRef.current(event))
+      )
+      return visible.size === previous.size ? previous : visible
+    })
+    // Replay arrivals from every loaded page, including posts rejected before
+    // graph hydration. The normal insertion path still buffers new visible posts.
+    if (!filters.search) {
+      receivedEventsRef.current.forEach((event) => {
+        if (!newEvents.has(event.id) && !futureEventsRef.current.has(event.id)) {
+          replayEventRef.current(event)
+        }
+      })
+    }
+  }, [visibilityRevision, visibilitySnapshot])
 
   // Add future event to buffer with individual timer
   const addFutureEvent = useCallback((event: AppEvent) => {
@@ -326,7 +343,6 @@ export default function useFeedEvents({
       }
     })
     setNewEvents(new Map())
-    setNewEventsFrom(new Set())
     setEventsVersion((prev) => prev + 1)
 
     // Debug logging
@@ -432,6 +448,7 @@ export default function useFeedEvents({
 
     injectedEvents.forEach((event) => {
       if (!event?.id || !event.created_at) return
+      receivedEventsRef.current.set(event.id, event)
       if (eventsRef.current.has(event.id)) return
       if (!shouldAcceptEventRef.current!(event)) return
 
@@ -475,6 +492,7 @@ export default function useFeedEvents({
     const handleEvent = (event: AppEvent) => {
       if (generation !== feedGenerationRef.current) return
       if (!event?.id || !event.created_at) return
+      receivedEventsRef.current.set(event.id, event)
       if (eventsRef.current.has(event.id)) return
       if (!shouldAcceptEventRef.current!(event)) {
         return
@@ -497,7 +515,6 @@ export default function useFeedEvents({
       }
       const addNew = () => {
         setNewEvents((prev) => new Map([...prev, [event.id, event]]))
-        setNewEventsFrom((prev) => new Set([...prev, event.pubkey]))
       }
 
       const isMyRecent =
@@ -522,6 +539,7 @@ export default function useFeedEvents({
 
       markLoadDoneIfHasEvents()
     }
+    replayEventRef.current = handleEvent
 
     const controller = filters.search
       ? subscribeSearch(
@@ -575,7 +593,6 @@ export default function useFeedEvents({
     addFutureEvent,
     addEventToMain,
     enabled,
-    filters.search ? null : visibilitySnapshot,
     relayUrls,
   ])
 

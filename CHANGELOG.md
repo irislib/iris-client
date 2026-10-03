@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.44 - 2026-10-03
+
+- Keep profile and other feeds steady while follows and mutes update in the background, preserving loaded posts and scroll position.
+- Recover posts received before graph hydration without restarting the feed or removing posts just marked as read.
+
 ## 2.5.43 - 2026-10-03
 
 - Move the private favorite star beside the message action on profiles and show privacy reminders in tooltips.
