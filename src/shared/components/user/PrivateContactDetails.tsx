@@ -51,7 +51,12 @@ export function PrivateContactDetails({
   }
   return (
     <details className="text-sm" data-testid="private-contact-details">
-      <summary className="cursor-pointer text-base-content/60">Private details</summary>
+      <summary
+        className="cursor-pointer text-base-content/60"
+        title="Only you can see this"
+      >
+        Private details
+      </summary>
       <form
         className="mt-3 flex flex-col gap-3"
         onSubmit={(event) => {

@@ -22,6 +22,7 @@ import Modal from "@/shared/components/ui/Modal.tsx"
 import Icon from "@/shared/components/Icons/Icon"
 import {Helmet} from "react-helmet"
 import {ContactMemoryControls} from "@/shared/components/user/ContactMemoryControls"
+import {FavoriteButton} from "@/shared/components/user/FavoriteButton"
 import {useContactMemoryStore} from "@/stores/contactMemory"
 import {useContactMemory} from "@/shared/hooks/useContactMemory"
 
@@ -85,7 +86,7 @@ const ProfileHeader = ({
           </Modal>
         )}
         <div className="flex flex-col gap-4 px-4 -mt-16">
-          <div className="flex flex-row items-end gap-8 mt-4 justify-between select-none">
+          <div className="flex flex-row flex-wrap items-end gap-2 sm:gap-8 mt-4 justify-between select-none">
             <span
               onClick={() => profile?.picture && setShowProfilePhotoModal(true)}
               className="cursor-pointer shrink-0 rounded-full bg-base-200 ring-4 ring-base-200 shadow-lg"
@@ -111,7 +112,11 @@ const ProfileHeader = ({
               </Modal>
             )}
 
-            <div className="flex flex-row gap-2" data-testid="profile-header-actions">
+            <div
+              className="flex flex-row gap-1.5 sm:gap-2 max-sm:[&_.btn]:h-10 max-sm:[&_.btn]:min-h-10 max-sm:[&_.btn]:px-2 max-sm:[&_.btn-circle]:w-10"
+              data-testid="profile-header-actions"
+            >
+              <FavoriteButton key={`${myPubKey}:${pubKeyHex}`} pubkey={pubKeyHex} />
               {myPubKey && pubKeyHex && (
                 <button
                   className="btn btn-circle btn-neutral"
@@ -153,7 +158,7 @@ const ProfileHeader = ({
               </small>
             )}
           </div>
-          <ContactMemoryControls pubkey={pubKeyHex} showFavorite />
+          <ContactMemoryControls pubkey={pubKeyHex} showDetails />
           <ProfileDetails
             pubKey={pubKey}
             displayProfile={profile || undefined}

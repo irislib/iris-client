@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.43 - 2026-10-03
+
+- Move the private favorite star beside the message action on profiles and show privacy reminders in tooltips.
+
 ## 2.5.42 - 2026-10-03
 
 - Recover missing relay events with bounded optional reconciliation while keeping live updates and cached offline reading available.

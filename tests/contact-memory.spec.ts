@@ -77,14 +77,18 @@ test("private favorites and approved names survive profile changes and chat relo
     await page.getByRole("button", {name: "Start chat", exact: true}).click()
     await expect.poll(async () => (await memory())?.accepted_name).toBe("Alice Original")
     await page.goto(`/${nip19.npubEncode(peer)}`)
-    await page.getByRole("button", {name: "Favorite", exact: true}).click()
+    const actions = page.getByTestId("profile-header-actions")
+    const favorite = actions.getByRole("button", {name: "Favorite", exact: true})
+    await expect(favorite).toHaveAttribute("title", "Favorite · Only you can see this")
+    await expect(favorite).toHaveText("")
+    await favorite.click()
     await expect(
       page.getByRole("button", {name: "Favorited", exact: true})
     ).toHaveAttribute("aria-pressed", "true")
     await expect(
       page.getByTestId("profile-hero-avatar").getByTitle("Following", {exact: true})
     ).toHaveCount(0)
-    await expect(page.getByText("Only you can see this", {exact: true})).toBeVisible()
+    await expect(page.getByText("Only you can see this", {exact: true})).toHaveCount(0)
     expect(published.some((event) => event.kind === 3)).toBe(false)
 
     await publish(relay.url, profile("Alicia Updated", 10))
@@ -93,7 +97,19 @@ test("private favorites and approved names survive profile changes and chat relo
     await expect(proposal).toContainText("Alice Original now goes by Alicia Updated.")
     await expect(main.getByText("Alice Original", {exact: true}).first()).toBeVisible()
     expect((await memory()).accepted_name).toBe("Alice Original")
-    await page.setViewportSize({width: 390, height: 844})
+    await page.setViewportSize({width: 360, height: 800})
+    const favoriteBox = (await actions
+      .getByRole("button", {name: "Favorited", exact: true})
+      .boundingBox())!
+    const messageBox = (await actions
+      .getByRole("button", {name: "Start chat", exact: true})
+      .boundingBox())!
+    expect(Math.abs(favoriteBox.y - messageBox.y)).toBeLessThan(2)
+    expect(messageBox.x - (favoriteBox.x + favoriteBox.width)).toBeGreaterThanOrEqual(0)
+    expect(messageBox.x - (favoriteBox.x + favoriteBox.width)).toBeLessThanOrEqual(8)
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)
+    ).toBe(true)
     await mkdir("work/contact-memory", {recursive: true})
     await page.screenshot({
       path: "work/contact-memory/profile-pending-mobile.png",
