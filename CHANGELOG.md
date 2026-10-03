@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.42 - 2026-10-03
+
+- Recover missing relay events with bounded optional reconciliation while keeping live updates and cached offline reading available.
+- Use the published nostr-pubsub 0.5.14 runtime and shared reconciliation codec.
+
 ## 2.5.41 - 2026-10-02
 
 - Preserve the correct people, follows, and mutes when merging imported social graphs.
