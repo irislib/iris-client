@@ -17,6 +17,7 @@ test("can create and use a group chat with self", async ({page}) => {
   await ensureCurrentDeviceRegistered(page)
 
   // Navigate to group creation
+  await page.goto("/chats/new")
   await page.getByRole("link", {name: "Group"}).click()
 
   // No members needed (self is always included)
