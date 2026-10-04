@@ -118,6 +118,12 @@ describe("release site config", () => {
     expect(e2eStepIndex).toBeLessThan(publishStepIndex)
     expect(e2eStepIndex).toBeLessThan(deployStepIndex)
     expect(e2eStep.command).toEqual(["pnpm", "run", "test:release:e2e"])
+    const chatStepIndex = plan.steps.findIndex((step) =>
+      step.command.includes("test:release:chat")
+    )
+    expect(chatStepIndex).toBeGreaterThan(e2eStepIndex)
+    expect(chatStepIndex).toBeLessThan(publishStepIndex)
+    expect(chatStepIndex).toBeLessThan(deployStepIndex)
   })
 
   it("supports tree overrides", async () => {
@@ -167,7 +173,15 @@ describe("release site config", () => {
       )
     })
 
-    expect(calls).toEqual(["build", "test-1", "test-2", "test-3", "publish", "deploy"])
+    expect(calls).toEqual([
+      "build",
+      "test-1",
+      "test-2",
+      "test-3",
+      "test-4",
+      "publish",
+      "deploy",
+    ])
     expect(maxActiveReleaseSteps).toBe(2)
   })
 })

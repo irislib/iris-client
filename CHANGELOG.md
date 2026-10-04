@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.46 - 2026-10-04
+
+- Direct new chat users to Iris Chat, carrying the selected profile into the conversation link.
+- Keep chats and history available on already registered devices, without automatically enabling chats for new accounts.
+- Require production-build checks for chat handoff and existing direct and group conversations before deployment.
+
 ## 2.5.45 - 2026-10-04
 
 - Reconnect browser peers after a reload while keeping cached events and files available.

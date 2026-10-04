@@ -1,5 +1,6 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 import {usingBuiltDist} from "./utils/built-dist"
 
 test.skip(usingBuiltDist, "uses a dev-only window store hook to seed message requests")
@@ -7,6 +8,7 @@ test.skip(usingBuiltDist, "uses a dev-only window store hook to seed message req
 test.describe("Message Requests Tab", () => {
   test("stays on Requests tab after opening a request chat", async ({page}) => {
     await signUp(page, "Test User")
+    await ensureCurrentDeviceRegistered(page)
 
     // Seed a single incoming DM so the Requests tab has something to show.
     // This avoids relying on relay publish/receive in e2e, while still exercising

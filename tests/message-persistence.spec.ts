@@ -1,10 +1,12 @@
 import {test, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
+import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 import {usingBuiltDist} from "./utils/built-dist"
 
 test.skip(usingBuiltDist, "requires deterministic local-relay private messaging")
 
 async function setupChatWithSelf(page) {
+  await ensureCurrentDeviceRegistered(page)
   // Go to own profile via the sidebar user row
   const profileLink = page.locator('[data-testid="sidebar-user-row"]').first()
   await profileLink.click()

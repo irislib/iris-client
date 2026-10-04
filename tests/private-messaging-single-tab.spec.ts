@@ -8,7 +8,7 @@ test("keeps the encrypted messaging runtime single-writer across tabs", async ({
   await signUp(page)
 
   const secondPage = await context.newPage()
-  await secondPage.goto("/chats/new/devices")
+  await secondPage.goto("/settings/devices")
   await expect(
     secondPage
       .getByText("Private messaging is active in another tab", {exact: false})

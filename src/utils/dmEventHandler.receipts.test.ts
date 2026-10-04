@@ -108,7 +108,6 @@ describe("dmEventHandler receipts", () => {
       sessionManagerReady: true,
       hasLocalAppKeys: true,
       lastEventTimestamp: 1,
-      pendingAutoRegistration: false,
       canSendPrivateMessages: true,
     })
     useMessagesStore.setState({

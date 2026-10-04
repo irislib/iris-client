@@ -9,7 +9,7 @@ test.skip(usingBuiltDist, "requires local-relay private messaging device setup")
 test("link device invite auto-accepts on paste", async ({page}) => {
   const {publicKey} = await signUp(page)
 
-  await page.goto("/chats/new/devices")
+  await page.goto("/settings/devices")
   await page.waitForLoadState("domcontentloaded")
 
   const openButton = page.getByRole("button", {name: "Link another device"})

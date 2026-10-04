@@ -3,7 +3,10 @@ import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 import {waitForConnectedRelays} from "./utils/relay-status"
 import {nip19} from "nostr-tools"
-import {expectDmMessageInputEnabled} from "./private-messaging-helpers"
+import {
+  expectDmMessageInputEnabled,
+  ensureCurrentDeviceRegistered,
+} from "./private-messaging-helpers"
 
 test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
 
@@ -60,49 +63,6 @@ async function waitForNextCreatedAtSecond(): Promise<void> {
 
 function pageWait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-async function ensureCurrentDeviceRegistered(page: Page) {
-  await page.goto("/chats/new/devices")
-  await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({
-    timeout: 10000,
-  })
-
-  const registerButton = page.getByRole("button", {name: "Register this device"})
-  const thisDeviceBadge = page.locator("span.badge").filter({hasText: /^This device$/})
-
-  if (!(await thisDeviceBadge.isVisible().catch(() => false))) {
-    if (await registerButton.isVisible({timeout: 2000}).catch(() => false)) {
-      await Promise.race([
-        thisDeviceBadge.waitFor({state: "visible", timeout: 3000}),
-        registerButton.waitFor({state: "hidden", timeout: 3000}),
-      ]).catch(() => {})
-
-      if (
-        !(await thisDeviceBadge.isVisible().catch(() => false)) &&
-        (await registerButton.isVisible().catch(() => false))
-      ) {
-        await registerButton.click({timeout: 10000})
-
-        const confirmDialog = page
-          .locator("dialog[open]")
-          .filter({has: page.getByRole("heading", {name: "Confirm Device Registration"})})
-
-        await Promise.race([
-          thisDeviceBadge.waitFor({state: "visible", timeout: 5000}),
-          confirmDialog.waitFor({state: "visible", timeout: 5000}),
-        ]).catch(() => {})
-
-        if (await confirmDialog.isVisible().catch(() => false)) {
-          await confirmDialog
-            .getByRole("button", {name: "Register Device"})
-            .click({timeout: 10000, force: true})
-        }
-      }
-    }
-  }
-
-  await expect(thisDeviceBadge).toBeVisible({timeout: 20000})
 }
 
 test.describe("Self-messaging between linked devices", () => {

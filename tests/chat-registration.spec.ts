@@ -1,22 +1,18 @@
-import {test, expect} from "@playwright/test"
-import {
-  finalizeEvent,
-  generateSecretKey,
-  getPublicKey,
-  nip19,
-  type EventTemplate,
-} from "nostr-tools"
+import {test, expect, type Page} from "@playwright/test"
+import {generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {signIn, signUp} from "./auth.setup"
 import {ensureCurrentDeviceRegistered} from "./private-messaging-helpers"
 import {usingBuiltDist} from "./utils/built-dist"
 
-test.skip(usingBuiltDist, "requires local-relay private messaging device setup")
+const needsLocalRelay = usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true"
+const chatLink = (page: Page) =>
+  page.getByRole("link", {name: "Open Iris Chat", exact: true})
 
 for (const viewport of [
   {name: "desktop", width: 1280, height: 800},
   {name: "mobile", width: 390, height: 844},
 ]) {
-  test(`${viewport.name}: registration is required and continues to the intended chat`, async ({
+  test(`${viewport.name}: new chat users go to Iris Chat with the intended recipient`, async ({
     page,
   }, testInfo) => {
     test.setTimeout(90000)
@@ -25,17 +21,25 @@ for (const viewport of [
     const publicKey = getPublicKey(secret)
     await signUp(page, nip19.nsecEncode(secret))
 
-    for (const path of ["/chats", "/chats/new", "/chats/new/group"]) {
+    for (const path of [
+      "/chats",
+      "/chats/new",
+      "/chats/new/group",
+      "/chats/new/devices",
+    ]) {
       await page.goto(path)
-      await expect(page.getByRole("heading", {name: "Set up chats"})).toBeVisible()
+      await expect(chatLink(page)).toHaveAttribute("href", "https://chat.iris.to/", {
+        timeout: 15000,
+      })
       await expect(
         page.getByRole("button", {name: "Register this device", exact: true})
-      ).toBeEnabled({timeout: 15000})
-      await expect(page.getByRole("link", {name: "New Chat", exact: true})).toBeHidden()
+      ).toBeHidden()
+      await expect(
+        page.getByRole("button", {name: "Link another device", exact: true})
+      ).toBeHidden()
       await expect(
         page.getByPlaceholder("Search users, paste npub or chat invite link")
       ).toBeHidden()
-      await expect(page.getByRole("button", {name: /Next/})).toBeHidden()
     }
 
     await page.goto(`/${nip19.npubEncode(publicKey)}`)
@@ -45,37 +49,78 @@ for (const viewport of [
       .first()
       .click()
     await expect(page).toHaveURL(/\/chats\/chat$/)
-    await expect(page.getByRole("heading", {name: "Set up chats"})).toBeVisible()
+    const destination = `https://chat.iris.to/#/${nip19.npubEncode(publicKey)}`
+    await expect(chatLink(page)).toHaveAttribute("href", destination)
     await expect(page.getByPlaceholder("Message")).toBeHidden()
     await page.screenshot({
-      path: testInfo.outputPath(`${viewport.name}-registration.png`),
+      path: testInfo.outputPath(`${viewport.name}-chat-handoff.png`),
     })
-
-    await page.getByRole("button", {name: "Register this device", exact: true}).click()
-    const messageInput = page.getByPlaceholder("Message").last()
-    await expect(messageInput).toBeEnabled({timeout: 30000})
-    await expect(page).toHaveURL(/\/chats\/chat$/)
-    await messageInput.fill("Ready to chat on this device")
-    await messageInput.press("Enter")
-    await expect(
-      page
-        .locator(".whitespace-pre-wrap")
-        .getByText("Ready to chat on this device")
-        .last()
-    ).toBeVisible()
-
-    await page.goto("/chats/new")
-    await expect(
-      page.getByPlaceholder("Search users, paste npub or chat invite link").last()
-    ).toBeVisible({timeout: 15000})
-    await expect(page.getByRole("heading", {name: "Set up chats"})).toBeHidden()
+    await page.route("https://chat.iris.to/**", (route) =>
+      route.fulfill({body: "Iris Chat"})
+    )
+    await chatLink(page).click()
+    await expect(page).toHaveURL(destination)
   })
 }
 
-test("another registered device does not bypass setup; confirmation can be cancelled and retried", async ({
+test("signing up no longer registers this device for chats", async ({page}) => {
+  test.skip(needsLocalRelay, "uses an isolated relay for account creation")
+  await signUp(page)
+  await page.goto("/chats")
+  await expect(chatLink(page)).toHaveAttribute("href", "https://chat.iris.to/", {
+    timeout: 15000,
+  })
+  await page.reload()
+  await expect(chatLink(page)).toBeVisible({timeout: 15000})
+  await expect(page.getByRole("link", {name: "New Chat", exact: true})).toBeHidden()
+})
+
+test("signed-out and read-only users can open Iris Chat without signing in here", async ({
+  page,
+}) => {
+  await page.goto("/chats")
+  await expect(chatLink(page)).toHaveAttribute("href", "https://chat.iris.to/")
+  await signUp(page, nip19.npubEncode(getPublicKey(generateSecretKey())))
+  await page.goto("/chats")
+  await expect(chatLink(page)).toBeVisible()
+  await expect(page.getByRole("heading", {name: "Sign in to use chats"})).toBeHidden()
+})
+
+test("existing registered devices keep chats and history after reload", async ({
+  page,
+}) => {
+  test.skip(needsLocalRelay, "requires local-relay private messaging setup")
+  test.setTimeout(60000)
+  const owner = await signUp(page)
+  await ensureCurrentDeviceRegistered(page)
+  await page.goto(`/${nip19.npubEncode(owner.publicKey)}`)
+  await page
+    .getByTestId("profile-header-actions")
+    .locator("button.btn-circle")
+    .first()
+    .click()
+  const input = page.getByPlaceholder("Message").last()
+  await expect(input).toBeEnabled({timeout: 15000})
+  await input.fill("Keep my existing conversation")
+  await input.press("Enter")
+  await expect(
+    page.locator(".whitespace-pre-wrap").getByText("Keep my existing conversation").last()
+  ).toBeVisible()
+  await page.reload()
+  await expect(input).toBeEnabled({timeout: 15000})
+  await expect(
+    page.locator(".whitespace-pre-wrap").getByText("Keep my existing conversation").last()
+  ).toBeVisible()
+  await expect(chatLink(page)).toBeHidden()
+  await page.goto("/chats/new/devices")
+  await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible()
+})
+
+test("a device registered elsewhere does not opt a new browser into chats", async ({
   page,
   browser,
-}, testInfo) => {
+}) => {
+  test.skip(needsLocalRelay, "requires local-relay device setup")
   test.setTimeout(90000)
   const owner = await signUp(page)
   await ensureCurrentDeviceRegistered(page)
@@ -83,93 +128,21 @@ test("another registered device does not bypass setup; confirmation can be cance
   try {
     const otherPage = await otherContext.newPage()
     await signIn(otherPage, owner.privateKey)
-    await otherPage.goto("/chats/new/group")
-    await expect(otherPage.getByRole("heading", {name: "Set up chats"})).toBeVisible()
-    const register = otherPage.getByRole("button", {
-      name: "Register this device",
-      exact: true,
-    })
-    await expect(register).toBeEnabled({timeout: 15000})
-    await register.click()
-    const dialog = otherPage.locator("dialog[open]")
-    await expect(dialog).toBeVisible({timeout: 15000})
-    await dialog.getByRole("button", {name: "Cancel", exact: true}).click()
-    await expect(dialog).toBeHidden()
-    await expect(otherPage.getByRole("heading", {name: "Set up chats"})).toBeVisible()
-    await register.click()
-    await expect(dialog).toBeVisible({timeout: 15000})
-    await otherPage.screenshot({
-      path: testInfo.outputPath("registration-confirmation.png"),
-    })
-    await dialog.getByRole("button", {name: "Register Device", exact: true}).click()
-    await expect(otherPage.getByRole("button", {name: /Next/})).toBeEnabled({
-      timeout: 30000,
-    })
-    await expect(otherPage).toHaveURL(/\/chats\/new\/group$/)
+    await otherPage.goto("/chats")
+    await expect(chatLink(otherPage)).toBeVisible({timeout: 15000})
+    await expect(
+      otherPage.getByRole("button", {name: "Register this device", exact: true})
+    ).toBeHidden()
   } finally {
     await otherContext.close()
   }
 })
 
-test("read-only accounts get a sign-in action instead of a setup spinner", async ({
-  page,
-}) => {
-  await signUp(page, nip19.npubEncode(getPublicKey(generateSecretKey())))
-  await page.goto("/chats")
-  await expect(page.getByRole("heading", {name: "Sign in to use chats"})).toBeVisible()
-  await page.getByRole("button", {name: "Sign in", exact: true}).click()
-  await expect(page.getByRole("heading", {name: "Sign in", exact: true})).toBeVisible()
-})
-
-test("a rejected registration stays gated and can be retried", async ({page}) => {
-  test.setTimeout(60000)
-  const secret = generateSecretKey()
-  const publicKey = getPublicKey(secret)
-  let rejectRegistration = true
-  await page.exposeFunction("signRegistrationTestEvent", (event: EventTemplate) => {
-    if (event.kind === 37368 && rejectRegistration) {
-      throw new Error("User rejected signature")
-    }
-    return finalizeEvent(event, secret)
-  })
-  await page.addInitScript((ownerPubkey) => {
-    window.nostr = {
-      getPublicKey: async () => ownerPubkey,
-      signEvent: (event) =>
-        (
-          window as unknown as {
-            signRegistrationTestEvent: (
-              event: unknown
-            ) => Promise<ReturnType<typeof finalizeEvent>>
-          }
-        ).signRegistrationTestEvent(event),
-    }
-  }, publicKey)
-  await page.goto("/chats")
-  await page.getByRole("button", {name: "Sign in", exact: true}).click()
-  await page.getByRole("button", {name: "Nostr Extension Login"}).click()
-  await expect(page.locator("dialog[open]")).toBeHidden()
-  const register = page.getByRole("button", {name: "Register this device", exact: true})
-  await expect(register).toBeEnabled({timeout: 15000})
-  await register.click()
-  await expect(page.getByRole("alert")).toHaveText(
-    "Couldn’t register this device. Please try again.",
-    {timeout: 15000}
-  )
-  await expect(page.getByRole("link", {name: "New Chat", exact: true})).toBeHidden()
-
-  rejectRegistration = false
-  await register.click()
-  await expect(page.getByRole("link", {name: "New Chat", exact: true})).toBeVisible({
-    timeout: 15000,
-  })
-  await expect(page.getByRole("alert")).toBeHidden()
-})
-
-test("another tab explains how to recover instead of offering registration", async ({
+test("another tab still explains how to recover existing chats", async ({
   page,
   context,
 }) => {
+  test.skip(needsLocalRelay, "requires local-relay device setup")
   test.setTimeout(60000)
   await signUp(page)
   await ensureCurrentDeviceRegistered(page)
@@ -178,9 +151,6 @@ test("another tab explains how to recover instead of offering registration", asy
   await expect(
     otherTab.getByRole("heading", {name: "Chats is open in another tab"})
   ).toBeVisible()
-  await expect(
-    otherTab.getByRole("button", {name: "Register this device", exact: true})
-  ).toBeHidden()
   await page.close()
   await otherTab.getByRole("button", {name: "Reload", exact: true}).click()
   await expect(otherTab.getByRole("link", {name: "New Chat", exact: true})).toBeVisible({

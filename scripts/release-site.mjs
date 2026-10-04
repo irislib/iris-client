@@ -40,6 +40,7 @@ export const releaseProfile = {
     ],
     ["pnpm", "run", "smoke:portable"],
     ["pnpm", "run", "test:release:e2e"],
+    ["pnpm", "run", "test:release:chat"],
   ],
 }
 

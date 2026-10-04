@@ -39,7 +39,6 @@ import {
   setPrivateMessagingAvailable,
 } from "@/shared/services/PrivateChats"
 import {onCurrentDeviceRemovedFromRoster, useDevicesStore} from "./stores/devices"
-import {autoRegisterDevice} from "./utils/autoRegisterDevice"
 import {syncInjectedHtreeHeadAssetUrls} from "./utils/nativeHtree"
 
 // Auto-update and auto-reload the PWA when a new service worker version is available.
@@ -62,7 +61,6 @@ const startPrivateMessaging = (ownerPubkey: string) => {
       useDevicesStore.getState().setIdentityPubkey(dm.getIdentityPublicKey())
       syncDisappearingMessagesToNdrRuntime().catch(error)
       subscribeToDMNotifications()
-      void autoRegisterDevice()
       log("Device activated and session listener attached")
     })
     .catch((err) => error("Failed to activate device:", err))

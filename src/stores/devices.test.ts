@@ -10,7 +10,6 @@ const resetStore = () => {
     sessionManagerReady: false,
     hasLocalAppKeys: false,
     lastEventTimestamp: 0,
-    pendingAutoRegistration: false,
     privateMessagingBlocked: false,
     canSendPrivateMessages: false,
   })

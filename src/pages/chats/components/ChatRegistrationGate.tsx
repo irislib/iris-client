@@ -1,65 +1,57 @@
 import {type ReactNode} from "react"
 import {RiLockFill} from "@remixicon/react"
 import {Helmet} from "react-helmet"
+import {nip19} from "nostr-tools"
 import {useLocation} from "@/navigation"
 import Header from "@/shared/components/header/Header"
 import {useDevicesStore} from "@/stores/devices"
 import {useUserStore} from "@/stores/user"
-import {useUIStore} from "@/stores/ui"
 import {hasWriteAccessForState} from "@/utils/auth"
-import RegisterDevice from "../devices/RegisterDevice"
 
 export default function ChatRegistrationGate({children}: {children: ReactNode}) {
-  const {pathname} = useLocation()
+  const {pathname, state} = useLocation()
   const publicKey = useUserStore((state) => state.publicKey)
   const hasWriteAccess = useUserStore(hasWriteAccessForState)
   const linkedDevice = useUserStore((state) => state.linkedDevice)
-  const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const {
     canSendPrivateMessages,
     appKeysManagerReady,
     sessionManagerReady,
-    pendingAutoRegistration,
     privateMessagingBlocked,
   } = useDevicesStore()
 
-  // Keep device management reachable while chats are waiting for registration.
-  // Rendering in place preserves the destination and recipient after setup.
-  if (
-    pathname === "/chats/new/devices" ||
-    (publicKey && hasWriteAccess && canSendPrivateMessages && !privateMessagingBlocked)
-  ) {
+  // Existing registered devices retain their chats and device management.
+  if (publicKey && hasWriteAccess && canSendPrivateMessages && !privateMessagingBlocked) {
     return children
   }
 
   const needsSignIn = !publicKey || !hasWriteAccess
-  const isInitializing =
-    !appKeysManagerReady || !sessionManagerReady || pendingAutoRegistration
+  const isInitializing = !appKeysManagerReady || !sessionManagerReady
+  const recipient = pathname === "/chats/chat" ? state?.id : undefined
+  const chatUrl =
+    typeof recipient === "string" && /^[0-9a-f]{64}$/i.test(recipient)
+      ? `https://chat.iris.to/#/${nip19.npubEncode(recipient)}`
+      : "https://chat.iris.to/"
   const reloadButton = (
     <button className="btn btn-primary w-full" onClick={() => window.location.reload()}>
       Reload
     </button>
   )
-  let title = "Set up chats"
-  let description = "Register this device to send and receive encrypted messages."
-  let action: ReactNode = <RegisterDevice />
+  let title = "Chat on Iris Chat"
+  let description = "Open Iris Chat for private messages and group conversations."
+  let action: ReactNode = (
+    <a className="btn btn-primary w-full" href={chatUrl}>
+      Open Iris Chat
+    </a>
+  )
 
-  if (needsSignIn) {
-    title = "Sign in to use chats"
-    description = "Sign in or link this device to your account to get started."
-    action = (
-      <button
-        className="btn btn-primary w-full"
-        onClick={() => setShowLoginDialog(true, "signin")}
-      >
-        Sign in
-      </button>
-    )
-  } else if (privateMessagingBlocked) {
+  if (!needsSignIn && privateMessagingBlocked) {
     title = "Chats is open in another tab"
     description = "Close the other tab, then reload to use chats here."
     action = reloadButton
-  } else if (isInitializing) {
+  } else if (!needsSignIn && isInitializing) {
+    title = "Chats"
+    description = ""
     action = (
       <div
         role="status"
@@ -69,7 +61,7 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
         Getting chats ready…
       </div>
     )
-  } else if (linkedDevice) {
+  } else if (!needsSignIn && linkedDevice) {
     title = "Finish linking this device"
     description = "Approve this device from your other device to use chats here."
     action = reloadButton
@@ -78,7 +70,7 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
   return (
     <section className="flex flex-1 flex-col min-h-0">
       <Helmet>
-        <title>Set up chats</title>
+        <title>{title}</title>
       </Helmet>
       <Header title="Chats" slideUp={false} />
       <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 pt-[calc(5rem+env(safe-area-inset-top))] pb-[calc(5rem+env(safe-area-inset-bottom))] md:py-12">

@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.45",
+  "version": "2.5.46",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -55,7 +55,8 @@
     "release:groups": "node ./scripts/release-groups.mjs",
     "format": "prettier --write \"**/*.+(js|jsx|ts|tsx|json|yml|yaml|css|md)\"",
     "format:check": "prettier --check \"**/*.+(js|jsx|ts|tsx|json|yml|yaml|css|md)\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:release:chat": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/chat-registration.spec.ts tests/group-admin-edit.spec.ts tests/multi-device-groups.spec.ts --workers=2 --reporter=list"
   },
   "build": {
     "extends": null,
