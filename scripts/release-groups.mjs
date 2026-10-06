@@ -15,6 +15,7 @@ export const releaseSteps = [
       "run",
       "src/groups",
       "src/lib/publishConfirmedEvent.test.ts",
+      "src/lib/offlinePublishing.test.ts",
       "src/groupsBuildConfig.test.ts",
       "src/portableBuildConfig.test.ts",
       "src/utils/reaction.test.ts",

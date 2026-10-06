@@ -47,6 +47,15 @@ diff --git a/src/runtime-types.ts b/src/runtime-types.ts
 diff --git a/src/runtime.ts b/src/runtime.ts
 --- a/src/runtime.ts
 +++ b/src/runtime.ts
+@@ -25,7 +25,7 @@
+   private readonly listeners = new Set<Listener>();
+   private readonly interests = new RuntimeInterests<Listener>();
+   private readonly incoming = new Map<string, { operation: Promise<Awaited<ReturnType<typeof admitRuntimeEvent>>>; sources: Set<string> }>();
+-  private readonly publishing = new Map<string, Promise<RuntimePublishResult>>();
++  private readonly publishing = new Map<string, { result: Promise<RuntimePublishResult>; delivery: Promise<RuntimePublishResult> }>();
+   private writes: Promise<unknown> = Promise.resolve();
+   private stopped = false;
+   private retryTimer?: ReturnType<typeof setTimeout>;
 @@ -80,6 +80,9 @@
      });
    }
@@ -67,7 +76,55 @@ diff --git a/src/runtime.ts b/src/runtime.ts
          if (admission === 'admitted' || listener.options.includeSuperseded) this.deliver(listener, event, { source, cached: false });
        }
        return admission === 'admitted';
-@@ -167,7 +171,7 @@
+@@ -112,11 +116,23 @@
+   publish(event: NostrEvent, options: RuntimePublishOptions = {}): Promise<RuntimePublishResult> {
++    return this.startPublish(event, options).result;
++  }
++  private startPublish(event: NostrEvent, options: RuntimePublishOptions) {
+     this.ensureOpen();
+     const key = JSON.stringify([event.id, options]);
+     const existing = this.publishing.get(key);
+     if (existing) return existing;
+-    const promise = this.publishOnce(event, options).finally(() => this.publishing.delete(key));
+-    this.publishing.set(key, promise);
+-    return promise;
++    let resolve!: (result: RuntimePublishResult) => void;
++    let reject!: (error: unknown) => void;
++    const result = new Promise<RuntimePublishResult>((res, rej) => { resolve = res; reject = rej; });
++    let queued = false;
++    const delivery = this.publishOnce(event, options, (report) => { queued = true; resolve(report); });
++    void delivery.then(resolve, (error) => {
++      reject(error);
++      if (queued) { try { this.options.onError?.(asError(error)); } catch { /* preserve delivery cleanup */ } }
++    }).finally(() => this.publishing.delete(key));
++    const publication = { result, delivery };
++    this.publishing.set(key, publication);
++    return publication;
+   }
+   async retryPending(): Promise<void> {
+     if (this.stopped || this.retrying) return;
+@@ -124,7 +140,10 @@
+     try {
+       const pending = await this.store.listPending();
+       for (let offset = 0; offset < pending.length && !this.stopped; offset += 4) {
+-        await Promise.all(pending.slice(offset, offset + 4).map(({ event, relays, sources }) => this.publish(event, { relays, sources }).catch((error) => this.options.onError?.(asError(error)))));
++        await Promise.all(pending.slice(offset, offset + 4).map(({ event, relays, sources }) => {
++          const { result, delivery } = this.startPublish(event, { relays, sources });
++          return Promise.all([result, delivery]).catch((error) => this.options.onError?.(asError(error)));
++        }));
+       }
+     } finally { this.retrying = false; }
+   }
+@@ -157,7 +176,7 @@
+     for (const listener of [...this.listeners]) { this.complete(listener, 'closed'); this.stopListener(listener); }
+     this.relays.close();
+     await this.writes;
+-    await Promise.allSettled([...this.publishing.values()]);
++    await Promise.allSettled([...this.publishing.values()].map(({ delivery }) => delivery));
+     await this.store.close?.();
+   }
+   private async startListener(listener: Listener): Promise<void> {
+@@ -167,7 +186,7 @@
      if (listener.options.cache !== 'cache-only') {
        for (const url of listener.options.relays?.map((url) => new URL(url).toString()) ?? this.relays.urls()) listener.pending.add(url);
        const subscription = this.relays.subscribe(listener.filters, (event, source) => this.receive(listener, event, source),
@@ -76,7 +133,7 @@ diff --git a/src/runtime.ts b/src/runtime.ts
        listener.closers.set('relay-transport', () => subscription.close());
        for (const source of this.sources.values()) if (this.wantsSource(listener, source.id)) { listener.pending.add(source.id); void this.attachSource(listener, source); }
      }
-@@ -199,7 +203,7 @@
+@@ -199,7 +218,7 @@
            deadline: listener.options.deadline ?? Date.now() + (this.options.historyTimeoutMs ?? 10000), signal: listener.controller.signal,
          });
          if (listener.stopped || this.sources.get(source.id) !== source) return;
@@ -85,7 +142,7 @@ diff --git a/src/runtime.ts b/src/runtime.ts
          this.sourceState(listener, source.id, report.complete !== false);
        } else this.sourceState(listener, source.id, false, 'Source has no historical completion');
      } catch (error) {
-@@ -211,13 +215,15 @@
+@@ -211,13 +230,15 @@
    private receive(listener: Listener, event: NostrEvent, source: string): void {
      if (listener.stopped) return;
      this.counters.receivedEvents++;
@@ -105,6 +162,24 @@ diff --git a/src/runtime.ts b/src/runtime.ts
      if (listener.seen.size > (this.options.maxSeenEventsPerSubscription ?? 4096)) listener.seen.delete(listener.seen.values().next().value!);
      this.counters.deliveredEvents++;
      try { listener.handlers.onEvent(event, info); } catch (error) { this.report(listener, error); }
+@@ -272,7 +293,7 @@
+     for (const close of listener.closers.values()) close();
+     listener.closers.clear(); this.listeners.delete(listener); this.interests.remove(listener);
+   }
+-  private async publishOnce(raw: NostrEvent, options: RuntimePublishOptions): Promise<RuntimePublishResult> {
++  private async publishOnce(raw: NostrEvent, options: RuntimePublishOptions, onQueued: (result: RuntimePublishResult) => void): Promise<RuntimePublishResult> {
+     const event = verifyNostrEvent(raw, this.options.verifyEvent);
+     const queue = !options.requireAck && options.queue !== false;
+     const echo = !options.requireAck && options.localEcho !== false;
+@@ -294,6 +315,8 @@
+       ) });
+     }
+     const outcomes: RuntimePublishResult['sources'] = attempts.map(({ id }) => ({ id, accepted: false, pending: true }));
++    // Resolve the caller after local persistence, while retaining delivery for retries and shutdown.
++    if (queue) onQueued({ accepted: false, remoteAccepted: false, queued: true, sources: outcomes.map((outcome) => ({ ...outcome })) });
+     const accepted = await new Promise<boolean>((resolve) => {
+       let remaining = attempts.length;
+       if (!remaining) resolve(false);
 diff --git a/dist/runtime-relays.d.ts b/dist/runtime-relays.d.ts
 --- a/dist/runtime-relays.d.ts
 +++ b/dist/runtime-relays.d.ts
@@ -167,7 +242,11 @@ diff --git a/dist/runtime-types.d.ts b/dist/runtime-types.d.ts
 diff --git a/dist/runtime.d.ts b/dist/runtime.d.ts
 --- a/dist/runtime.d.ts
 +++ b/dist/runtime.d.ts
-@@ -30,6 +30,7 @@
+@@ -27,9 +27,11 @@
+     addSource(source: RuntimeSource): void;
+     removeSource(id: string): void;
+     close(): Promise<void>;
++    private startPublish;
      private startListener;
      private wantsSource;
      private attachSource;
@@ -200,7 +279,63 @@ diff --git a/dist/runtime.js b/dist/runtime.js
                      if (admission === 'admitted' || listener.options.includeSuperseded)
                          this.deliver(listener, event, { source, cached: false });
                  }
-@@ -200,7 +205,7 @@
+@@ -119,14 +124,31 @@
+         }
+     }
+     publish(event, options = {}) {
++        return this.startPublish(event, options).result;
++    }
++    startPublish(event, options) {
+         this.ensureOpen();
+         const key = JSON.stringify([event.id, options]);
+         const existing = this.publishing.get(key);
+         if (existing)
+             return existing;
+-        const promise = this.publishOnce(event, options).finally(() => this.publishing.delete(key));
+-        this.publishing.set(key, promise);
+-        return promise;
++        let resolve;
++        let reject;
++        const result = new Promise((res, rej) => { resolve = res; reject = rej; });
++        let queued = false;
++        const delivery = this.publishOnce(event, options, (report) => { queued = true; resolve(report); });
++        void delivery.then(resolve, (error) => {
++            reject(error);
++            if (queued) {
++                try {
++                    this.options.onError?.(asError(error));
++                }
++                catch { /* preserve delivery cleanup */ }
++            }
++        }).finally(() => this.publishing.delete(key));
++        const publication = { result, delivery };
++        this.publishing.set(key, publication);
++        return publication;
+     }
+     async retryPending() {
+         if (this.stopped || this.retrying)
+@@ -135,7 +157,10 @@
+         try {
+             const pending = await this.store.listPending();
+             for (let offset = 0; offset < pending.length && !this.stopped; offset += 4) {
+-                await Promise.all(pending.slice(offset, offset + 4).map(({ event, relays, sources }) => this.publish(event, { relays, sources }).catch((error) => this.options.onError?.(asError(error)))));
++                await Promise.all(pending.slice(offset, offset + 4).map(({ event, relays, sources }) => {
++                    const { result, delivery } = this.startPublish(event, { relays, sources });
++                    return Promise.all([result, delivery]).catch((error) => this.options.onError?.(asError(error)));
++                }));
+             }
+         }
+         finally {
+@@ -190,7 +215,7 @@
+         }
+         this.relays.close();
+         await this.writes;
+-        await Promise.allSettled([...this.publishing.values()]);
++        await Promise.allSettled([...this.publishing.values()].map(({ delivery }) => delivery));
+         await this.store.close?.();
+     }
+     async startListener(listener) {
+@@ -200,7 +225,7 @@
          if (listener.options.cache !== 'cache-only') {
              for (const url of listener.options.relays?.map((url) => new URL(url).toString()) ?? this.relays.urls())
                  listener.pending.add(url);
@@ -209,7 +344,7 @@ diff --git a/dist/runtime.js b/dist/runtime.js
              listener.closers.set('relay-transport', () => subscription.close());
              for (const source of this.sources.values())
                  if (this.wantsSource(listener, source.id)) {
-@@ -250,7 +255,7 @@
+@@ -250,7 +275,7 @@
                  if (listener.stopped || this.sources.get(source.id) !== source)
                      return;
                  for (const { event } of report.events)
@@ -218,7 +353,7 @@ diff --git a/dist/runtime.js b/dist/runtime.js
                  this.sourceState(listener, source.id, report.complete !== false);
              }
              else
-@@ -267,20 +272,22 @@
+@@ -267,20 +292,22 @@
          if (listener.stopped)
              return;
          this.counters.receivedEvents++;
@@ -245,3 +380,22 @@ diff --git a/dist/runtime.js b/dist/runtime.js
          if (listener.seen.size > (this.options.maxSeenEventsPerSubscription ?? 4096))
              listener.seen.delete(listener.seen.values().next().value);
          this.counters.deliveredEvents++;
+@@ -361,7 +388,7 @@
+         this.listeners.delete(listener);
+         this.interests.remove(listener);
+     }
+-    async publishOnce(raw, options) {
++    async publishOnce(raw, options, onQueued) {
+         const event = verifyNostrEvent(raw, this.options.verifyEvent);
+         const queue = !options.requireAck && options.queue !== false;
+         const echo = !options.requireAck && options.localEcho !== false;
+@@ -384,6 +411,9 @@
+                 }), this.options.publishTimeoutMs ?? 5000) });
+         }
+         const outcomes = attempts.map(({ id }) => ({ id, accepted: false, pending: true }));
++        // Resolve the caller after local persistence, while retaining delivery for retries and shutdown.
++        if (queue)
++            onQueued({ accepted: false, remoteAccepted: false, queued: true, sources: outcomes.map((outcome) => ({ ...outcome })) });
+         const accepted = await new Promise((resolve) => {
+             let remaining = attempts.length;
+             if (!remaining)

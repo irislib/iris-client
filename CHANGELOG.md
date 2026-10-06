@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.47 - 2026-10-06
+
+- Save posts, replies, and group activity to the offline outbox without waiting for relay responses.
+- Keep queued posts across reloads and retry delivery automatically without creating duplicate posts or clearing the next draft.
+
 ## 2.5.46 - 2026-10-04
 
 - Direct new chat users to Iris Chat, carrying the selected profile into the conversation link.

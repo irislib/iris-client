@@ -1,20 +1,17 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {verifyEvent} from "nostr-tools"
-import NostrClient, {AppEvent, SecretKeySigner, Relay, RelaySet} from "@/lib/nostr"
+import NostrClient, {AppEvent, SecretKeySigner} from "@/lib/nostr"
 import {publishGroupEvent} from "./publish"
 
 const runtime = vi.hoisted(() => ({
   instance: undefined as NostrClient | undefined,
   publicKey: "",
-  workerAvailable: true,
   publish: vi.fn(),
   cacheEvent: vi.fn(),
 }))
 
 vi.mock("@/utils/nostrClient", () => ({
   nostr: () => runtime.instance,
-  getWorkerTransport: () =>
-    runtime.workerAvailable ? {publish: runtime.publish} : undefined,
 }))
 vi.mock("@/utils/eventCache", () => ({cacheEvent: runtime.cacheEvent}))
 vi.mock("@/stores/user", () => ({
@@ -41,7 +38,7 @@ function pauseSigning(signer: SecretKeySigner) {
   return {started, release: () => release()}
 }
 
-describe("acknowledged group publishing", () => {
+describe("offline-first group publishing", () => {
   let instance: NostrClient
   let signer: SecretKeySigner
   let dispatch: ReturnType<typeof vi.spyOn>
@@ -55,7 +52,7 @@ describe("acknowledged group publishing", () => {
     instance.signer = signer
     runtime.instance = instance
     runtime.publicKey = signer.pubkey
-    runtime.workerAvailable = true
+    instance.transportPlugins.push({publish: runtime.publish})
     runtime.publish.mockReset().mockResolvedValue(undefined)
     runtime.cacheEvent.mockReset()
     dispatch = vi.spyOn(instance.subManager, "dispatchEvent").mockImplementation(() => {})
@@ -72,10 +69,10 @@ describe("acknowledged group publishing", () => {
     expect(dispatch).not.toHaveBeenCalled()
   }
 
-  it("does not cache or dispatch a signed event rejected by the relay", async () => {
-    runtime.publish.mockRejectedValueOnce(new Error("Relay rejected the event"))
+  it("does not clear a draft when its local outbox commit fails", async () => {
+    runtime.publish.mockRejectedValueOnce(new Error("Local storage failed"))
     await expect(publishGroupEvent(draft(), ["wss://relay.example"])).rejects.toThrow(
-      "Relay rejected the event"
+      "Local storage failed"
     )
     expect(runtime.publish).toHaveBeenCalledOnce()
     const [event, relays, options] = runtime.publish.mock.calls[0]
@@ -84,24 +81,24 @@ describe("acknowledged group publishing", () => {
     expect(relays.map((relay: {url: string}) => relay.url)).toEqual([
       "wss://relay.example",
     ])
-    expect(options).toEqual({requireAck: true})
+    expect(options?.requireAck).not.toBe(true)
     expect(runtime.cacheEvent).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it("waits for acknowledgement before caching and dispatching", async () => {
-    let acknowledge!: () => void
+  it("waits for the local outbox commit before caching and dispatching", async () => {
+    let commit!: () => void
     let entered!: () => void
     const started = new Promise<void>((resolve) => (entered = resolve))
     runtime.publish.mockImplementationOnce(() => {
       entered()
-      return new Promise<void>((resolve) => (acknowledge = resolve))
+      return new Promise<void>((resolve) => (commit = resolve))
     })
     const publishing = publishGroupEvent(draft())
     await started
     expect(runtime.cacheEvent).not.toHaveBeenCalled()
     expect(dispatch).not.toHaveBeenCalled()
-    acknowledge()
+    commit()
     const event = await publishing
     expect(runtime.cacheEvent).toHaveBeenCalledExactlyOnceWith(event)
     expect(dispatch).toHaveBeenCalledExactlyOnceWith(event, undefined, true)
@@ -118,47 +115,19 @@ describe("acknowledged group publishing", () => {
     expectUnpublished()
   })
 
-  it("does not produce an optimistic echo when the fallback relay rejects", async () => {
-    runtime.workerAvailable = false
-    const relay = new Relay("wss://relay.example", undefined, instance)
-    const relaySet = new RelaySet(new Set([relay]), instance)
-    instance.devWriteRelaySet = relaySet
-    const send = vi.spyOn(relay, "publish").mockRejectedValue(new Error("Rejected"))
-    const optimisticPublish = vi.spyOn(AppEvent.prototype, "publish")
-    const seen = vi.spyOn(instance.subManager, "seenEvent")
-    await expect(publishGroupEvent(draft())).rejects.toThrow("No relay confirmed")
-    expect(send).toHaveBeenCalledOnce()
-    expect(send.mock.calls[0].slice(1)).toEqual([10_000])
-    expect(optimisticPublish).not.toHaveBeenCalled()
-    expect(seen).not.toHaveBeenCalled()
-    expectUnpublished()
-  })
-
-  it("dispatches exactly once after the fallback confirms a relay accepted the event", async () => {
-    runtime.workerAvailable = false
-    const relay = new Relay("wss://relay.example", undefined, instance)
-    const relaySet = new RelaySet(new Set([relay]), instance)
-    instance.devWriteRelaySet = relaySet
-    let acknowledge!: (accepted: boolean) => void
-    let entered!: () => void
-    const started = new Promise<void>((resolve) => (entered = resolve))
-    vi.spyOn(relay, "publish").mockImplementation(() => {
-      entered()
-      return new Promise<boolean>((resolve) => (acknowledge = resolve))
-    })
-    const optimisticPublish = vi.spyOn(AppEvent.prototype, "publish")
-    const seen = vi.spyOn(instance.subManager, "seenEvent")
-    const publishing = publishGroupEvent(draft())
-    await started
-    expectUnpublished()
-    expect(seen).not.toHaveBeenCalled()
-    acknowledge(true)
-    const event = await publishing
-    expect(verifyEvent(event.rawEvent())).toBe(true)
-    expect(optimisticPublish).not.toHaveBeenCalled()
-    expect(seen).toHaveBeenCalledExactlyOnceWith(event.id, relay)
-    expect(runtime.cacheEvent).toHaveBeenCalledExactlyOnceWith(event)
-    expect(dispatch).toHaveBeenCalledExactlyOnceWith(event, undefined, true)
+  it("queues through the same publisher without a worker or connected relay", async () => {
+    instance.transportPlugins.length = 0
+    try {
+      const event = await publishGroupEvent(draft())
+      expect(verifyEvent(event.rawEvent())).toBe(true)
+      expect(
+        (await instance.getRuntime().store.listPending()).map((entry) => entry.event.id)
+      ).toEqual([event.id])
+      expect(runtime.cacheEvent).toHaveBeenCalledExactlyOnceWith(event)
+      expect(dispatch).toHaveBeenCalledExactlyOnceWith(event, undefined, true)
+    } finally {
+      await instance.close()
+    }
   })
 
   it("does not send a vote when a slow signer returns after the deadline", async () => {

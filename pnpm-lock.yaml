@@ -12,7 +12,7 @@ patchedDependencies:
     hash: faganjkkhokw5yl7hrcuig7p6a
     path: patches/hashtree-fips-transport.patch
   nostr-pubsub@0.5.14:
-    hash: 3vznbp3wv2dyymqspxgdkbqzay
+    hash: v4qi66p6ylnoepecocs4gtu5je
     path: patches/nostr-pubsub.patch
 
 importers:
@@ -114,7 +114,7 @@ importers:
         version: https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.176/nostr-double-ratchet-0.0.176.tgz(typescript@5.9.3)
       nostr-pubsub:
         specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz
-        version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=3vznbp3wv2dyymqspxgdkbqzay)(nostr-tools@2.24.1(typescript@5.9.3))
+        version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=v4qi66p6ylnoepecocs4gtu5je)(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-social-graph:
         specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz
         version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz(typescript@5.9.3)
@@ -6627,7 +6627,7 @@ snapshots:
       '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/v0.2.0/fips-tcp-0.2.0.tgz
       nostr-tools: 2.24.1(typescript@5.9.3)
 
-  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=3vznbp3wv2dyymqspxgdkbqzay)(nostr-tools@2.24.1(typescript@5.9.3)):
+  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=v4qi66p6ylnoepecocs4gtu5je)(nostr-tools@2.24.1(typescript@5.9.3)):
     dependencies:
       '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/v0.2.0/fips-tcp-0.2.0.tgz
       nostr-pubsub-reconcile: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz

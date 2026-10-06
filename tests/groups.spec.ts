@@ -18,6 +18,7 @@ import {
 } from "../src/groups/model"
 import {signUp} from "./auth.setup"
 import {expectPersistedDraft} from "./utils/drafts"
+import {usingBuiltDist} from "./utils/built-dist"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 
 const test = base.extend<{groupRelay: Awaited<ReturnType<typeof startNostrRelay>>}>({
@@ -690,61 +691,116 @@ test("a shared request still accepts three independent confirmations", async ({p
   }
 })
 
-test("a rejected group post keeps its draft and does not appear as confirmed", async ({
-  page,
-}) => {
-  const secret = generateSecretKey()
-  const group = {creator: getPublicKey(secret), id: crypto.randomUUID()}
-  const metadata = finalizeEvent(
-    {
-      ...createGroupDraft({
-        ...group,
-        name: "Relay recovery",
-        description: "A local recovery check",
-      }),
-      created_at: Math.floor(Date.now() / 1000) - 1,
-    },
-    secret
-  )
-  let rejectPosts = true
-  const relay = await startNostrRelay({
-    port: 0,
-    initialEvents: [metadata],
-    rejectEvent: (event) =>
-      rejectPosts && event.kind === 1 ? "blocked: test relay policy" : undefined,
-  })
-  try {
-    await prepare(page, relay.port)
-    await signUp(page, nip19.nsecEncode(secret))
-    await page.goto(`/groups/${group.creator}/${group.id}`)
-    const composer = page.getByPlaceholder("Post to Relay recovery")
-    await composer.fill("A proposal worth keeping")
-    await composer.press("Meta+Enter")
-    await expect(page.getByText(/Could not publish post/).first()).toBeVisible({
-      timeout: 15000,
+async function pendingPosts(page: Page, content: string) {
+  return page.evaluate(async (content) => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("iris-pubsub")
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => reject(request.error)
     })
-    await expect(composer).toHaveValue("A proposal worth keeping")
-    await expectPersistedDraft(page, "A proposal worth keeping")
-    await expect(
-      page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
-    ).toHaveCount(0)
-    rejectPosts = false
-    await page
-      .getByTestId("note-creator")
-      .filter({has: composer})
-      .getByRole("button", {name: "Post", exact: true})
-      .click()
-    await expect(
-      page.getByTestId("feed-item").filter({hasText: "A proposal worth keeping"})
-    ).toHaveCount(1, {timeout: 15000})
-    await expect(composer).toHaveValue("")
-  } finally {
-    await page.close()
-    await relay.close()
-  }
-})
+    try {
+      return await new Promise<string[]>((resolve, reject) => {
+        const request = database
+          .transaction("unpublishedEvents")
+          .objectStore("unpublishedEvents")
+          .getAll()
+        request.onsuccess = () =>
+          resolve(
+            request.result
+              .filter((entry) => entry.event.content === content)
+              .map((entry) => entry.event.id)
+          )
+        request.onerror = () => reject(request.error)
+      })
+    } finally {
+      database.close()
+    }
+  }, content)
+}
 
-test("a confirmed shortcut post clears a remounted editor and its saved draft", async ({
+for (const offline of [false, true]) {
+  test(`a ${offline ? "fully offline" : "rejected"} group post is saved and delivered automatically after recovery`, async ({
+    page,
+    context,
+    browser,
+  }, testInfo) => {
+    test.skip(
+      offline && !usingBuiltDist,
+      "offline reload requires the production service worker"
+    )
+    const secret = generateSecretKey()
+    const group = {creator: getPublicKey(secret), id: crypto.randomUUID()}
+    const metadata = finalizeEvent(
+      {
+        ...createGroupDraft({
+          ...group,
+          name: "Relay recovery",
+          description: "A local recovery check",
+        }),
+        created_at: Math.floor(Date.now() / 1000) - 1,
+      },
+      secret
+    )
+    let rejectPosts = true
+    const relay = await startNostrRelay({
+      port: 0,
+      initialEvents: [metadata],
+      rejectEvent: (event) =>
+        rejectPosts && event.kind === 1 ? "blocked: test relay policy" : undefined,
+    })
+    const readerContext = await browser.newContext()
+    try {
+      await prepare(page, relay.port)
+      await signUp(page, nip19.nsecEncode(secret))
+      const path = `/groups/${group.creator}/${group.id}`
+      await page.goto(path)
+      const composer = page.getByPlaceholder("Post to Relay recovery")
+      await expect(composer).toBeVisible()
+      if (offline) {
+        await page.evaluate(() => navigator.serviceWorker.ready.then(() => true))
+        await page.reload()
+        await expect(composer).toBeVisible()
+        await context.setOffline(true)
+      }
+      const content = "A proposal worth keeping"
+      await composer.fill(content)
+      await composer.press("Meta+Enter")
+      await expect(composer).toHaveValue("", {timeout: 2000})
+      const post = page.getByTestId("feed-item").filter({hasText: content})
+      await expect(post).toHaveCount(1)
+      await expect(page.getByText(/Could not publish post/)).toHaveCount(0)
+      await expectPersistedDraft(page, content, false)
+      const id = (await post.getAttribute("data-event-id"))!
+      await expect.poll(() => pendingPosts(page, content)).toEqual([id])
+      await page.reload({waitUntil: "domcontentloaded"})
+      await expect(post).toHaveCount(1)
+      await expect(composer).toHaveValue("")
+      await expect.poll(() => pendingPosts(page, content)).toEqual([id])
+      await page.screenshot({
+        path: testInfo.outputPath(
+          offline ? "offline-group-post.png" : "queued-group-post.png"
+        ),
+      })
+      rejectPosts = false
+      if (offline) await context.setOffline(false)
+      await expect.poll(() => pendingPosts(page, content), {timeout: 15000}).toEqual([])
+      const reader = await readerContext.newPage()
+      await prepare(reader, relay.port)
+      await reader.goto(path)
+      await expect(
+        reader.getByTestId("feed-item").filter({hasText: content})
+      ).toHaveCount(1, {timeout: 15000})
+      await expect(post).toHaveCount(1)
+      await expect(page.getByText(/Could not publish post/)).toHaveCount(0)
+    } finally {
+      await readerContext.close()
+      await page.close()
+      await relay.close()
+    }
+  })
+}
+
+test("a shortcut post clears its draft without waiting for relay acknowledgement", async ({
   page,
 }) => {
   const secret = generateSecretKey()
@@ -779,11 +835,11 @@ test("a confirmed shortcut post clears a remounted editor and its saved draft", 
     await expectPersistedDraft(page, content)
     await composer.press("Meta+Enter")
     await expect(page.getByTestId("feed-item").filter({hasText: content})).toHaveCount(1)
-    await expect(composer).toHaveValue(content)
+    await expect(composer).toHaveValue("", {timeout: 2000})
     await page.getByRole("tab", {name: "Polls", exact: true}).click()
     await page.getByRole("tab", {name: "Posts", exact: true}).click()
-    await expect(composer).toHaveValue(content)
-    expect(acknowledge).toBeDefined()
+    await expect(composer).toHaveValue("", {timeout: 2000})
+    await expect.poll(() => !!acknowledge).toBe(true)
     acknowledge!()
     await expect(composer).toHaveValue("")
     await expectPersistedDraft(page, content, false)
@@ -796,6 +852,7 @@ test("a confirmed shortcut post clears a remounted editor and its saved draft", 
     await expect(
       page.getByTestId("feed-item").filter({hasText: "Another shortcut post"})
     ).toHaveCount(1)
+    await expect(composer).toHaveValue("", {timeout: 2000})
     await composer.fill("My next draft")
     await expectPersistedDraft(page, "My next draft")
     acknowledge!()

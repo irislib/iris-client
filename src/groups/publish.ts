@@ -1,8 +1,7 @@
-import {AppEvent, Relay, RelaySet} from "@/lib/nostr"
-import {getWorkerTransport, nostr} from "@/utils/nostrClient"
+import {AppEvent, RelaySet} from "@/lib/nostr"
+import {nostr} from "@/utils/nostrClient"
 import {cacheEvent} from "@/utils/eventCache"
 import {useUserStore} from "@/stores/user"
-import {publishConfirmedEvent} from "@/lib/publishConfirmedEvent"
 
 const lastSignedAt = new Map<string, number>()
 const signingQueues = new Map<string, Promise<void>>()
@@ -43,7 +42,7 @@ async function signInOrder(event: AppEvent, window: SigningWindow) {
   }
 }
 
-/** Group writes are successful only after a relay acknowledges the signed event. */
+/** Commit group writes to the offline outbox before clearing the editor. */
 export async function publishGroupEvent(
   draft: {kind: number; content: string; tags: string[][]} | AppEvent,
   relayUrls?: string[],
@@ -61,20 +60,11 @@ export async function publishGroupEvent(
   ) {
     throw new Error("This poll has closed.")
   }
-  const transport = getWorkerTransport()
-  if (transport) {
-    await transport.publish(
-      event,
-      relayUrls?.map((url) => new Relay(url, undefined, instance)),
-      {requireAck: true}
-    )
-  } else {
-    const relaySet = relayUrls?.length
-      ? RelaySet.fromRelayUrls(relayUrls, instance)
-      : undefined
-    await publishConfirmedEvent(event, relaySet)
-  }
+  const relaySet = relayUrls?.length
+    ? RelaySet.fromRelayUrls(relayUrls, instance)
+    : instance.devWriteRelaySet
+  await event.publish(relaySet)
   cacheEvent(event)
-  if (transport) instance.subManager.dispatchEvent(event, undefined, true)
+  instance.subManager.dispatchEvent(event, undefined, true)
   return event
 }

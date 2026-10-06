@@ -1,6 +1,7 @@
 import {expect, test, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {startNostrRelay} from "../dev-relay/nostr-relay"
 
 test.skip(!usingBuiltDist, "requires the production service worker")
 async function post(page: Page, content: string) {
@@ -8,9 +9,47 @@ async function post(page: Page, content: string) {
   const dialog = page.getByRole("dialog")
   await dialog.getByPlaceholder("What's on your mind?").fill(content)
   await dialog.getByRole("button", {name: "Post", exact: true}).click()
-  await page.waitForURL(/\/note[a-z0-9]+/)
+  await page.waitForURL(/\/note[a-z0-9]+/, {timeout: 2000})
   await expect(page.getByText(content, {exact: true}).first()).toBeVisible()
 }
+
+test("a public post completes before its relay acknowledges delivery", async ({
+  page,
+  browser,
+}) => {
+  const acknowledgements: Array<() => void> = []
+  const relay = await startNostrRelay({
+    port: 0,
+    acknowledgeEvent: (event, acknowledge) => {
+      if (event.kind === 1) acknowledgements.push(acknowledge)
+      else acknowledge()
+    },
+  })
+  const readerContext = await browser.newContext()
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    }, relay.port)
+    await signUp(page, "Silent relay writer")
+    const content = `Already sent without an acknowledgement ${Date.now()}`
+    await post(page, content)
+    await expect.poll(() => acknowledgements.length).toBeGreaterThan(0)
+    const reader = await readerContext.newPage()
+    await reader.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    }, relay.port)
+    await reader.goto(page.url())
+    await expect(reader.getByText(content, {exact: true}).first()).toBeVisible()
+    await expect(page.getByText(/Could not publish post/)).toHaveCount(0)
+    acknowledgements.forEach((acknowledge) => acknowledge())
+    await page.reload()
+    await expect(page.getByText(content, {exact: true}).first()).toBeVisible()
+  } finally {
+    await readerContext.close()
+    await page.close()
+    await relay.close()
+  }
+})
 
 test("saved account and queued post survive an offline reload and publish on reconnect", async ({
   page,
