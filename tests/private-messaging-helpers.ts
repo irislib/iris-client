@@ -34,15 +34,13 @@ export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
         (await registerButton.isVisible().catch(() => false))
       ) {
         await waitForNextCreatedAtSecond()
-        await registerButton.scrollIntoViewIfNeeded().catch(() => {})
-        await registerButton.click({
-          timeout: 10000,
-          force: true,
-        })
+        await registerButton.click({timeout: 10000})
 
         // The relay roster can arrive after the page opens. Follow the actual
         // registration UI instead of deciding from its earlier device count.
-        const confirmDialog = page.getByRole("dialog", {name: "Register this device?"})
+        const confirmDialog = page
+          .getByRole("dialog", {name: "Register this device?"})
+          .and(page.locator("dialog[open]"))
         const needsConfirmation = await Promise.race([
           confirmDialog.waitFor({state: "visible", timeout: 30000}).then(() => true),
           thisDeviceBadge.waitFor({state: "visible", timeout: 30000}).then(() => false),
@@ -51,11 +49,7 @@ export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
           const confirmButton = confirmDialog.getByRole("button", {
             name: "Register Device",
           })
-          await confirmButton.scrollIntoViewIfNeeded().catch(() => {})
-          await confirmButton.click({
-            timeout: 10000,
-            force: true,
-          })
+          await confirmButton.click({timeout: 10000})
         }
       }
     }
