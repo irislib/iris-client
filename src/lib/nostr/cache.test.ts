@@ -1,6 +1,7 @@
 import {afterEach, expect, it, vi} from "vitest"
+import Dexie from "dexie"
 import {EventCache} from "./cache"
-import {db} from "./db"
+import {Database, db} from "./db"
 import type {Event} from "nostr-tools"
 
 const cache = new EventCache()
@@ -81,4 +82,61 @@ it("keeps OR-filter limits, authors, tags, and timestamp boundaries", async () =
       (e) => e.id
     )
   ).toEqual([events[0].id])
+})
+
+it("keeps unbounded metadata lookups selective by author", async () => {
+  const recent = [event(1, hex(10), 3, 100), event(2, hex(11), 10000, 101)]
+  const unrelated = Array.from({length: 3000}, (_, i) =>
+    // Include unrelated authors AND other activity by the requested authors.
+    event(i + 3, i % 2 ? hex(i + 100) : hex(10), i % 2 ? 3 : 7, 1000 + i)
+  )
+  await save([...recent, ...unrelated])
+  const started = performance.now()
+  expect(
+    (await cache.store.query([{authors: [hex(10), hex(11)], kinds: [3, 10000]}])).map(
+      (e) => e.id
+    )
+  ).toEqual(
+    recent
+      .slice()
+      .reverse()
+      .map((e) => e.id)
+  )
+  // The fake IndexedDB cursor also makes a full kind scan noticeably expensive.
+  expect(performance.now() - started).toBeLessThan(1000)
+})
+
+it("adds the metadata index without losing retained events or the offline outbox", async () => {
+  const name = `cache-upgrade-${crypto.randomUUID()}`
+  const legacy = new Dexie(name)
+  legacy.version(1).stores({
+    profiles: "&pubkey",
+    events:
+      "&id, kind, pubkey, createdAt, [kind+createdAt], [pubkey+createdAt], *tagIndex",
+    unpublishedEvents: "&id",
+    cacheData: "&key, cachedAt",
+  })
+  const note = event(1, hex(10), 1, 100)
+  const pending = {id: note.id, event: note, attempts: 0, updatedAt: 100}
+  const record = {
+    id: note.id,
+    pubkey: note.pubkey,
+    kind: note.kind,
+    createdAt: note.created_at,
+    event: JSON.stringify(note),
+  }
+  const upgraded = new Database(name)
+  try {
+    await legacy.table("events").put(record)
+    await legacy.table("unpublishedEvents").put(pending)
+    legacy.close()
+    await upgraded.open()
+    expect(
+      await upgraded.events.where("[pubkey+kind]").equals([note.pubkey, 1]).toArray()
+    ).toEqual([record])
+    expect(await upgraded.unpublishedEvents.toArray()).toEqual([pending])
+  } finally {
+    legacy.close()
+    await upgraded.delete()
+  }
 })

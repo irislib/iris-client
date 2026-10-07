@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.51 - 2026-10-07
+
+- Keep profile and follow-list cache reads selective by author, so unrelated retained metadata does not delay feed startup.
+
 ## 2.5.50 - 2026-10-07
 
 - Load recommendation feeds from bounded, indexed cache queries instead of scanning the entire history of every followed author.

@@ -42,6 +42,10 @@ export class Database extends Dexie {
       unpublishedEvents: "&id",
       cacheData: "&key, cachedAt",
     })
+    this.version(2).stores({
+      events:
+        "&id, kind, pubkey, createdAt, [kind+createdAt], [pubkey+createdAt], [pubkey+kind], *tagIndex",
+    })
   }
 }
 
