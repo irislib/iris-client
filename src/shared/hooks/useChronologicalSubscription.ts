@@ -113,21 +113,20 @@ export default function useChronologicalSubscription(
     sub.on("event", (event) => {
       if (activeAuthorScope.current !== subscribedScope) return
       if (!event.created_at || !event.id) return
+      unfilteredEventsReceivedAfterFilterChange.current += 1
+      // Seen posts still establish where the next history page begins.
+      if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
+        oldestEventAt.current = event.created_at
+      }
       if (filterSeen && seenEventIds.has(event.id)) return
       if (excludeOwnPosts && event.pubkey === myPubKey) return
       if (!showReplies && getEventReplyingTo(event)) {
         return
       }
 
-      unfilteredEventsReceivedAfterFilterChange.current += 1
-
       if (!showingPosts.current.has(event.id) && !pendingPosts.current.has(event.id)) {
         pendingPosts.current.set(event.id, event)
         notify()
-
-        if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
-          oldestEventAt.current = event.created_at
-        }
 
         expansionsWithoutNewEvents.current = 0
       }
@@ -144,19 +143,19 @@ export default function useChronologicalSubscription(
       if (pendingPosts.current.size > 0) markInitialDataReady()
     })
 
-    const timeout = setTimeout(() => {
+    const expansionTimer = setInterval(() => {
       if (activeAuthorScope.current !== subscribedScope) return
+      // A quiet cache/relay is still pending. Do not cancel its first response
+      // or turn a slow read into a false empty result.
+      if (unfilteredEventsReceivedAfterFilterChange.current === 0) return
       if (pendingPosts.current.size <= LOW_THRESHOLD) {
-        if (unfilteredEventsReceivedAfterFilterChange.current === 0) {
+        if (pendingPosts.current.size === 0) {
           expansionsWithoutNewEvents.current += 1
         }
         const hasPosts = pendingPosts.current.size > 0
         const exhaustedInitialWindows = expansionsWithoutNewEvents.current >= 3
 
-        // A low-activity chronological source must eventually settle so it
-        // cannot hold the combined feed in its loading state forever. For You
-        // can fall back to Popular after its first seen-filtered window.
-        if (filterSeen || hasPosts || exhaustedInitialWindows) {
+        if (hasPosts) {
           markInitialDataReady()
         }
 
@@ -169,7 +168,7 @@ export default function useChronologicalSubscription(
     }, 5000)
 
     return () => {
-      clearTimeout(timeout)
+      clearInterval(expansionTimer)
       sub.stop()
     }
   }, [authorScope, authors, cache, oldestTimestamp, ready])

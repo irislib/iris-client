@@ -113,13 +113,12 @@ export default function useReactionSubscription(
       const originalPostId = getTag("e", event.tags)
       if (!originalPostId) return
 
-      if (filterSeen && seenEventIds.has(originalPostId)) return
-
       if (oldestEventAt.current === null || event.created_at < oldestEventAt.current) {
         oldestEventAt.current = event.created_at
       }
 
       signalCount++
+      if (filterSeen && seenEventIds.has(originalPostId)) return
       if (signalCount <= 5) {
         log(
           `[ReactionSubscription] Signal ${signalCount} to post:`,
@@ -147,8 +146,10 @@ export default function useReactionSubscription(
       if (pendingReactionCounts.current.size > 0) markInitialDataReady()
     })
 
-    const timeout = setTimeout(() => {
+    const expansionTimer = setInterval(() => {
       if (activeAuthorScope.current !== subscribedScope) return
+      // Keep the initial read alive when no data has arrived yet.
+      if (signalCount === 0) return
       if (pendingReactionCounts.current.size <= LOW_THRESHOLD) {
         expansionAttempts.current += 1
         if (expansionAttempts.current < 3) {
@@ -156,19 +157,14 @@ export default function useReactionSubscription(
         }
 
         const hasReactions = pendingReactionCounts.current.size > 0
-        const exhaustedInitialWindows = expansionAttempts.current >= 3
-
-        // For You can fall back to its chronological source immediately. Popular
-        // must survive a cold social-graph load instead of declaring itself empty
-        // before its author list and reactions arrive.
-        if (filterSeen || hasReactions || exhaustedInitialWindows) {
+        if (hasReactions) {
           markInitialDataReady()
         }
       }
     }, 5000)
 
     return () => {
-      clearTimeout(timeout)
+      clearInterval(expansionTimer)
       sub.stop()
     }
   }, [cache, currentFilters, expandFilters, filterSeen, visibilitySnapshot])

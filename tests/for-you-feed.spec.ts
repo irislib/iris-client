@@ -260,7 +260,7 @@ test("an empty For You feed displays late relay posts without another refresh", 
     signEvent(viewer, {kind: 3, content: "", tags: [["p", followed.publicKey]]}),
   ])
   await signUp(page, nip19.nsecEncode(viewer.privateKey))
-  await expect(page.getByText("No posts found for you")).toBeVisible({timeout: 20000})
+  await expect(page.getByText("No posts found for you")).toBeHidden()
   const content = `late relay recommendation ${viewer.publicKey}`
   await publishEvents([
     signEvent(followed, {kind: 1, content, tags: [], created_at: createdAt}),

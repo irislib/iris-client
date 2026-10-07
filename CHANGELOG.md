@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.50 - 2026-10-07
+
+- Load recommendation feeds from bounded, indexed cache queries instead of scanning the entire history of every followed author.
+- Keep slow initial feed reads open and show loading while waiting for posts, instead of repeatedly restarting queries and reporting an empty feed.
+- Advance history past already seen posts so older unread posts can be found.
+
 ## 2.5.49 - 2026-10-07
 
 - Receive Lightning payments through the current npub.cash API, including older payments across every history page.

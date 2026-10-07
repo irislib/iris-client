@@ -1,7 +1,7 @@
 import {matchFilters, verifyEvent, type Event, type Filter} from "nostr-tools"
 import type {QueryOptions, RuntimeEventStore} from "nostr-pubsub"
 import {AppEvent, profileFromEvent, type UserProfile, type EventFilter} from "./index"
-import {createDatabase, db} from "./db"
+import {createDatabase, db, type Event as StoredEvent} from "./db"
 
 /** App metadata and the pubsub store share one database; no parallel event cache. */
 export class EventCache {
@@ -56,60 +56,68 @@ export class EventCache {
         ([key, value]) => key.startsWith("#") && Array.isArray(value) && value.length
       )
       const cap = filter.limit ?? options?.limit ?? 5000
-      const timeOrdered =
-        !filter.ids &&
-        !tag &&
-        (filter.authors?.length === 1 ||
-          (!filter.authors && filter.kinds?.length === 1) ||
-          (!filter.authors && !tag && !filter.kinds))
-      let collection = db.events.orderBy("createdAt").reverse()
+      const authors = filter.authors && new Set(filter.authors)
+      const kinds = filter.kinds && new Set(filter.kinds)
+      const matches = (record: StoredEvent) => {
+        options?.signal?.throwIfAborted()
+        // Filter indexed metadata before decoding retained event bodies.
+        if (authors && !authors.has(record.pubkey)) return false
+        if (kinds && !kinds.has(record.kind)) return false
+        if (filter.since !== undefined && record.createdAt < filter.since) return false
+        if (filter.until !== undefined && record.createdAt > filter.until) return false
+        const event = JSON.parse(record.event) as Event
+        return (
+          matchFilters([filter], event) &&
+          (!filter.search ||
+            filter.search
+              .toLowerCase()
+              .split(/\s+/)
+              .every((word) => event.content.toLowerCase().includes(word)))
+        )
+      }
+      let records: StoredEvent[]
       if (filter.ids?.every((id) => id.length === 64)) {
-        collection = db.events.where("id").anyOf(filter.ids)
+        records = await db.events.where("id").anyOf(filter.ids).filter(matches).toArray()
       } else if (tag) {
-        collection = db.events
+        records = await db.events
           .where("tagIndex")
           .anyOf((tag[1] as string[]).map((value) => `${tag[0].slice(1)}:${value}`))
-      } else if (filter.authors?.length === 1) {
-        collection = db.events
-          .where("[pubkey+createdAt]")
-          .between(
-            [filter.authors[0], filter.since ?? 0],
-            [filter.authors[0], filter.until ?? Number.MAX_SAFE_INTEGER],
-            true,
-            true
+          .filter(matches)
+          .toArray()
+      } else {
+        const lower = filter.since ?? 0
+        const upper = filter.until ?? Number.MAX_SAFE_INTEGER
+        if (lower > upper || cap <= 0) continue
+        // Each ordered index stops at the requested limit. In particular, a
+        // feed following hundreds of authors must not load their entire history.
+        let ranges = [db.events.where("createdAt").between(lower, upper, true, true)]
+        if (filter.authors?.length === 1) {
+          ranges = [
+            db.events
+              .where("[pubkey+createdAt]")
+              .between(
+                [filter.authors[0], lower],
+                [filter.authors[0], upper],
+                true,
+                true
+              ),
+          ]
+        } else if (filter.kinds?.length) {
+          ranges = [...new Set(filter.kinds)].map((kind) =>
+            db.events
+              .where("[kind+createdAt]")
+              .between([kind, lower], [kind, upper], true, true)
           )
-          .reverse()
-      } else if (filter.authors?.every((author) => author.length === 64)) {
-        collection = db.events.where("pubkey").anyOf(filter.authors)
-      } else if (filter.kinds?.length === 1) {
-        collection = db.events
-          .where("[kind+createdAt]")
-          .between(
-            [filter.kinds[0], filter.since ?? 0],
-            [filter.kinds[0], filter.until ?? Number.MAX_SAFE_INTEGER],
-            true,
-            true
+        }
+        records = (
+          await Promise.all(
+            ranges.map((range) => range.reverse().filter(matches).limit(cap).toArray())
           )
-          .reverse()
-      } else if (filter.kinds?.length) {
-        collection = db.events.where("kind").anyOf(filter.kinds)
+        ).flat()
       }
-      const matches = (event: Event) =>
-        matchFilters([filter], event) &&
-        (!filter.search ||
-          filter.search
-            .toLowerCase()
-            .split(/\s+/)
-            .every((word) => event.content.toLowerCase().includes(word)))
-      // Feed queries scan the time index backwards and stop at their requested
-      // limit instead of parsing every retained note on each scroll or refresh.
-      const selected = timeOrdered
-        ? collection.filter((record) => matches(JSON.parse(record.event))).limit(cap)
-        : collection
-      const records = await selected.toArray()
+      options?.signal?.throwIfAborted()
       const matching = records
         .map((record) => JSON.parse(record.event) as Event)
-        .filter(matches)
         .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id))
       for (const event of matching.slice(0, filter.limit ?? options?.limit ?? 5000))
         events.set(event.id, event)

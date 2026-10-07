@@ -60,7 +60,6 @@ const defaultVisibilitySnapshot: AlgorithmicVisibilitySnapshot = {
   shouldHideRecommendationUser: vi.fn(() => false),
   shouldHideAlgorithmicEvent: vi.fn(() => false),
 }
-let latestHasInitialData = false
 let latestGetNextMostPopular: (count: number) => string[] = () => []
 
 function TestHook({
@@ -79,7 +78,6 @@ function TestHook({
     visibilitySnapshot,
     filterSeen
   )
-  latestHasInitialData = result.hasInitialData
   latestGetNextMostPopular = result.getNextMostPopular
   return null
 }
@@ -101,7 +99,6 @@ describe("useReactionSubscription", () => {
     delete CACHE.pendingReactionCounts
     delete CACHE.showingReactionCounts
     expandFilters.mockClear()
-    latestHasInitialData = false
     latestGetNextMostPopular = () => []
     container = document.createElement("div")
     root = createRoot(container)
@@ -283,15 +280,5 @@ describe("useReactionSubscription", () => {
     expect(CACHE.pendingReactionCounts?.get("visible-recommended-post")).toEqual(
       new Set([visibleActor])
     )
-  })
-
-  it("does not declare Popular empty after its first cold-start window", async () => {
-    vi.useFakeTimers()
-    await act(async () => root.render(createElement(TestHook)))
-
-    await act(async () => vi.advanceTimersByTime(5000))
-
-    expect(latestHasInitialData).toBe(false)
-    expect(expandFilters).toHaveBeenCalled()
   })
 })
