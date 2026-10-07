@@ -106,6 +106,29 @@ it("keeps unbounded metadata lookups selective by author", async () => {
   expect(performance.now() - started).toBeLessThan(1000)
 })
 
+it("bounds chat history reads even when startup has no timestamp filter", async () => {
+  const authors = [hex(10), hex(11), hex(12), hex(13)]
+  const messages = Array.from({length: 1000}, (_, i) =>
+    event(i + 1, authors[i % authors.length], 1060, i + 100)
+  )
+  await save(messages)
+  const originalParse = JSON.parse
+  let decoded = 0
+  vi.spyOn(JSON, "parse").mockImplementation((text, reviver) => {
+    if (typeof text === "string" && text.includes("retained-cache-fixture")) decoded++
+    return originalParse(text, reviver)
+  })
+  expect(
+    (await cache.store.query([{authors, kinds: [1060], limit: 12}])).map((e) => e.id)
+  ).toEqual(
+    messages
+      .slice(-12)
+      .reverse()
+      .map((e) => e.id)
+  )
+  expect(decoded).toBeLessThan(50)
+})
+
 it("adds the metadata index without losing retained events or the offline outbox", async () => {
   const name = `cache-upgrade-${crypto.randomUUID()}`
   const legacy = new Dexie(name)

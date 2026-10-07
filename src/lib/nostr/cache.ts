@@ -86,21 +86,30 @@ export class EventCache {
           .toArray()
       } else if (
         filter.authors?.every((author) => author.length === 64) &&
+        filter.kinds?.length &&
+        filter.kinds.every(
+          (kind) =>
+            kind === 0 ||
+            kind === 3 ||
+            (kind >= 10000 && kind < 20000) ||
+            (kind >= 30000 && kind < 40000)
+        ) &&
         filter.since === undefined &&
         filter.until === undefined
       ) {
         // Profile/follow-list lookups are selective by author, not time. Scanning
         // every cached profile would starve the feed reads sharing this database.
-        const collection = filter.kinds?.length
-          ? db.events
-              .where("[pubkey+kind]")
-              .anyOf(
-                filter.authors.flatMap((author) =>
-                  filter.kinds!.map((kind) => [author, kind])
-                )
-              )
-          : db.events.where("pubkey").anyOf(filter.authors)
-        records = await collection.filter(matches).toArray()
+        // Regular events (including chat history) always use the bounded ordered
+        // path below, even when their subscription has no timestamp filter.
+        records = await db.events
+          .where("[pubkey+kind]")
+          .anyOf(
+            filter.authors.flatMap((author) =>
+              filter.kinds!.map((kind) => [author, kind])
+            )
+          )
+          .filter(matches)
+          .toArray()
       } else {
         const lower = filter.since ?? 0
         const upper = filter.until ?? Number.MAX_SAFE_INTEGER

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.52 - 2026-10-07
+
+- Bound chat history reads during startup so retained messages do not delay feed and profile queries sharing the event cache.
+
 ## 2.5.51 - 2026-10-07
 
 - Keep profile and follow-list cache reads selective by author, so unrelated retained metadata does not delay feed startup.
