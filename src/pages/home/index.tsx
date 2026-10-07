@@ -2,7 +2,6 @@ import HomeFeed from "@/pages/home/feed/components/HomeFeed.tsx"
 import RightColumn from "@/shared/components/RightColumn.tsx"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
-import {RelayStats} from "@/shared/components/RelayStats"
 import Widget from "@/shared/components/ui/Widget.tsx"
 import {useSettingsStore} from "@/stores/settings"
 import {useIsLargeScreen} from "@/shared/hooks/useIsLargeScreen"
@@ -129,7 +128,6 @@ function Index() {
         {() => (
           <>
             <SocialGraphWidget />
-            <RelayStats />
             <Widget title="Popular" className="h-96">
               <AlgorithmicFeed
                 type="popular"

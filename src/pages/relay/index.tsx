@@ -185,7 +185,6 @@ function RelayPage() {
         {() => (
           <>
             <SocialGraphWidget />
-            <RelayStats />
             <Widget title="Popular" className="h-96">
               <AlgorithmicFeed
                 type="popular"

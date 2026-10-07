@@ -1,7 +1,6 @@
 import {Link} from "@/navigation"
 import SearchBox from "@/shared/components/ui/SearchBox"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
-import {RelayStats} from "@/shared/components/RelayStats"
 
 export function HomeRightColumn() {
   return (
@@ -17,9 +16,6 @@ export function HomeRightColumn() {
         </Link>
         <div className="w-full max-w-xs">
           <SocialGraphWidget background={false} />
-        </div>
-        <div className="w-full max-w-xs">
-          <RelayStats background={false} />
         </div>
       </div>
     </div>

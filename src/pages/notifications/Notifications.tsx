@@ -2,7 +2,6 @@ import NotificationsFeed from "@/shared/components/feed/NotificationsFeed.tsx"
 import RightColumn from "@/shared/components/RightColumn"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
-import {RelayStats} from "@/shared/components/RelayStats"
 import Header from "@/shared/components/header/Header"
 import Widget from "@/shared/components/ui/Widget"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
@@ -97,7 +96,6 @@ function Notifications() {
         {() => (
           <>
             <SocialGraphWidget />
-            <RelayStats />
             <Widget title="Popular" className="h-96">
               <AlgorithmicFeed
                 type="popular"
