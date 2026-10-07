@@ -7,10 +7,6 @@ async function waitForNextCreatedAtSecond() {
   }
 }
 
-function registeredDeviceEntries(page: Page) {
-  return page.locator('[data-testid="registered-device-entry"]:visible')
-}
-
 export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
   // Set up an existing registered device through account settings. New chat
   // visitors are now directed to Iris Chat instead of registration.
@@ -20,7 +16,6 @@ export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
     timeout: 10000,
   })
 
-  const initialDeviceCount = await registeredDeviceEntries(page).count()
   const registerButton = page.getByRole("button", {name: "Register this device"}).first()
   const thisDeviceBadge = page
     .locator("span.badge:visible")
@@ -45,9 +40,14 @@ export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
           force: true,
         })
 
-        if (initialDeviceCount > 0) {
-          const confirmDialog = page.locator("dialog.modal[open]").first()
-          await expect(confirmDialog).toBeVisible({timeout: 15000})
+        // The relay roster can arrive after the page opens. Follow the actual
+        // registration UI instead of deciding from its earlier device count.
+        const confirmDialog = page.getByRole("dialog", {name: "Register this device?"})
+        const needsConfirmation = await Promise.race([
+          confirmDialog.waitFor({state: "visible", timeout: 30000}).then(() => true),
+          thisDeviceBadge.waitFor({state: "visible", timeout: 30000}).then(() => false),
+        ])
+        if (needsConfirmation) {
           const confirmButton = confirmDialog.getByRole("button", {
             name: "Register Device",
           })
@@ -57,17 +57,6 @@ export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
             force: true,
           })
         }
-
-        await expect
-          .poll(
-            async () =>
-              (await registeredDeviceEntries(page).count()) > initialDeviceCount ||
-              (await thisDeviceBadge.isVisible().catch(() => false)),
-            {
-              timeout: 30000,
-            }
-          )
-          .toBe(true)
       }
     }
   }
