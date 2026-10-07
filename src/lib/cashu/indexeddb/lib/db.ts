@@ -62,6 +62,8 @@ export interface MintQuoteRow {
   unit: string
   expiry: number
   pubkey?: string | null
+  mintOutputsJson?: string
+  mintKeysetId?: string
 }
 
 export interface MeltQuoteRow {

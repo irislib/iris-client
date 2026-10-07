@@ -4,6 +4,7 @@ import type {ProofService} from "./ProofService"
 import type {MintQuoteResponse, MintQuoteState} from "@cashu/cashu-ts"
 import type {CoreEvents, EventBus} from "@core/events"
 import type {Logger} from "../logging/Logger.ts"
+import {hydrateOutputData, persistOutputData} from "../models/OutputData"
 import {mapProofToCoreProof} from "@core/utils.ts"
 
 export class MintQuoteService {
@@ -12,6 +13,8 @@ export class MintQuoteService {
   private readonly proofService: ProofService
   private readonly eventBus: EventBus<CoreEvents>
   private readonly logger?: Logger
+  private readonly quoteOperations = new Map<string, Promise<void>>()
+  private readonly quoteLocks = new Map<string, Promise<unknown>>()
 
   constructor(
     mintQuoteRepo: MintQuoteRepository,
@@ -49,49 +52,116 @@ export class MintQuoteService {
     }
   }
 
-  async redeemMintQuote(mintUrl: string, quoteId: string): Promise<void> {
-    this.logger?.info("Redeeming mint quote", {mintUrl, quoteId})
-    try {
-      const quote = await this.mintQuoteRepo.getMintQuote(mintUrl, quoteId)
-      if (!quote) {
-        this.logger?.warn("Mint quote not found", {mintUrl, quoteId})
-        throw new Error("Quote not found")
-      }
-      const wallet = await this.walletService.getWallet(mintUrl)
-      // Get keyset that matches the quote's unit
+  getMintQuote(mintUrl: string, quoteId: string) {
+    return this.mintQuoteRepo.getMintQuote(mintUrl, quoteId)
+  }
+
+  private withQuoteLock<T>(mintUrl: string, quoteId: string, work: () => Promise<T>) {
+    const key = `cashu-mint:${mintUrl}:${quoteId}`
+    const previous = this.quoteLocks.get(key)
+    const operation = (async () => {
+      await previous?.catch(() => undefined)
+      if (globalThis.navigator?.locks) return navigator.locks.request(key, work)
+      return work()
+    })().finally(() => {
+      if (this.quoteLocks.get(key) === operation) this.quoteLocks.delete(key)
+    })
+    this.quoteLocks.set(key, operation)
+    return operation
+  }
+
+  redeemMintQuote(mintUrl: string, quoteId: string): Promise<void> {
+    const key = `cashu-mint:${mintUrl}:${quoteId}`
+    const active = this.quoteOperations.get(key)
+    if (active) return active
+    // Coordinate the processor, refresh, and other tabs before reading saved outputs.
+    const operation = this.withQuoteLock(mintUrl, quoteId, () =>
+      this.redeemPersistedQuote(mintUrl, quoteId)
+    ).finally(() => this.quoteOperations.delete(key))
+    this.quoteOperations.set(key, operation)
+    return operation
+  }
+
+  private async redeemPersistedQuote(mintUrl: string, quoteId: string): Promise<void> {
+    let quote = await this.mintQuoteRepo.getMintQuote(mintUrl, quoteId)
+    if (!quote) throw new Error("Quote not found")
+    if (quote.state === "ISSUED" && !quote.mintOutputs) return
+    const wallet = await this.walletService.getWallet(mintUrl)
+    const remote = await wallet.checkMintQuoteBolt11(quoteId)
+    if (remote.pubkey)
+      throw new Error("Locked Lightning payments are not supported by this wallet yet")
+    if (remote.state === "ISSUED" && !quote.mintOutputs) {
+      // Already claimed by another wallet. Do not fabricate a local balance.
+      await this.setMintQuoteState(mintUrl, quoteId, "ISSUED")
+      return
+    }
+    if (remote.state !== "PAID" && remote.state !== "ISSUED") {
+      throw new Error("Lightning payment is not ready to receive")
+    }
+    if (remote.amount !== quote.amount || remote.unit !== quote.unit) {
+      throw new Error("Mint payment details do not match")
+    }
+    if (!quote.mintOutputs) {
       const keyset = wallet.getKeyset()
-      if (keyset.unit !== quote.unit || !keyset.isActive) {
-        throw new Error(
-          `No active keyset found for unit ${quote.unit} at mint ${mintUrl}`
-        )
-      }
+      if (keyset.unit !== quote.unit || !keyset.isActive)
+        throw new Error("No active mint keyset")
       const {keep} = await this.proofService.createOutputsAndIncrementCounters(mintUrl, {
         keep: quote.amount,
         send: 0,
       })
-      const proofs = await wallet.mintProofsBolt11(
-        quote.amount,
-        quote,
-        {keysetId: keyset.id},
-        {type: "custom", data: keep}
-      )
-      await this.eventBus.emit("mint-quote:redeemed", {mintUrl, quoteId, quote})
-      this.logger?.info("Mint quote redeemed, proofs minted", {
-        mintUrl,
-        quoteId,
-        amount: quote.amount,
-        proofs: proofs.length,
-      })
-      await this.setMintQuoteState(mintUrl, quoteId, "ISSUED")
-      await this.proofService.saveProofs(
-        mintUrl,
-        mapProofToCoreProof(mintUrl, "ready", proofs)
-      )
-      this.logger?.debug("Proofs saved to repository", {mintUrl, count: proofs.length})
-    } catch (err) {
-      this.logger?.error("Failed to redeem mint quote", {mintUrl, quoteId, err})
-      throw err
+      quote = {...quote, mintOutputs: persistOutputData(keep), mintKeysetId: keyset.id}
+      // Save recovery material before the mint can consume the paid quote.
+      await this.mintQuoteRepo.addMintQuote(quote)
     }
+    const outputs = hydrateOutputData(quote.mintOutputs!)
+    const keysetId = quote.mintKeysetId!
+    let proofs
+    if (remote.state === "ISSUED") {
+      const restored = await wallet.mint.restore({
+        outputs: outputs.map((o) => o.blindedMessage),
+      })
+      const signatures = new Map(
+        restored.outputs.map((o, i) => [o.B_, restored.signatures[i]])
+      )
+      const keys = wallet.getKeyset(keysetId).toMintKeys()
+      if (!keys) throw new Error("Missing mint recovery keys")
+      proofs = outputs.map((output) => {
+        const signature = signatures.get(output.blindedMessage.B_)
+        if (!signature) throw new Error("Mint has not returned all payment recovery data")
+        return output.toProof(signature, keys)
+      })
+    } else {
+      proofs = await wallet.mintProofsBolt11(
+        quote.amount,
+        remote,
+        {keysetId},
+        {type: "custom", data: outputs}
+      )
+    }
+    // A previous attempt may have saved proofs but not completed the quote update.
+    // Preserve existing spent/inflight states instead of crediting those proofs again.
+    const existing = await this.proofService.getProofsByKeysetId(mintUrl, keysetId)
+    const secrets = new Set(existing.map((proof) => proof.secret))
+    await this.proofService.saveProofs(
+      mintUrl,
+      mapProofToCoreProof(
+        mintUrl,
+        "ready",
+        proofs.filter((p) => !secrets.has(p.secret))
+      )
+    )
+    await this.mintQuoteRepo.addMintQuote({
+      ...quote,
+      state: "ISSUED",
+      mintOutputs: undefined,
+      mintKeysetId: undefined,
+    })
+    await this.eventBus.emit("mint-quote:state-changed", {
+      mintUrl,
+      quoteId,
+      state: "ISSUED",
+    })
+    await this.eventBus.emit("mint-quote:redeemed", {mintUrl, quoteId, quote})
   }
 
   async addExistingMintQuotes(
@@ -105,9 +175,13 @@ export class MintQuoteService {
 
     for (const quote of quotes) {
       try {
-        // Check if quote already exists
-        const existing = await this.mintQuoteRepo.getMintQuote(mintUrl, quote.quote)
-        if (existing) {
+        // Imports must not overwrite recovery outputs saved by another tab.
+        const inserted = await this.withQuoteLock(mintUrl, quote.quote, async () => {
+          if (await this.mintQuoteRepo.getMintQuote(mintUrl, quote.quote)) return false
+          await this.mintQuoteRepo.addMintQuote({...quote, mintUrl})
+          return true
+        })
+        if (!inserted) {
           this.logger?.debug("Quote already exists, skipping", {
             mintUrl,
             quoteId: quote.quote,
@@ -116,8 +190,6 @@ export class MintQuoteService {
           continue
         }
 
-        // Add the quote to the repository
-        await this.mintQuoteRepo.addMintQuote({...quote, mintUrl})
         added.push(quote.quote)
 
         // Emit the added event - processor will handle PAID quotes
@@ -157,7 +229,16 @@ export class MintQuoteService {
     state: MintQuoteState
   ): Promise<void> {
     this.logger?.info("Updating mint quote state from remote", {mintUrl, quoteId, state})
-    await this.setMintQuoteState(mintUrl, quoteId, state)
+    await this.withQuoteLock(mintUrl, quoteId, async () => {
+      const existing = await this.mintQuoteRepo.getMintQuote(mintUrl, quoteId)
+      if (existing?.state === "ISSUED" && !existing.mintOutputs) return
+      if (state === "ISSUED" && existing?.mintOutputs) {
+        // A watcher can observe issuance before the response/proofs are durable.
+        await this.eventBus.emit("mint-quote:requeue", {mintUrl, quoteId})
+        return
+      }
+      await this.setMintQuoteState(mintUrl, quoteId, state)
+    })
   }
 
   private async setMintQuoteState(
@@ -181,7 +262,7 @@ export class MintQuoteService {
       const pending = await this.mintQuoteRepo.getPendingMintQuotes()
       for (const q of pending) {
         if (mintUrl && q.mintUrl !== mintUrl) continue
-        if (q.state !== "PAID") continue
+        if (q.state !== "PAID" && !q.mintOutputs) continue
         await this.eventBus.emit("mint-quote:requeue", {
           mintUrl: q.mintUrl,
           quoteId: q.quote,

@@ -13,6 +13,10 @@ export class QuotesApi {
     this.meltQuoteService = meltQuoteService
   }
 
+  getMintQuote(mintUrl: string, quoteId: string) {
+    return this.mintQuoteService.getMintQuote(mintUrl, quoteId)
+  }
+
   async createMintQuote(
     mintUrl: string,
     amount: number,

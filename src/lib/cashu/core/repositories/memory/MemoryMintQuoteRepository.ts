@@ -32,7 +32,7 @@ export class MemoryMintQuoteRepository implements MintQuoteRepository {
   async getPendingMintQuotes(): Promise<MintQuote[]> {
     const result: MintQuote[] = []
     for (const q of this.quotes.values()) {
-      if (q.state !== "ISSUED") result.push(q)
+      if (q.state !== "ISSUED" || q.mintOutputs) result.push(q)
     }
     return result
   }

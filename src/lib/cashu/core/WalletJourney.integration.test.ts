@@ -28,6 +28,33 @@ async function createWallet(seedByte: number) {
 }
 
 describe("Cashu wallet journey", () => {
+  it("recovers imported payments after a lost mint response without minting twice", async () => {
+    mint = await FakeCashuMint.start({dropFirstMintResponse: true})
+    const alice = await createWallet(4)
+    await alice.manager.mint.addMint(mint.url)
+    const quote = await alice.manager.quotes.createMintQuote(mint.url, 100)
+    await expect(
+      alice.manager.quotes.redeemMintQuote(mint.url, quote.quote)
+    ).rejects.toThrow()
+    await expect(alice.manager.wallet.getBalances()).resolves.toEqual({})
+
+    await alice.manager.dispose()
+    const restarted = await initializeCoco({
+      repo: alice.repo,
+      seedGetter: async () => new Uint8Array(64).fill(4),
+      watchers: {mintQuoteWatcher: {disabled: true}, proofStateWatcher: {disabled: true}},
+      processors: {mintQuoteProcessor: {disabled: true}},
+    })
+    managers.push(restarted)
+    await Promise.all([
+      restarted.quotes.redeemMintQuote(mint.url, quote.quote),
+      restarted.quotes.redeemMintQuote(mint.url, quote.quote),
+    ])
+    await restarted.quotes.redeemMintQuote(mint.url, quote.quote)
+    await expect(restarted.wallet.getBalances()).resolves.toEqual({[mint.url]: 100})
+    expect(mint.mintRequests).toBe(1)
+  })
+
   it("mints, sends, receives, and melts against a cryptographic local mint", async () => {
     mint = await FakeCashuMint.start({
       inputFeePpk: 1_000,

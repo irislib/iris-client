@@ -84,7 +84,6 @@ export default function CashuWallet() {
   const {enrichHistoryWithMetadata} = useHistoryEnrichment()
   const {refreshing, refreshData, handleRefresh} = useWalletRefresh(
     manager,
-    myPubKey,
     enrichHistoryWithMetadata
   )
 
@@ -98,7 +97,7 @@ export default function CashuWallet() {
   }, [refreshData])
 
   // Auto-claim npub.cash tokens
-  useNPubCashClaim(myPubKey, manager, handleDataRefresh)
+  const npubCash = useNPubCashClaim(myPubKey, manager, handleDataRefresh)
 
   const handleSendEntryClick = useCallback((entry: SendHistoryEntry) => {
     setSendDialogInitialToken(entry.token)
@@ -133,12 +132,13 @@ export default function CashuWallet() {
   }
 
   const handleManualRefresh = useCallback(async () => {
+    await npubCash.refresh()
     const data = await handleRefresh(balance)
     if (data) {
       setBalance(data.balance)
       setHistory(data.history)
     }
-  }, [handleRefresh, balance])
+  }, [handleRefresh, balance, npubCash.refresh])
 
   const handleQRScanSuccess = async (result: string) => {
     setShowQRScanner(false)
@@ -469,6 +469,18 @@ export default function CashuWallet() {
                 <RiArrowRightUpLine className="w-5 h-5 ml-1" />
               </button>
             </div>
+
+            {(npubCash.pending > 0 || npubCash.error) && (
+              <div role="status" className="mx-4 mb-4 rounded-lg bg-base-200 p-3 text-sm">
+                {npubCash.pending > 0 && (
+                  <p>
+                    {npubCash.pending.toLocaleString()} sats awaiting receipt from
+                    npub.cash.
+                  </p>
+                )}
+                {npubCash.error && <p>{npubCash.error}</p>}
+              </div>
+            )}
 
             {/* History Section */}
             <div className="px-4">

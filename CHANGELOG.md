@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.49 - 2026-10-07
+
+- Receive Lightning payments through the current npub.cash API, including older payments across every history page.
+- Show payments awaiting receipt and connection errors when a provider or mint is unavailable, with automatic and manual retries.
+- Save mint recovery data before claiming payments so interrupted requests can recover safely without crediting the same payment twice.
+
 ## 2.5.48 - 2026-10-07
 
 - Apply the same social-graph moderation threshold to reply counts and reply lists, including mentioned identities, so hidden replies do not leave a misleading count.

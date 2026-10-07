@@ -1,60 +1,63 @@
-import {useEffect} from "react"
-import type {Manager} from "@/lib/cashu/core/index"
-import {
-  getNPubCashBalance,
-  claimNPubCashTokens,
-  extractMintFromToken,
-} from "@/lib/npubcash"
+import {useCallback, useEffect, useRef, useState} from "react"
+import type {Manager} from "@/lib/cashu/core"
+import {syncNPubCashPayments, type NPubCashSyncResult} from "@/lib/syncNPubCash"
 import {nostr} from "@/utils/nostrClient"
-import {createDebugLogger} from "@/utils/createDebugLogger"
-import {DEBUG_NAMESPACES} from "@/utils/constants"
-
-const {log, error} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
+import {useUserStore} from "@/stores/user"
 
 export function useNPubCashClaim(
   myPubKey: string | null,
   manager: Manager | null,
   onRefresh: () => void
 ) {
-  useEffect(() => {
-    if (!myPubKey || !nostr().signer || !manager) return
-
-    const checkAndClaim = async () => {
-      const signer = nostr().signer
-      if (!signer) return
-
+  const [status, setStatus] = useState<NPubCashSyncResult>({pending: 0})
+  const running = useRef<Promise<void> | null>(null)
+  const generation = useRef(0)
+  const refresh = useCallback(() => {
+    if (running.current) return running.current
+    const signer = nostr().signer
+    if (!myPubKey || !manager || !signer) return Promise.resolve()
+    const currentGeneration = generation.current
+    const isCurrent = () =>
+      generation.current === currentGeneration &&
+      useUserStore.getState().publicKey === myPubKey &&
+      nostr().signer === signer
+    const work = async () => {
       try {
-        const balance = await getNPubCashBalance(signer)
-
-        // Auto-claim if balance > 0
-        if (balance > 0) {
-          const token = await claimNPubCashTokens(signer)
-          if (token) {
-            // Extract mint URL from token and ensure it's added
-            const mintUrl = await extractMintFromToken(token)
-            if (mintUrl) {
-              try {
-                await manager.mint.addMint(mintUrl)
-                log(`✅ Auto-added mint from npub.cash token: ${mintUrl}`)
-              } catch (err) {
-                log(`Mint already exists or failed to add: ${mintUrl}`)
-              }
-            }
-
-            await manager.wallet.receive(token)
-            onRefresh()
-          }
+        if ((await signer.user()).pubkey !== myPubKey || !isCurrent()) return
+        const next = await syncNPubCashPayments(signer, manager, isCurrent)
+        if (isCurrent()) {
+          setStatus(next)
+          await onRefresh()
         }
-      } catch (err) {
-        error("Failed to check/claim npub.cash:", err)
+      } catch {
+        if (isCurrent())
+          setStatus((previous) => ({
+            ...previous,
+            error: "Could not check npub.cash payments. Try refreshing.",
+          }))
       }
     }
-
-    checkAndClaim()
-
-    // Check every 60 seconds
-    const balanceInterval = setInterval(checkAndClaim, 60000)
-
-    return () => clearInterval(balanceInterval)
+    const promise = work().finally(() => {
+      if (running.current === promise) running.current = null
+    })
+    running.current = promise
+    return promise
   }, [myPubKey, manager, onRefresh])
+
+  useEffect(() => {
+    generation.current++
+    running.current = null
+    setStatus({pending: 0})
+    void refresh()
+    const interval = setInterval(() => void refresh(), 60000)
+    const onFocus = () => void refresh()
+    window.addEventListener("online", onFocus)
+    return () => {
+      generation.current++
+      clearInterval(interval)
+      window.removeEventListener("online", onFocus)
+    }
+  }, [refresh])
+
+  return {...status, refresh}
 }

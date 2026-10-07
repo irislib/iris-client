@@ -1,12 +1,6 @@
 import {useState, useCallback} from "react"
 import type {Manager} from "@/lib/cashu/core/index"
 import type {HistoryEntry} from "@/lib/cashu/core/models/History"
-import {
-  getNPubCashBalance,
-  claimNPubCashTokens,
-  extractMintFromToken,
-} from "@/lib/npubcash"
-import {nostr} from "@/utils/nostrClient"
 import type {EnrichedHistoryEntry} from "./useHistoryEnrichment"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -14,7 +8,6 @@ const {log, warn, error} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
 
 export function useWalletRefresh(
   manager: Manager | null,
-  myPubKey: string | null,
   enrichHistoryWithMetadata: (entries: HistoryEntry[]) => Promise<EnrichedHistoryEntry[]>
 ) {
   const [refreshing, setRefreshing] = useState(false)
@@ -95,32 +88,6 @@ export function useWalletRefresh(
 
         const data = await refreshData()
 
-        // Also check npub.cash
-        if (myPubKey && nostr().signer) {
-          const signer = nostr().signer
-          if (signer) {
-            const balance = await getNPubCashBalance(signer)
-            if (balance > 0) {
-              const token = await claimNPubCashTokens(signer)
-              if (token && manager) {
-                // Extract mint URL from token and ensure it's added
-                const mintUrl = await extractMintFromToken(token)
-                if (mintUrl) {
-                  try {
-                    await manager.mint.addMint(mintUrl)
-                    log(`✅ Auto-added mint from npub.cash token: ${mintUrl}`)
-                  } catch (err) {
-                    log(`Mint already exists or failed to add: ${mintUrl}`)
-                  }
-                }
-
-                await manager.wallet.receive(token)
-                return await refreshData()
-              }
-            }
-          }
-        }
-
         return data
       } catch (err) {
         error("Failed to refresh:", err)
@@ -129,7 +96,7 @@ export function useWalletRefresh(
         setRefreshing(false)
       }
     },
-    [manager, myPubKey, refreshData]
+    [manager, refreshData]
   )
 
   return {refreshing, refreshData, handleRefresh}

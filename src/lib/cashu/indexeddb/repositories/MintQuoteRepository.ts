@@ -23,6 +23,8 @@ export class IdbMintQuoteRepository implements MintQuoteRepository {
       unit: row.unit,
       expiry: row.expiry,
       pubkey: row.pubkey ?? undefined,
+      mintOutputs: row.mintOutputsJson ? JSON.parse(row.mintOutputsJson) : undefined,
+      mintKeysetId: row.mintKeysetId,
     }
     return quote
   }
@@ -37,6 +39,8 @@ export class IdbMintQuoteRepository implements MintQuoteRepository {
       unit: quote.unit,
       expiry: quote.expiry,
       pubkey: quote.pubkey ?? null,
+      mintOutputsJson: quote.mintOutputs ? JSON.stringify(quote.mintOutputs) : undefined,
+      mintKeysetId: quote.mintKeysetId,
     }
     await (this.db as any).table("coco_cashu_mint_quotes").put(row)
   }
@@ -46,13 +50,9 @@ export class IdbMintQuoteRepository implements MintQuoteRepository {
     quoteId: string,
     state: MintQuote["state"]
   ): Promise<void> {
-    const existing = (await (this.db as any)
-      .table("coco_cashu_mint_quotes")
-      .get([mintUrl, quoteId])) as MintQuoteRow | undefined
-    if (!existing) return
     await (this.db as any)
       .table("coco_cashu_mint_quotes")
-      .put({...existing, state} as MintQuoteRow)
+      .update([mintUrl, quoteId], {state})
   }
 
   async getPendingMintQuotes(): Promise<MintQuote[]> {
@@ -60,7 +60,7 @@ export class IdbMintQuoteRepository implements MintQuoteRepository {
       .table("coco_cashu_mint_quotes")
       .toArray()) as MintQuoteRow[]
     return rows
-      .filter((r) => r.state !== "ISSUED")
+      .filter((r) => r.state !== "ISSUED" || r.mintOutputsJson)
       .map((row) => ({
         mintUrl: row.mintUrl,
         quote: row.quote,
@@ -70,6 +70,8 @@ export class IdbMintQuoteRepository implements MintQuoteRepository {
         unit: row.unit,
         expiry: row.expiry,
         pubkey: row.pubkey ?? undefined,
+        mintOutputs: row.mintOutputsJson ? JSON.parse(row.mintOutputsJson) : undefined,
+        mintKeysetId: row.mintKeysetId,
       }))
   }
 }

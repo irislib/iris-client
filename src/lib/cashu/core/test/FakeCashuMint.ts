@@ -46,6 +46,7 @@ interface FakeCashuMintOptions {
   meltFeeReserve?: number
   meltActualFee?: number
   dropFirstMeltResponse?: boolean
+  dropFirstMintResponse?: boolean
 }
 
 /**
@@ -61,6 +62,7 @@ export class FakeCashuMint {
   readonly meltFeeReserve: number
   readonly meltActualFee: number
   readonly transactions: FakeMintTransaction[] = []
+  mintRequests = 0
 
   private readonly keyset: KeysetPair
   private readonly spentSecrets = new Set<string>()
@@ -71,6 +73,7 @@ export class FakeCashuMint {
     {output: SerializedBlindedMessage; signature: SerializedBlindedSignature}
   >()
   private dropNextMeltResponse: boolean
+  private dropNextMintResponse: boolean
   private nextQuote = 1
   private readonly server = createServer((request, response) => {
     void this.handle(request, response).catch((error: unknown) => {
@@ -87,6 +90,7 @@ export class FakeCashuMint {
     this.meltFeeReserve = options.meltFeeReserve ?? 2
     this.meltActualFee = options.meltActualFee ?? 1
     this.dropNextMeltResponse = options.dropFirstMeltResponse ?? false
+    this.dropNextMintResponse = options.dropFirstMintResponse ?? false
     this.keyset = createNewMintKeys(10, new Uint8Array(32).fill(42), {
       input_fee_ppk: this.inputFeePpk,
       unit: "sat",
@@ -118,6 +122,12 @@ export class FakeCashuMint {
   }
 
   private async handle(request: IncomingMessage, response: ServerResponse) {
+    response.setHeader("Access-Control-Allow-Origin", "*")
+    response.setHeader("Access-Control-Allow-Headers", "*")
+    if (request.method === "OPTIONS") {
+      response.writeHead(204).end()
+      return
+    }
     const method = request.method ?? "GET"
     const path = new URL(request.url ?? "/", this.url).pathname
 
@@ -186,7 +196,15 @@ export class FakeCashuMint {
       return
     }
 
+    if (method === "GET" && path.startsWith("/v1/mint/quote/bolt11/")) {
+      const quote = this.mintQuotes.get(decodeURIComponent(path.split("/").at(-1)!))
+      if (!quote) throw new Error("Unknown mint quote")
+      this.writeJson(response, 200, quote)
+      return
+    }
+
     if (method === "POST" && path === "/v1/mint/bolt11") {
+      this.mintRequests++
       const body = await this.readJson<{
         quote: string
         outputs: SerializedBlindedMessage[]
@@ -197,7 +215,13 @@ export class FakeCashuMint {
         throw new Error("Mint outputs do not match quote amount")
       }
       quote.state = "ISSUED"
-      this.writeJson(response, 200, {signatures: this.signOutputs(body.outputs)})
+      const signatures = this.signOutputs(body.outputs)
+      if (this.dropNextMintResponse) {
+        this.dropNextMintResponse = false
+        response.destroy()
+      } else {
+        this.writeJson(response, 200, {signatures})
+      }
       return
     }
 
@@ -345,7 +369,11 @@ export class FakeCashuMint {
   }
 
   private signOutputs(outputs: SerializedBlindedMessage[]) {
-    return outputs.map((output) => this.signOutput(output, output.amount))
+    return outputs.map((output) => {
+      const signature = this.signOutput(output, output.amount)
+      this.restorableOutputs.set(output.B_, {output, signature})
+      return signature
+    })
   }
 
   private signOutput(
