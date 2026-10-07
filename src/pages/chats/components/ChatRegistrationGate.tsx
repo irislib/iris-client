@@ -18,6 +18,8 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
     appKeysManagerReady,
     sessionManagerReady,
     privateMessagingBlocked,
+    identityPubkey,
+    isCurrentDeviceRegistered,
   } = useDevicesStore()
 
   // Existing registered devices retain their chats and device management.
@@ -26,7 +28,10 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
   }
 
   const needsSignIn = !publicKey || !hasWriteAccess
-  const isInitializing = !appKeysManagerReady || !sessionManagerReady
+  const isInitializing =
+    !appKeysManagerReady ||
+    !identityPubkey ||
+    ((isCurrentDeviceRegistered || linkedDevice) && !sessionManagerReady)
   const recipient = pathname === "/chats/chat" ? state?.id : undefined
   const chatUrl =
     typeof recipient === "string" && /^[0-9a-f]{64}$/i.test(recipient)

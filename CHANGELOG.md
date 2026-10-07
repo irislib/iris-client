@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.5.53 - 2026-10-07
+
+- Stop starting legacy message subscriptions for browsers directed to Iris Chat. Existing registered devices retain their chats, and saved history remains intact.
+
 ## 2.5.52 - 2026-10-07
 
 - Bound chat history reads during startup so retained messages do not delay feed and profile queries sharing the event cache.

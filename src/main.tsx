@@ -43,18 +43,27 @@ import {syncInjectedHtreeHeadAssetUrls} from "./utils/nativeHtree"
 
 // Auto-update and auto-reload the PWA when a new service worker version is available.
 initServiceWorkerAutoReload()
-startMessageExpirationCleanup()
 
+const startingPrivateMessaging = new Set<string>()
 const startPrivateMessaging = (ownerPubkey: string) => {
-  initAppKeysManager()
-    .then(() => {
-      useDevicesStore.getState().setAppKeysManagerReady(true)
-      useDevicesStore.getState().setHasLocalAppKeys(hasLocalAppKeys())
-    })
-    .catch((err) => error("Failed to initialize AppKeysManager:", err))
+  if (startingPrivateMessaging.has(ownerPubkey)) return
+  startingPrivateMessaging.add(ownerPubkey)
+  void (async () => {
+    // Read local registration before restoring sessions or querying messages.
+    await Promise.all([initAppKeysManager(), initDelegateManager()])
+    const account = useUserStore.getState()
+    const devices = useDevicesStore.getState()
+    if (
+      account.publicKey !== ownerPubkey ||
+      !hasWriteAccess() ||
+      devices.privateMessagingBlocked ||
+      (!account.linkedDevice && !devices.isCurrentDeviceRegistered)
+    )
+      return
 
-  initPrivateMessaging(ownerPubkey)
-    .then(() => {
+    startMessageExpirationCleanup()
+    await initPrivateMessaging(ownerPubkey)
+    if (useUserStore.getState().publicKey === ownerPubkey) {
       startAppKeysSubscription(ownerPubkey)
       useDevicesStore.getState().setSessionManagerReady(true)
       const dm = getDelegateManager()
@@ -62,8 +71,10 @@ const startPrivateMessaging = (ownerPubkey: string) => {
       syncDisappearingMessagesToNdrRuntime().catch(error)
       subscribeToDMNotifications()
       log("Device activated and session listener attached")
-    })
+    }
+  })()
     .catch((err) => error("Failed to activate device:", err))
+    .finally(() => startingPrivateMessaging.delete(ownerPubkey))
 }
 
 // Move initialization to a function to avoid side effects
@@ -123,7 +134,6 @@ const initializeApp = async () => {
     log("Initializing chat modules with existing user data")
 
     subscribeToNotifications()
-    subscribeToDMNotifications()
     void migratePublicChats()
 
     // Only initialize DM sessions if not in readonly mode
@@ -179,7 +189,6 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
     log("Public key changed, initializing chat modules")
 
     subscribeToNotifications()
-    subscribeToDMNotifications()
     void migratePublicChats()
 
     // Only initialize DM sessions if not in readonly mode
@@ -193,6 +202,19 @@ const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
     log("Write access enabled, initializing private messaging")
     startPrivateMessaging(state.publicKey!)
   }
+})
+
+// Registration from device settings can enable existing chats after startup.
+const unsubscribeDeviceRegistration = useDevicesStore.subscribe((state, previous) => {
+  const account = useUserStore.getState()
+  if (
+    state.isCurrentDeviceRegistered &&
+    !previous.isCurrentDeviceRegistered &&
+    !state.privateMessagingBlocked &&
+    account.publicKey &&
+    hasWriteAccess()
+  )
+    startPrivateMessaging(account.publicKey)
 })
 
 let revokedDeviceCleanup: Promise<void> | null = null
@@ -238,6 +260,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     // Clean up subscriptions on hot reload
     unsubscribeUser()
+    unsubscribeDeviceRegistration()
     unsubscribeDeviceRemoval()
     unsubscribeTheme()
     closePrivateMessaging()

@@ -63,16 +63,43 @@ for (const viewport of [
   })
 }
 
-test("signing up no longer registers this device for chats", async ({page}) => {
+test("unregistered browsers hand off chats without starting message subscriptions", async ({
+  page,
+}) => {
   test.skip(needsLocalRelay, "uses an isolated relay for account creation")
+  await page.addInitScript(() => {
+    const subscriptions: number[][] = []
+    Object.assign(window, {__chatStartupSubscriptions: subscriptions})
+    const NativeWorker = window.Worker
+    window.Worker = class extends NativeWorker {
+      postMessage(...args: Parameters<Worker["postMessage"]>) {
+        const [message] = args
+        if (message?.type === "subscribe") {
+          for (const filter of message.filters || []) {
+            if (filter.kinds?.some((kind: number) => kind === 1059 || kind === 1060))
+              subscriptions.push(filter.kinds)
+          }
+        }
+        super.postMessage(...args)
+      }
+    }
+  })
   await signUp(page)
-  await page.goto("/chats")
+  await page.getByRole("link", {name: "Chats", exact: true}).click()
   await expect(chatLink(page)).toHaveAttribute("href", "https://chat.iris.to/", {
     timeout: 15000,
   })
+  const messageSubscriptions = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as {__chatStartupSubscriptions: number[][]})
+          .__chatStartupSubscriptions
+    )
+  expect(await messageSubscriptions()).toEqual([])
   await page.reload()
   await expect(chatLink(page)).toBeVisible({timeout: 15000})
   await expect(page.getByRole("link", {name: "New Chat", exact: true})).toBeHidden()
+  expect(await messageSubscriptions()).toEqual([])
 })
 
 test("signed-out and read-only users can open Iris Chat without signing in here", async ({
