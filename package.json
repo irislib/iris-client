@@ -178,7 +178,8 @@
       "nostr-pubsub@0.5.14": "patches/nostr-pubsub.patch"
     },
     "overrides": {
-      "dexie": "$dexie"
+      "dexie": "$dexie",
+      "@fips/tcp": "https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-v0.2.4/fips-tcp-0.2.3.tgz"
     }
   }
 }
