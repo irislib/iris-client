@@ -5,6 +5,7 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {
   shouldHideUser,
   shouldHideEvent,
+  SOCIAL_GRAPH_OVERMUTE_THRESHOLD,
   type AlgorithmicVisibilitySnapshot,
 } from "@/utils/visibility"
 import {useSocialGraph} from "@/utils/socialGraph"
@@ -250,7 +251,7 @@ export default function useFeedEvents({
 
     // Check if event should be hidden based on mute/overmute
     // Skip follow distance check since it's already done above
-    if (!inAuthors && shouldHideEvent(event, 3, true)) {
+    if (!inAuthors && shouldHideEvent(event, SOCIAL_GRAPH_OVERMUTE_THRESHOLD, true)) {
       return false
     }
     return true
@@ -519,7 +520,10 @@ export default function useFeedEvents({
 
       const isMyRecent =
         event.pubkey === myPubKey && event.created_at * 1000 > Date.now() - 10000
-      const isNewEvent = initialLoadDoneRef.current && !isMyRecent
+      // An empty feed has no mounted row to anchor the "show new" control.
+      // Insert its first arriving/recovered event directly, including after a mute.
+      const isNewEvent =
+        initialLoadDoneRef.current && eventsRef.current.size > 0 && !isMyRecent
 
       // Check if event would appear below viewport (no layout shift)
       // Events with older timestamps appear below newer ones in chronological feed

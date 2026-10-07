@@ -1,5 +1,5 @@
 import {AppEvent, EventFilter} from "@/lib/nostr"
-import {shouldHideEvent} from "@/utils/visibility"
+import {shouldHideEvent, SOCIAL_GRAPH_OVERMUTE_THRESHOLD} from "@/utils/visibility"
 import {useEffect, useMemo, useState} from "react"
 import {nostr} from "@/utils/nostrClient"
 import {useVisibilityRevision} from "@/shared/hooks/useVisibilityRevision"
@@ -45,7 +45,7 @@ function FeedItemComment({event, showReactionCounts = true}: FeedItemCommentProp
     () =>
       (group ? memberReplies : [...replies.values()]).filter(
         (reply) =>
-          !shouldHideEvent(reply) &&
+          !shouldHideEvent(reply, SOCIAL_GRAPH_OVERMUTE_THRESHOLD) &&
           isVisibleGroupActivity(reply, group) &&
           (getEventRootReference(reply) === threadReference ||
             getEventReplyReference(reply) === threadReference)

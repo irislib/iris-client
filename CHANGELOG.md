@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.48 - 2026-10-07
+
+- Apply the same social-graph moderation threshold to reply counts and reply lists, including mentioned identities, so hidden replies do not leave a misleading count.
+- Show the first arriving or newly unmuted reply immediately when a thread is empty, without trapping it behind an invisible new-events control.
+
 ## 2.5.47 - 2026-10-06
 
 - Save posts, replies, and group activity to the offline outbox without waiting for relay responses.
