@@ -7,9 +7,6 @@ import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {Name} from "@/shared/components/user/Name"
 import Widget from "@/shared/components/ui/Widget"
-import {useSettingsStore} from "@/stores/settings"
-import {useSocialGraph} from "@/utils/socialGraph"
-import {shouldHideEvent} from "@/utils/visibility"
 import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect, useCallback} from "react"
 import {getTags} from "@/utils/nostr"
@@ -27,9 +24,7 @@ export default function ThreadPage({
   isNaddr?: boolean
   naddrData?: nip19.AddressPointer | null
 }) {
-  const socialGraph = useSocialGraph()
   const [relevantPeople, setRelevantPeople] = useState(new Map<string, boolean>())
-  const {content} = useSettingsStore()
   const [threadAuthor, setThreadAuthor] = useState<string | null>(null)
   const [isArticle, setIsArticle] = useState(false)
 
@@ -69,14 +64,8 @@ export default function ThreadPage({
 
   const addToThread = useCallback(
     (event: AppEvent) => {
-      // Skip events from muted users or mentioning muted users
-      if (shouldHideEvent(event)) return
-
-      if (
-        content.maxFollowDistanceForReplies !== undefined &&
-        socialGraph.getFollowDistance(event.pubkey) > content.maxFollowDistanceForReplies
-      )
-        return
+      // Keep candidates received before graph hydration. The sidebar applies
+      // the current recommendation policy when rendering them.
       if (!threadAuthor) setThreadAuthor(event.pubkey)
       // Check if this is an article (long-form content)
       if (event.kind === KIND_LONG_FORM_CONTENT) {
@@ -87,7 +76,7 @@ export default function ThreadPage({
         addRelevantPerson(user)
       }
     },
-    [content.maxFollowDistanceForReplies, threadAuthor, addRelevantPerson]
+    [threadAuthor, addRelevantPerson]
   )
 
   const renderSidebarContextWidget = () => {

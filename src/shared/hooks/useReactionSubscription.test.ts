@@ -220,14 +220,9 @@ describe("useReactionSubscription", () => {
       })
     })
 
+    expect(latestGetNextMostPopular(10)).toEqual(["reaction-post", "repost-post"])
     expect(defaultVisibilitySnapshot.shouldHideRecommendationUser).toHaveBeenCalledWith(
       "unknown-actor"
-    )
-    expect(CACHE.pendingReactionCounts?.get("reaction-post")).toEqual(
-      new Set(["visible-actor"])
-    )
-    expect(CACHE.pendingReactionCounts?.get("repost-post")).toEqual(
-      new Set(["visible-actor"])
     )
   })
 
@@ -276,9 +271,31 @@ describe("useReactionSubscription", () => {
       })
     })
 
-    expect(CACHE.pendingReactionCounts?.has("unknown-recommended-post")).toBe(false)
-    expect(CACHE.pendingReactionCounts?.get("visible-recommended-post")).toEqual(
-      new Set([visibleActor])
+    expect(latestGetNextMostPopular(10)).toEqual(["visible-recommended-post"])
+  })
+
+  it("rechecks queued actors after mutes and unmutes without restarting the subscription", async () => {
+    await act(async () => root.render(createElement(TestHook)))
+    await act(async () => {
+      ndkMocks.emitEvent({
+        id: "reaction",
+        pubkey: "author",
+        kind: 7,
+        created_at: 2,
+        tags: [["e", "post"]],
+      })
+    })
+    const hiddenPolicy = {
+      shouldHideRecommendationUser: () => true,
+      shouldHideAlgorithmicEvent: () => false,
+    }
+    await act(async () =>
+      root.render(createElement(TestHook, {visibilitySnapshot: hiddenPolicy}))
     )
+    expect(latestGetNextMostPopular(10)).toEqual([])
+    await act(async () => root.render(createElement(TestHook)))
+    expect(latestGetNextMostPopular(10)).toEqual(["post"])
+    expect(ndkMocks.subscribe).toHaveBeenCalledOnce()
+    expect(ndkMocks.stop).not.toHaveBeenCalled()
   })
 })

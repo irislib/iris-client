@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useCallback, useLayoutEffect} from "react"
+import {useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo} from "react"
 import {AppEvent, EventFilter} from "@/lib/nostr"
 import {addSeenEventId} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
@@ -52,6 +52,15 @@ export default function useCombinedPostFetcher({
   const attemptedReadinessRef = useRef<string | null>(null)
   const scopeKey = `${myPubKey || "anonymous"}:${sourceKey}`
   const policyReady = ready && !!visibilitySnapshot
+  const visibilityRef = useRef(visibilitySnapshot)
+  visibilityRef.current = visibilitySnapshot
+  // Policy changes filter the existing collection in place. Retaining the
+  // received posts preserves order, DOM identity and recovery after unmuting.
+  const visibleEvents = useMemo(
+    () =>
+      events.filter((event) => !visibilitySnapshot?.shouldHideAlgorithmicEvent(event)),
+    [events, visibilitySnapshot]
+  )
   const normalizedPopularRatio = Math.min(1, Math.max(0, popularRatio))
   const popularSourceEnabled = normalizedPopularRatio > 0
   const chronologicalSourceEnabled = normalizedPopularRatio < 1
@@ -180,7 +189,7 @@ export default function useCombinedPostFetcher({
       }
 
       eventsArray = eventsArray.filter(
-        (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+        (event) => !visibilityRef.current?.shouldHideAlgorithmicEvent(event)
       )
 
       const shuffledEvents = shuffle(eventsArray)
@@ -328,7 +337,7 @@ export default function useCombinedPostFetcher({
     policyReady && !hasLoadedInitial.current && !hasAnySourceReady
 
   return {
-    events: policyReady ? events : [],
+    events: policyReady ? visibleEvents : [],
     loading: !policyReady || loading || isInitializing || waitingForDataSources,
     loadMore,
     loadMoreKey: `${scopeKey}:${sourceReadinessKey}:${events.length}`,

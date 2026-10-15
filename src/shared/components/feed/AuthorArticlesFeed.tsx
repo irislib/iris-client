@@ -32,8 +32,6 @@ const AuthorArticlesFeed = memo(function AuthorArticlesFeed({
     })
 
     subscription.on("event", (event: AppEvent) => {
-      if (visibilitySnapshot?.shouldHideAlgorithmicEvent(event)) return
-
       setEvents((prev) => {
         // Avoid duplicates and filter out current article
         if (event.id === currentArticleId || prev.some((e) => e.id === event.id)) {
@@ -50,7 +48,7 @@ const AuthorArticlesFeed = memo(function AuthorArticlesFeed({
     return () => {
       subscription.stop()
     }
-  }, [authorPubkey, currentArticleId, maxItems, visibilitySnapshot])
+  }, [authorPubkey, currentArticleId, maxItems])
 
   // A live mute/graph update can replace the sidebar policy between paints.
   // Render-filter the existing collection too; filtering only new subscription

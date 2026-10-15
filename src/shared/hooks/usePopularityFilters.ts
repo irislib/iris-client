@@ -58,8 +58,8 @@ export default function usePopularityFilters(filterSeen?: boolean) {
       ? expectedRoot
       : DEFAULT_SOCIAL_GRAPH_ROOT
   }, [expectedRoot, graphVersion, rootReady])
-  // For You is intentionally stable after loading. Popular, including its
-  // sidebar widgets, re-captures policy when the live graph or setting changes.
+  // For You is intentionally stable after loading. Popular re-captures live
+  // visibility without treating every graph revision as a new feed source.
   const policyRevision = filterSeen
     ? `mounted:${recommendationRoot}`
     : `${graphVersion}/${muteListVersion}/${maxFollowDistance ?? "unlimited"}`
@@ -93,11 +93,17 @@ export default function usePopularityFilters(filterSeen?: boolean) {
       ),
     }
   }, [expectedRoot, myPubKey, policyRevision, rootReady, recommendationRoot])
-  const authors = snapshot?.reactionAuthors || []
-  const chronologicalAuthors = snapshot?.chronologicalAuthors || []
+  const authorKey = snapshot?.reactionAuthors.join(",") || ""
+  const chronologicalAuthorKey = snapshot?.chronologicalAuthors.join(",") || ""
+  const authors = useMemo(() => (authorKey ? authorKey.split(",") : []), [authorKey])
+  const chronologicalAuthors = useMemo(
+    () => (chronologicalAuthorKey ? chronologicalAuthorKey.split(",") : []),
+    [chronologicalAuthorKey]
+  )
   const scopeKey = snapshot
-    ? `${snapshot.viewer}:${snapshot.policyKey}:reactions=${authors.join(",")}:chronological=${chronologicalAuthors.join(",")}`
+    ? `${snapshot.viewer}:${filterSeen ? snapshot.policyKey : `root=${recommendationRoot}`}:reactions=${authorKey}:chronological=${chronologicalAuthorKey}`
     : `${myPubKey || "anonymous"}:loading`
+  const ready = rootReady && !!snapshot
 
   const currentFilters = useMemo<PopularityFilters>(() => {
     const filters = {
@@ -106,11 +112,11 @@ export default function usePopularityFilters(filterSeen?: boolean) {
       // An empty author set must never become a match-all subscription while
       // the social graph is loading.
       authors,
-      ready: rootReady && !!snapshot,
+      ready,
       scopeKey,
     }
     return filters
-  }, [oldestTimestamp, authors, rootReady, scopeKey, snapshot])
+  }, [oldestTimestamp, authors, ready, scopeKey])
 
   const expandFilters = useCallback(() => {
     setOldestTimestamp((prev) => {

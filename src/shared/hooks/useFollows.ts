@@ -4,7 +4,7 @@ import {
   socialGraphLoaded,
 } from "@/utils/socialGraph.ts"
 import {PublicKey} from "@/shared/utils/PublicKey"
-import {useEffect, useState, useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 import {NostrEvent} from "nostr-social-graph"
 import {AppEvent, EventSubscription} from "@/lib/nostr"
 import {nostr} from "@/utils/nostrClient"
@@ -15,16 +15,22 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
     () => (pubKey ? new PublicKey(pubKey).toString() : ""),
     [pubKey]
   )
-  const [follows, setFollows] = useState<string[] | undefined>(undefined)
-
-  // Initialize follows when pubKeyHex changes
+  const graphFollowsKey = pubKeyHex
+    ? [...socialGraph.getFollowedByUser(pubKeyHex, includeSelf)]
+        .sort(
+          (a, b) => socialGraph.getFollowDistance(a) - socialGraph.getFollowDistance(b)
+        )
+        .join(",")
+    : ""
+  // Explicit profiles may be outside the graph's crawl distance. Retain their
+  // received lists as well as graph updates, without resetting on unrelated
+  // graph revisions or changing array identity when the list is unchanged.
+  const [received, setReceived] = useState({pubkey: pubKeyHex, key: graphFollowsKey})
   useEffect(() => {
-    if (pubKeyHex) {
-      setFollows([...socialGraph.getFollowedByUser(pubKeyHex, includeSelf)])
-    } else {
-      setFollows([])
-    }
-  }, [pubKeyHex, includeSelf, socialGraph])
+    setReceived({pubkey: pubKeyHex, key: graphFollowsKey})
+  }, [pubKeyHex, graphFollowsKey])
+  const followsKey = received.pubkey === pubKeyHex ? received.key : graphFollowsKey
+  const follows = useMemo(() => (followsKey ? followsKey.split(",") : []), [followsKey])
 
   useEffect(() => {
     if (!pubKeyHex) return
@@ -37,30 +43,18 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
       await socialGraphLoaded
       if (cancelled) return
 
-      subscription = nostr().subscribe(
-        {kinds: [3], authors: [pubKeyHex]},
-        {
-          onEvent: (event: AppEvent) => {
-            event.nostr = nostr()
-            if (event.created_at && event.created_at > latestTimestamp) {
-              latestTimestamp = event.created_at
-              handleSocialGraphEvent(event as NostrEvent)
-              const pubkeys = event
-                .getMatchingTags("p")
-                .map((pTag) => pTag[1])
-                .sort((a, b) => {
-                  return (
-                    socialGraph.getFollowDistance(a) - socialGraph.getFollowDistance(b)
-                  )
-                })
-              if (includeSelf && pubKey) {
-                pubkeys.unshift(pubKey)
-              }
-              setFollows(pubkeys)
-            }
-          },
-        }
-      )
+      subscription = nostr().subscribe({kinds: [3], authors: [pubKeyHex]})
+      subscription.on("event", (event: AppEvent) => {
+        if (event.created_at <= latestTimestamp) return
+        latestTimestamp = event.created_at
+        handleSocialGraphEvent(event as NostrEvent)
+        const pubkeys = event.getMatchingTags("p").map((tag) => tag[1])
+        if (includeSelf) pubkeys.unshift(pubKeyHex)
+        pubkeys.sort(
+          (a, b) => socialGraph.getFollowDistance(a) - socialGraph.getFollowDistance(b)
+        )
+        setReceived({pubkey: pubKeyHex, key: [...new Set(pubkeys)].join(",")})
+      })
     }
     void subscribe().catch((error) => console.warn(error))
 
@@ -68,9 +62,9 @@ const useFollows = (pubKey: string | null | undefined, includeSelf = false) => {
       cancelled = true
       subscription?.stop()
     }
-  }, [pubKeyHex, includeSelf, pubKey, socialGraph])
+  }, [pubKeyHex, includeSelf, socialGraph])
 
-  return follows ?? []
+  return follows
 }
 
 export default useFollows

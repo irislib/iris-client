@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.54 - 2026-10-15
+
+- Keep Popular posts, scroll position, and subscriptions stable during background social-graph updates while applying live visibility changes.
+- Keep the other-articles widget mounted while recommendation visibility updates.
+- Restore follow-list updates and populate relevant people after the social graph loads.
+
 ## 2.5.53 - 2026-10-07
 
 - Stop starting legacy message subscriptions for browsers directed to Iris Chat. Existing registered devices retain their chats, and saved history remains intact.

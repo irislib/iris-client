@@ -172,6 +172,20 @@ describe("usePopularityFilters", () => {
     ).toHaveBeenCalledTimes(2)
   })
 
+  it("keeps Popular's source filters stable when only graph policy changes", async () => {
+    useSocialGraphStore.setState({isReady: true})
+    await act(async () => root.render(createElement(TestHook)))
+    const filters = latestResult?.currentFilters
+    const visibility = latestResult?.visibilitySnapshot
+
+    await act(async () => {
+      useSocialGraphStore.setState({version: 11, muteListVersion: 21})
+    })
+
+    expect(latestResult?.currentFilters).toBe(filters)
+    expect(latestResult?.visibilitySnapshot).not.toBe(visibility)
+  })
+
   it("waits for the graph synchronizer to install the current viewer root", async () => {
     graphMocks.state.root = "previous-viewer"
     useSocialGraphStore.setState({isReady: true})
@@ -208,7 +222,7 @@ describe("usePopularityFilters", () => {
     expect(latestResult?.currentFilters.authors).toEqual(["default-friend"])
     expect(latestResult?.chronologicalAuthors).toEqual([])
     expect(latestResult?.currentFilters.scopeKey).toContain(
-      "anonymous:default-root:graph=10/20"
+      "anonymous:default-root:root=default-root"
     )
     expect(graphMocks.graph.getFollowedByUser).toHaveBeenCalledWith("default-root")
   })

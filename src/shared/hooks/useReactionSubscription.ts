@@ -28,6 +28,9 @@ export default function useReactionSubscription(
   filterSeen?: boolean
 ) {
   const {revision, notify} = useCandidateRevision()
+  const visibilityRef = useRef(visibilitySnapshot)
+  visibilityRef.current = visibilitySnapshot
+  const policyReady = !!visibilitySnapshot
   const authorScope = `${currentFilters.scopeKey}:${
     currentFilters.ready ? "ready" : "loading"
   }:${currentFilters.authors.join(",")}`
@@ -49,6 +52,12 @@ export default function useReactionSubscription(
   )
   const hasInitialDataRef = useRef(cacheMatchesScope && (cache.hasInitialData || false))
   const activeAuthorScope = useRef(authorScope)
+
+  useEffect(() => {
+    // Previously hidden signals can become eligible without reopening the
+    // history query or clearing the posts the user is already reading.
+    if (pendingReactionCounts.current.size > 0) notify()
+  }, [visibilitySnapshot, notify])
 
   useEffect(() => {
     if (activeAuthorScope.current !== authorScope) {
@@ -79,7 +88,7 @@ export default function useReactionSubscription(
       setHasInitialData(true)
     }
 
-    if (!ready || !visibilitySnapshot) {
+    if (!ready || !policyReady) {
       return
     }
 
@@ -107,9 +116,6 @@ export default function useReactionSubscription(
       if (activeAuthorScope.current !== subscribedScope) return
       if (!event.created_at || !event.id) return
       if (event.kind !== KIND_REACTION && event.kind !== KIND_REPOST) return
-      // Recommendation signals obey the same visibility policy as their UI.
-      // In particular, unknown and overmuted engagement actors cannot rank a post.
-      if (visibilitySnapshot.shouldHideRecommendationUser(event.pubkey)) return
       const originalPostId = getTag("e", event.tags)
       if (!originalPostId) return
 
@@ -167,22 +173,32 @@ export default function useReactionSubscription(
       clearInterval(expansionTimer)
       sub.stop()
     }
-  }, [cache, currentFilters, expandFilters, filterSeen, visibilitySnapshot])
+  }, [cache, currentFilters, expandFilters, filterSeen, policyReady])
 
   const getNextMostPopular = (n: number): string[] => {
     // Note: We don't call expandFilters() here to avoid triggering re-renders during data fetching
     // It will be called by the timeout in the subscription effect if needed
 
     const top = Array.from(pendingReactionCounts.current.entries())
-      .sort((a, b) => b[1].size - a[1].size)
+      // Keep received signals, but only currently visible actors may rank a
+      // post. This also applies mutes to signals received before a policy change.
+      .map(([id, actors]) => ({
+        id,
+        actors,
+        score: Array.from(actors).filter(
+          (actor) => !visibilityRef.current?.shouldHideRecommendationUser(actor)
+        ).length,
+      }))
+      .filter(({score}) => score > 0)
+      .sort((a, b) => b.score - a.score)
       .slice(0, n)
 
-    top.forEach(([eventId, reactions]) => {
-      pendingReactionCounts.current.delete(eventId)
-      showingReactionCounts.current.set(eventId, reactions)
+    top.forEach(({id, actors}) => {
+      pendingReactionCounts.current.delete(id)
+      showingReactionCounts.current.set(id, actors)
     })
 
-    return top.map(([eventId]) => eventId)
+    return top.map(({id}) => id)
   }
 
   return {

@@ -451,6 +451,53 @@ describe("useCombinedPostFetcher", () => {
     expect(latestResult?.events.map(({id}) => id)).toEqual([available.id])
   })
 
+  it("applies live visibility to loaded posts and late results without resetting the feed", async () => {
+    const retained = event("retained", "friend")
+    const muted = event("muted", "muted-author")
+    const late = event("late", "muted-author")
+    const pendingFetch = deferred<AppEvent[]>()
+    mocks.fetchEventsReliable.mockReturnValue({promise: pendingFetch.promise})
+    const props = baseProps({
+      cache: {
+        scopeKey: "viewer:scope-a",
+        events: [retained, muted],
+        hasLoadedInitial: true,
+      },
+      hasPopularData: true,
+      popularRatio: 1,
+      getNextPopular: vi.fn(() => [late.id]),
+    })
+    await act(async () => root.render(createElement(TestHook, props)))
+    let load!: Promise<void>
+    await act(async () => {
+      load = latestResult!.loadMore()
+    })
+
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {
+          ...props,
+          visibilitySnapshot: {
+            shouldHideRecommendationUser: () => false,
+            shouldHideAlgorithmicEvent: (event) => event.pubkey === "muted-author",
+          },
+        })
+      )
+    )
+    expect(latestResult?.events).toEqual([retained])
+    await act(async () => {
+      pendingFetch.resolve([late])
+      await load
+    })
+    expect(latestResult?.events).toEqual([retained])
+    expect(latestResult?.loading).toBe(false)
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledOnce()
+
+    await act(async () => root.render(createElement(TestHook, props)))
+    expect(latestResult?.events).toEqual([retained, muted])
+    expect(latestResult?.events[0]).toBe(retained)
+  })
+
   it("uses the captured visibility policy for initial and later batches", async () => {
     const initialEvent = event("initial")
     const visibleLaterEvent = event("visible-later")
