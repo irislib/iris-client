@@ -1,4 +1,4 @@
-import {hasMetadataPrivacyVersion} from "nostr-double-ratchet"
+import {hasMetadataPrivacyVersion, isGroupRosterFactEvent} from "nostr-double-ratchet"
 import type {VerifiedEvent} from "nostr-tools"
 const labelTag = (tag: string[]) =>
   tag[0] === "encrypted_device_labels" ||
@@ -6,19 +6,28 @@ const labelTag = (tag: string[]) =>
 export function hasLegacyPrivateRoster(event: VerifiedEvent): boolean {
   return event.kind === 37368 && event.tags.some(labelTag)
 }
-/** Signing a public roster is allowed; persisting ordinary private data with a static key is not. */
+/** Public device authorization is allowed; private communication uses session keys. */
 export function assertPrivatePublicationPolicy(event: VerifiedEvent): void {
-  const invite = event.kind === 30078 && event.tags.some(
-    (tag) => tag[0] === "d" && tag[1]?.startsWith("double-ratchet/invites/")
-  )
+  const invite =
+    event.kind === 30078 &&
+    event.tags.some(
+      (tag) => tag[0] === "d" && tag[1]?.startsWith("double-ratchet/invites/")
+    )
   if (([1059, 1060].includes(event.kind) || invite) && !hasMetadataPrivacyVersion(event))
-    throw new Error("Old private ciphertext cannot be resent; start a new encrypted session")
+    throw new Error(
+      "Old private ciphertext cannot be resent; start a new encrypted session"
+    )
+  if (
+    (event.kind === 1060 && !event.tags.some((tag) => tag[0] === "p")) ||
+    isGroupRosterFactEvent(event)
+  )
+    throw new Error("Private groups must use encrypted device sessions")
   if (hasLegacyPrivateRoster(event))
     throw new Error(
       "Device list update needs confirmation; old private names remain local"
     )
   if (
-    [10449, 10450, 10451, 10452, 10453, 21112].includes(event.kind) ||
+    [10449, 10450, 10451, 10452, 10453, 21111, 21112].includes(event.kind) ||
     (event.kind === 30078 &&
       event.tags.some((tag) => tag[0] === "t" && tag[1] === "nostr-social-memory/v1"))
   ) {

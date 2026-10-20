@@ -1,8 +1,9 @@
-import {Invite} from "nostr-double-ratchet"
+import {Invite, METADATA_PRIVACY_VERSION} from "nostr-double-ratchet"
 
 const DEFAULT_LINK_INVITE_ROOTS = ["https://iris.to", "https://chat.iris.to"]
 
 type LinkInvitePayload = {
+  version?: number
   inviter?: string
   ephemeralKey?: string
   inviterEphemeralPublicKey?: string
@@ -63,9 +64,16 @@ function normalizeInvitePayload(raw: string): string | null {
     ephemeralKey = data.inviterEphemeralPublicKey
   }
 
-  if (!inviter || !sharedSecret || !ephemeralKey) return null
+  if (
+    data.version !== METADATA_PRIVACY_VERSION ||
+    !inviter ||
+    !sharedSecret ||
+    !ephemeralKey
+  )
+    return null
 
-  const payload: Record<string, string> = {
+  const payload: Record<string, string | number> = {
+    version: METADATA_PRIVACY_VERSION,
     inviter,
     ephemeralKey,
     sharedSecret,

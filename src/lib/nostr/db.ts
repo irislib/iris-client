@@ -31,6 +31,7 @@ export class Database extends Dexie {
   profiles!: Table<Profile>
   events!: Table<Event>
   unpublishedEvents!: Table<UnpublishedEvent>
+  privateUnpublishedEvents!: Table<UnpublishedEvent>
   cacheData!: Table<CacheData>
 
   constructor(name: string) {
@@ -46,6 +47,7 @@ export class Database extends Dexie {
       events:
         "&id, kind, pubkey, createdAt, [kind+createdAt], [pubkey+createdAt], [pubkey+kind], *tagIndex",
     })
+    this.version(3).stores({privateUnpublishedEvents: "&id"})
   }
 }
 

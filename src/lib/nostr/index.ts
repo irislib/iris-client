@@ -1,5 +1,6 @@
 import {addContentTags} from "./contentTags"
 import {attachLookupRoutes, relayHintsFromUrls} from "./lookupRouting"
+import {createPrivateNostrRuntime} from "./privateRuntime"
 /** App domain objects. Networking, verification, batching and retries belong to nostr-pubsub. */
 import {
   finalizeEvent,
@@ -17,7 +18,6 @@ import {
 } from "nostr-tools"
 import {decode as decodeInvoice} from "light-bolt11-decoder"
 import {
-  createNostrRuntime,
   type NostrRuntime,
   type NostrRuntimeOptions,
   type RuntimeCompletion,
@@ -643,7 +643,11 @@ export interface ClientOptions {
   signAuthEvent?: NostrRuntimeOptions["signAuthEvent"]
   explicitRelayUrls?: string[]
   signer?: Signer
-  cacheAdapter?: {store: RuntimeEventStore}
+  cacheAdapter?: {
+    store: RuntimeEventStore
+    privateStore?: RuntimeEventStore
+    migratePrivatePending?(): Promise<void>
+  }
   clientName?: string
   clientTagFilter?: (event: AppEvent) => boolean
   enableOutboxModel?: boolean
@@ -736,21 +740,25 @@ export class NostrClient extends Emitter {
     for (const url of this.explicitRelayUrls) this.pool.getRelay(url, false)
   }
   getRuntime() {
-    return (this.runtime ??= createNostrRuntime({
-      relays: this.explicitRelayUrls,
-      store: this.cacheAdapter?.store,
-      batchWindowMs: 20,
-      historyTimeoutMs: 5000,
-      verifyEvent: this.verifyEvent,
-      reconciliation: this.reconciliation,
-      signAuthEvent:
-        this.signAuthEvent ??
-        (async (_relay, draft) => {
-          const event = new AppEvent(this, draft)
-          await event.sign()
-          return event.rawEvent()
-        }),
-    }))
+    return (this.runtime ??= createPrivateNostrRuntime(
+      {
+        relays: this.explicitRelayUrls,
+        store: this.cacheAdapter?.store,
+        batchWindowMs: 20,
+        historyTimeoutMs: 5000,
+        verifyEvent: this.verifyEvent,
+        reconciliation: this.reconciliation,
+        signAuthEvent:
+          this.signAuthEvent ??
+          (async (_relay, draft) => {
+            const event = new AppEvent(this, draft)
+            await event.sign()
+            return event.rawEvent()
+          }),
+      },
+      this.cacheAdapter?.privateStore,
+      this.cacheAdapter?.migratePrivatePending?.()
+    ))
   }
   async connect(_timeout?: number) {
     this.getRuntime()

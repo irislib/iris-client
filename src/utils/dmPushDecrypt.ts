@@ -3,11 +3,13 @@ import {
   deserializeSessionState,
   REACTION_KIND,
   RECEIPT_KIND,
+  PRIVATE_GROUP_DELIVERY_KIND,
   Rumor,
   Session,
   TYPING_KIND,
 } from "nostr-double-ratchet"
 import type {VerifiedEvent} from "nostr-tools"
+import {decryptPrivateGroupPush} from "./groupPushDecrypt"
 
 type LocalForageInstance = typeof localforage
 
@@ -57,6 +59,8 @@ export type DmPushDecryptResult =
       sessionId: string
       userPublicKey: string
       silent: boolean
+      groupId?: string
+      groupName?: string
     }
 
 export async function fetchStoredSessions(
@@ -103,6 +107,7 @@ export async function tryDecryptDmPushEvent(
     storage: LocalForageInstance
     timeoutMs?: number
     keyPrefix?: string
+    groupStorage?: Pick<LocalForageInstance, "getItem">
   }
 ): Promise<DmPushDecryptResult> {
   const {storage, timeoutMs = 1500, keyPrefix = SESSION_STORAGE_PREFIX} = opts
@@ -126,11 +131,6 @@ export async function tryDecryptDmPushEvent(
       return {success: false}
     }
 
-    const eventForSession: VerifiedEvent = {
-      ...(outerEvent as unknown as VerifiedEvent),
-      tags: outerEvent.tags.filter(([key]) => key === "header"),
-    }
-
     for (const entry of matchingSessions) {
       const state = deserializeSessionState(entry.serializedState)
 
@@ -143,7 +143,7 @@ export async function tryDecryptDmPushEvent(
           resolve(event)
         })
         try {
-          const received = session.receiveEvent(eventForSession)
+          const received = session.receiveEvent(outerEvent)
           if (!received) {
             clearTimeout(timeout)
             resolve(null)
@@ -158,6 +158,24 @@ export async function tryDecryptDmPushEvent(
 
       if (innerEvent) {
         const {sessionId, userPublicKey} = entry
+        if (innerEvent.kind === PRIVATE_GROUP_DELIVERY_KIND) {
+          const preview = await decryptPrivateGroupPush(
+            innerEvent,
+            userPublicKey,
+            storage,
+            keyPrefix,
+            opts.groupStorage
+          )
+          return {
+            success: true,
+            kind: innerEvent.kind,
+            content: preview?.content ?? "",
+            sessionId,
+            userPublicKey,
+            silent: !preview,
+            ...(preview && {groupId: preview.groupId, groupName: preview.groupName}),
+          }
+        }
         const silent = innerEvent.kind === RECEIPT_KIND || innerEvent.kind === TYPING_KIND
         const content =
           innerEvent.kind === REACTION_KIND

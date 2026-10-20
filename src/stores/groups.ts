@@ -22,6 +22,26 @@ interface GroupsStore {
 }
 
 const STORAGE_VERSION = 3
+let groupPersistence = Promise.resolve()
+const storage = {
+  getItem: (name: string) => localforage.getItem<string>(name),
+  setItem(name: string, value: string) {
+    groupPersistence = groupPersistence
+      .catch(() => {})
+      .then(async () => {
+        await localforage.setItem(name, value)
+      })
+    return groupPersistence
+  },
+  removeItem(name: string) {
+    groupPersistence = groupPersistence
+      .catch(() => {})
+      .then(() => localforage.removeItem(name))
+    return groupPersistence
+  },
+}
+
+export const awaitGroupPersistence = (): Promise<void> => groupPersistence
 
 const store = create<GroupsStore>()(
   persist(
@@ -71,7 +91,7 @@ const store = create<GroupsStore>()(
     }),
     {
       name: "groups",
-      storage: createJSONStorage(() => localforage),
+      storage: createJSONStorage(() => storage),
       version: STORAGE_VERSION,
       migrate: (persisted: unknown, version) => {
         if (!persisted || typeof persisted !== "object") {

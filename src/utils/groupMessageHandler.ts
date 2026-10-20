@@ -1,5 +1,5 @@
 import {useDevicesStore} from "@/stores/devices"
-import {useGroupsStore} from "@/stores/groups"
+import {useGroupsStore, awaitGroupPersistence} from "@/stores/groups"
 import {useChatExpirationStore} from "@/stores/chatExpiration"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useTypingStore} from "@/stores/typingIndicators"
@@ -107,6 +107,7 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
       messageTtlSeconds: existing?.messageTtlSeconds ?? null,
       rosterRevision: fact.revision,
     })
+    await awaitGroupPersistence()
     return
   }
 
@@ -119,6 +120,7 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
   if (!inner) return
 
   ensurePlaceholderGroup(event.groupId, publicKey, senderOwnerPubkey)
+  await awaitGroupPersistence()
 
   if (inner.kind === CHAT_SETTINGS_KIND) {
     const group = useGroupsStore.getState().groups[event.groupId]
@@ -128,6 +130,7 @@ async function handleGroupEvent(event: GroupDecryptedEvent): Promise<void> {
     useGroupsStore.getState().updateGroup(event.groupId, {
       messageTtlSeconds: settings.messageTtlSeconds,
     })
+    await awaitGroupPersistence()
     useChatExpirationStore
       .getState()
       .setExpiration(event.groupId, settings.messageTtlSeconds)
@@ -176,8 +179,9 @@ export const attachGroupMessageListener = (): void => {
 
   const runtime = getNdrRuntime()
   unsubscribeGroupEvents = runtime.onGroupEvent((event) => {
-    void handleGroupEvent(event).catch((error) => {
+    return handleGroupEvent(event).catch((error) => {
       console.error("Failed to process group event:", error)
+      throw error
     })
   })
 

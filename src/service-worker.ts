@@ -395,17 +395,21 @@ self.addEventListener("push", (event) => {
               },
             })
           } else {
-            const displayName = await getDisplayName(result.userPublicKey)
+            const displayName =
+              result.groupName ?? (await getDisplayName(result.userPublicKey))
             const config = NOTIFICATION_CONFIGS[MESSAGE_EVENT_KIND]
-            const title =
+            let title =
               typeof config.title === "function"
                 ? config.title(displayName)
                 : config.title
+            if (result.groupName) title = `New message in ${result.groupName}`
             await self.registration.showNotification(title, {
               body: result.content,
               icon: config.icon,
               data: {
-                url: config.url,
+                url: result.groupId
+                  ? `/chats/group/${encodeURIComponent(result.groupId)}`
+                  : config.url,
                 event: data.event,
               },
             })

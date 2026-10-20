@@ -1,6 +1,15 @@
-import {fromHex, toHex} from "@hashtree/core"
+import {fromHex, toHex, MemoryStore} from "@hashtree/core"
 import {generateSecretKey} from "nostr-tools"
-import {type NostrEventReader, type RuntimeSource} from "nostr-pubsub"
+import {
+  createAnonymousFipsDiscovery,
+  createAnonymousFipsPublisher,
+  createScopedFipsSource,
+  FipsNostrPubsubClient,
+  FipsNostrPubsubEventSource,
+  isPrivateRelayEvent,
+  type NostrEventReader,
+  type RuntimeSource,
+} from "nostr-pubsub"
 import type {BrowserHashtreeFipsProvider} from "@hashtree/fips-transport/browser"
 import {useUserStore} from "@/stores/user"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
@@ -33,7 +42,7 @@ function deviceKey() {
   return key
 }
 
-/** One authenticated FIPS node carries both file blocks and Nostr events. */
+/** Live reception and files share a device endpoint; private sends use fresh endpoints. */
 export function getPeerRuntime(): Promise<PeerRuntime | null> {
   return (pending ??= start().catch((error) => {
     pending = undefined
@@ -46,7 +55,7 @@ export function getPeerRuntime(): Promise<PeerRuntime | null> {
   }))
 }
 async function start(): Promise<PeerRuntime | null> {
-  const {createBrowserHashtreeNostrProvider, supportsBrowserHashtreeFips} =
+  const {createBrowserHashtreeFipsProvider, supportsBrowserHashtreeFips} =
     await import("@hashtree/fips-transport/browser")
   if (!supportsBrowserHashtreeFips()) {
     setPeerNetworkStatus("unsupported")
@@ -64,33 +73,113 @@ async function start(): Promise<PeerRuntime | null> {
         ? [getInjectedHtreeRelayUrl()!]
         : user.relayConfigs.filter((r) => !r.disabled).map((r) => r.url))
     )
-  const configured = csv(import.meta.env.VITE_FIPS_PEERS)
+  const configured = csv(import.meta.env.VITE_FIPS_PEERS).map((peer) =>
+    peer.toLowerCase()
+  )
+  if (configured.some((peer) => !/^(02|03)[0-9a-f]{64}$/.test(peer)))
+    throw new Error("Invalid message provider")
   const seeds = overrides?.seeds ?? csv(import.meta.env.VITE_FIPS_WEBSOCKET_SEEDS)
-  const provider = await createBrowserHashtreeNostrProvider({
-    deviceSecretKey: deviceKey(),
+  const base = {
     relays,
-    localStore: localBlocks,
     discoveryApp: "iris-client",
     providerRoutes: configured.map((peerId) => ({peerId, htl: 0})),
     ...(seeds.length ? {websocketSeedUrls: seeds} : {}),
     maxConnections: 4,
     iceGatherTimeoutMs: 2000,
     requestTimeoutMs: 2500,
+  }
+  const {getSocialGraph} = await import("@/utils/socialGraph")
+  const provider = await createBrowserHashtreeFipsProvider({
+    ...base,
+    deviceSecretKey: deviceKey(),
+    localStore: localBlocks,
+  })
+  const lifetime = new AbortController()
+  const createEndpoint = async () => {
+    lifetime.signal.throwIfAborted()
+    if (!configured.length) throw new Error("No private message provider is configured")
+    const endpoint = await createBrowserHashtreeFipsProvider({
+      ...base,
+      deviceSecretKey: generateSecretKey(),
+      localStore: new MemoryStore(),
+      serveBlob: async () => null,
+      forwarding: false,
+      allowIncomingPeer: (peer) => configured.includes(peer.toLowerCase()),
+    })
+    if (lifetime.signal.aborted) {
+      await endpoint.stop()
+      lifetime.signal.throwIfAborted()
+    }
+    return {
+      node: endpoint.node,
+      localPeerId: endpoint.localPeerId,
+      peers: () => configured,
+      close: () => endpoint.stop(),
+    }
+  }
+  const receiver = new FipsNostrPubsubClient({
+    node: provider.node,
+    localPeerId: provider.localPeerId,
+    peers: () => [...new Set([...configured, ...provider.listConnectedPeerIds()])],
+    role: "receiver",
+    // This graph contains public kind-3 follows, never private contacts or groups.
+    receiverPublicAuthors: () => {
+      const owner = useUserStore.getState().publicKey
+      return owner ? [owner, ...getSocialGraph().getFollowedByUser(owner)] : []
+    },
     limits: {maxFiltersPerSubscription: 32, maxActiveSubscriptions: 1024},
     retainedEventReader: {
-      query: (filters, options) =>
-        retainedEventReader?.query(filters, options) ??
-        Promise.resolve({events: [], complete: false}),
+      query: async (filters, options) => {
+        const report = await retainedEventReader?.query(filters, options)
+        return report
+          ? {
+              ...report,
+              events: report.events.filter(
+                ({event}) =>
+                  !isPrivateRelayEvent(event) &&
+                  !(
+                    event.kind === 37368 &&
+                    event.tags.some(
+                      (tag) => tag[0] === "type" && tag[1] === "group_roster"
+                    )
+                  )
+              ),
+            }
+          : {events: [], complete: false}
+      },
     },
+  }).start()
+  const anonymousPublisher = createAnonymousFipsPublisher({
+    createEndpoint,
+    timeoutMs: 2500,
+  })
+  const source = createScopedFipsSource({
+    receiver: new FipsNostrPubsubEventSource(receiver),
+    publisher: {
+      publish: (event, origin) =>
+        anonymousPublisher.publish(event, origin, {signal: lifetime.signal}),
+    },
+    discovery: configured.length
+      ? createAnonymousFipsDiscovery({createEndpoint, timeoutMs: 2500})
+      : {
+          query: async () => ({events: [], complete: false}),
+          subscribe: async () => ({close() {}}),
+        },
   })
   const stopObserving = observePeerNetwork(provider)
   return {
     provider,
-    source: provider.nostrSource,
+    source,
     close: async () => {
+      lifetime.abort()
+      source.close()
       stopObserving()
-      await provider.stop()
-      pending = undefined
+      try {
+        await receiver.stop()
+      } finally {
+        pending = undefined
+        await provider.stop()
+      }
     },
   }
 }

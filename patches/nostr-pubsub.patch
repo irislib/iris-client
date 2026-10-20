@@ -7,10 +7,10 @@ diff --git a/src/runtime-relays.ts b/src/runtime-relays.ts
  
 -type Entry = { relays?: readonly string[]; filters: NostrFilter[]; event: (event: NostrEvent, relay: string) => void; state: (relay: string, complete: boolean, error?: string) => void; closed: boolean; batch?: Batch };
 +type Entry = { isolated: boolean; relays?: readonly string[]; filters: NostrFilter[]; event: (event: NostrEvent, relay: string) => void; state: (relay: string, complete: boolean, error?: string) => void; closed: boolean; batch?: Batch };
- type Link = { generation: number; close?: () => void; timer?: ReturnType<typeof setTimeout>; attempts: number; eosed: boolean; latest: Map<string, number> };
+ type Link = { generation: number; close?: () => void; timer?: ReturnType<typeof setTimeout>; attempts: number; eosed: boolean; authenticating?: boolean; latest: Map<string, number> };
  type Batch = { entries: Entry[]; links: Map<string, Link>; closed: boolean; reopenTimer?: ReturnType<typeof setTimeout> };
  
-@@ -48,10 +48,10 @@
+@@ -45,10 +45,10 @@
      return this.relays.map((url) => ({ url, connected: statuses.get(url) ?? false }));
    }
    count(): number { return [...this.batches].reduce((total, batch) => total + batch.links.size, 0); }
@@ -23,7 +23,7 @@ diff --git a/src/runtime-relays.ts b/src/runtime-relays.ts
      this.pending.push(entry);
      if (!this.timer) this.timer = setTimeout(() => this.flush(), this.options.batchWindowMs ?? 10);
      return { close: () => {
-@@ -108,7 +108,7 @@
+@@ -105,7 +105,7 @@
      let group: Entry[] = [];
      for (const entry of entries) {
        const candidate = uniqueFilters([...group, entry]);
@@ -76,7 +76,9 @@ diff --git a/src/runtime.ts b/src/runtime.ts
          if (admission === 'admitted' || listener.options.includeSuperseded) this.deliver(listener, event, { source, cached: false });
        }
        return admission === 'admitted';
-@@ -112,11 +116,23 @@
+@@ -110,13 +114,25 @@
+   }
+ 
    publish(event: NostrEvent, options: RuntimePublishOptions = {}): Promise<RuntimePublishResult> {
 +    return this.startPublish(event, options).result;
 +  }
@@ -171,8 +173,8 @@ diff --git a/src/runtime.ts b/src/runtime.ts
      const event = verifyNostrEvent(raw, this.options.verifyEvent);
      const queue = !options.requireAck && options.queue !== false;
      const echo = !options.requireAck && options.localEcho !== false;
-@@ -294,6 +315,8 @@
-       ) });
+@@ -297,6 +318,8 @@
+       attempts.push(attempt);
      }
      const outcomes: RuntimePublishResult['sources'] = attempts.map(({ id }) => ({ id, accepted: false, pending: true }));
 +    // Resolve the caller after local persistence, while retaining delivery for retries and shutdown.
@@ -191,7 +193,7 @@ diff --git a/dist/runtime-relays.d.ts b/dist/runtime-relays.d.ts
      relays?: readonly string[];
      filters: NostrFilter[];
      event: (event: NostrEvent, relay: string) => void;
-@@ -41,7 +42,7 @@
+@@ -42,7 +43,7 @@
      urls(): string[];
      stats(): RuntimeRelayStats[];
      count(): number;
@@ -203,7 +205,7 @@ diff --git a/dist/runtime-relays.d.ts b/dist/runtime-relays.d.ts
 diff --git a/dist/runtime-relays.js b/dist/runtime-relays.js
 --- a/dist/runtime-relays.js
 +++ b/dist/runtime-relays.js
-@@ -46,12 +46,12 @@
+@@ -42,12 +42,12 @@
          return this.relays.map((url) => ({ url, connected: statuses.get(url) ?? false }));
      }
      count() { return [...this.batches].reduce((total, batch) => total + batch.links.size, 0); }
@@ -218,7 +220,7 @@ diff --git a/dist/runtime-relays.js b/dist/runtime-relays.js
          this.pending.push(entry);
          if (!this.timer)
              this.timer = setTimeout(() => this.flush(), this.options.batchWindowMs ?? 10);
-@@ -123,7 +123,7 @@
+@@ -119,7 +119,7 @@
          let group = [];
          for (const entry of entries) {
              const candidate = uniqueFilters([...group, entry]);
@@ -389,8 +391,8 @@ diff --git a/dist/runtime.js b/dist/runtime.js
          const event = verifyNostrEvent(raw, this.options.verifyEvent);
          const queue = !options.requireAck && options.queue !== false;
          const echo = !options.requireAck && options.localEcho !== false;
-@@ -384,6 +411,9 @@
-                 }), this.options.publishTimeoutMs ?? 5000) });
+@@ -388,6 +415,9 @@
+             attempts.push(attempt);
          }
          const outcomes = attempts.map(({ id }) => ({ id, accepted: false, pending: true }));
 +        // Resolve the caller after local persistence, while retaining delivery for retries and shutdown.

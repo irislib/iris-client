@@ -9,6 +9,7 @@ const SECRET = "d".repeat(64)
 describe("parseLinkInviteInput", () => {
   it("parses a full link URL", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -24,6 +25,7 @@ describe("parseLinkInviteInput", () => {
 
   it("parses raw JSON with inviterEphemeralPublicKey", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       inviterEphemeralPublicKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -38,6 +40,7 @@ describe("parseLinkInviteInput", () => {
 
   it("parses link URL with inviterEphemeralPublicKey", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       inviterEphemeralPublicKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -52,6 +55,7 @@ describe("parseLinkInviteInput", () => {
 
   it("parses link URL without purpose field", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -65,6 +69,7 @@ describe("parseLinkInviteInput", () => {
 
   it("rejects non-link invites", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -78,6 +83,7 @@ describe("parseLinkInviteInput", () => {
 
   it("rejects mismatched owner", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -94,6 +100,7 @@ describe("parseLinkInviteInput", () => {
 describe("parseChatInviteInput", () => {
   it("parses a chat invite URL", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -108,6 +115,7 @@ describe("parseChatInviteInput", () => {
 
   it("parses a chat invite without purpose", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -121,6 +129,7 @@ describe("parseChatInviteInput", () => {
 
   it("rejects link-purpose invites", () => {
     const payload = {
+      version: 2,
       inviter: INVITER,
       ephemeralKey: EPHEMERAL,
       sharedSecret: SECRET,
@@ -135,6 +144,7 @@ describe("parseChatInviteInput", () => {
 
 describe("native chat invite formats", () => {
   const payload = {
+    version: 2,
     inviter: INVITER,
     ephemeralKey: EPHEMERAL,
     sharedSecret: SECRET,
@@ -162,4 +172,19 @@ describe("native chat invite formats", () => {
     expect(parseLinkInviteInput(url("link"), "e".repeat(64))).toBeNull()
     expect(parseLinkInviteInput(url("link"), OWNER)?.ownerPubkey).toBe(OWNER)
   })
+  it.each([undefined, 1])(
+    "rejects invites without the metadata privacy version (%s)",
+    (version) => {
+      const url =
+        "https://chat.iris.to/#/invite/" +
+        encodeURIComponent(JSON.stringify({...payload, version}))
+      expect(parseChatInviteInput(url)).toBeNull()
+      expect(
+        parseLinkInviteInput(
+          JSON.stringify({...payload, purpose: "link", version}),
+          OWNER
+        )
+      ).toBeNull()
+    }
+  )
 })

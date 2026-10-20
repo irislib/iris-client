@@ -21,14 +21,14 @@ const TYPING_KIND = 25
 const CHAT_MESSAGE_KIND = 14
 
 const hoisted = vi.hoisted(() => ({
-  onGroupEvent: null as ((event: any) => void) | null,
+  onGroupEvent: null as ((event: any) => Promise<void> | void) | null,
   setExpirationForGroup: vi.fn().mockResolvedValue(undefined),
   syncGroups: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock("@/shared/services/PrivateChats", () => ({
   getNdrRuntime: () => ({
-    onGroupEvent: (cb: (event: any) => void) => {
+    onGroupEvent: (cb: (event: any) => Promise<void> | void) => {
       hoisted.onGroupEvent = cb
       return () => {
         hoisted.onGroupEvent = null
@@ -52,6 +52,8 @@ describe("groupMessageHandler", () => {
     hoisted.onGroupEvent = null
     hoisted.setExpirationForGroup.mockClear()
     hoisted.syncGroups.mockClear()
+    hoisted.setExpirationForGroup.mockResolvedValue(undefined)
+    hoisted.syncGroups.mockResolvedValue(undefined)
 
     useUserStore.setState({publicKey: MY_OWNER_PUBKEY})
     useDevicesStore.setState({identityPubkey: MY_DEVICE_PUBKEY})
@@ -63,13 +65,50 @@ describe("groupMessageHandler", () => {
 
   afterEach(() => {
     cleanupGroupMessageListener()
+    vi.restoreAllMocks()
+  })
+
+  it("acknowledges group delivery only after the message cache commit", async () => {
+    let commit!: () => void
+    const persisted = new Promise<void>((resolve) => {
+      commit = resolve
+    })
+    vi.spyOn(usePrivateMessagesStore.getState(), "upsert").mockImplementation(
+      async () => {
+        await persisted
+      }
+    )
+    attachGroupMessageListener()
+    const delivery = hoisted.onGroupEvent?.({
+      groupId: GROUP_ID,
+      senderOwnerPubkey: THEIR_OWNER_PUBKEY,
+      senderDevicePubkey: THEIR_OWNER_PUBKEY,
+      inner: {
+        id: "durable-message",
+        kind: CHAT_MESSAGE_KIND,
+        content: "hello",
+        created_at: 1_700_000_000,
+        pubkey: THEIR_OWNER_PUBKEY,
+        tags: [["l", GROUP_ID]],
+      },
+    })
+    expect(delivery).toBeInstanceOf(Promise)
+    let acknowledged = false
+    void Promise.resolve(delivery).then(() => {
+      acknowledged = true
+    })
+    await flushPromises()
+    expect(acknowledged).toBe(false)
+    commit()
+    await delivery
+    expect(acknowledged).toBe(true)
   })
 
   it("keeps group typing events ephemeral and clears them on real messages", async () => {
     attachGroupMessageListener()
     expect(hoisted.onGroupEvent).toBeTruthy()
 
-    hoisted.onGroupEvent?.({
+    await hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,
@@ -93,7 +132,7 @@ describe("groupMessageHandler", () => {
       usePrivateMessagesStore.getState().events.get(GROUP_ID)?.get("typing-1")
     ).toBeUndefined()
 
-    hoisted.onGroupEvent?.({
+    await hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,
@@ -158,7 +197,7 @@ describe("groupMessageHandler", () => {
     })
     const roster = {...unsigned, id: getEventHash(unsigned)}
 
-    hoisted.onGroupEvent?.({
+    await hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,
@@ -190,7 +229,7 @@ describe("groupMessageHandler", () => {
     } as any)
     attachGroupMessageListener()
 
-    hoisted.onGroupEvent?.({
+    await hoisted.onGroupEvent?.({
       groupId: GROUP_ID,
       senderOwnerPubkey: THEIR_OWNER_PUBKEY,
       senderDevicePubkey: THEIR_OWNER_PUBKEY,

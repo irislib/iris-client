@@ -5,15 +5,15 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-v0.2.4/fips-tcp-0.2.3.tgz
   dexie: ^4.4.4
+  '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-v0.2.4/fips-tcp-0.2.3.tgz
 
 patchedDependencies:
   '@hashtree/fips-transport@0.4.21':
     hash: faganjkkhokw5yl7hrcuig7p6a
     path: patches/hashtree-fips-transport.patch
-  nostr-pubsub@0.5.14:
-    hash: v4qi66p6ylnoepecocs4gtu5je
+  nostr-pubsub@0.5.19:
+    hash: wkda5s5zkd6mi6i2i3wfwvizsi
     path: patches/nostr-pubsub.patch
 
 importers:
@@ -111,11 +111,11 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.180.tgz
-        version: 0.0.180(typescript@5.9.3)
+        specifier: https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.181.tgz
+        version: 0.0.181(typescript@5.9.3)
       nostr-pubsub:
-        specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz
-        version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=v4qi66p6ylnoepecocs4gtu5je)(nostr-tools@2.24.1(typescript@5.9.3))
+        specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz
+        version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz(patch_hash=wkda5s5zkd6mi6i2i3wfwvizsi)(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-social-graph:
         specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz
         version: https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz(typescript@5.9.3)
@@ -186,6 +186,9 @@ importers:
       '@types/react-helmet':
         specifier: ^6.1.11
         version: 6.1.11
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
       '@typescript-eslint/eslint-plugin':
         specifier: ^7.18.0
         version: 7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)
@@ -1584,6 +1587,9 @@ packages:
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
 
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
+
   '@typescript-eslint/eslint-plugin@7.18.0':
     resolution: {integrity: sha512-94EQTWZ40mzBc42ATNIBimBEDltSJ9RQHCC8vc/PDbxi4k8dVwUAv4o98dk50M1zB+JGFxp43FP7f8+FP8R6Sw==}
     engines: {node: ^18.18.0 || >=20.0.0}
@@ -2839,8 +2845,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.180:
-    resolution: {integrity: sha512-ugkC64TVBup4PMp4rcA2yu939Csw6gA2XkXKGreBaV5dppM1K3UgCwogXf4cZ+QC1hgii+IAuenZxpNDVkmi0Q==}
+  nostr-double-ratchet@0.0.181:
+    resolution: {integrity: sha512-pnn7MxNzbFL8HkF5lt5+vSkyb+vuNRdhI8c4QROpDCPTpWFPAse392j2nb00r25Wjo4rRfe5YiKxIb3kr09j1A==}
 
   nostr-pubsub-reconcile@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz:
     resolution: {integrity: sha512-F1UToi75yYrZpt5KFocPUlQH4MeU/J9A/aJBndWUuDvzx1WdQtF99tNxD3KnH2x81R4oaT721hf5OcTdSv8hRg==, tarball: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz}
@@ -2852,9 +2858,9 @@ packages:
     peerDependencies:
       nostr-tools: '>=2.23.3 <3'
 
-  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz:
-    resolution: {integrity: sha512-+dqXX3k2+pWUz0L2xEQnxYwrbkWaLL1EQPboCAWgbJy0vvuaC5jtEzMUxZddZ52Mtw62N3UzAyEj11k1AUXwDA==, tarball: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz}
-    version: 0.5.14
+  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz:
+    resolution: {integrity: sha512-Usg0Ia7rsyRkH3LSN3g5k1oKoo1+PiBIA/hKiQp18GIzokmHY47WDw4Vf3YotOg2/WtzMqGzwqqSmaJcXVanmw==, tarball: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz}
+    version: 0.5.19
     peerDependencies:
       nostr-tools: '>=2.23.3 <3'
 
@@ -5177,6 +5183,10 @@ snapshots:
 
   '@types/trusted-types@2.0.7': {}
 
+  '@types/ws@8.18.2':
+    dependencies:
+      '@types/node': 26.1.1
+
   '@typescript-eslint/eslint-plugin@7.18.0(@typescript-eslint/parser@7.18.0(eslint@8.57.1)(typescript@5.9.3))(eslint@8.57.1)(typescript@5.9.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
@@ -6613,7 +6623,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.180(typescript@5.9.3):
+  nostr-double-ratchet@0.0.181(typescript@5.9.3):
     dependencies:
       '@noble/curves': 2.2.0
       nostr-tools: 2.24.1(typescript@5.9.3)
@@ -6627,7 +6637,7 @@ snapshots:
       '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-v0.2.4/fips-tcp-0.2.3.tgz
       nostr-tools: 2.24.1(typescript@5.9.3)
 
-  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz(patch_hash=v4qi66p6ylnoepecocs4gtu5je)(nostr-tools@2.24.1(typescript@5.9.3)):
+  nostr-pubsub@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz(patch_hash=wkda5s5zkd6mi6i2i3wfwvizsi)(nostr-tools@2.24.1(typescript@5.9.3)):
     dependencies:
       '@fips/tcp': https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-v0.2.4/fips-tcp-0.2.3.tgz
       nostr-pubsub-reconcile: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz

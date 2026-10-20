@@ -1,11 +1,18 @@
 import {matchFilters, verifyEvent, type Event, type Filter} from "nostr-tools"
-import type {QueryOptions, RuntimeEventStore} from "nostr-pubsub"
+import {
+  isPrivateRelayEvent,
+  publicationLaneStore,
+  type QueryOptions,
+  type RuntimeEventStore,
+} from "nostr-pubsub"
 import {AppEvent, profileFromEvent, type UserProfile, type EventFilter} from "./index"
 import {createDatabase, db, type Event as StoredEvent} from "./db"
 
 /** App metadata and the pubsub store share one database; no parallel event cache. */
 export class EventCache {
   readonly store: RuntimeEventStore
+  readonly privateStore: RuntimeEventStore
+  private migration?: Promise<void>
   constructor() {
     createDatabase("iris-pubsub")
     this.store = {
@@ -21,6 +28,36 @@ export class EventCache {
       deletePending: async (id) => {
         await db.unpublishedEvents.delete(id)
       },
+    }
+    this.privateStore = {
+      ...this.store,
+      listPending: async () => db.privateUnpublishedEvents.toArray(),
+      putPending: async (entry) => {
+        await db.privateUnpublishedEvents.put({...entry, id: entry.event.id})
+      },
+      deletePending: async (id) => {
+        await db.privateUnpublishedEvents.delete(id)
+      },
+    }
+  }
+  migratePrivatePending(): Promise<void> {
+    return (this.migration ??= this.movePrivatePending())
+  }
+  private async movePrivatePending() {
+    const destination = publicationLaneStore(this.privateStore, "private")
+    for (const entry of await this.store.listPending()) {
+      if (!isPrivateRelayEvent(entry.event)) continue
+      try {
+        await destination.putPending(entry)
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "Publication belongs to a different connection lane"
+        )
+          continue
+        throw error
+      }
+      await this.store.deletePending(entry.event.id)
     }
   }
   private async put(event: Event) {

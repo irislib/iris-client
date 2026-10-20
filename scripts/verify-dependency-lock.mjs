@@ -26,9 +26,9 @@ const releases = {
       "sha512-y9SkW2IbTt9ElXO89+184PuYCnMyODtojeKfzQg34iQIOpEpebvi/mPzvZjWNFk6e2gAfu3aG1/V+TiSU9XsFA==",
   },
   "nostr-pubsub": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.14/nostr-pubsub-0.5.14.tgz",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz",
     integrity:
-      "sha512-+dqXX3k2+pWUz0L2xEQnxYwrbkWaLL1EQPboCAWgbJy0vvuaC5jtEzMUxZddZ52Mtw62N3UzAyEj11k1AUXwDA==",
+      "sha512-Usg0Ia7rsyRkH3LSN3g5k1oKoo1+PiBIA/hKiQp18GIzokmHY47WDw4Vf3YotOg2/WtzMqGzwqqSmaJcXVanmw==",
   },
   "@hashtree/worker": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.19/hashtree-worker-0.4.11.tgz",
@@ -61,10 +61,10 @@ const releases = {
       "sha512-bBFZ0hyyf+6uAmYE8IKpo5vV8BH2zLy9mQEq/LY9wmv6Aa7CvKn+4fHI21TyO2jTV2rjkV0/mF8vW0dtVs7HNA==",
   },
   "nostr-double-ratchet": {
-    url: "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.180.tgz",
-    registryVersion: "0.0.180",
+    url: "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.181.tgz",
+    registryVersion: "0.0.181",
     integrity:
-      "sha512-ugkC64TVBup4PMp4rcA2yu939Csw6gA2XkXKGreBaV5dppM1K3UgCwogXf4cZ+QC1hgii+IAuenZxpNDVkmi0Q==",
+      "sha512-pnn7MxNzbFL8HkF5lt5+vSkyb+vuNRdhI8c4QROpDCPTpWFPAse392j2nb00r25Wjo4rRfe5YiKxIb3kr09j1A==",
   },
   "nostr-social-graph": {
     url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz",

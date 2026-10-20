@@ -20,7 +20,10 @@ const envelope = (id: string): VerifiedEvent =>
     pubkey: "e".repeat(64),
     created_at: 100,
     kind: 1060,
-    tags: [["p", "f".repeat(64)], ["v", "2"]],
+    tags: [
+      ["p", "f".repeat(64)],
+      ["v", "2"],
+    ],
     content: `encrypted:${id}`,
     sig: id.repeat(128),
   }) as VerifiedEvent
@@ -73,7 +76,32 @@ describe("durable runtime publication", () => {
     await queue.publish(envelope("c"))
     expect(publish.mock.calls.map(([event]) => event.id)).toEqual([envelope("c").id])
     expect((await storedRows()).length).toBe(2)
-    await expect(queue.publish({...envelope("d"), tags: []})).rejects.toThrow("Old private ciphertext")
+    await expect(queue.publish({...envelope("d"), tags: []})).rejects.toThrow(
+      "Old private ciphertext"
+    )
+  })
+
+  it("keeps shared group envelopes and public private-group rosters local after restart", async () => {
+    const shared = {...envelope("a"), tags: [["v", "2"]]}
+    const roster = {
+      ...envelope("b"),
+      kind: 37368,
+      tags: [
+        ["type", "group_roster"],
+        ["member", "private-member"],
+      ],
+    }
+    for (const event of [shared, roster]) {
+      await storage.setItem(`runtime-publish:owner-a:${event.id}`, {event})
+    }
+    const publish = vi.fn(async (_event: VerifiedEvent) => {})
+    const queue = createQueue(publish)
+    queue.start()
+    await queue.publish(envelope("c"))
+    expect(publish.mock.calls.map(([event]) => event.id)).toEqual([envelope("c").id])
+    expect(await storage.keys()).toHaveLength(2)
+    await expect(queue.enqueue(shared)).rejects.toThrow("encrypted device sessions")
+    await expect(queue.enqueue(roster)).rejects.toThrow("encrypted device sessions")
   })
 
   it("retains group scope across restart and drops removed-group retries", async () => {
