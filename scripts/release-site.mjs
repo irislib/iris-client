@@ -37,6 +37,8 @@ export const releaseProfile = {
       "run",
       "src/portableBuildConfig.test.ts",
       "src/wellKnownProxyWorker.test.ts",
+      "src/shared/services/runtimePublish.test.ts",
+      "src/utils/notifications.test.ts",
     ],
     ["pnpm", "run", "smoke:portable"],
     ["pnpm", "run", "test:release:e2e"],

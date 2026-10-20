@@ -3,7 +3,7 @@ import {MESSAGE_EVENT_KIND} from "nostr-double-ratchet"
 import {
   clearNotifications,
   createLatestNotificationSyncQueue,
-  extractSessionPubkeysFromUserRecords,
+  extractSessionPubkeysFromRuntime,
   planDmNotificationSync,
 } from "./notifications"
 import type {NotificationSubscriptionResponse} from "./IrisAPI"
@@ -71,41 +71,17 @@ describe("notification synchronization queue", () => {
   })
 })
 
-function createUserRecordsWithSelfSessions() {
-  return new Map([
-    [
-      PEER_ONE,
-      {
-        devices: new Map([
-          [
-            "device-1",
-            {
-              activeSession: {
-                state: {
-                  theirCurrentNostrPublicKey: OUR_PUBKEY,
-                  theirNextNostrPublicKey: PEER_ONE,
-                },
-              },
-              inactiveSessions: [
-                {
-                  state: {
-                    theirCurrentNostrPublicKey: OUR_PUBKEY,
-                    theirNextNostrPublicKey: PEER_TWO,
-                  },
-                },
-              ],
-            },
-          ],
-        ]),
-      },
-    ],
-  ]) as any
+function createRuntimeWithPrivateAuthors() {
+  return {
+    getSessionUserRecords: () => new Map([[PEER_ONE, {devices: new Map()}]]) as any,
+    getSessionMessagePushAuthorPubkeys: () => [OUR_PUBKEY, PEER_ONE, PEER_TWO],
+  }
 }
 
-describe("extractSessionPubkeysFromUserRecords", () => {
+describe("extractSessionPubkeysFromRuntime", () => {
   it("excludes our own pubkey from extracted session authors", () => {
-    const result = extractSessionPubkeysFromUserRecords(
-      createUserRecordsWithSelfSessions(),
+    const result = extractSessionPubkeysFromRuntime(
+      createRuntimeWithPrivateAuthors(),
       OUR_PUBKEY
     )
 
@@ -113,8 +89,8 @@ describe("extractSessionPubkeysFromUserRecords", () => {
   })
 
   it("includes all session pubkeys when our public key is unknown", () => {
-    const result = extractSessionPubkeysFromUserRecords(
-      createUserRecordsWithSelfSessions()
+    const result = extractSessionPubkeysFromRuntime(
+      createRuntimeWithPrivateAuthors()
     )
 
     expect(result).toEqual([OUR_PUBKEY, PEER_ONE, PEER_TWO])

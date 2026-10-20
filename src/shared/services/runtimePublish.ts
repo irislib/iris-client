@@ -50,7 +50,7 @@ export const createRuntimePublish = (options: RuntimePublishOptions) => {
     context?: NostrPublishContext
   ): Promise<void> => {
     signal.throwIfAborted()
-    if (context && groupCancellations.has(context.groupId))
+    if (context?.groupId && groupCancellations.has(context.groupId))
       throw new DOMException("Group publications cancelled", "AbortError")
     if (!event.id || !event.sig) throw new Error("Cannot queue an unsigned event")
     assertPrivatePublicationPolicy(event)
@@ -85,15 +85,16 @@ export const createRuntimePublish = (options: RuntimePublishOptions) => {
       signal.throwIfAborted()
       if (!row) return
       assertPrivatePublicationPolicy(row.event)
-      const groupController = row.context ? new AbortController() : undefined
-      if (groupController) groupAttempts.set(groupController, row.context!.groupId)
+      const groupId = row.context?.groupId
+      const groupController = groupId ? new AbortController() : undefined
+      if (groupController && groupId) groupAttempts.set(groupController, groupId)
       const attemptSignal = groupController
         ? AbortSignal.any([signal, groupController.signal])
         : signal
       try {
         if (
           row.context &&
-          (groupCancellations.has(row.context.groupId) ||
+          ((groupId && groupCancellations.has(groupId)) ||
             (options.canPublish && !(await options.canPublish(row.context))))
         ) {
           await storage.removeItem(key)

@@ -223,6 +223,7 @@ const getRuntime = (): NdrRuntime => {
     owner: ownerPubkey,
     publish: createPublish(ndkInstance, requirePublicationAccess),
     canPublish: async ({groupId}) => {
+      if (!groupId) return true
       await awaitGroupsHydration()
       return isGroupMember(useGroupsStore.getState().groups[groupId], ownerPubkey)
     },

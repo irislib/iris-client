@@ -20,7 +20,7 @@ const envelope = (id: string): VerifiedEvent =>
     pubkey: "e".repeat(64),
     created_at: 100,
     kind: 1060,
-    tags: [["p", "f".repeat(64)]],
+    tags: [["p", "f".repeat(64)], ["v", "2"]],
     content: `encrypted:${id}`,
     sig: id.repeat(128),
   }) as VerifiedEvent
@@ -62,6 +62,20 @@ const storedRows = async () =>
   Promise.all((await storage.keys()).map((key) => storage.getItem(key)))
 
 describe("durable runtime publication", () => {
+  it("keeps legacy private ciphertext local across restart while new envelopes deliver", async () => {
+    for (const kind of [1059, 1060]) {
+      const old = {...envelope(kind === 1059 ? "a" : "b"), kind, tags: []}
+      await storage.setItem(`runtime-publish:owner-a:${old.id}`, {event: old})
+    }
+    const publish = vi.fn(async (_event: VerifiedEvent) => {})
+    const queue = createQueue(publish)
+    queue.start()
+    await queue.publish(envelope("c"))
+    expect(publish.mock.calls.map(([event]) => event.id)).toEqual([envelope("c").id])
+    expect((await storedRows()).length).toBe(2)
+    await expect(queue.publish({...envelope("d"), tags: []})).rejects.toThrow("Old private ciphertext")
+  })
+
   it("retains group scope across restart and drops removed-group retries", async () => {
     const context = {groupId: "removed-group"}
     const failed = createQueue(async () => {
@@ -90,7 +104,10 @@ describe("durable runtime publication", () => {
     const queue = createQueue(publish)
     const group = queue.publish(envelope("a"), "inner-a", {groupId: "removed-group"})
     const rejected = expect(group).rejects.toMatchObject({name: "AbortError"})
-    const direct = queue.publish(envelope("b"), "inner-b")
+    const direct = queue.publish(envelope("b"), "inner-b", {
+      recipientOwnerPubkey: "peer-owner",
+      createdAt: 100,
+    })
     await waitFor(() => expect(publish).toHaveBeenCalledTimes(2))
     await queue.cancelGroup("removed-group")
     ack.resolve()

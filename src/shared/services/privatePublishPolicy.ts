@@ -1,3 +1,4 @@
+import {hasMetadataPrivacyVersion} from "nostr-double-ratchet"
 import type {VerifiedEvent} from "nostr-tools"
 const labelTag = (tag: string[]) =>
   tag[0] === "encrypted_device_labels" ||
@@ -7,6 +8,11 @@ export function hasLegacyPrivateRoster(event: VerifiedEvent): boolean {
 }
 /** Signing a public roster is allowed; persisting ordinary private data with a static key is not. */
 export function assertPrivatePublicationPolicy(event: VerifiedEvent): void {
+  const invite = event.kind === 30078 && event.tags.some(
+    (tag) => tag[0] === "d" && tag[1]?.startsWith("double-ratchet/invites/")
+  )
+  if (([1059, 1060].includes(event.kind) || invite) && !hasMetadataPrivacyVersion(event))
+    throw new Error("Old private ciphertext cannot be resent; start a new encrypted session")
   if (hasLegacyPrivateRoster(event))
     throw new Error(
       "Device list update needs confirmation; old private names remain local"

@@ -1,4 +1,4 @@
-import {MESSAGE_EVENT_KIND, type SessionUserRecordsLike} from "nostr-double-ratchet"
+import {MESSAGE_EVENT_KIND, type NdrRuntime} from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
@@ -285,8 +285,8 @@ const syncDmNotifications = async (generation: number) => {
     try {
       const runtime = getNdrRuntime()
       if (!runtime.getState().sessionManagerReady) return
-      sessionAuthors = extractSessionPubkeysFromUserRecords(
-        runtime.getSessionUserRecords(),
+      sessionAuthors = extractSessionPubkeysFromRuntime(
+        runtime,
         publicKey
       )
     } catch (err) {
@@ -343,31 +343,16 @@ function sameStringSet(a: string[], b: string[]) {
   return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
 }
 
-export function extractSessionPubkeysFromUserRecords(
-  userRecords: SessionUserRecordsLike,
+export function extractSessionPubkeysFromRuntime(
+  runtime: Pick<NdrRuntime, "getSessionUserRecords" | "getSessionMessagePushAuthorPubkeys">,
   ourPublicKey?: string
 ): string[] {
-  return Array.from(
-    new Set(
-      Array.from(userRecords.entries())
-        .filter(([publicKey]) => !ourPublicKey || publicKey !== ourPublicKey)
-        .flatMap(([, {devices}]) =>
-          Array.from(devices?.values() ?? []).flatMap((device) => {
-            const sessions = [device.activeSession, ...(device.inactiveSessions ?? [])]
-            return sessions.filter(Boolean)
-          })
-        )
-        .flatMap((session) => {
-          const state = session?.state
-          if (!state) return []
-          return [state.theirCurrentNostrPublicKey, state.theirNextNostrPublicKey]
-        })
-        .filter(
-          (key): key is string =>
-            typeof key === "string" && (!ourPublicKey || key !== ourPublicKey)
-        )
-    )
-  )
+  return Array.from(new Set(
+    Array.from(runtime.getSessionUserRecords().keys())
+      .filter((publicKey) => !ourPublicKey || publicKey !== ourPublicKey)
+      .flatMap((publicKey) => runtime.getSessionMessagePushAuthorPubkeys(publicKey))
+      .filter((key) => !ourPublicKey || key !== ourPublicKey)
+  ))
 }
 
 let notificationSyncGeneration = 0

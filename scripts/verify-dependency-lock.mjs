@@ -61,9 +61,10 @@ const releases = {
       "sha512-bBFZ0hyyf+6uAmYE8IKpo5vV8BH2zLy9mQEq/LY9wmv6Aa7CvKn+4fHI21TyO2jTV2rjkV0/mF8vW0dtVs7HNA==",
   },
   "nostr-double-ratchet": {
-    url: "https://github.com/irislib/nostr-double-ratchet/releases/download/nostr-double-ratchet-ts-v0.0.176/nostr-double-ratchet-0.0.176.tgz",
+    url: "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.180.tgz",
+    registryVersion: "0.0.180",
     integrity:
-      "sha512-tb9RvZpgzdG3TubA0UYijpiNrT0n8IWP1EE3JlxSMOBzIzIKC01S8F5qbZnnlq9H86ohSPnJ4Y5iVqj5271UDA==",
+      "sha512-ugkC64TVBup4PMp4rcA2yu939Csw6gA2XkXKGreBaV5dppM1K3UgCwogXf4cZ+QC1hgii+IAuenZxpNDVkmi0Q==",
   },
   "nostr-social-graph": {
     url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz",
@@ -92,13 +93,15 @@ for (const [name, release] of Object.entries(releases)) {
     throw new Error(`${name} must use immutable release ${release.url}`)
   }
 
-  const quotedKey = `  '${name}@${release.url}':`
-  const plainKey = `  ${name}@${release.url}:`
+  // pnpm normalizes registry tarball URLs to an exact version and integrity.
+  const resolution = release.registryVersion ?? release.url
+  const quotedKey = `  '${name}@${resolution}':`
+  const plainKey = `  ${name}@${resolution}:`
   const start = Math.max(lockfile.indexOf(quotedKey), lockfile.indexOf(plainKey))
   const end = lockfile.indexOf("\n\n", start)
   const entry = start >= 0 ? lockfile.slice(start, end < 0 ? undefined : end) : ""
   if (
-    !entry.includes(`tarball: ${release.url}`) ||
+    (!release.registryVersion && !entry.includes(`tarball: ${release.url}`)) ||
     !entry.includes(`integrity: ${release.integrity}`)
   ) {
     throw new Error(`${name} lock entry is missing its verified release integrity`)
