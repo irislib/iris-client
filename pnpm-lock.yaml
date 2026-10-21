@@ -111,8 +111,8 @@ importers:
         specifier: ^4.2.1
         version: 4.2.1
       nostr-double-ratchet:
-        specifier: https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.181.tgz
-        version: 0.0.181(typescript@5.9.3)
+        specifier: https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.182.tgz
+        version: 0.0.182(typescript@5.9.3)
       nostr-pubsub:
         specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz
         version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.19/nostr-pubsub-0.5.19.tgz(patch_hash=wkda5s5zkd6mi6i2i3wfwvizsi)(nostr-tools@2.24.1(typescript@5.9.3))
@@ -2845,8 +2845,8 @@ packages:
     resolution: {integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==}
     engines: {node: '>=0.10.0'}
 
-  nostr-double-ratchet@0.0.181:
-    resolution: {integrity: sha512-pnn7MxNzbFL8HkF5lt5+vSkyb+vuNRdhI8c4QROpDCPTpWFPAse392j2nb00r25Wjo4rRfe5YiKxIb3kr09j1A==}
+  nostr-double-ratchet@0.0.182:
+    resolution: {integrity: sha512-HOlBZ0G+FcX2NkAnzXEiGb4FaFxIapsf9qRt7VPzme8p7NfJKHbQ1glJVFGzukhd6aWfIRumKXxdqNvypIGdAA==}
 
   nostr-pubsub-reconcile@https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz:
     resolution: {integrity: sha512-F1UToi75yYrZpt5KFocPUlQH4MeU/J9A/aJBndWUuDvzx1WdQtF99tNxD3KnH2x81R4oaT721hf5OcTdSv8hRg==, tarball: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz}
@@ -6623,7 +6623,7 @@ snapshots:
 
   normalize-path@3.0.0: {}
 
-  nostr-double-ratchet@0.0.181(typescript@5.9.3):
+  nostr-double-ratchet@0.0.182(typescript@5.9.3):
     dependencies:
       '@noble/curves': 2.2.0
       nostr-tools: 2.24.1(typescript@5.9.3)
