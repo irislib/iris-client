@@ -18,28 +18,28 @@ const nhashDecodeMock = vi.fn()
 const nhashEncodeMock = vi.fn()
 
 vi.mock("@hashtree/index", () => ({
-  SearchIndex: vi.fn().mockImplementation(() => ({
+  SearchIndex: vi.fn().mockImplementation(function () { return {
     parseKeywords: (query: string) => [query.toLowerCase()],
     search: searchMock,
     searchLinks: searchLinksMock,
-  })),
+  }}),
 }))
 
 vi.mock("@hashtree/core", () => ({
-  BlossomStore: vi.fn().mockImplementation(() => ({})),
-  MemoryStore: vi.fn().mockImplementation(() => ({})),
+  BlossomStore: vi.fn().mockImplementation(function () { return {} }),
+  MemoryStore: vi.fn().mockImplementation(function () { return {} }),
   FallbackStore: vi
     .fn()
-    .mockImplementation(({fallbacks}: {fallbacks: unknown[]}) => fallbacks[0] ?? {}),
+    .mockImplementation(function ({fallbacks}: {fallbacks: unknown[]}) { return fallbacks[0] ?? {} }),
   LinkType: {
     Blob: "blob",
     File: "file",
     Dir: "dir",
   },
-  HashTree: vi.fn().mockImplementation(() => ({
+  HashTree: vi.fn().mockImplementation(function () { return {
     readFile: readFileMock,
     listDirectory: listDirectoryMock,
-  })),
+  }}),
   nhashDecode: nhashDecodeMock,
   nhashEncode: nhashEncodeMock,
 }))
