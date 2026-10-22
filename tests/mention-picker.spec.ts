@@ -80,8 +80,13 @@ async function reply(page: Page, query: string, hits: Hit[], complete = true) {
 }
 
 async function openComposer(page: Page) {
-  await page.locator("#main-content").getByTestId("new-post-button").click()
-  return page.getByRole("dialog").getByPlaceholder("What's on your mind?")
+  const newPost = page.locator('[data-testid="new-post-button"]:visible').first()
+  if (await newPost.isVisible()) {
+    await newPost.click()
+    return page.getByRole("dialog").getByPlaceholder("What's on your mind?")
+  }
+  await page.locator('footer a[href="/new"]').click()
+  return page.locator('textarea[placeholder="What\'s on your mind?"]:visible')
 }
 
 test("one-character mentions search immediately and rank like the top search", async ({
@@ -210,7 +215,7 @@ test("pasted npubs resolve a profile and mouse selection publishes the correct m
     await page.addInitScript((port) => {
       window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
     }, relay.port)
-    await signUp(page)
+    await signUp(page, nip19.nsecEncode(generateSecretKey()))
     const composer = await openComposer(page)
     const npub = nip19.npubEncode(profile.pubkey)
     await composer.fill(`Hello @${npub}`)
@@ -225,8 +230,8 @@ test("pasted npubs resolve a profile and mouse selection publishes the correct m
     await expect(option).toBeVisible()
     await option.click()
     await expect(composer).toHaveValue(`Hello nostr:${npub} `)
-    await page
-      .getByRole("dialog")
+    await composer
+      .locator('xpath=ancestor::*[@data-testid="note-creator"]')
       .getByRole("button", {name: "Post", exact: true})
       .click()
     await expect.poll(() => published.length).toBeGreaterThan(0)
