@@ -261,9 +261,20 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
     }
 
     const handleInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-      if (event.key !== "Enter" || displayedLength > 0 || !searchNotes) {
+      if (event.key !== "Enter") return
+      if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
+        event.stopPropagation()
         return
       }
+      if (displayedLength > 0) {
+        // Use the current rendered results: the window listener may still have
+        // the previous list until its effect runs after this render.
+        event.preventDefault()
+        event.stopPropagation()
+        handleKeyboardSelect(Math.min(activeResult, displayedLength - 1))
+        return
+      }
+      if (!searchNotes) return
 
       const rawQuery = value.trim()
       if (!rawQuery) return
@@ -280,6 +291,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
 
       // Allow immediate search when results haven't populated yet.
       event.preventDefault()
+      event.stopPropagation()
       handleSelectResult("search-notes", rawQuery)
     }
 
