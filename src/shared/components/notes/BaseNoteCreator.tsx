@@ -111,7 +111,7 @@ function NoteCreatorBody({
     },
   })
 
-  const mention = useMentionAutocomplete(state.text, textareaRef, containerRef)
+  const mention = useMentionAutocomplete(textareaRef, containerRef)
 
   const isModal = variant === "modal"
   const drag = useDragAndDrop({
@@ -240,6 +240,16 @@ function NoteCreatorBody({
             onTextChange={handlers.handleTextChange}
             onFocus={() => setIsFocused(true)}
             onKeyDown={handlers.handleKeyDown}
+            onSelect={() => {
+              const textarea = textareaRef.current
+              if (textarea)
+                mention.detectMention(
+                  textarea.value,
+                  textarea.selectionStart,
+                  textarea.selectionEnd
+                )
+            }}
+            onBlur={mention.clearMention}
             placeholder={
               effectiveEventKind === KIND_CLASSIFIED ? "Description" : placeholder
             }
@@ -291,7 +301,7 @@ function NoteCreatorBody({
         </div>
       )}
 
-      {mention.mentionCursorPosition && (
+      {mention.mentionSearch !== null && mention.mentionCursorPosition && (
         <MentionDropdown
           searchResults={mention.searchResults}
           selectedIndex={mention.selectedMentionIndex}

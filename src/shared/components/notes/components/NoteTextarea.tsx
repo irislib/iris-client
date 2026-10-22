@@ -6,6 +6,8 @@ interface NoteTextareaProps {
   text: string
   onTextChange: (text: string) => void
   onFocus: () => void
+  onSelect: () => void
+  onBlur: () => void
   onKeyDown: (e: KeyboardEvent<HTMLTextAreaElement>) => void
   placeholder: string
   previewMode: boolean
@@ -19,6 +21,8 @@ export function NoteTextarea({
   onTextChange,
   onFocus,
   onKeyDown,
+  onSelect,
+  onBlur,
   placeholder,
   previewMode,
   isModal,
@@ -39,6 +43,8 @@ export function NoteTextarea({
           onChange={(e) => onTextChange(e.target.value)}
           onFocus={onFocus}
           onKeyDown={onKeyDown}
+          onSelect={onSelect}
+          onBlur={onBlur}
           placeholder={placeholder}
           className={`w-full bg-transparent resize-none outline-none placeholder-base-content/50 ${
             isModal

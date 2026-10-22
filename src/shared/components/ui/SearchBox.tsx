@@ -10,11 +10,7 @@ import {
 import {useSearchStore, CustomSearchResult} from "@/stores/search"
 import {useKeyboardNavigation} from "@/shared/hooks/useKeyboardNavigation"
 import {UserRow} from "@/shared/components/user/UserRow"
-import {
-  hasProfileSearchExactMatch,
-  hasProfileSearchPrefixMatch,
-  hasProfileSearchTextMatch,
-} from "@/utils/profileSearchData"
+import {rankProfileSearchResults} from "@/utils/profileSearchRanking"
 import {isOvermuted} from "@/utils/visibility"
 import {search} from "@/utils/profileSearch"
 import {useSocialGraph, useGraphSize} from "@/utils/socialGraph"
@@ -27,15 +23,6 @@ import {nostr} from "@/utils/nostrClient"
 import {NOSTR_REGEX, HEX_REGEX, NIP05_REGEX} from "@/utils/validation"
 import {useUIStore} from "@/stores/ui"
 const MAX_RESULTS = 6
-
-// Search ranking constants
-const DISTANCE_PENALTY = 0.01 // Penalty per step of social distance
-const FRIEND_BOOST = 0.005 // Boost per friend following the result
-const DEFAULT_DISTANCE = 999 // Default distance for users not in social graph
-const FUSE_MULTIPLIER = 5 // Multiplier to emphasize text match
-const PREFIX_MATCH_BOOST = 1
-const EXACT_MATCH_BOOST = 3
-const SELF_PENALTY = 100 // Penalty for self in search results
 
 // this component is used for global search in the Header.tsx
 // and for searching assignees in Issues & PRs
@@ -104,9 +91,6 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
         return
       }
 
-      // Check if it's a single character query
-      const isSingleChar = v.length === 1
-
       // Handle lightning: protocol
       if (v.toLowerCase().startsWith("lightning:")) {
         setValue("")
@@ -160,60 +144,17 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
         // Ignore stale results
         if (searchId !== latestSearchRef.current) return
 
-        const resultsWithAdjustedScores = results
-          .filter((result) => !isOvermuted(result.item.pubKey))
-          .filter(
-            (result) =>
-              result.source === "local" || hasProfileSearchTextMatch(result.item, query)
-          )
-          .map((result) => {
-            const textScore =
-              result.source === "local" ? 1 - (result.score ?? 1) : (result.score ?? 0)
-            const followDistance = isSocialGraphLoaded
-              ? (socialGraph.getFollowDistance(result.item.pubKey) ?? DEFAULT_DISTANCE)
-              : DEFAULT_DISTANCE
-            const friendsFollowing = isSocialGraphLoaded
-              ? socialGraph.followedByFriends(result.item.pubKey).size || 0
-              : 0
-
-            const prefixMatch = hasProfileSearchPrefixMatch(result.item, query)
-            const exactMatch = hasProfileSearchExactMatch(result.item, query)
-
-            if (isSingleChar) {
-              // For single-character queries, exclude non-prefix matches entirely
-              if (!prefixMatch) {
-                return {...result, adjustedScore: Number.NEGATIVE_INFINITY}
-              }
-              // For prefix matches, score by negative follow distance
-              const baseScore = -followDistance
-              const adjustedScore = baseScore + FRIEND_BOOST * friendsFollowing
-              return {...result, adjustedScore}
-            }
-
-            // Original multi-character scoring logic
-            const distancePenalty =
-              followDistance === 0
-                ? DISTANCE_PENALTY * SELF_PENALTY
-                : DISTANCE_PENALTY * (followDistance - 1)
-
-            const adjustedScore =
-              textScore * FUSE_MULTIPLIER -
-              distancePenalty +
-              FRIEND_BOOST * friendsFollowing +
-              (exactMatch ? EXACT_MATCH_BOOST : 0) +
-              (prefixMatch ? PREFIX_MATCH_BOOST : 0)
-
-            return {...result, adjustedScore}
-          })
-
-        // Sort by adjustedScore in DESCENDING order (higher is better)
-        resultsWithAdjustedScores.sort((a, b) => b.adjustedScore - a.adjustedScore)
+        const rankedResults = rankProfileSearchResults(
+          results.filter((result) => !isOvermuted(result.item.pubKey)),
+          query,
+          isSocialGraphLoaded ? socialGraph : undefined
+        )
 
         setSearchResults([
           ...(searchNotes
             ? [{pubKey: "search-notes", name: `search notes: ${v}`, query: v}]
             : []),
-          ...resultsWithAdjustedScores.map((result) => result.item),
+          ...rankedResults,
         ])
       }
 

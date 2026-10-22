@@ -33,6 +33,8 @@ export function MentionDropdown({
   return (
     <div
       ref={containerRef}
+      role="listbox"
+      aria-label="Mention suggestions"
       className="absolute left-4 right-4 bg-base-200 rounded-lg z-20 overflow-hidden max-h-60 overflow-y-auto border border-base-300"
       style={{
         top: `${position.top + 24}px`,
@@ -42,12 +44,20 @@ export function MentionDropdown({
       {searchResults.map((result, index) => (
         <div
           key={result.pubKey}
+          role="option"
+          aria-selected={index === selectedIndex}
+          onMouseDown={(event) => event.preventDefault()}
           className={`p-2 hover:bg-neutral cursor-pointer ${
             index === selectedIndex ? "bg-neutral" : ""
           }`}
           onClick={() => onSelect(result)}
         >
-          <UserRow pubKey={result.pubKey} linkToProfile={false} avatarWidth={24} />
+          <UserRow
+            pubKey={result.pubKey}
+            linkToProfile={false}
+            avatarWidth={24}
+            fallbackProfile={result}
+          />
         </div>
       ))}
     </div>

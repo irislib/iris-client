@@ -27,7 +27,7 @@ interface UseNoteCreatorHandlersParams {
   ) => void
   moveMentionSelection: (direction: "up" | "down") => void
   clearMention: () => void
-  detectMention: (position: number) => void
+  detectMention: (value: string, position: number, selectionEnd?: number) => void
   expandOnFocus: boolean
   isFocused: boolean
   setIsFocused: (focused: boolean) => void
@@ -43,7 +43,11 @@ export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
   const handleTextChange = (value: string) => {
     params.dispatch({type: "SET_TEXT", payload: value})
     if (params.textareaRef.current) {
-      params.detectMention(params.textareaRef.current.selectionStart)
+      params.detectMention(
+        value,
+        params.textareaRef.current.selectionStart,
+        params.textareaRef.current.selectionEnd
+      )
     }
   }
 
@@ -102,6 +106,13 @@ export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return
+    if (e.key === "Escape" && params.mentionSearch !== null) {
+      e.preventDefault()
+      e.stopPropagation()
+      params.clearMention()
+      return
+    }
     if (params.searchResults.length > 0 && params.mentionSearch !== null) {
       switch (e.key) {
         case "ArrowDown":
@@ -127,10 +138,6 @@ export function useNoteCreatorHandlers(params: UseNoteCreatorHandlersParams) {
               handleTextChange
             )
           }
-          return
-        case "Escape":
-          e.preventDefault()
-          params.clearMention()
           return
       }
     }
