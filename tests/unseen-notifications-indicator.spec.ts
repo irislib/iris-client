@@ -1,119 +1,81 @@
 import {test, expect} from "@playwright/test"
+import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
+import {Relay} from "nostr-tools/relay"
 import {signUp} from "./auth.setup"
+import {usingBuiltDist} from "./utils/built-dist"
 
-// Define the type for the window object with notifications store
-type WindowWithNotificationsStore = {
-  useNotificationsStore?: {
-    getState: () => {
-      latestNotification: number
-      notificationsSeenAt: number
-      setLatestNotification: (timestamp: number) => void
-      setNotificationsSeenAt: (timestamp: number) => void
-    }
-  }
-}
+const usingTestRelay =
+  process.env.VITE_USE_TEST_RELAY === "true" || process.env.VITE_USE_TEST_RELAY === "1"
+const usingLocalRelay =
+  process.env.IRIS_E2E_LOCAL_RELAY === "true" || (!usingBuiltDist && !usingTestRelay)
 
 test.describe("Unseen Notifications Indicator", () => {
-  test("should show notification badge in desktop sidebar and mobile header when notification state indicates unseen notifications", async ({
+  test("should show notification badge in desktop sidebar and mobile header after reloading an unseen notification", async ({
     page,
   }) => {
-    await signUp(page, "Test User")
+    test.skip(!usingLocalRelay, "requires a stored local-relay notification")
+    const viewerKey = generateSecretKey()
+    const senderKey = generateSecretKey()
+    const viewer = getPublicKey(viewerKey)
+    const sender = getPublicKey(senderKey)
+    const now = Math.floor(Date.now() / 1000)
+    const content = `Stored badge notification ${viewer.slice(0, 12)}`
+    const note = finalizeEvent(
+      {kind: 1, content, tags: [], created_at: now - 2},
+      viewerKey
+    )
+    const reaction = finalizeEvent(
+      {
+        kind: 7,
+        content: "+",
+        tags: [
+          ["e", note.id],
+          ["p", viewer],
+        ],
+        created_at: now - 1,
+      },
+      senderKey
+    )
+    const relay = await Relay.connect("ws://127.0.0.1:7777")
+    try {
+      await relay.publish(
+        finalizeEvent(
+          {kind: 3, content: "", tags: [["p", sender]], created_at: now - 3},
+          viewerKey
+        )
+      )
+      await relay.publish(note)
+      await relay.publish(reaction)
+    } finally {
+      relay.close()
+    }
 
-    console.log("Testing notification badge rendering by manipulating store state...")
-
-    await page.evaluate(() => {
-      const now = Date.now()
-      const latestNotification = now
-      const notificationsSeenAt = now - 10000 // 10 seconds ago
-
-      const store = (
-        window as WindowWithNotificationsStore
-      ).useNotificationsStore?.getState?.()
-      if (store) {
-        store.setLatestNotification(latestNotification)
-        store.setNotificationsSeenAt(notificationsSeenAt)
-        console.log("Set notification state:", {latestNotification, notificationsSeenAt})
-      } else {
-        console.log("Could not access notification store")
-      }
-    })
-
+    await signUp(page, nip19.nsecEncode(viewerKey))
     await page.setViewportSize({width: 1024, height: 768})
-    await page.goto("/")
-    await page.waitForTimeout(2000)
-
-    console.log("Testing desktop sidebar notification indicator...")
-    const desktopNotificationBadge = page.locator(
+    const desktopBadge = page.locator(
       'li a[href="/notifications"] .indicator .indicator-item.badge.badge-primary.badge-xs'
     )
-
-    const desktopBadgeVisible = await desktopNotificationBadge.isVisible()
-    console.log(`Desktop badge visible: ${desktopBadgeVisible}`)
-
-    if (desktopBadgeVisible) {
-      console.log("✅ Desktop notification badge found in sidebar")
-      await expect(desktopNotificationBadge).toBeVisible()
-    } else {
-      console.log("❌ Desktop notification badge not found - checking store state...")
-
-      const storeState = await page.evaluate(() => {
-        const store = (
-          window as WindowWithNotificationsStore
-        ).useNotificationsStore?.getState?.()
-        return store
-          ? {
-              latestNotification: store.latestNotification,
-              notificationsSeenAt: store.notificationsSeenAt,
-            }
-          : null
-      })
-
-      console.log("Current store state:", storeState)
-
-      await page.evaluate(() => {
-        const store = (
-          window as WindowWithNotificationsStore
-        ).useNotificationsStore?.getState?.()
-        if (store) {
-          const now = Date.now()
-          store.setLatestNotification(now)
-          store.setNotificationsSeenAt(now - 5000)
-          console.log("Updated store state again")
-        }
-      })
-
-      await page.waitForTimeout(1000)
-      const badgeAfterUpdate = await desktopNotificationBadge.isVisible()
-      console.log(`Desktop badge visible after state update: ${badgeAfterUpdate}`)
-    }
+    // Wait for real graph admission and history delivery before testing recovery.
+    await expect(desktopBadge).toBeVisible({timeout: 15000})
+    await page.reload()
+    await expect(desktopBadge).toBeVisible({timeout: 15000})
 
     await page.setViewportSize({width: 375, height: 667})
-    await page.goto("/")
-    await page.waitForTimeout(2000)
-
-    console.log("Testing mobile header notification indicator...")
-    const mobileNotificationButton = page
-      .locator(".md\\:hidden")
-      .locator('a[href="/notifications"]')
-    const mobileButtonVisible = await mobileNotificationButton.isVisible()
-    console.log(`Mobile notification button visible: ${mobileButtonVisible}`)
-
-    if (mobileButtonVisible) {
-      const mobileBadge = mobileNotificationButton.locator(
-        ".indicator-item.badge.badge-primary.badge-xs"
-      )
-      const mobileBadgeVisible = await mobileBadge.isVisible()
-      console.log(`Mobile badge visible: ${mobileBadgeVisible}`)
-
-      if (mobileBadgeVisible) {
-        console.log("✅ Mobile notification badge found in header")
-        await expect(mobileBadge).toBeVisible()
-      } else {
-        console.log("❌ Mobile notification badge not found")
-      }
-    } else {
-      console.log("❌ Mobile notification button not found in header")
-    }
+    await page.reload()
+    const mobileNotifications = page.locator('.md\\:hidden a[href="/notifications"]')
+    await expect(mobileNotifications).toBeVisible()
+    await expect(
+      mobileNotifications.locator(".indicator-item.badge.badge-primary.badge-xs")
+    ).toBeVisible({timeout: 15000})
+    await mobileNotifications.click()
+    const notification = page
+      .locator('div[class*="bg-info/20"]')
+      .filter({hasText: "reacted"})
+    await expect(notification).toBeVisible()
+    await expect(notification.getByText(content, {exact: true})).toBeVisible()
+    await expect(
+      notification.locator(`a[href="/${nip19.npubEncode(sender)}"]`)
+    ).toBeVisible()
   })
 
   test("should show notification badge after real like notification", async ({
