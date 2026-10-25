@@ -14,7 +14,8 @@ import {usingBuiltDist} from "./utils/built-dist"
 
 const usingTestRelay =
   process.env.VITE_USE_TEST_RELAY === "true" || process.env.VITE_USE_TEST_RELAY === "1"
-const usingLocalRelay = !usingBuiltDist && !usingTestRelay
+const usingLocalRelay =
+  process.env.IRIS_E2E_LOCAL_RELAY === "true" || (!usingBuiltDist && !usingTestRelay)
 
 test.skip(!usingLocalRelay, "requires deterministic local-relay recommendation data")
 
@@ -57,6 +58,7 @@ const publishEvents = async (events: VerifiedEvent[]) => {
 test("For You uses the default network until the viewer follows someone", async ({
   page,
 }, testInfo) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   const viewer = createUser()
   const starter = createUser()
   const recommended = createUser()
@@ -178,6 +180,7 @@ test("a restored low-activity for you feed displays relay posts without the five
 test("restored For You starts from its saved graph when relays never send EOSE", async ({
   page,
 }, testInfo) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   const viewer = createUser()
   const followed = createUser()
   await publishEvents([
@@ -273,6 +276,7 @@ test("an empty For You feed displays late relay posts without another refresh", 
 test("a saved discovery graph without a contact event does not wait for silent relays", async ({
   page,
 }, testInfo) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   const viewer = createUser()
   const starter = createUser()
   const graph = new SocialGraph(DEFAULT_ROOT)
@@ -368,6 +372,7 @@ test("a saved discovery graph without a contact event does not wait for silent r
 test("available chronological posts render while an earlier recommendation remains unavailable", async ({
   page,
 }, testInfo) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   const viewer = createUser()
   const followed = createUser()
   await publishEvents([
@@ -433,6 +438,7 @@ test("available chronological posts render while an earlier recommendation remai
 test("For You shows cached recommendations while other recommended posts are unavailable", async ({
   page,
 }) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   const viewer = createUser()
   const followed = createUser()
   // Deliver the five recommendation signals as one burst so the initial batch
@@ -625,6 +631,136 @@ test("For You separates prolific authors across pages and restores the same orde
   await expect.poll(ids).toEqual(allIds)
 })
 
+test("For You defers a same-author burst until other authors arrive", async ({
+  page,
+}, testInfo) => {
+  const viewer = createUser()
+  const authors = Array.from({length: 4}, createUser)
+  const now = Math.floor(Date.now() / 1000) - 60
+  const notes = authors.slice(0, 2).flatMap((author, authorIndex) =>
+    Array.from({length: authorIndex === 0 ? 4 : 3}, (_, index) =>
+      signEvent(author, {
+        kind: 1,
+        content: `Burst author ${authorIndex + 1} post ${index + 1}`,
+        tags: [],
+        created_at: now - authorIndex * 10 - index,
+      })
+    )
+  )
+  await publishEvents([
+    signEvent(viewer, {
+      kind: 3,
+      content: "",
+      tags: authors.map((author) => ["p", author.publicKey]),
+    }),
+    ...notes.slice(0, 4),
+  ])
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  const posts = page.locator('#main-content [data-testid="feed-item"]')
+  const ids = () =>
+    posts.evaluateAll((items) => items.map((item) => item.getAttribute("data-event-id")!))
+  // Wait for the burst to reach the actual feed cache before asserting that
+  // repeats were held back. A count of one alone could be an early partial read.
+  if (!usingBuiltDist) {
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const path = "/src/utils/memcache.ts"
+          const {getOrCreateAlgorithmicFeedCache} = await import(path)
+          return getOrCreateAlgorithmicFeedCache("for-you").combinedPostFetcher.events
+            ?.length
+        })
+      )
+      .toBe(4)
+  }
+  await expect(posts).toHaveCount(1)
+  const initialIds = await ids()
+  if (!usingBuiltDist) {
+    expect(
+      await page.evaluate(
+        async (postIds) => {
+          const path = "/src/utils/memcache.ts"
+          const {seenEventIds} = await import(path)
+          return postIds.filter((id) => seenEventIds.has(id))
+        },
+        notes.slice(0, 4).map((note) => note.id)
+      )
+    ).toEqual(initialIds)
+  }
+
+  await page.locator('a[href="/u"]:visible').first().click()
+  await expect(page).toHaveURL(/\/u$/)
+  await page.locator('a[href="/"]:visible').first().click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect.poll(ids).toEqual(initialIds)
+  await publishEvents(notes.slice(4))
+  await expect(async () => {
+    await posts.last().scrollIntoViewIfNeeded()
+    expect(await posts.count()).toBe(7)
+  }).toPass({timeout: 15000})
+  const allIds = await ids()
+  expect(allIds.slice(0, initialIds.length)).toEqual(initialIds)
+  expect([...allIds].sort()).toEqual(notes.map((note) => note.id).sort())
+  const authorById = new Map(notes.map((note) => [note.id, note.pubkey]))
+  for (let i = 1; i < allIds.length; i++) {
+    expect(authorById.get(allIds[i])).not.toBe(authorById.get(allIds[i - 1]))
+  }
+  await posts.first().scrollIntoViewIfNeeded()
+  await page.screenshot({path: testInfo.outputPath("delayed-author-for-you.png")})
+  await page.locator('a[href="/u"]:visible').first().click()
+  await expect(page).toHaveURL(/\/u$/)
+  await page.locator('a[href="/"]:visible').first().click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect.poll(ids).toEqual(allIds)
+})
+
+for (const {followCount, muteLast} of [
+  {followCount: 1, muteLast: false},
+  {followCount: 2, muteLast: false},
+  {followCount: 3, muteLast: false},
+  {followCount: 4, muteLast: true},
+]) {
+  test(`For You keeps quiet small networks readable with ${followCount} follows${muteLast ? " and one mute" : ""}`, async ({
+    page,
+  }) => {
+    const viewer = createUser()
+    const authors = Array.from({length: followCount}, createUser)
+    const now = Math.floor(Date.now() / 1000) - 60
+    const notes = Array.from({length: 14}, (_, index) =>
+      signEvent(authors[0], {
+        kind: 1,
+        content: `Small network post ${index}`,
+        tags: [],
+        created_at: now - index,
+      })
+    )
+    await publishEvents([
+      signEvent(viewer, {
+        kind: 3,
+        content: "",
+        tags: authors.map((author) => ["p", author.publicKey]),
+      }),
+      ...(muteLast
+        ? [
+            signEvent(viewer, {
+              kind: 10000,
+              content: "",
+              tags: [["p", authors.at(-1)!.publicKey]],
+            }),
+          ]
+        : []),
+      ...notes,
+    ])
+    await signUp(page, nip19.nsecEncode(viewer.privateKey))
+    const posts = page.locator('#main-content [data-testid="feed-item"]')
+    await expect(posts.first()).toBeVisible()
+    await expect(async () => {
+      await posts.last().scrollIntoViewIfNeeded()
+      expect(await posts.count()).toBe(notes.length)
+    }).toPass({timeout: 10000})
+  })
+}
+
 test("a short For You feed fills with late posts and keeps paginating", async ({
   page,
 }) => {
@@ -678,6 +814,7 @@ test("a short For You feed fills with late posts and keeps paginating", async ({
 test("logged-in relay subscriptions survive page suspension and recover after worker crashes", async ({
   page,
 }) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   await page.clock.install()
   await page.addInitScript(() => {
     const target = window as typeof window & {
@@ -756,6 +893,7 @@ test("logged-in relay subscriptions survive page suspension and recover after wo
 test("for you filters overmuted authors and unknown engagement actors", async ({
   page,
 }) => {
+  test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
   test.setTimeout(120000)
 
   const viewer = createUser()

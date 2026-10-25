@@ -1,8 +1,12 @@
 import {useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo} from "react"
 import {AppEvent, EventFilter} from "@/lib/nostr"
-import {addSeenEventId} from "@/utils/memcache"
+import {addSeenEventId, seenEventIds} from "@/utils/memcache"
 import shuffle from "lodash/shuffle"
-import {avoidConsecutiveAuthors} from "@/utils/authorDiversity"
+import {
+  appendDiverseAuthors,
+  avoidConsecutiveAuthors,
+  selectNonConsecutiveAuthors,
+} from "@/utils/authorDiversity"
 import {useUserStore} from "@/stores/user"
 import {fetchEventsReliable} from "@/utils/fetchEventsReliable"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
@@ -25,6 +29,7 @@ interface CombinedPostFetcherProps {
   visibilitySnapshot: AlgorithmicVisibilitySnapshot | null
   popularRatio?: number
   excludeOwnPosts?: boolean
+  enforceAuthorDiversity?: boolean
 }
 
 export default function useCombinedPostFetcher({
@@ -39,6 +44,7 @@ export default function useCombinedPostFetcher({
   visibilitySnapshot,
   popularRatio = 0.5,
   excludeOwnPosts = false,
+  enforceAuthorDiversity = false,
 }: CombinedPostFetcherProps) {
   const [events, setEvents] = useState<AppEvent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -54,13 +60,14 @@ export default function useCombinedPostFetcher({
   const policyReady = ready && !!visibilitySnapshot
   const visibilityRef = useRef(visibilitySnapshot)
   visibilityRef.current = visibilitySnapshot
-  // Policy changes filter the existing collection in place. Retaining the
-  // received posts preserves order, DOM identity and recovery after unmuting.
-  const visibleEvents = useMemo(
-    () =>
-      events.filter((event) => !visibilitySnapshot?.shouldHideAlgorithmicEvent(event)),
-    [events, visibilitySnapshot]
-  )
+  // Keep deferred posts in the collection/cache, but only render and mark seen
+  // the diverse selection. Apply this after moderation, which can remove separators.
+  const visibleEvents = useMemo(() => {
+    const visible = events.filter(
+      (event) => !visibilitySnapshot?.shouldHideAlgorithmicEvent(event)
+    )
+    return enforceAuthorDiversity ? selectNonConsecutiveAuthors(visible) : visible
+  }, [events, visibilitySnapshot, enforceAuthorDiversity])
   const normalizedPopularRatio = Math.min(1, Math.max(0, popularRatio))
   const popularSourceEnabled = normalizedPopularRatio > 0
   const chronologicalSourceEnabled = normalizedPopularRatio < 1
@@ -98,13 +105,14 @@ export default function useCombinedPostFetcher({
     attemptedReadinessRef.current = null
 
     const cacheMatchesScope = cache.scopeKey === scopeKey
-    const cachedEvents = cacheMatchesScope
-      ? avoidConsecutiveAuthors(
-          (cache.events || []).filter(
-            (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
-          )
+    const eligibleCachedEvents = cacheMatchesScope
+      ? (cache.events || []).filter(
+          (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
         )
       : []
+    const cachedEvents = enforceAuthorDiversity
+      ? eligibleCachedEvents
+      : avoidConsecutiveAuthors(eligibleCachedEvents)
 
     cache.scopeKey = scopeKey
     cache.events = cachedEvents
@@ -112,7 +120,32 @@ export default function useCombinedPostFetcher({
     cache.hasLoadedInitial = hasLoadedInitial.current
     setEvents(cachedEvents)
     setLoading(false)
-  }, [cache, policyReady, scopeKey, visibilitySnapshot])
+  }, [cache, policyReady, scopeKey, visibilitySnapshot, enforceAuthorDiversity])
+
+  useEffect(() => {
+    if (!policyReady) return
+    visibleEvents.forEach((event) => {
+      if (!seenEventIds.has(event.id)) addSeenEventId(event.id)
+    })
+  }, [policyReady, visibleEvents])
+
+  const appendEvents = useCallback(
+    (newEvents: AppEvent[]) => {
+      setEvents((previous) => {
+        const existing = new Set(previous.map((event) => event.id))
+        const incoming = newEvents.filter((event) => !existing.has(event.id))
+        if (incoming.length === 0) return previous
+        return enforceAuthorDiversity
+          ? appendDiverseAuthors(
+              previous,
+              incoming,
+              (event) => !!visibilityRef.current?.shouldHideAlgorithmicEvent(event)
+            )
+          : [...previous, ...avoidConsecutiveAuthors(incoming, previous.at(-1)?.pubkey)]
+      })
+    },
+    [enforceAuthorDiversity]
+  )
 
   useEffect(() => {
     if (activeScopeRef.current !== scopeKey) return
@@ -237,17 +270,9 @@ export default function useCombinedPostFetcher({
       if (generation !== generationRef.current) return
 
       if (newEvents.length > 0) {
-        newEvents.forEach((event) => addSeenEventId(event.id))
         // A newly ready source can fill the feed while an earlier ID query is
         // still waiting. Late results append without replacing the visible page.
-        setEvents((previous) => {
-          const existing = new Set(previous.map((event) => event.id))
-          const incoming = newEvents.filter((event) => !existing.has(event.id))
-          return [
-            ...previous,
-            ...avoidConsecutiveAuthors(incoming, previous.at(-1)?.pubkey),
-          ]
-        })
+        appendEvents(newEvents)
         shouldFinalize = true
       } else if (newEvents.length === 0 && allEnabledSourcesReady) {
         shouldFinalize = true
@@ -271,6 +296,7 @@ export default function useCombinedPostFetcher({
     }
   }, [
     allEnabledSourcesReady,
+    appendEvents,
     cache,
     events.length,
     loadBatch,
@@ -298,18 +324,7 @@ export default function useCombinedPostFetcher({
 
       if (generation !== generationRef.current) return
 
-      newEvents.forEach((event) => addSeenEventId(event.id))
-
-      setEvents((prevEvents) => {
-        const existingIds = new Set(prevEvents.map((e) => e.id))
-        const uniqueNewEvents = newEvents.filter((e) => !existingIds.has(e.id))
-        return uniqueNewEvents.length > 0
-          ? [
-              ...prevEvents,
-              ...avoidConsecutiveAuthors(uniqueNewEvents, prevEvents.at(-1)?.pubkey),
-            ]
-          : prevEvents
-      })
+      appendEvents(newEvents)
     } catch {
       // Keep the current feed when relays are temporarily unavailable.
     } finally {
@@ -318,7 +333,7 @@ export default function useCombinedPostFetcher({
         setLoading(false)
       }
     }
-  }, [hasAnySourceReady, loadBatch, policyReady])
+  }, [appendEvents, hasAnySourceReady, loadBatch, policyReady])
 
   useEffect(() => {
     if (

@@ -1,9 +1,64 @@
 import {describe, expect, it} from "vitest"
-import {avoidConsecutiveAuthors, orderByAuthorRound} from "./authorDiversity"
+import {
+  appendDiverseAuthors,
+  avoidConsecutiveAuthors,
+  orderByAuthorRound,
+  selectNonConsecutiveAuthors,
+} from "./authorDiversity"
 
 const posts = (authors: string[]) => authors.map((pubkey, id) => ({pubkey, id}))
 
 describe("feed author diversity", () => {
+  it("holds back a burst and releases every post when separators arrive", () => {
+    const candidates = posts(["a", "a", "a", "a", "b", "b", "b"])
+    const first = appendDiverseAuthors([], candidates.slice(0, 4))
+    expect(selectNonConsecutiveAuthors(first)).toEqual([candidates[0]])
+    const second = appendDiverseAuthors(first, candidates.slice(4))
+    expect(selectNonConsecutiveAuthors(second).map((event) => event.pubkey)).toEqual([
+      "a",
+      "b",
+      "a",
+      "b",
+      "a",
+      "b",
+      "a",
+    ])
+    expect(second[0]).toBe(first[0])
+    expect(new Set(second)).toEqual(new Set(candidates))
+  })
+
+  it("keeps a displayed prefix stable when one author dominates a later batch", () => {
+    const candidates = posts(["a", "b", "a", "a", "a", "a", "b"])
+    const first = candidates.slice(0, 3)
+    const second = appendDiverseAuthors(first, candidates.slice(3))
+    expect(second.slice(0, first.length)).toEqual(first)
+    expect(selectNonConsecutiveAuthors(second).map((event) => event.pubkey)).toEqual([
+      "a",
+      "b",
+      "a",
+      "b",
+      "a",
+    ])
+    expect(new Set(second)).toEqual(new Set(candidates))
+  })
+
+  it("applies spacing after moderation and retains hidden posts for unmuting", () => {
+    const candidates = posts(["a", "muted", "a", "a", "b"])
+    const hidden = (event: {pubkey: string}) => event.pubkey === "muted"
+    const first = candidates.slice(0, 3)
+    expect(selectNonConsecutiveAuthors(first.filter((event) => !hidden(event)))).toEqual([
+      candidates[0],
+    ])
+    const second = appendDiverseAuthors(first, candidates.slice(3), hidden)
+    expect(second.slice(0, 2)).toEqual(first.slice(0, 2))
+    expect(
+      selectNonConsecutiveAuthors(second.filter((event) => !hidden(event))).map(
+        (event) => event.pubkey
+      )
+    ).toEqual(["a", "b", "a"])
+    expect(new Set(second)).toEqual(new Set(candidates))
+  })
+
   it("keeps priority and all posts while separating repeats", () => {
     const candidates = posts(["a", "a", "b", "a", "b"])
     const result = avoidConsecutiveAuthors(candidates)

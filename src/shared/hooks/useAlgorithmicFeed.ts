@@ -3,6 +3,7 @@ import useChronologicalSubscription from "./useChronologicalSubscription"
 import useCombinedPostFetcher from "./useCombinedPostFetcher"
 import usePopularityFilters from "./usePopularityFilters"
 import {AppEvent} from "@/lib/nostr"
+import {useUserStore} from "@/stores/user"
 
 interface CombinedPostFetcherCache {
   scopeKey?: string
@@ -48,6 +49,15 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
   const {currentFilters, chronologicalAuthors, visibilitySnapshot, expandFilters} =
     usePopularityFilters(filterSeen)
   const chronologicalEnabled = popularRatio < 1
+  const myPubKey = useUserStore((state) => state.publicKey)
+  // Small networks favor rotation but may run out of other active authors.
+  // Count eligible follows, not this batch: a slow relay must not turn a large
+  // network into a single-author feed. Discovery uses its default network here.
+  const eligibleAuthorCount = currentFilters.authors.filter(
+    (author) =>
+      (!excludeOwnPosts || author !== myPubKey) &&
+      !visibilitySnapshot?.shouldHideRecommendationUser(author)
+  ).length
 
   const {
     getNextMostPopular,
@@ -91,6 +101,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     visibilitySnapshot,
     popularRatio,
     excludeOwnPosts,
+    enforceAuthorDiversity: filterSeen && eligibleAuthorCount > 3,
   })
 
   return result

@@ -26,6 +26,42 @@ export function avoidConsecutiveAuthors<T extends {pubkey: string}>(
   return ordered
 }
 
+/** Leave repeats pending when there is no other author to separate them. */
+export function selectNonConsecutiveAuthors<T extends {pubkey: string}>(
+  events: readonly T[]
+): T[] {
+  let previousAuthor: string | undefined
+  return events.filter((event) => {
+    if (event.pubkey === previousAuthor) return false
+    previousAuthor = event.pubkey
+    return true
+  })
+}
+
+/** Keep displayed posts stable and interleave deferred posts with new arrivals. */
+export function appendDiverseAuthors<T extends {pubkey: string}>(
+  previous: readonly T[],
+  incoming: readonly T[],
+  isHidden: (event: T) => boolean = () => false
+): T[] {
+  let previousAuthor: string | undefined
+  const deferred: T[] = []
+  const stable = previous.filter((event) => {
+    // Retain hidden posts in place so unmuting can restore their original order.
+    if (isHidden(event)) return true
+    if (event.pubkey === previousAuthor) {
+      deferred.push(event)
+      return false
+    }
+    previousAuthor = event.pubkey
+    return true
+  })
+  return [
+    ...stable,
+    ...avoidConsecutiveAuthors([...deferred, ...incoming], previousAuthor),
+  ]
+}
+
 /** Pick from every available author before taking another round of their posts. */
 export function orderByAuthorRound<T extends {pubkey: string}>(
   events: readonly T[],

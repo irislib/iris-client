@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.5.58 - 2026-10-25
+
+- Keep For You posts from repeating the same author consecutively in larger networks, including delayed batches and returning to the feed.
+- Favor author rotation without withholding posts for networks with up to three eligible follows.
+- Keep deferred posts unread until they are included in the displayed feed.
+
 ## 2.5.54 - 2026-10-15
 
 - Keep Popular posts, scroll position, and subscriptions stable during background social-graph updates while applying live visibility changes.
