@@ -1,3 +1,4 @@
+import "fake-indexeddb/auto"
 import {afterEach, expect, it, vi} from "vitest"
 import {finalizeEvent, generateSecretKey, getPublicKey} from "nostr-tools/pure"
 import {
@@ -12,7 +13,8 @@ const harness = vi.hoisted(() => ({
   makeNode: undefined as unknown as (id: string) => any,
 }))
 const providerId = `02${"11".repeat(32)}`
-vi.mock("@hashtree/fips-transport/browser", () => ({
+vi.mock("@hashtree/fips-transport/browser", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@hashtree/fips-transport/browser")>(),
   supportsBrowserHashtreeFips: () => true,
   createBrowserHashtreeFipsProvider: async (options: Record<string, any>) => {
     harness.options.push(options)
