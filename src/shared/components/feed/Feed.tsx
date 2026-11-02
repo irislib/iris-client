@@ -543,16 +543,21 @@ const Feed = memo(function Feed({
               events by unknown users
             </div>
           )}
-          {!filters.search && !eventSource && enabled && initialLoadDone && (
-            <div className="p-4 text-center text-base-content/50">
-              {historyLoading && <span role="status">Loading older posts…</span>}
-              {!searchLoading && canLoadHistory && (
-                <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
-                  Load older posts
-                </button>
-              )}
-            </div>
-          )}
+          {!asReply &&
+            !feedConfig.repliesTo &&
+            !filters.search &&
+            !eventSource &&
+            enabled &&
+            initialLoadDone && (
+              <div className="p-4 text-center text-base-content/50">
+                {historyLoading && <span role="status">Loading older posts…</span>}
+                {!searchLoading && canLoadHistory && (
+                  <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
+                    Load older posts
+                  </button>
+                )}
+              </div>
+            )}
           {showUnknownUserEvents && eventsByUnknownUsers.length > 0 && (
             <UnknownUserEvents
               eventsByUnknownUsers={eventsByUnknownUsers}
