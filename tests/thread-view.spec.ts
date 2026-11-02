@@ -97,23 +97,32 @@ for (const width of [390, 1280]) {
         await expect(main.getByText(event.content, {exact: true})).toBeVisible()
       }
       await expect.poll(() => completedReplyQueries.has(nestedReply.id)).toBe(true)
-      await page.screenshot({path: testInfo.outputPath("thread-replies.png")})
+      await page.screenshot({
+        path: testInfo.outputPath("thread-replies.png"),
+        animations: "disabled",
+      })
       await expect(
         main.getByRole("button", {name: "Load older posts", exact: true})
       ).toHaveCount(0)
       await expect(main.getByText("Loading older posts…", {exact: true})).toHaveCount(0)
 
       // The full thread still loads its reply tree automatically from the root.
+      completedReplyQueries.clear()
       await page.goto(`/${nip19.noteEncode(root.id)}`)
       for (const event of [root, reply, nestedReply]) {
         await expect(main.getByText(event.content, {exact: true})).toBeVisible()
         await expect(main.getByText(event.content, {exact: true})).toHaveCount(1)
       }
+      await expect.poll(() => completedReplyQueries.has(nestedReply.id)).toBe(true)
+      await expect(main.getByRole("button", {name: "Reply", exact: true})).toHaveCount(3)
       await expect(
         main.getByRole("button", {name: "Load older posts", exact: true})
       ).toHaveCount(0)
       await expect(main.getByText("Loading older posts…", {exact: true})).toHaveCount(0)
-      await page.screenshot({path: testInfo.outputPath("thread-root.png")})
+      await page.screenshot({
+        path: testInfo.outputPath("thread-root.png"),
+        animations: "disabled",
+      })
     } finally {
       await relay.close()
     }
