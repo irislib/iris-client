@@ -66,6 +66,11 @@ export default function useFeedEvents({
   )
   const searchResultsRef = useRef<AppEvent[]>([])
   const searchController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
+  const loadHistoryRef = useRef<() => void>(() => {})
+  const [historyProgress, setHistoryProgress] = useState({
+    loading: false,
+    canLoadMore: true,
+  })
   const [searchProgress, setSearchProgress] = useState<SearchProgress>({
     loading: false,
     canLoadMore: false,
@@ -99,8 +104,6 @@ export default function useFeedEvents({
       }
     )
   )
-  const oldestRef = useRef<number | undefined>(undefined)
-  const [untilTimestamp, setUntilTimestamp] = useState<number | undefined>(undefined)
   const initialLoadDoneRef = useRef<boolean>(eventsRef.current.size > 0)
   const [initialLoadDoneState, setInitialLoadDoneState] = useState(
     initialLoadDoneRef.current
@@ -135,8 +138,6 @@ export default function useFeedEvents({
     eventsRef.current = new SortedMap<string, AppEvent>([], eventSort)
     receivedEventsRef.current.clear()
     searchResultsRef.current = []
-    oldestRef.current = undefined
-    setUntilTimestamp(undefined)
     hasReceivedEventsRef.current = false
     initialLoadDoneRef.current = false
     setInitialLoadDoneState(false)
@@ -149,15 +150,11 @@ export default function useFeedEvents({
     const baseFilters: EventFilter[] = JSON.parse(subscriptionFingerprint)
 
     return baseFilters.flatMap((filter) => {
-      const builtFilters = buildSearchSubscriptionFilters(
-        filter,
-        filter.search ? undefined : untilTimestamp,
-        100
-      )
+      const builtFilters = buildSearchSubscriptionFilters(filter, undefined, 100)
 
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
-  }, [subscriptionFingerprint, untilTimestamp])
+  }, [subscriptionFingerprint])
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -343,7 +340,10 @@ export default function useFeedEvents({
         eventsRef.current.set(event.id, event)
       }
     })
-    setNewEvents(new Map())
+    // Preserve arrivals queued after the batch being revealed was rendered.
+    setNewEvents(
+      (previous) => new Map([...previous].filter(([id]) => !newEvents.has(id)))
+    )
     setEventsVersion((prev) => prev + 1)
 
     // Debug logging
@@ -365,10 +365,6 @@ export default function useFeedEvents({
       if (!event?.id || !event.created_at) return
       if (eventsRef.current.has(event.id)) return
 
-      oldestRef.current = Math.min(
-        oldestRef.current ?? event.created_at,
-        event.created_at
-      )
       hasReceivedEventsRef.current = true
       eventsRef.current.set(event.id, event)
 
@@ -490,7 +486,7 @@ export default function useFeedEvents({
       }
     }, 500)
 
-    const handleEvent = (event: AppEvent) => {
+    const handleEvent = (event: AppEvent, historical = false) => {
       if (generation !== feedGenerationRef.current) return
       if (!event?.id || !event.created_at) return
       receivedEventsRef.current.set(event.id, event)
@@ -509,7 +505,7 @@ export default function useFeedEvents({
       }
       // Historical search results can arrive out of order from independent
       // indexes. Insert them in date order rather than hiding them as new posts.
-      if (filters.search) {
+      if (filters.search || historical) {
         addEventToMain(event)
         markLoadDoneIfHasEvents()
         return
@@ -572,6 +568,30 @@ export default function useFeedEvents({
         )
       : null
     searchController.current = controller
+    let history: ReturnType<typeof subscribeSearch> | undefined
+    let historyTarget = 0
+    setHistoryProgress({loading: false, canLoadMore: true})
+    loadHistoryRef.current = () => {
+      // Keep the live/cache subscription open. Its displayed (or injected)
+      // events cannot establish a complete relay-history boundary. On demand,
+      // start bounded, isolated pages from the original query and account for
+      // raw deliveries before visibility filtering and cross-source deduplication.
+      historyTarget = Math.max(displayCountRef.current, eventsRef.current.size + 1)
+      if (history) {
+        history.loadMore()
+      } else {
+        history = subscribeSearch(
+          nostr(),
+          resolvedSubscriptionFilters,
+          (event) => handleEvent(event, true),
+          () => eventsRef.current.size < historyTarget,
+          (progress) => {
+            if (generation === feedGenerationRef.current) setHistoryProgress(progress)
+          },
+          relayUrls
+        )
+      }
+    }
     const subs = controller
       ? []
       : resolvedSubscriptionFilters.map((subscriptionFilter) => {
@@ -579,11 +599,18 @@ export default function useFeedEvents({
             subscriptionFilter,
             relayUrls ? {relayUrls} : undefined
           )
-          sub.on("event", handleEvent)
+          sub.on("event", (event: AppEvent) => handleEvent(event))
+          sub.on("eose", () => {
+            if (generation !== feedGenerationRef.current) return
+            initialLoadDoneRef.current = true
+            setInitialLoadDoneState(true)
+          })
           return sub
         })
     return () => {
       controller?.stop()
+      history?.stop()
+      loadHistoryRef.current = () => {}
       if (searchController.current === controller) searchController.current = null
       subs.forEach((sub) => sub.stop())
       clearTimeout(initialLoadTimeout)
@@ -616,8 +643,8 @@ export default function useFeedEvents({
       return true
     } else if (searchController.current) {
       searchController.current.loadMore()
-    } else if (untilTimestamp !== oldestRef.current) {
-      setUntilTimestamp(oldestRef.current)
+    } else {
+      loadHistoryRef.current()
     }
     return false
   }
@@ -634,5 +661,7 @@ export default function useFeedEvents({
     initialLoadDone: initialLoadDoneState,
     searchLoading: !!filters.search && searchProgress.loading,
     canSearchMore: !!filters.search && searchProgress.canLoadMore,
+    historyLoading: !filters.search && historyProgress.loading,
+    canLoadHistory: !filters.search && historyProgress.canLoadMore,
   }
 }

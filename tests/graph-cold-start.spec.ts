@@ -98,11 +98,11 @@ for (const scenario of ["personal", "discovery", "late-personal"]) {
       const graph = new SocialGraph(viewer.pubkey)
       if (discovery) {
         graph.addFollower(
-          "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0",
+          "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b",
           friend.pubkey
         )
         graph.addFollower(
-          "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0",
+          "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b",
           muted.pubkey
         )
         await graph.recalculateFollowDistances()

@@ -125,13 +125,20 @@ export function parseArgs(argv, env = process.env) {
 }
 
 export function createReleasePlan(options) {
-  return createSharedReleasePlan({
+  const plan = createSharedReleasePlan({
     appDir,
     options,
     profile: releaseProfile,
     resolveHtreeCommand,
     wranglerVersion,
   })
+  // Use the integrity-pinned installation from pnpm-lock.yaml for deployment.
+  for (const step of plan.steps) {
+    if (step.command[0] === "npx" && step.command[1] === `wrangler@${wranglerVersion}`) {
+      step.command = ["pnpm", "exec", "wrangler", ...step.command.slice(2)]
+    }
+  }
+  return plan
 }
 
 const defaultRunner = createDefaultRunner()

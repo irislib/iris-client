@@ -1,9 +1,21 @@
+import {
+  HistoryCursor,
+  SOURCE_PRIORITY_RELAY,
+  relaySource,
+  type HistoryPage,
+  type NostrEvent,
+  type NostrVerifiedEvent,
+} from "nostr-pubsub"
 import type {EventFilter} from "@/lib/nostr"
 
-/** One cursor per query, based on raw relay deliveries, before client filtering. */
+type RelayPage = {cursor: HistoryCursor; page: HistoryPage}
+
+/** One app query, with the shared raw-history cursor for each actual relay.
+ * Client visibility and cross-relay deduplication must happen after record(). */
 export class SearchPageCursor {
-  private relays = new Map<string, Map<string, number>>()
+  private relays = new Map<string, RelayPage>()
   private filter: EventFilter
+  private planned: EventFilter | null | undefined
 
   constructor(filter: EventFilter) {
     this.filter = {...filter, until: filter.until ?? Math.floor(Date.now() / 1000)}
@@ -13,42 +25,59 @@ export class SearchPageCursor {
     return this.filter
   }
 
-  record(event: {id?: string; created_at?: number}, relay?: string, fromCache = false) {
-    if (
-      fromCache ||
-      !event.id ||
-      !relay ||
-      !event.created_at ||
-      event.created_at > this.filter.until!
-    )
-      return
-    if (!this.relays.has(relay)) this.relays.set(relay, new Map())
-    this.relays.get(relay)!.set(event.id, event.created_at)
+  record(event: NostrEvent, relay?: string, fromCache = false) {
+    if (fromCache || !relay || this.planned !== undefined) return
+    const source = relaySource(relay)
+    let entry = this.relays.get(relay)
+    const created = !entry
+    if (!entry) {
+      const cursor = new HistoryCursor(
+        source.id,
+        this.filter,
+        this.filter.until!,
+        Math.max(1600, this.filter.limit ?? 100)
+      )
+      entry = {cursor, page: cursor.beginPage()!}
+      this.relays.set(relay, entry)
+    }
+    // The subscription/cache boundary already verified these wire events.
+    // HistoryCursor owns filter/source checks, duplicate accounting and ties.
+    const accepted = entry.cursor.observe(entry.page.token, {
+      event: event as NostrVerifiedEvent,
+      source,
+      priority: SOURCE_PRIORITY_RELAY,
+    })
+    if (created && !accepted) this.relays.delete(relay)
   }
 
+  /** Called only after complete EOSE; interrupted pages are retried unchanged. */
   next(): EventFilter | null {
-    const boundaries = [...this.relays.values()].map((events) =>
-      Math.min(...events.values())
-    )
-    if (!boundaries.length) return null
-    // A sparse old source must not move a denser source past unseen history.
-    const until = Math.max(...boundaries)
-    if (until < this.filter.until!) return {...this.filter, until}
-    const limit = this.filter.limit ?? 100
-    const saturated = [...this.relays.values()].some((events) => events.size >= limit)
-    if (saturated) {
-      // Include the boundary second again, with room for ties. Never silently
-      // discard the rest of a saturated timestamp to force pagination forward.
-      return limit < 1600 ? {...this.filter, limit: limit * 2} : null
+    if (this.planned !== undefined) return this.planned
+    const next: EventFilter[] = []
+    for (const {cursor, page} of this.relays.values()) {
+      const result = cursor.finishPage(page.token, "complete")
+      // A saturated timestamp must remain explicitly limited rather than
+      // advancing another relay past unseen tied events.
+      if (result.status === "limited") return (this.planned = null)
+      const request = cursor.beginPage()
+      if (request) next.push(request.filter)
     }
-    return until > 0 ? {...this.filter, until: until - 1} : null
+    if (!next.length) return (this.planned = null)
+    // A sparse old source must not move a denser source past unseen history.
+    const until = Math.max(...next.map((filter) => filter.until!))
+    const limit = Math.max(
+      ...next.filter((filter) => filter.until === until).map((filter) => filter.limit!)
+    )
+    return (this.planned = {...this.filter, until, limit})
   }
 
   advance() {
     const next = this.next()
     if (!next) return false
+    for (const {cursor} of this.relays.values()) cursor.cancel()
     this.filter = next
     this.relays.clear()
+    this.planned = undefined
     return true
   }
 }

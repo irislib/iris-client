@@ -26,9 +26,9 @@ const releases = {
       "sha512-y9SkW2IbTt9ElXO89+184PuYCnMyODtojeKfzQg34iQIOpEpebvi/mPzvZjWNFk6e2gAfu3aG1/V+TiSU9XsFA==",
   },
   "nostr-pubsub": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.20/nostr-pubsub-0.5.20.tgz",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.21/nostr-pubsub-0.5.21.tgz",
     integrity:
-      "sha512-1Cwdk2LR4oCtxiOR1t5+KmdrzDUKrqZfbIZzpXrOR0g+Ex3DCZ33him/qPWU/iYTChPl9eUgi1ZdhL0KdQWZWQ==",
+      "sha512-MF7gmvWg+hNj6prihnyyftlXAdbaV+qALJeoOfpUn5yjL5gPihkaODJ6zAS+7BYBAftWlclGO1t3dgIl4KPd5g==",
   },
   "@hashtree/worker": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.19/hashtree-worker-0.4.11.tgz",

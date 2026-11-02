@@ -20,7 +20,7 @@ const usingLocalRelay =
 test.skip(!usingLocalRelay, "requires deterministic local-relay recommendation data")
 
 const LOCAL_RELAY = "ws://127.0.0.1:7777"
-const DEFAULT_ROOT = "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
+const DEFAULT_ROOT = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
 
 interface TestUser {
   privateKey: Uint8Array

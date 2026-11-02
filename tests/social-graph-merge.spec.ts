@@ -1,7 +1,7 @@
 import {expect, test, type Page} from "@playwright/test"
 import {SocialGraph} from "nostr-social-graph"
 
-const root = "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
+const root = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
 const key = (id: number) => id.toString(16).padStart(64, "0")
 const [author, oldTarget, newTarget, decoy, retained] = [1, 2, 3, 4, 5].map(key)
 

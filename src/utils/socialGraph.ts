@@ -6,7 +6,8 @@ import {VerifiedEvent} from "nostr-tools"
 import debounce from "lodash/debounce"
 import throttle from "lodash/throttle"
 import localForage from "localforage"
-import bundledGraphUrl from "nostr-social-graph/data/socialGraph.bin?url"
+import bundledGraphUrl from "@/assets/socialGraph.bin?url"
+import defaultGraph from "@/assets/socialGraph.json"
 // Removed static import to avoid race condition - use dynamic import in setupSubscription
 import {useMemo} from "react"
 import {KIND_CONTACTS, KIND_MUTE_LIST, DEBUG_NAMESPACES} from "@/utils/constants"
@@ -14,8 +15,7 @@ import {createDebugLogger} from "@/utils/createDebugLogger"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
-export const DEFAULT_SOCIAL_GRAPH_ROOT =
-  "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
+export const DEFAULT_SOCIAL_GRAPH_ROOT = defaultGraph.root
 
 export const DEFAULT_CRAWL_DEGREE = 3
 

@@ -118,6 +118,11 @@ describe("release site config", () => {
     expect(e2eStepIndex).toBeLessThan(publishStepIndex)
     expect(e2eStepIndex).toBeLessThan(deployStepIndex)
     expect(e2eStep.command).toEqual(["pnpm", "run", "test:release:e2e"])
+    expect(plan.steps[deployStepIndex].command.slice(0, 3)).toEqual([
+      "pnpm",
+      "exec",
+      "wrangler",
+    ])
     const chatStepIndex = plan.steps.findIndex((step) =>
       step.command.includes("test:release:chat")
     )

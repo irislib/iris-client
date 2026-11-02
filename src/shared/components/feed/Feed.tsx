@@ -220,6 +220,8 @@ const Feed = memo(function Feed({
     initialLoadDone: subscribedLoadDone,
     searchLoading: subscribedSearchLoading,
     canSearchMore,
+    historyLoading,
+    canLoadHistory,
   } = useFeedEvents({
     filters,
     cacheKey,
@@ -248,7 +250,8 @@ const Feed = memo(function Feed({
     [allEvents, displayCount, selectEvents]
   )
   const initialLoadDone = eventSource ? !eventSource.loading : subscribedLoadDone
-  const searchLoading = eventSource?.loading ?? subscribedSearchLoading
+  const searchLoading =
+    eventSource?.loading ?? (subscribedSearchLoading || historyLoading)
 
   // Track which events we've already notified about
   const notifiedEventIds = useRef(new Set<string>())
@@ -538,6 +541,16 @@ const Feed = memo(function Feed({
             >
               {showUnknownUserEvents ? "Hide" : "Show"} {eventsByUnknownUsers.length}{" "}
               events by unknown users
+            </div>
+          )}
+          {!filters.search && !eventSource && enabled && initialLoadDone && (
+            <div className="p-4 text-center text-base-content/50">
+              {historyLoading && <span role="status">Loading older posts…</span>}
+              {!searchLoading && canLoadHistory && (
+                <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
+                  Load older posts
+                </button>
+              )}
             </div>
           )}
           {showUnknownUserEvents && eventsByUnknownUsers.length > 0 && (
