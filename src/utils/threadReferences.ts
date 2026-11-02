@@ -7,15 +7,18 @@ import {
   getRootEventId,
   getRootTag,
 } from "@/lib/nostr"
-import {KIND_TEXT_NOTE} from "@/utils/constants"
+import {KIND_TEXT_NOTE, KIND_ZAP_RECEIPT} from "@/utils/constants"
 
 const HEX_EVENT_ID_REGEX = /^[0-9a-f]{64}$/i
 
 export function getEventReplyReference(event: AppEvent): string | undefined {
+  // A zap's event reference is its target, not a parent in a reply thread.
+  if (event.kind === KIND_ZAP_RECEIPT) return undefined
   return getReplyTag(event)?.[1]
 }
 
 export function getEventRootReference(event: AppEvent): string | undefined {
+  if (event.kind === KIND_ZAP_RECEIPT) return undefined
   return getRootTag(event)?.[1] ?? getRootEventId(event) ?? undefined
 }
 
