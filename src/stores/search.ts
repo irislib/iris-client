@@ -7,7 +7,15 @@ export type CustomSearchResult = SearchResult & {
   pubKey: string
 }
 
+import type {SearchModel} from "@/lib/post-search/scorer"
+
 interface SearchState {
+  aiSearch: boolean
+  searchModel: SearchModel
+  ollamaModel: string
+  setAiSearch: (enabled: boolean) => void
+  setSearchModel: (model: SearchModel) => void
+  setOllamaModel: (model: string) => void
   recentSearches: CustomSearchResult[]
   searchQuery: string
   showEventsByUnknownUsers: boolean
@@ -25,11 +33,17 @@ export const useSearchStore = create<SearchState>()(
       const initialState = {
         recentSearches: [] as CustomSearchResult[],
         searchQuery: "",
+        aiSearch: true,
+        searchModel: "minilm" as SearchModel,
+        ollamaModel: "gemma3:1b",
         showEventsByUnknownUsers: false,
         selectedRelayUrl: "",
       }
 
       const actions = {
+        setAiSearch: (aiSearch: boolean) => set({aiSearch}),
+        setSearchModel: (searchModel: SearchModel) => set({searchModel}),
+        setOllamaModel: (ollamaModel: string) => set({ollamaModel}),
         setRecentSearches: (recentSearches: CustomSearchResult[]) =>
           set({recentSearches}),
         setSearchQuery: (searchQuery: string) => set({searchQuery}),

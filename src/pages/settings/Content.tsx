@@ -4,10 +4,13 @@ import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {SettingToggle} from "@/shared/components/settings/SettingToggle"
 import {useSettingsStore} from "@/stores/settings"
 import useMutes from "@/shared/hooks/useMutes"
+import {useSearchStore} from "@/stores/search"
+import type {SearchModel} from "@/lib/post-search/scorer"
 import {useState} from "react"
 
 function Content() {
   const {content, updateContent} = useSettingsStore()
+  const {searchModel, setSearchModel, ollamaModel, setOllamaModel} = useSearchStore()
   const mutes = useMutes()
   const [showMutedUsers, setShowMutedUsers] = useState<boolean>(false)
 
@@ -85,6 +88,37 @@ function Content() {
             />
           </SettingsGroup>
 
+          <SettingsGroup title="Post search">
+            <SettingsGroupItem isLast>
+              <label className="flex flex-wrap items-center justify-between gap-2">
+                AI search model
+                <select
+                  className="select select-bordered select-sm"
+                  value={searchModel}
+                  onChange={(e) => setSearchModel(e.target.value as SearchModel)}
+                >
+                  <option value="minilm">MiniLM · on device</option>
+                  <option value="browser">Browser model · already installed</option>
+                  <option value="ollama">Ollama · local server</option>
+                </select>
+              </label>
+              {searchModel === "ollama" && (
+                <label className="mt-3 flex flex-col gap-1">
+                  Ollama model
+                  <input
+                    className="input input-bordered input-sm"
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    placeholder="gemma3:1b"
+                  />
+                  <span className="text-sm opacity-70">
+                    Queries and candidate posts go to your Ollama server on port 11434.
+                    Allow this site's origin in OLLAMA_ORIGINS.
+                  </span>
+                </label>
+              )}
+            </SettingsGroupItem>
+          </SettingsGroup>
           <SettingsGroup title="Reactions">
             <SettingToggle
               checked={content.showReactionsBar}

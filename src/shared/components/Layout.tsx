@@ -256,7 +256,9 @@ const Layout = ({children}: {children: ReactNode}) => {
                   <HomeFeed />
                 </ScrollProvider>
               ) : (
-                <UnifiedSearchContent searchRoute={lastSearchRoute} />
+                shouldShowMainFeed && (
+                  <UnifiedSearchContent searchRoute={lastSearchRoute} />
+                )
               )}
             </div>
           </div>

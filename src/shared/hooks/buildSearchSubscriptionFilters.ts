@@ -1,3 +1,4 @@
+import type {SearchPlan} from "@/lib/post-search/ranking"
 import type {EventFilter} from "@/lib/nostr"
 
 function buildHashtagVariants(search: string, hashtags: string[]) {
@@ -39,7 +40,8 @@ function dedupeFilters(filters: EventFilter[]) {
 export function buildSearchSubscriptionFilters(
   filters: EventFilter,
   untilTimestamp?: number,
-  fallbackLimit = 100
+  fallbackLimit = 100,
+  plan?: SearchPlan
 ): EventFilter | EventFilter[] {
   if (!filters.search) {
     return withUntil(
@@ -69,6 +71,21 @@ export function buildSearchSubscriptionFilters(
   const boundedBaseFilter = {
     ...withUntil(baseFilter, untilTimestamp),
     limit: baseFilter.limit ?? fallbackLimit,
+  }
+
+  if (plan) {
+    const tags = buildHashtagVariants(
+      filters.search,
+      plan.hashtags.map((t) => t.toLowerCase())
+    )
+    if (tags.length && !plan.terms.length) return {...boundedBaseFilter, "#t": tags}
+    const keywords = [...new Set([...tags, ...plan.anchors])]
+    const searches = [...new Set([plan.text.toLowerCase(), ...plan.anchors])]
+    return dedupeFilters([
+      boundedBaseFilter,
+      ...(keywords.length ? [{...boundedBaseFilter, "#t": keywords}] : []),
+      ...searches.map((search) => ({...boundedBaseFilter, search})),
+    ])
   }
 
   if (hashtags.length > 0 && regularWords.length === 0) {

@@ -1,3 +1,4 @@
+import {createHash} from "node:crypto"
 import {readFile} from "node:fs/promises"
 
 const root = new URL("../", import.meta.url)
@@ -113,4 +114,18 @@ if (corePackages.length !== 1) {
   throw new Error("All peer transports must share one FIPS core package")
 }
 
-console.log("Verified immutable shared runtime release integrity")
+// The on-device search model is shipped with the app and loaded on demand.
+const searchAssets = {
+  "search-minilm-q8.onnx": "b190f50dd46296b9895ae8f274c3455762d08610f8788f4a9bd15019f4f7160c",
+  "search-tokenizer.json": "2fc687b11de0bc1b3d8348f92e3b49ef1089a621506c7661fbf3248fcd54947e",
+  "tokenizer_config.json": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3",
+  "search-keywords.bin": "445e2f19b506873911325f594bb620dd156ac0c7ced05e1dbfba34a7814ed866",
+}
+for (const [name, expected] of Object.entries(searchAssets)) {
+  const bytes = await readFile(new URL(`src/lib/post-search/model/${name}`, root))
+  if (createHash("sha256").update(bytes).digest("hex") !== expected) {
+    throw new Error(`Search asset integrity mismatch: ${name}`)
+  }
+}
+
+console.log("Verified immutable shared runtime releases and search assets")

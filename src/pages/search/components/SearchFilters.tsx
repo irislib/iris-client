@@ -2,6 +2,7 @@ import {useEffect, useRef, useState, FormEvent, useMemo, memo} from "react"
 import {useParams, useNavigate} from "@/navigation"
 import {useSearchStore} from "@/stores/search"
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
+import {RiSparklingFill} from "@remixicon/react"
 import Feed from "@/shared/components/feed/Feed"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import {KIND_TEXT_NOTE} from "@/utils/constants"
@@ -25,15 +26,19 @@ const SearchFilters = memo(function SearchFilters({
 
   useSearchInputAutofocus(searchInputRef, "/search")
 
+  const [relevanceStatus, setRelevanceStatus] = useState("")
   // Use store for persistent state
-  const searchQuery = useSearchStore((state) => state.searchQuery)
-  const setSearchQuery = useSearchStore((state) => state.setSearchQuery)
-  const showEventsByUnknownUsers = useSearchStore(
-    (state) => state.showEventsByUnknownUsers
-  )
-  const setShowEventsByUnknownUsers = useSearchStore(
-    (state) => state.setShowEventsByUnknownUsers
-  )
+  const {
+    searchQuery,
+    setSearchQuery,
+    aiSearch,
+    setAiSearch,
+    searchModel,
+    ollamaModel,
+    showEventsByUnknownUsers,
+    setShowEventsByUnknownUsers,
+  } = useSearchStore()
+  const ranking = !!decodedQuery && aiSearch && relevanceStatus === "Ranking posts…"
 
   // Initialize from URL or store
   const [searchTerm, setSearchTerm] = useState(() => {
@@ -79,7 +84,7 @@ const SearchFilters = memo(function SearchFilters({
       clearInput: () => setSearchTerm(""),
       onTextSearch: (query) => {
         setSearchQuery(query)
-        navigate(`/search/${query}`)
+        navigate(`/search/${encodeURIComponent(query)}`)
       },
     })
   }
@@ -97,6 +102,7 @@ const SearchFilters = memo(function SearchFilters({
       name: "Search Results",
       id: `search-posts-${activeQuery}`,
       showRepliedTo: false,
+      postRelevance: aiSearch ? {model: searchModel, ollamaModel} : undefined,
       followDistance: showEventsByUnknownUsers ? undefined : 5,
       filter: {
         kinds: [KIND_TEXT_NOTE],
@@ -104,14 +110,14 @@ const SearchFilters = memo(function SearchFilters({
         ...(activeQuery.trim() && {search: activeQuery}),
       },
     }
-  }, [activeQuery, showEventsByUnknownUsers])
+  }, [activeQuery, showEventsByUnknownUsers, aiSearch, searchModel, ollamaModel])
 
   return (
     <div className="flex flex-col gap-2 h-full">
       {showTabSelector && <SearchTabSelector activeTab="posts" />}
 
       <div className="w-full p-2">
-        <form onSubmit={handleSubmit} className="w-full">
+        <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
           <SearchInput
             ref={searchInputRef}
             placeholder="Search posts..."
@@ -138,6 +144,20 @@ const SearchFilters = memo(function SearchFilters({
               })
             }}
           />
+          <button
+            type="button"
+            className={`btn btn-square ${aiSearch ? "btn-primary" : "btn-ghost"}`}
+            aria-label="AI search"
+            aria-pressed={aiSearch}
+            aria-busy={ranking}
+            title={aiSearch ? "Turn off AI search" : "Turn on AI search"}
+            onClick={() => setAiSearch(!aiSearch)}
+          >
+            <RiSparklingFill
+              size={20}
+              className={ranking ? "motion-safe:animate-pulse" : undefined}
+            />
+          </button>
         </form>
       </div>
 
@@ -159,6 +179,7 @@ const SearchFilters = memo(function SearchFilters({
           <Feed
             key={getFeedCacheKey(feedConfig)}
             feedConfig={feedConfig}
+            onRelevanceStatus={setRelevanceStatus}
             visibilitySnapshot={visibility.snapshot}
             enabled={showEventsByUnknownUsers || visibility.ready}
             emptyPlaceholder={

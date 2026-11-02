@@ -1,0 +1,8 @@
+Paraphrase MiniLM L3 v2 from the Sentence Transformers project.
+Apache License 2.0. The quantized ONNX export and tokenizer are from
+https://huggingface.co/Xenova/paraphrase-MiniLM-L3-v2/tree/4b544e74dfc3256b2b56849ea5d7064fee1ac846
+
+Upstream files and SHA-256:
+onnx/model_quantized.onnx  b190f50dd46296b9895ae8f274c3455762d08610f8788f4a9bd15019f4f7160c
+tokenizer.json             2fc687b11de0bc1b3d8348f92e3b49ef1089a621506c7661fbf3248fcd54947e
+tokenizer_config.json      9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3

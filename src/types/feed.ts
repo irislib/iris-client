@@ -29,6 +29,7 @@ export interface FeedConfig {
   // For reply feeds - only show replies to this specific event
   repliesTo?: string
   // Sort type for events
+  postRelevance?: import("@/lib/post-search/scorer").SearchSettings
   sortType?: "chronological" | "followDistance" | "liked"
   // Show new events automatically without the dialog
   autoShowNewEvents?: boolean

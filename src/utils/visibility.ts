@@ -17,6 +17,7 @@ interface VisibilityEvent {
 }
 
 export interface AlgorithmicVisibilitySnapshot {
+  readonly discoveryDistance?: (pubkey: string) => number
   readonly shouldHideRecommendationUser: (pubKey: string) => boolean
   readonly shouldHideAlgorithmicEvent: (event: VisibilityEvent) => boolean
 }
@@ -275,6 +276,9 @@ export const createAlgorithmicVisibilitySnapshot = (
 
   const explicitAuthors = new Set([root, ...graph.getFollowedByUser(root)])
   const snapshot: AlgorithmicVisibilitySnapshot = {
+    discoveryDistance: distances
+      ? (pubkey) => (ids.has(pubkey) ? (distances.get(ids.id(pubkey)) ?? 1000) : 1000)
+      : undefined,
     shouldHideRecommendationUser: (pubKey) => {
       if (pubKey === viewer) return false
       if (directMutes.has(pubKey)) return true

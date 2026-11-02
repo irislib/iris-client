@@ -22,6 +22,8 @@ import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 import {getEventReplyReference} from "@/utils/threadReferences"
 import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
 import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
+import {planPostSearch} from "@/lib/post-search/ranking"
+import {usePostRelevance} from "./usePostRelevance"
 import {useVisibilityRevision} from "./useVisibilityRevision"
 
 interface FutureEvent {
@@ -60,6 +62,11 @@ export default function useFeedEvents({
 }: UseFeedEventsProps) {
   const socialGraph = useSocialGraph()
   const visibilityRevision = useVisibilityRevision()
+  const relevance = feedConfig.postRelevance
+  const plan = useMemo(
+    () => (relevance && filters.search ? planPostSearch(filters.search) : undefined),
+    [relevance, filters.search]
+  )
   const matchesSearch = useMemo(
     () => createPostSearchMatcher(filters.search || ""),
     [filters.search]
@@ -150,11 +157,11 @@ export default function useFeedEvents({
     const baseFilters: EventFilter[] = JSON.parse(subscriptionFingerprint)
 
     return baseFilters.flatMap((filter) => {
-      const builtFilters = buildSearchSubscriptionFilters(filter, undefined, 100)
+      const builtFilters = buildSearchSubscriptionFilters(filter, undefined, 100, plan)
 
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
-  }, [subscriptionFingerprint])
+  }, [subscriptionFingerprint, plan])
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -236,7 +243,7 @@ export default function useFeedEvents({
       if (eventFollowDistance > feedConfig.followDistance) return false
     }
 
-    if (filters.search && !matchesSearch(event)) return false
+    if (filters.search && !plan && !matchesSearch(event)) return false
 
     const inAuthors = filters.authors?.includes(event.pubkey)
 
@@ -291,7 +298,7 @@ export default function useFeedEvents({
     })
     // Replay arrivals from every loaded page, including posts rejected before
     // graph hydration. The normal insertion path still buffers new visible posts.
-    if (!filters.search) {
+    if (!filters.search || plan) {
       receivedEventsRef.current.forEach((event) => {
         if (!newEvents.has(event.id) && !futureEventsRef.current.has(event.id)) {
           replayEventRef.current(event)
@@ -390,14 +397,31 @@ export default function useFeedEvents({
     [cacheKey, feedConfig.id, feedConfig.name]
   )
 
+  const candidates = useMemo(
+    () => (plan ? Array.from(eventsRef.current.values()) : []),
+    [plan, eventsVersion]
+  )
+  const ranked = usePostRelevance(
+    enabled ? plan : undefined,
+    relevance,
+    candidates,
+    socialGraph,
+    visibilityRevision,
+    visibilitySnapshot?.discoveryDistance
+  )
+  const rankedResults = useRef(ranked.primary)
+  rankedResults.current = ranked.primary
+
   const filteredEvents = useMemo((): AppEvent[] => {
+    if (plan) return ranked.primary
     if (filters.search) return searchResultsRef.current
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
     return Array.from(eventsRef.current.values())
-  }, [eventsVersion, filters.search])
+  }, [eventsVersion, filters.search, plan, ranked.primary])
 
   const additionalSearchResults = useMemo(() => {
+    if (plan) return ranked.additional
     const groups = new Map<string, AppEvent[]>()
     if (!filters.search) return groups
     const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
@@ -409,7 +433,7 @@ export default function useFeedEvents({
       groups.set(event.pubkey, matches)
     }
     return groups
-  }, [eventsVersion, filteredEvents, filters.search])
+  }, [eventsVersion, filteredEvents, filters.search, plan, ranked.additional])
 
   const eventsByUnknownUsers = useMemo(() => {
     if (visibilitySnapshot) return []
@@ -541,16 +565,22 @@ export default function useFeedEvents({
     }
     replayEventRef.current = handleEvent
 
+    let coveredSince = Infinity
     const controller = filters.search
       ? subscribeSearch(
           nostr(),
           resolvedSubscriptionFilters,
           handleEvent,
-          () => searchResultsRef.current.length <= displayCountRef.current,
+          () =>
+            (plan
+              ? rankedResults.current.filter((e) => e.created_at! >= coveredSince).length
+              : searchResultsRef.current.length) <= displayCountRef.current,
           (progress) => {
             if (generation !== feedGenerationRef.current) return
+            if (progress.oldestSearched !== undefined)
+              coveredSince = progress.oldestSearched
             setSearchProgress(progress)
-            if (progress.oldestSearched !== undefined) {
+            if (!plan && progress.oldestSearched !== undefined) {
               searchResultsRef.current = uniqueSearchAuthors([
                 ...searchResultsRef.current,
                 ...Array.from(eventsRef.current.values()).filter(
@@ -627,6 +657,32 @@ export default function useFeedEvents({
     relayUrls,
   ])
 
+  // Expand once from model-selected vocabulary without resetting the primary cursors.
+  const expansion = ranked.relatedTerms
+  const expansionController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
+  const [expansionProgress, setExpansionProgress] = useState<SearchProgress>({
+    loading: false,
+    canLoadMore: false,
+  })
+  useEffect(() => {
+    if (!enabled || !plan || !expansion.length) return
+    const base = {...filters, limit: 32}
+    delete base.search
+    const extra = subscribeSearch(
+      nostr(),
+      [{...base, "#t": expansion}, ...expansion.map((search) => ({...base, search}))],
+      (event) => replayEventRef.current(event),
+      () => false,
+      setExpansionProgress,
+      relayUrls
+    )
+    expansionController.current = extra
+    return () => {
+      extra.stop()
+      expansionController.current = null
+    }
+  }, [enabled, plan, expansion, subscriptionFingerprint, relayUrls])
+
   // Cleanup future event timers on unmount
   useEffect(() => {
     return () => {
@@ -642,6 +698,10 @@ export default function useFeedEvents({
     if (filteredEvents.length > displayCount) {
       return true
     } else if (searchController.current) {
+      if (plan) {
+        ranked.increaseBudget()
+        expansionController.current?.loadMore()
+      }
       searchController.current.loadMore()
     } else {
       loadHistoryRef.current()
@@ -659,8 +719,12 @@ export default function useFeedEvents({
     showNewEvents,
     loadMoreItems,
     initialLoadDone: initialLoadDoneState,
-    searchLoading: !!filters.search && searchProgress.loading,
-    canSearchMore: !!filters.search && searchProgress.canLoadMore,
+    searchLoading:
+      !!filters.search && (searchProgress.loading || expansionProgress.loading),
+    relevanceStatus: plan ? ranked.status : "",
+    canSearchMore:
+      !!filters.search &&
+      (searchProgress.canLoadMore || expansionProgress.canLoadMore || ranked.moreToScore),
     historyLoading: !filters.search && historyProgress.loading,
     canLoadHistory: !filters.search && historyProgress.canLoadMore,
   }

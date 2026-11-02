@@ -2,7 +2,9 @@ import RightColumn from "@/shared/components/RightColumn.tsx"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
-import {useParams} from "@/navigation"
+import {useContext} from "react"
+import {useParams, useLocation} from "@/navigation"
+import {RouteContext} from "@/navigation/routeContexts"
 import Widget from "@/shared/components/ui/Widget"
 import {Helmet} from "react-helmet"
 import {useIsTwoColumnLayout} from "@/shared/hooks/useIsTwoColumnLayout"
@@ -13,6 +15,11 @@ function SearchPage() {
   const {query} = useParams()
   const decodedQuery = query ? decodeURIComponent(query) : ""
   const isInTwoColumnLayout = useIsTwoColumnLayout()
+
+  const route = useContext(RouteContext)
+  const {pathname} = useLocation()
+  // The router keeps old pages mounted. Only the visible search owns relay and model work.
+  if (route && route.url !== pathname) return null
 
   // If in two-column layout, show the home-style right column
   if (isInTwoColumnLayout) {

@@ -50,7 +50,14 @@ export default defineConfig({
         // The bundled legacy Cashu app has its own entry point and assets. Preloading
         // the entire subtree made every Iris service-worker install download it,
         // even for people who never open /cashu/.
-        globIgnores: ["cashu/**/*"],
+        globIgnores: [
+          "cashu/**/*",
+          "**/ort-wasm*",
+          "**/search-minilm-*",
+          "**/search-tokenizer-*",
+          "**/search-keywords-*",
+          "**/semantic-search.worker-*",
+        ],
         rollupOptions: {
           onwarn(warning, warn) {
             if (warning.code === "EVAL" && warning.id?.includes("tseep")) return
@@ -257,6 +264,7 @@ export default defineConfig({
       "src/service-worker.ts",
       "src/workers/relay-worker.ts",
       "src/workers/profile-search.ts",
+      "src/lib/post-search/semantic-search.worker.ts",
     ],
     exclude: ["@vite/client", "@vite/env"],
     include: ["react", "react-dom"],

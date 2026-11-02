@@ -30,6 +30,7 @@ interface FeedProps {
   feedConfig: FeedConfig
   asReply?: boolean
   showReplies?: number
+  onRelevanceStatus?: (status: string) => void
   onEvent?: (event: AppEvent) => void
   borderTopFirst?: boolean
   emptyPlaceholder?: ReactNode
@@ -56,6 +57,7 @@ const Feed = memo(function Feed({
   feedConfig,
   asReply = false,
   showReplies = 0,
+  onRelevanceStatus,
   onEvent,
   borderTopFirst = true,
   emptyPlaceholder = DefaultEmptyPlaceholder,
@@ -219,6 +221,7 @@ const Feed = memo(function Feed({
     loadMoreItems: hookLoadMoreItems,
     initialLoadDone: subscribedLoadDone,
     searchLoading: subscribedSearchLoading,
+    relevanceStatus,
     canSearchMore,
     historyLoading,
     canLoadHistory,
@@ -251,7 +254,12 @@ const Feed = memo(function Feed({
   )
   const initialLoadDone = eventSource ? !eventSource.loading : subscribedLoadDone
   const searchLoading =
-    eventSource?.loading ?? (subscribedSearchLoading || historyLoading)
+    eventSource?.loading ??
+    (subscribedSearchLoading || historyLoading || relevanceStatus === "Ranking posts…")
+
+  useEffect(() => {
+    onRelevanceStatus?.(relevanceStatus)
+  }, [relevanceStatus, onRelevanceStatus])
 
   // Track which events we've already notified about
   const notifiedEventIds = useRef(new Set<string>())
@@ -470,7 +478,10 @@ const Feed = memo(function Feed({
             <InfiniteScroll
               onLoadMore={selectEvents ? () => false : loadMoreItems}
               loadMoreKey={`${filteredEvents.length}:${displayCount}`}
-              loading={searchLoading}
+              loading={
+                searchLoading &&
+                (!feedConfig.postRelevance || filteredEvents.length <= displayCount)
+              }
             >
               {displayAs === "grid" ? (
                 <MediaFeed events={gridEvents} eventsToHighlight={eventsToHighlight} />
@@ -526,7 +537,9 @@ const Feed = memo(function Feed({
             emptyPlaceholder}
           {filters.search && (
             <div className="p-4 text-center text-base-content/50">
-              {(searchLoading || !enabled) && <span role="status">Searching posts…</span>}
+              {(searchLoading || !enabled || relevanceStatus) && (
+                <span role="status">{relevanceStatus || "Searching posts…"}</span>
+              )}
               {!searchLoading && enabled && canSearchMore && (
                 <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
                   Search older posts
