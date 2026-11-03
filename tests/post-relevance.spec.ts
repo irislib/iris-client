@@ -6,6 +6,112 @@ import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
+test("a conversational topic search finds technical posts and substantive replies", async ({
+  page,
+}, testInfo) => {
+  const now = Math.floor(Date.now() / 1000) - 5
+  const note = (content: string, age: number, tags: string[][] = []) =>
+    finalizeEvent({kind: 1, content, tags, created_at: now - age}, generateSecretKey())
+  const hardware = note(
+    "I published the hardware schematic for a solar-powered sensor.",
+    500
+  )
+  const reply = [["e", hardware.id, "", "reply"]]
+  const useful = note(
+    "I used a hardware timer to put the board to sleep between samples.",
+    3,
+    reply
+  )
+  const semantic = note(
+    "A postcard-sized computer runs a local language model on its GPU.",
+    10
+  )
+  const reactions = [
+    note("Cool!", 1, reply),
+    note("Wow, that's pretty cool!", 2),
+    note("These posts are related.", 4),
+  ]
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [hardware, useful, semantic, ...reactions],
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({
+          version: 1,
+          state: {showEventsByUnknownUsers: true, searchModel: "minilm"},
+        })
+      )
+    }, relay.port)
+    await page.goto("/search/show%20me%20cool%20tech%20related%20posts")
+    const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
+    for (const post of [hardware, useful, semantic])
+      await expect(rows.filter({hasText: post.content})).toBeVisible({timeout: 12000})
+    for (const post of reactions)
+      await expect(rows.filter({hasText: post.content})).toHaveCount(0)
+    await page.screenshot({path: testInfo.outputPath("tech-topic-search.png")})
+    const input = page.getByPlaceholder("Search posts...")
+    await input.fill("cool")
+    await input.press("Enter")
+    await expect(rows.filter({hasText: "Cool!"}).first()).toBeVisible()
+  } finally {
+    await relay.close()
+  }
+})
+
+test("the local model searches a previously seen hashtag in its original spelling", async ({
+  page,
+}) => {
+  const seen = "FilmPhotography"
+  const called: string[] = []
+  const relay = await startNostrRelay({
+    port: 0,
+    onRequest: (filters) => {
+      for (const filter of filters) called.push(...(filter["#t"] ?? []))
+    },
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({
+          version: 1,
+          state: {showEventsByUnknownUsers: true, searchModel: "minilm"},
+        })
+      )
+    }, relay.port)
+    await page.goto("/search")
+    await expect(page.getByPlaceholder("Search posts...")).toBeVisible()
+    // Seed the existing seen-tag list, just as a past visit to Market would.
+    await page.evaluate(async (tag) => {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("localforage")
+        request.onupgradeneeded = () => request.result.createObjectStore("keyvaluepairs")
+        request.onerror = () => reject(request.error)
+        request.onsuccess = () => {
+          const db = request.result
+          const tx = db.transaction("keyvaluepairs", "readwrite")
+          tx.objectStore("keyvaluepairs").put([tag, "PepperSauce"], "market-tags")
+          tx.oncomplete = () => {
+            db.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      })
+    }, seen)
+    await page.goto("/search/photography")
+    await expect.poll(() => called, {timeout: 12000}).toContain(seen)
+    expect(called).not.toContain("PepperSauce")
+  } finally {
+    await relay.close()
+  }
+})
+
 test.describe("search sparkle", () => {
   test.use({hasTouch: true, viewport: {width: 390, height: 780}})
 

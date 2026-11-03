@@ -1,30 +1,40 @@
 import type {AppEvent} from "@/lib/nostr"
+import {words, type SearchPlan} from "./query"
+export {planPostSearch, type SearchPlan} from "./query"
 
 type Note = Pick<AppEvent, "id" | "content" | "tags" | "pubkey" | "created_at">
-const stopWords = new Set(
-  "a about an and are as at be by can could describing did do does find for from had has have how i in into is it looking me my of on or post posts search show someone that the their there this to was what where which who with would".split(
+const references = /(?:nostr:)?(?:npub|nprofile|note|nevent|naddr)1[a-z0-9]+|#\[\d+\]/gi
+const conversational = new Set(
+  "a ah awesome bro cheers cool d dude eh excellent for good great haha hey huh i interesting is it its like looks love man neat nice oh ok okay pretty really s sharing so sounds stuff such super t thank thanks that the this very wow yeah yep yes you".split(
     " "
   )
 )
-const words = (s: string) =>
-  s
-    .normalize("NFKC")
-    .toLowerCase()
-    .match(/[\p{L}\p{M}\p{N}_]+/gu) || []
-const unique = (values: string[]) => [...new Set(values)]
 
-export function planPostSearch(query: string) {
-  const text = query.trim().slice(0, 500)
-  const hashtags = unique(
-    Array.from(text.matchAll(/(?:^|\s)#([\p{L}\p{M}\p{N}_]+)/gu), (m) => m[1])
-  )
-  const plain = text.replace(/(?:^|\s)#[\p{L}\p{M}\p{N}_]+/gu, " ")
-  const tokens = unique(words(plain))
-  const important = tokens.filter((t) => !stopWords.has(t))
-  const terms = important.length ? important : tokens
-  // Longer content words are usually more selective on phrase-only NIP-50 indexes.
-  const anchors = [...terms].sort((a, b) => b.length - a.length).slice(0, 4)
-  return {text, terms, anchors, hashtags, phrase: words(plain).join(" ")}
+// Long Nostr pointers and tracking parameters can take up the model's entire
+// 128-token window. Keep readable link slugs for notes that just share a link.
+export function searchPostText(event: Pick<Note, "content" | "tags">) {
+  const content = event.content
+    .slice(0, 12000)
+    .replace(references, " ")
+    .replace(
+      /<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\s*\/?>|&(?:#\d+|#x[\da-f]+|[a-z]{2,12});/gi,
+      " "
+    )
+    .replace(/https?:\/\/[^\s)]+/gi, (url) =>
+      url
+        .replace(/^https?:\/\//i, "")
+        .split(/[?#]/, 1)[0]
+        .replace(/[\w-]{32,}/g, " ")
+        .replace(/[-_/]+/g, " ")
+        .slice(0, 140)
+    )
+  return [
+    content,
+    ...event.tags.filter((t) => t[0] === "t" && t[1]).map((t) => "#" + t[1]),
+  ]
+    .join(" ")
+    .trim()
+    .slice(0, 1800)
 }
 
 export function cachedLexicalMatch(plan: SearchPlan) {
@@ -38,8 +48,6 @@ export function cachedLexicalMatch(plan: SearchPlan) {
   }
 }
 
-export type SearchPlan = ReturnType<typeof planPostSearch>
-
 export function lexicalMatch(plan: SearchPlan, event: Note) {
   const tags = new Set(
     event.tags
@@ -52,10 +60,25 @@ export function lexicalMatch(plan: SearchPlan, event: Note) {
     return event.content.normalize("NFKC").includes(plan.text.normalize("NFKC")) ? 1 : 0
   }
   const tokens = words(event.content.slice(0, 12000))
+  if (tokens.length <= 12 && !plan.terms.every((t) => conversational.has(t))) {
+    const body = words(event.content.slice(0, 12000).replace(references, " "))
+    if (!body.length && !tags.size && !plan.terms.some((t) => tokens.includes(t)))
+      return -1
+    const substance = body.filter((t) => !conversational.has(t))
+    if (body.length && !substance.length) return -1
+    if (
+      substance.length === 1 &&
+      body.some((t) => ["nice", "cool", "awesome", "interesting", "great"].includes(t)) &&
+      (!plan.terms.includes(substance[0]) || plan.browse)
+    )
+      return -1
+  }
   const available = new Set([...tokens, ...tags])
   const coverage =
     plan.terms.filter((term) => available.has(term)).length / plan.terms.length
   if (!coverage) return 0
+  if (plan.browse && plan.terms.length === 1 && !tags.has(plan.terms[0]))
+    return 0.58 * coverage
   const phrase = (" " + tokens.join(" ") + " ").includes(" " + plan.phrase + " ")
   return 0.9 * coverage + (phrase ? 0.1 : 0)
 }
@@ -64,6 +87,36 @@ export function lexicalMatch(plan: SearchPlan, event: Note) {
 // for off-topic notes, while relevant paraphrases often scored around 0.4.
 export function calibratedSimilarity(cosine: number) {
   return Math.min(1, Math.max(0, (cosine - 0.16) / 0.48))
+}
+
+// A close term in the post can corroborate a weaker whole-post embedding.
+// Narrow questions still use their full meaning (e.g. coffee brewing vs beer).
+export function semanticMatch(
+  cosine: number,
+  content: string,
+  neighbors?: ReadonlyMap<string, number>,
+  broadSubject?: string
+) {
+  if (!neighbors?.size) return calibratedSimilarity(cosine)
+  // A post about an aspect of a broad subject may never name the subject.
+  // Two independent nearby words are stronger evidence than one stray match.
+  let first = 0,
+    second = 0
+  const tokens = new Set(words(content))
+  for (const word of tokens) {
+    const affinity = neighbors.get(word) ?? 0
+    if (affinity > first) {
+      second = first
+      first = affinity
+    } else if (affinity > second) second = affinity
+  }
+  const nearby = 0.7 * first + 0.3 * second
+  let match = Math.max(cosine, 0.8 * nearby + 0.14 * cosine)
+  // A category name by itself (e.g. an afterparty at a tech conference)
+  // can make the sentence look close even when the rest is off topic.
+  if (broadSubject && tokens.has(broadSubject) && nearby < 0.48)
+    match *= Math.max(0, 1 - (0.48 - nearby) / 0.48)
+  return calibratedSimilarity(match)
 }
 
 export function authorSignal(distance: number, followers: number) {
@@ -79,9 +132,12 @@ export function postRelevance(
 ) {
   if (lexical < 0 || (lexical < 0.44 && (semantic ?? 0) < 0.42)) return -Infinity
   // A good literal match can stand alone while inference is pending or offline.
-  const topical = Math.max(0.64 * lexical, 0.76 * (semantic ?? 0) + 0.24 * lexical)
+  const topical =
+    semantic === undefined
+      ? 0.64 * lexical
+      : Math.max(0.48 * lexical, 0.76 * semantic + 0.24 * lexical)
   const freshness = 1 / (1 + Math.max(0, ageDays) / 30)
-  return 0.86 * topical + 0.09 * author + 0.05 * freshness
+  return topical * (0.8 + 0.13 * author + 0.07 * freshness)
 }
 
 export function rankCandidates<T extends Note>(

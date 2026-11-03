@@ -666,18 +666,30 @@ export default function useFeedEvents({
 
   // Expand once from model-selected vocabulary without resetting the primary cursors.
   const expansion = ranked.relatedTerms
+  const expandedTags = ranked.relatedTags
   const expansionController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
   const [expansionProgress, setExpansionProgress] = useState<SearchProgress>({
     loading: false,
     canLoadMore: false,
   })
   useEffect(() => {
-    if (!enabled || !plan || !expansion.length) return
+    if (!enabled || !plan || (!expansion.length && !expandedTags.length)) return
     const base = {...filters, limit: 32}
     delete base.search
     const extra = subscribeSearch(
       nostr(),
-      [{...base, "#t": expansion}, ...expansion.map((search) => ({...base, search}))],
+      [
+        {
+          ...base,
+          "#t": [
+            ...new Set([
+              ...expandedTags,
+              ...expansion.map((term) => term.replace(/\s+/g, "")),
+            ]),
+          ],
+        },
+        ...expansion.map((search) => ({...base, search})),
+      ],
       (event) => replayEventRef.current(event),
       () => false,
       setExpansionProgress,
@@ -688,7 +700,7 @@ export default function useFeedEvents({
       extra.stop()
       expansionController.current = null
     }
-  }, [enabled, plan, expansion, subscriptionFingerprint, relayUrls])
+  }, [enabled, plan, expansion, expandedTags, subscriptionFingerprint, relayUrls])
 
   // Cleanup future event timers on unmount
   useEffect(() => {

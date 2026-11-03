@@ -6,9 +6,10 @@ import modelUrl from "./model/search-minilm-q8.onnx?url"
 import tokenizerUrl from "./model/search-tokenizer.json?url"
 import indexUrl from "./model/search-keywords.bin?url"
 import config from "./model/tokenizer_config.json"
-import {embed, similarity} from "./embeddings"
-import {relatedKeywords, searchVocabulary} from "./vocabulary"
-import {planPostSearch, calibratedSimilarity} from "./ranking"
+import {embed} from "./embeddings"
+import type {FilterHints} from "./query"
+import {prepareSemanticQuery, scoreSemanticPost, searchVocabulary} from "./vocabulary"
+import {planPostSearch} from "./ranking"
 
 env.wasm.numThreads = 1
 env.wasm.wasmPaths = {wasm: wasmUrl, mjs: moduleUrl}
@@ -27,6 +28,8 @@ async function load() {
 }
 let loaded: ReturnType<typeof load>
 let index: Int8Array | undefined
+let evidence:
+  {query: string; selection: Awaited<ReturnType<typeof prepareSemanticQuery>>} | undefined
 const vectors = new Map<string, Float32Array>()
 async function vectorFor(text: string) {
   const cached = vectors.get(text)
@@ -41,37 +44,54 @@ interface SearchRequest {
   request: number
   query: string
   posts: string[]
+  hints?: FilterHints
 }
 
-async function score({request, query, posts}: SearchRequest) {
+async function score({request, query, posts, hints}: SearchRequest) {
   try {
     const {words} = await (loaded ??= load())
-    const vector = await vectorFor(query)
+    const plan = planPostSearch(query)
+    const vector = await vectorFor(plan.modelQuery)
     if (!posts.length) {
-      let terms: string[] = []
+      let terms: string[] = [],
+        tags: string[] = []
+      evidence = undefined
       // A missing optional keyword index must not disable post scoring.
       try {
         if (!index) {
           const response = await fetch(indexUrl)
           if (response.ok) index = new Int8Array(await response.arrayBuffer())
         }
-        const plan = planPostSearch(query)
-        if (index)
-          terms = relatedKeywords(
+        if (index) {
+          const selection = await prepareSemanticQuery(
+            plan,
             words,
             index,
             vector,
-            new Set([...plan.terms, ...plan.hashtags])
+            hints,
+            vectorFor
           )
+          terms = selection.terms
+          tags = selection.tags
+          evidence = {query, selection}
+        }
       } catch {
         /* Primary words, hashtags and recent notes are already being searched. */
       }
-      self.postMessage({request, scores: [], terms})
+      self.postMessage({request, scores: [], terms, tags})
       return
     }
     const scores: number[] = []
     for (const post of posts)
-      scores.push(calibratedSimilarity(similarity(vector, await vectorFor(post))))
+      scores.push(
+        scoreSemanticPost(
+          plan,
+          vector,
+          await vectorFor(post),
+          post,
+          evidence?.query === query ? evidence.selection : undefined
+        )
+      )
     self.postMessage({request, scores})
   } catch {
     self.postMessage({request, error: true})

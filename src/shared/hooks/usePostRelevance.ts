@@ -4,11 +4,16 @@ import {
   authorSignal,
   cachedLexicalMatch,
   rankCandidates,
+  searchPostText,
   planPostSearch,
   type SearchPlan,
 } from "@/lib/post-search/ranking"
+import {collectFilterHints} from "@/lib/post-search/query"
+import {knownSearchTags} from "@/lib/post-search/hints"
 import {createPostScorer, type SearchSettings} from "@/lib/post-search/scorer"
 import type {SocialGraph} from "nostr-social-graph"
+
+const emptyTerms: string[] = []
 
 export function usePostRelevance(
   plan: SearchPlan | undefined,
@@ -22,17 +27,32 @@ export function usePostRelevance(
   const pageSize = settings?.model === "minilm" || automaticMiniLM ? 64 : 16
   const [extraBudget, setExtraBudget] = useState(0)
   const [version, update] = useState(0)
-  const [relatedTerms, setRelatedTerms] = useState<string[]>([])
+  const [expansion, setExpansion] = useState<{
+    plan: SearchPlan
+    settings: SearchSettings
+    terms: string[]
+    tags: string[]
+  }>()
+  const current =
+    expansion && expansion.plan === plan && expansion.settings === settings
+      ? expansion
+      : undefined
+  const relatedTerms = current?.terms ?? emptyTerms
+  const relatedTags = current?.tags ?? emptyTerms
   const [status, setStatus] = useState("")
   const scores = useMemo(() => new Map<string, number>(), [plan, settings])
   const lexical = useMemo(() => plan && cachedLexicalMatch(plan), [plan])
-  const discovery = useMemo(
-    () =>
-      relatedTerms.length
-        ? cachedLexicalMatch(planPostSearch(relatedTerms.join(" ")))
-        : undefined,
-    [relatedTerms]
-  )
+  const discovery = useMemo(() => {
+    if (!relatedTags.length && !relatedTerms.length) return undefined
+    const tags = new Set(relatedTags.map((tag) => tag.toLowerCase()))
+    const match = relatedTerms.length
+      ? cachedLexicalMatch(planPostSearch(relatedTerms.join(" ")))
+      : undefined
+    return (event: AppEvent) =>
+      event.tags.some(([key, tag]) => key === "t" && tag && tags.has(tag.toLowerCase()))
+        ? 1
+        : (match?.(event) ?? 0)
+  }, [relatedTerms, relatedTags])
   const authors = useMemo(
     () => new Map<string, number>(),
     [revision, graph, discoveryDistance]
@@ -101,14 +121,21 @@ export function usePostRelevance(
   useEffect(() => {
     if (!plan?.terms.length || !settings) return
     const controller = new AbortController()
+    let known: string[] = []
+    const catalogue = knownSearchTags().then((tags) => {
+      known = tags
+    })
+
     const score = createPostScorer(
       settings,
       plan.text,
       controller.signal,
-      (terms) => {
+      (terms, tags = []) => {
         if (controller.signal.aborted) return
         const excluded = new Set(
-          [...plan.terms, ...plan.hashtags].map((t) => t.toLowerCase())
+          [plan.relayQuery, ...plan.terms, ...plan.anchors, ...plan.hashtags].map((t) =>
+            t.toLowerCase()
+          )
         )
         const valid = terms
           .filter((t) => typeof t === "string")
@@ -116,9 +143,15 @@ export function usePostRelevance(
           .filter(
             (t) => /^[\p{L}\p{N}][\p{L}\p{N}_ -]{1,38}$/u.test(t) && !excluded.has(t)
           )
-        setRelatedTerms([...new Set(valid)].slice(0, 2))
+        setExpansion({
+          plan,
+          settings,
+          terms: [...new Set(valid)].slice(0, 2),
+          tags: tags.slice(0, 6),
+        })
       },
-      () => setAutomaticMiniLM(true)
+      () => setAutomaticMiniLM(true),
+      () => collectFilterHints(latest.current, known)
     )
     let planned = false
     let running = false,
@@ -130,6 +163,17 @@ export function usePostRelevance(
         if (!planned) {
           planned = true
           setStatus("Ranking posts…")
+          // Primary relay requests already run. Give a cold local catalogue a
+          // short head start, while keeping unavailable storage off the critical path.
+          let timeout: ReturnType<typeof setTimeout> | undefined
+          await Promise.race([
+            catalogue,
+            new Promise<void>((resolve) => {
+              timeout = setTimeout(resolve, 200)
+            }),
+          ])
+          clearTimeout(timeout)
+          if (controller.signal.aborted) return
           await score([])
         }
         while (!controller.signal.aborted) {
@@ -138,13 +182,7 @@ export function usePostRelevance(
             .slice(0, Math.max(0, Math.min(4, budgetRef.current - spent)))
           if (!batch.length) break
           setStatus("Ranking posts…")
-          const results = await score(
-            batch.map((e) =>
-              [e.content, ...e.tags.filter((t) => t[0] === "t").map((t) => "#" + t[1])]
-                .join(" ")
-                .slice(0, 1800)
-            )
-          )
+          const results = await score(batch.map(searchPostText))
           if (controller.signal.aborted) return
           if (
             results.length !== batch.length ||
@@ -189,6 +227,7 @@ export function usePostRelevance(
     ...ranked,
     status,
     relatedTerms,
+    relatedTags,
     moreToScore:
       !!plan?.terms.length &&
       candidates.length > limit &&

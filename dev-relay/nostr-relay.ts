@@ -19,6 +19,7 @@ type NostrRelayMessage =
   | ["COUNT", string, {count: number}]
 
 export interface NostrRelayOptions {
+  onRequest?: (filters: Filter[]) => void
   /** Optional relay policy for deterministic publish-failure integration tests. */
   rejectEvent?: (event: NostrEvent) => string | undefined
   /** Optional delivery gate for deterministic late-acknowledgement tests. */
@@ -277,6 +278,7 @@ export async function startNostrRelay(
         const f = filters.length > 0 ? filters : [{} as Filter]
         const sub: Subscription = {id: subId, filters: f, deliveredIds: new Set()}
         subs.set(subId, sub)
+        opts.onRequest?.(f)
 
         const events = store.query(f)
         for (const ev of events) {

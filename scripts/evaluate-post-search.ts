@@ -1,14 +1,18 @@
 // Offline relevance check. Uses the same tokenizer, CPU weights and scoring functions as the worker.
 import {readFile} from "node:fs/promises"
-import {embed, similarity} from "../src/lib/post-search/embeddings"
+import {embed} from "../src/lib/post-search/embeddings"
 import {
   authorSignal,
   lexicalMatch,
   planPostSearch,
   postRelevance,
-  calibratedSimilarity,
 } from "../src/lib/post-search/ranking"
-import {searchVocabulary, relatedKeywords} from "../src/lib/post-search/vocabulary"
+import {
+  searchVocabulary,
+  prepareSemanticQuery,
+  scoreSemanticPost,
+} from "../src/lib/post-search/vocabulary"
+import {collectFilterHints} from "../src/lib/post-search/query"
 import {createPostSearchMatcher} from "../src/shared/hooks/postSearch"
 import {loadPostSearchModel, modelDirectory} from "./post-search-model"
 
@@ -33,6 +37,26 @@ const posts = [
   "Meet me for coffee after the concert.",
   "Acoustic panels and thick curtains absorb reflections and reduce echo in a recording room.",
   "Echo is the name of our new puppy.",
+  "Our software debugger records each allocation to pinpoint the memory leak. The new trace viewer is open source.",
+  "Wow, that's pretty cool!",
+  "A motorized camera mount keeps the stars in focus for a long exposure.",
+  "That is a really interesting post, thanks for sharing.",
+  "A lunar spacecraft photographed the landing site before descending between the boulders.",
+  "I've got some cool space for rent in the garage.",
+  "The trumpet and alto saxophone trade melodies on this cool jazz recording.",
+  "Cool! Very cool.",
+  "A sharp hand plane shaves the oak flush. Cut the woodworking joint across the grain first.",
+  "My wooden desk is covered in coffee stains.",
+  "To mend a tear in your jeans, stitch a denim patch behind the hole and darn across it.",
+  "I bought nice jeans to wear at the party.",
+  "Our receiver picks up amateur radio operators hundreds of miles away on this wire antenna.",
+  "The radio played a good song at lunch.",
+  "The measured harmonics changed when I moved the microphone away from the studio wall.",
+  "A recording of the football match was on TV.",
+  "Rainwater from the roof flows through a leaf filter into a covered storage tank.",
+  "Rain canceled our plans for the weekend.",
+  "Raising the laptop off the desk and cleaning the fan reduced the processor temperature.",
+  "Tech is cool.",
 ]
 const evaluation = [
   ["tuning", "puncture", 0],
@@ -45,18 +69,40 @@ const evaluation = [
   ["held-out", "what do servers do with signed nostr messages", 14],
   ["held-out", "coffee brewing", 16],
   ["held-out", "how to stop sound bouncing around my studio", 18],
+  ["discovery", "show me cool tech related posts", 20],
+  ["discovery", "show me interesting posts about photography", 22],
+  ["discovery", "show me cool space exploration related posts", 24],
+  ["discovery", "cool jazz", 26],
+  ["discovery", "find me some woodworking related posts", 28],
+  ["discovery", "show me posts on how to mend torn clothing", 30],
+  ["discovery", "show me cool amateur radio related posts", 32],
+  ["discovery", "posts about recording studio acoustics", 34],
+  ["discovery", "interesting posts about harvesting rainwater", 36],
+  ["discovery", "how do I keep my laptop cool", 38],
 ] as const
 const {tokenizer, model, vocab} = await loadPostSearchModel()
 const keywords = searchVocabulary(vocab),
   index = new Int8Array(await readFile(new URL("search-keywords.bin", modelDirectory)))
 const embeddings = await Promise.all(posts.map((p) => embed(model, tokenizer, p)))
 let failed = false
-for (const split of ["tuning", "held-out"]) {
+for (const split of ["tuning", "held-out", "discovery"]) {
   const totals = [0, 0, 0]
-  for (const [set, query, target] of evaluation.filter(([set]) => set === split)) {
+  const cases = evaluation.filter(([set]) => set === split)
+  for (const [set, query, target] of cases) {
     const plan = planPostSearch(query),
       literal = createPostSearchMatcher(query)
-    const queryVector = await embed(model, tokenizer, query)
+    const queryVector = await embed(model, tokenizer, plan.modelQuery)
+    const selection = await prepareSemanticQuery(
+      plan,
+      keywords,
+      index,
+      queryVector,
+      collectFilterHints(
+        posts.map((content) => ({content, tags: []})),
+        []
+      ),
+      (text) => embed(model, tokenizer, text)
+    )
     const rows = posts.map((content, id) => {
       // The topical near-miss is newer and from a closer author than the best answer.
       const days = id % 2 ? 2 : 42,
@@ -69,7 +115,7 @@ for (const split of ["tuning", "held-out"]) {
         tags: [],
       }
       const lex = lexicalMatch(plan, post),
-        ai = calibratedSimilarity(similarity(embeddings[id], queryVector))
+        ai = scoreSemanticPost(plan, queryVector, embeddings[id], content, selection)
       return {
         id,
         ai,
@@ -96,7 +142,7 @@ for (const split of ["tuning", "held-out"]) {
       query,
       JSON.stringify({
         ranks,
-        expansion: relatedKeywords(keywords, index, queryVector, new Set(plan.terms)),
+        expansion: selection.terms,
         match: rows[target].ai.toFixed(3),
         nearMiss: rows[target + 1].ai.toFixed(3),
       })
@@ -105,7 +151,7 @@ for (const split of ["tuning", "held-out"]) {
   console.log(
     split,
     "MRR (literal, text + network, blended):",
-    totals.map((total) => (total / 5).toFixed(3)).join(" / ")
+    totals.map((total) => (total / cases.length).toFixed(3)).join(" / ")
   )
   if (totals[2] <= totals[0]) failed = true
 }

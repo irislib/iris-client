@@ -79,8 +79,13 @@ export function buildSearchSubscriptionFilters(
       plan.hashtags.map((t) => t.toLowerCase())
     )
     if (tags.length && !plan.terms.length) return {...boundedBaseFilter, "#t": tags}
-    const keywords = [...new Set([...tags, ...plan.anchors])]
-    const searches = [...new Set([plan.text.toLowerCase(), ...plan.anchors])]
+    const keywords = [...new Set([...tags, ...plan.terms, ...plan.anchors])].slice(
+      0,
+      Math.max(tags.length, 8)
+    )
+    const searches = [
+      ...new Set([plan.relayQuery.toLowerCase(), ...plan.anchors]),
+    ].filter(Boolean)
     return dedupeFilters([
       boundedBaseFilter,
       ...(keywords.length ? [{...boundedBaseFilter, "#t": keywords}] : []),

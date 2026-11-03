@@ -1,4 +1,5 @@
 import {expect, it} from "vitest"
+import {planModelFilters, selectKnownTags} from "./vocabulary"
 import {
   authorSignal,
   lexicalMatch,
@@ -52,4 +53,71 @@ it("shows the best match per author and excludes unrelated notes from the expans
   const ranked = rankCandidates(rows, new Map(), 100)
   expect(ranked.primary.map((e) => e.id)).toEqual(["1"])
   expect(ranked.additional.get("author")?.map((e) => e.id)).toEqual(["0"])
+})
+
+it("searches the requested subject and keeps one recent-note source", () => {
+  const query = "Could you show me some cool tech related posts?"
+  const plan = planPostSearch(query)
+  expect(plan.terms).toEqual(["tech"])
+  const filters = buildSearchSubscriptionFilters(
+    {kinds: [1], search: query},
+    123,
+    32,
+    plan
+  )
+  if (!Array.isArray(filters)) throw Error("Expected discovery filters")
+  expect(filters.filter((f) => !f.search && !f["#t"])).toHaveLength(1)
+  expect(filters.map((f) => f.search).filter(Boolean)).toEqual(["tech"])
+  expect(filters.every((f) => f.kinds?.[0] === 1 && f.until === 123)).toBe(true)
+  for (const content of ["Cool!", "Tech is cool.", "Thanks for sharing!"]) {
+    expect(lexicalMatch(plan, {...note, content})).toBe(-1)
+  }
+  expect(
+    lexicalMatch(plan, {...note, content: "Here is how I built this tech demo."})
+  ).toBeGreaterThan(0)
+})
+
+it("keeps literal intent, meaningful modifiers and non-English text", () => {
+  const cool = {...note, content: "Cool!"}
+  expect(lexicalMatch(planPostSearch("cool"), cool)).toBe(1)
+  for (const query of [
+    "cool jazz",
+    "post office",
+    "how do I keep my laptop cool",
+    "自由軟體",
+  ]) {
+    expect(planPostSearch(query).modelQuery).toBe(query)
+  }
+  expect(planPostSearch("post office").terms).toContain("office")
+  expect(planPostSearch("#Suomi").hashtags).toEqual(["Suomi"])
+  expect(lexicalMatch(planPostSearch("🎷"), {...note, content: "🎷!"})).toBe(1)
+})
+
+it("selects distinct words and can abstain when there is no close match", () => {
+  const words = ["relay", "source", "hardware", "sail", "song"]
+  const index = new Int8Array([100, 0, 98, 12, 92, 40, -10, 98, 5, -100])
+  const plan = planPostSearch("relay"),
+    query = Float32Array.of(1, 0)
+  expect(planModelFilters(plan, words, index, query).terms).toEqual([
+    "source",
+    "hardware",
+  ])
+  expect(planModelFilters(plan, ["song"], new Int8Array([-127, 0]), query).terms).toEqual(
+    []
+  )
+  expect(() => planModelFilters(plan, words, new Int8Array(0), query)).toThrow(
+    "Invalid keyword index"
+  )
+})
+
+it("selects the original spelling of a relevant observed tag outside the vocabulary", async () => {
+  const query = Float32Array.of(1, 0)
+  const tags = await selectKnownTags(
+    ["SolarWeaving", "PepperSauce"],
+    planPostSearch("solar textile"),
+    new Map(),
+    query,
+    async (text) => (text === "solar weaving" ? query : Float32Array.of(0, 1))
+  )
+  expect(tags).toEqual(["SolarWeaving"])
 })
