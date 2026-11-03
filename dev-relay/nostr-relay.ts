@@ -347,7 +347,10 @@ export async function startNostrRelay(
     close: async () => {
       for (const ws of wss.clients) {
         try {
-          ws.close()
+          // Test clients may keep subscriptions open or have a suspended worker.
+          // Teardown must not wait for their closing handshake before fixtures
+          // can dispose the browser that owns those connections.
+          ws.terminate()
         } catch {
           // ignore
         }
