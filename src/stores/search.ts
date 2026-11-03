@@ -34,7 +34,7 @@ export const useSearchStore = create<SearchState>()(
         recentSearches: [] as CustomSearchResult[],
         searchQuery: "",
         aiSearch: true,
-        searchModel: "minilm" as SearchModel,
+        searchModel: "auto" as SearchModel,
         ollamaModel: "gemma3:1b",
         showEventsByUnknownUsers: false,
         selectedRelayUrl: "",
@@ -59,6 +59,16 @@ export const useSearchStore = create<SearchState>()(
     },
     {
       name: "search-storage",
+      version: 1,
+      migrate: (persisted) => {
+        const state = persisted as Partial<SearchState>
+        // Earlier versions persisted MiniLM even when no model had been chosen.
+        return {
+          ...state,
+          searchModel:
+            state?.searchModel === "minilm" ? "auto" : (state?.searchModel ?? "auto"),
+        }
+      },
     }
   )
 )

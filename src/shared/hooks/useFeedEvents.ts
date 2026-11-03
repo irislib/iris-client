@@ -24,6 +24,7 @@ import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
 import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
 import {planPostSearch} from "@/lib/post-search/ranking"
 import {usePostRelevance} from "./usePostRelevance"
+import {useStableSearchResults} from "./useStableSearchResults"
 import {useVisibilityRevision} from "./useVisibilityRevision"
 
 interface FutureEvent {
@@ -411,17 +412,23 @@ export default function useFeedEvents({
   )
   const rankedResults = useRef(ranked.primary)
   rankedResults.current = ranked.primary
+  const presented = useStableSearchResults(
+    ranked.primary,
+    ranked.additional,
+    enabled && plan ? feedIdentity : undefined,
+    displayAs === "grid" ? Infinity : displayCount
+  )
 
   const filteredEvents = useMemo((): AppEvent[] => {
-    if (plan) return ranked.primary
+    if (plan) return presented.primary
     if (filters.search) return searchResultsRef.current
     // Events are already filtered on insertion via shouldAcceptEventRef
     // No need to re-filter the entire cache - just return as array
     return Array.from(eventsRef.current.values())
-  }, [eventsVersion, filters.search, plan, ranked.primary])
+  }, [eventsVersion, filters.search, plan, presented.primary])
 
   const additionalSearchResults = useMemo(() => {
-    if (plan) return ranked.additional
+    if (plan) return presented.additional
     const groups = new Map<string, AppEvent[]>()
     if (!filters.search) return groups
     const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
@@ -433,7 +440,7 @@ export default function useFeedEvents({
       groups.set(event.pubkey, matches)
     }
     return groups
-  }, [eventsVersion, filteredEvents, filters.search, plan, ranked.additional])
+  }, [eventsVersion, filteredEvents, filters.search, plan, presented.additional])
 
   const eventsByUnknownUsers = useMemo(() => {
     if (visibilitySnapshot) return []
@@ -722,6 +729,8 @@ export default function useFeedEvents({
     searchLoading:
       !!filters.search && (searchProgress.loading || expansionProgress.loading),
     relevanceStatus: plan ? ranked.status : "",
+    hasRankingUpdates: presented.hasUpdates,
+    applyRankingUpdates: presented.applyUpdates,
     canSearchMore:
       !!filters.search &&
       (searchProgress.canLoadMore || expansionProgress.canLoadMore || ranked.moreToScore),

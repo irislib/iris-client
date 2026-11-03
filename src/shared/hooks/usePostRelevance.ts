@@ -18,8 +18,9 @@ export function usePostRelevance(
   revision: string,
   discoveryDistance?: (pubkey: string) => number
 ) {
-  const pageSize = settings?.model === "minilm" ? 64 : 16
-  const [budget, setBudget] = useState(pageSize)
+  const [automaticMiniLM, setAutomaticMiniLM] = useState(false)
+  const pageSize = settings?.model === "minilm" || automaticMiniLM ? 64 : 16
+  const [extraBudget, setExtraBudget] = useState(0)
   const [version, update] = useState(0)
   const [relatedTerms, setRelatedTerms] = useState<string[]>([])
   const [status, setStatus] = useState("")
@@ -58,7 +59,9 @@ export function usePostRelevance(
   )
 
   const limit =
-    budget + Math.min(pageSize / 4, candidates.filter((row) => row.discovery > 0).length)
+    pageSize +
+    extraBudget +
+    Math.min(pageSize / 4, candidates.filter((row) => row.discovery > 0).length)
   const budgetRef = useRef(limit)
   budgetRef.current = limit
   const shortlist = useMemo(() => {
@@ -98,17 +101,25 @@ export function usePostRelevance(
   useEffect(() => {
     if (!plan?.terms.length || !settings) return
     const controller = new AbortController()
-    const score = createPostScorer(settings, plan.text, controller.signal, (terms) => {
-      if (controller.signal.aborted) return
-      const excluded = new Set(
-        [...plan.terms, ...plan.hashtags].map((t) => t.toLowerCase())
-      )
-      const valid = terms
-        .filter((t) => typeof t === "string")
-        .map((t) => t.trim().toLowerCase())
-        .filter((t) => /^[\p{L}\p{N}][\p{L}\p{N}_ -]{1,38}$/u.test(t) && !excluded.has(t))
-      setRelatedTerms([...new Set(valid)].slice(0, 2))
-    })
+    const score = createPostScorer(
+      settings,
+      plan.text,
+      controller.signal,
+      (terms) => {
+        if (controller.signal.aborted) return
+        const excluded = new Set(
+          [...plan.terms, ...plan.hashtags].map((t) => t.toLowerCase())
+        )
+        const valid = terms
+          .filter((t) => typeof t === "string")
+          .map((t) => t.trim().toLowerCase())
+          .filter(
+            (t) => /^[\p{L}\p{N}][\p{L}\p{N}_ -]{1,38}$/u.test(t) && !excluded.has(t)
+          )
+        setRelatedTerms([...new Set(valid)].slice(0, 2))
+      },
+      () => setAutomaticMiniLM(true)
+    )
     let planned = false
     let running = false,
       spent = 0
@@ -182,6 +193,6 @@ export function usePostRelevance(
       !!plan?.terms.length &&
       candidates.length > limit &&
       !status.includes("unavailable"),
-    increaseBudget: () => setBudget((b) => b + pageSize),
+    increaseBudget: () => setExtraBudget((b) => b + pageSize),
   }
 }

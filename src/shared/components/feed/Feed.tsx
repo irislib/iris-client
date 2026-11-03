@@ -222,6 +222,8 @@ const Feed = memo(function Feed({
     initialLoadDone: subscribedLoadDone,
     searchLoading: subscribedSearchLoading,
     relevanceStatus,
+    hasRankingUpdates,
+    applyRankingUpdates,
     canSearchMore,
     historyLoading,
     canLoadHistory,
@@ -455,9 +457,23 @@ const Feed = memo(function Feed({
 
   return (
     <PerfProfiler id="Feed">
-      <div ref={feedContainerRef} className="relative">
+      <div ref={feedContainerRef} className="relative scroll-mt-16 md:scroll-mt-2">
         {showDisplayAsSelector && (
           <DisplayAsSelector activeSelection={displayAs} onSelect={setDisplayAs} />
+        )}
+
+        {hasRankingUpdates && (
+          <div className="sticky top-16 md:top-2 z-20 h-0 flex justify-center pointer-events-none">
+            <button
+              className="btn btn-primary btn-sm rounded-full shadow-lg pointer-events-auto"
+              onClick={() => {
+                applyRankingUpdates()
+                feedContainerRef.current?.scrollIntoView({block: "start"})
+              }}
+            >
+              Update results
+            </button>
+          </div>
         )}
 
         {newEventsFiltered.length > 0 && !feedConfig.autoShowNewEvents && (

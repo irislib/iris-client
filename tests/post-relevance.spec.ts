@@ -2,6 +2,7 @@ import {writeFile} from "node:fs/promises"
 import {test, expect} from "@playwright/test"
 import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {Relay} from "nostr-tools/relay"
+import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
@@ -73,7 +74,7 @@ test("the search sparkle supports mouse and keyboard options gestures", async ({
   await expect(sparkle).toHaveAttribute("aria-pressed", "false")
 })
 
-test("on-device relevance discovers older paraphrases through a related relay term", async ({
+test("automatic search falls back to on-device discovery when the browser returns unusable scores", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -81,6 +82,19 @@ test("on-device relevance discovers older paraphrases through a related relay te
       (usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true"),
     "requires local relay"
   )
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "LanguageModel", {
+      configurable: true,
+      value: {
+        availability: async () => "available",
+        create: async () => ({
+          destroy() {},
+          prompt: async (input: string) =>
+            JSON.parse(input).posts.length ? '{"scores":[]}' : '{"terms":[]}',
+        }),
+      },
+    })
+  })
   const viewer = generateSecretKey()
   const now = Math.floor(Date.now() / 1000) - 10
   const relay = await Relay.connect("ws://127.0.0.1:7777")
@@ -120,6 +134,23 @@ test("text results stay interactive during a cold model load and subsequent sear
       (usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true"),
     "requires local relay"
   )
+  let browserProbes = 0
+  await page.exposeFunction("recordBrowserProbe", () => {
+    browserProbes++
+  })
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "LanguageModel", {
+      configurable: true,
+      value: {
+        availability: async () => {
+          await (
+            window as unknown as {recordBrowserProbe: () => Promise<void>}
+          ).recordBrowserProbe()
+          return new Promise(() => {})
+        },
+      },
+    })
+  })
   const viewer = generateSecretKey(),
     neighbor = generateSecretKey(),
     now = Math.floor(Date.now() / 1000) - 5
@@ -199,7 +230,7 @@ test("text results stay interactive during a cold model load and subsequent sear
   try {
     await submit("bicycle")
     const first = await visibleTime(exact)
-    await expect.poll(() => downloads).toBe(1)
+    await expect.poll(() => downloads, {timeout: 10000}).toBe(1)
     await expect(toggle).toHaveAttribute("aria-busy", "true")
     await input.fill("editing while the model loads")
     await expect(input).toHaveValue("editing while the model loads")
@@ -216,6 +247,7 @@ test("text results stay interactive during a cold model load and subsequent sear
     const warm = await visibleTime(semantic)
     await expect(toggle).toHaveAttribute("aria-busy", "false")
     expect(downloads).toBe(1)
+    expect(browserProbes).toBe(1)
     const path = testInfo.outputPath("search-timings.json")
     await writeFile(
       path,
@@ -293,4 +325,113 @@ test("a selected browser model can rank paraphrases and an unavailable provider 
     page.getByText("Ollama unavailable · using text and network relevance")
   ).toBeVisible()
   await page.screenshot({path: testInfo.outputPath("unavailable-model-fallback.png")})
+})
+
+test("late browser scores preserve the reading position until Update results is pressed", async ({
+  page,
+}, testInfo) => {
+  const viewer = generateSecretKey()
+  const authors = Array.from({length: 15}, () => generateSecretKey())
+  const now = Math.floor(Date.now() / 1000) - 30
+  const target = "A motorized mount keeps the stars in frame all night."
+  const note = (content: string, age: number, author: Uint8Array) =>
+    finalizeEvent({kind: 1, content, tags: [], created_at: now - age}, author)
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [
+      ...authors.map((author, i) =>
+        note(`Telescope log ${i}. Observations from the garden.`, i, author)
+      ),
+      note(target, 20, authors[0]),
+      finalizeEvent(
+        {
+          kind: 3,
+          content: "",
+          created_at: now,
+          tags: authors.map((a) => ["p", getPublicKey(a)]),
+        },
+        viewer
+      ),
+    ],
+  })
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let started!: () => void
+  const scoring = new Promise<void>((resolve) => {
+    started = resolve
+  })
+  await page.exposeFunction("waitForBrowserScores", () => {
+    started()
+    return gate
+  })
+  await page.addInitScript((port) => {
+    window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    // Upgrade the old persisted default exactly as an existing installation would.
+    if (!localStorage.getItem("search-storage"))
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({version: 0, state: {searchModel: "minilm"}})
+      )
+    Object.defineProperty(window, "LanguageModel", {
+      configurable: true,
+      value: {
+        availability: async () => "available",
+        create: async () => ({
+          destroy() {},
+          async prompt(input: string) {
+            const {posts} = JSON.parse(input)
+            if (!posts.length) return '{"terms":[]}'
+            await (
+              window as unknown as {waitForBrowserScores: () => Promise<void>}
+            ).waitForBrowserScores()
+            return JSON.stringify({
+              scores: posts.map((p: string) => (p.includes("motorized mount") ? 100 : 0)),
+            })
+          },
+        }),
+      },
+    })
+  }, relay.port)
+  let bundledDownloads = 0
+  page.on("request", (request) => {
+    if (
+      /search-minilm-q8[^/]*\.onnx$/.test(new URL(request.url()).pathname) &&
+      !new URL(request.url()).searchParams.has("url")
+    )
+      bundledDownloads++
+  })
+  try {
+    await signUp(page, nip19.nsecEncode(viewer))
+    await page.goto("/search/telescope")
+    const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
+    await expect(rows.nth(9)).toBeVisible()
+    await rows.nth(8).scrollIntoViewIfNeeded()
+    await expect(rows.nth(10)).toBeVisible()
+    await scoring
+    const anchor = await rows.nth(7).elementHandle()
+    const top = () => anchor!.evaluate((el) => el.getBoundingClientRect().top)
+    const beforeTop = await top()
+    const ids = () =>
+      rows.evaluateAll((items) => items.map((el) => el.getAttribute("data-event-id")))
+    const before = await ids()
+    release()
+    await expect(
+      page.getByRole("button", {name: "AI search", exact: true})
+    ).toHaveAttribute("aria-busy", "false")
+    const update = page.getByRole("button", {name: "Update results", exact: true})
+    await expect(update).toBeInViewport()
+    expect((await ids()).slice(0, before.length)).toEqual(before)
+    expect(Math.abs((await top()) - beforeTop)).toBeLessThan(2)
+    await page.screenshot({path: testInfo.outputPath("stable-search-results.png")})
+    await update.click()
+    await expect(rows.first()).toContainText(target)
+    await expect(rows.first()).toBeInViewport()
+    await expect(update).toHaveCount(0)
+    expect(bundledDownloads).toBe(0)
+  } finally {
+    release()
+    await relay.close()
+  }
 })

@@ -106,6 +106,7 @@ function Content({focusSearchModel}: {focusSearchModel: boolean}) {
                   value={searchModel}
                   onChange={(e) => setSearchModel(e.target.value as SearchModel)}
                 >
+                  <option value="auto">Automatic · browser, then MiniLM</option>
                   <option value="minilm">MiniLM · on device</option>
                   <option value="browser">Browser model · already installed</option>
                   <option value="ollama">Ollama · local server</option>
