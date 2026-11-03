@@ -56,6 +56,9 @@ const test = base.extend<{searchRelay: void}>({
   ],
 })
 
+// Keep the image requests in this fixture under Playwright's routing control.
+test.use({serviceWorkers: "block"})
+
 test("desktop search preserves the right sidebar and its saved hide/show control", async ({
   page,
 }, testInfo) => {
@@ -104,13 +107,16 @@ test("a long mobile search title stays above the tabs when connectivity changes"
   page,
   context,
 }, testInfo) => {
+  // A live peer would correctly suppress the offline badge. Use only the local
+  // relay and keep a result mounted so it reconnects when the browser comes online.
+  await context.routeWebSocket(/^wss:\/\//, (socket) => socket.close())
   await page.setViewportSize({width: 320, height: 800})
-  const query = "nature photos from a walk through the forest"
+  const query = "nature photos from a walk"
   await page.goto(`/search/${encodeURIComponent(query)}`)
   const header = page.locator("header").filter({hasText: `Search: "${query}"`})
   const tabs = page.getByRole("button", {name: "Posts", exact: true})
   const offline = header.getByRole("link", {name: "Offline"})
-  await expect(tabs).toBeVisible()
+  await expect(page.getByText("Nature photos from a walk", {exact: true})).toBeVisible()
   await expect(offline).toBeHidden()
   const before = (await header.boundingBox())!
   await context.setOffline(true)
