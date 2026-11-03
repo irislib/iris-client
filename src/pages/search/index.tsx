@@ -32,7 +32,7 @@ function SearchPage() {
       <div className="flex flex-col flex-1 min-w-0 h-full relative">
         <Header title={decodedQuery ? `Search: "${decodedQuery}"` : "Search"} />
         <ScrollablePageContainer className="flex flex-col items-center">
-          <div className="flex-1 w-full max-w-3xl flex flex-col gap-2 md:pt-2">
+          <div className="flex-1 w-full flex flex-col gap-2 md:pt-2">
             <SearchFilters />
           </div>
           <Helmet>
