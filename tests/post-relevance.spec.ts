@@ -1,5 +1,5 @@
 import {writeFile} from "node:fs/promises"
-import {test, expect} from "@playwright/test"
+import {test, expect, type Page} from "@playwright/test"
 import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {Relay} from "nostr-tools/relay"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
@@ -62,6 +62,66 @@ test("a conversational topic search finds technical posts and substantive replie
   }
 })
 
+async function seedObservedTags(page: Page, tags: string[]) {
+  await page.evaluate(async (tags) => {
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("localforage")
+      request.onupgradeneeded = () => request.result.createObjectStore("keyvaluepairs")
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => {
+        const db = request.result
+        const tx = db.transaction("keyvaluepairs", "readwrite")
+        tx.objectStore("keyvaluepairs").put(tags, "market-tags")
+        tx.oncomplete = () => {
+          db.close()
+          resolve()
+        }
+        tx.onerror = () => reject(tx.error)
+      }
+    })
+  }, tags)
+}
+
+test("Automatic adds one observed tag when the ordinary MiniLM planner has no terms", async ({
+  page,
+}, testInfo) => {
+  const filters: string[][] = []
+  const relay = await startNostrRelay({
+    port: 0,
+    onRequest: (requests) => {
+      for (const f of requests) if (f.limit === 32 && f["#t"]) filters.push(f["#t"])
+    },
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      Object.defineProperty(window, "LanguageModel", {
+        configurable: true,
+        value: undefined,
+      })
+    }, relay.port)
+    await page.goto("/settings/content/search-model")
+    await expect(page.getByRole("combobox", {name: "AI search model"})).toHaveValue(
+      "auto"
+    )
+    await seedObservedTags(page, [
+      "Birdwatching",
+      "Crosswords",
+      "DinnerParty",
+      "DayTrading",
+      "RollerSkating",
+    ])
+    const query =
+      "A flash of blue near the river turned out to be a kingfisher sitting very still."
+    await page.goto("/search/" + encodeURIComponent(query))
+    await expect.poll(() => filters, {timeout: 15000}).toContainEqual(["Birdwatching"])
+    expect(filters.flat()).not.toContain("DayTrading")
+    await page.screenshot({path: testInfo.outputPath("learned-search-tag.png")})
+  } finally {
+    await relay.close()
+  }
+})
+
 test("the local model searches previously seen and incoming hashtags in their original spelling", async ({
   page,
   context,
@@ -102,23 +162,7 @@ test("the local model searches previously seen and incoming hashtags in their or
     await page.goto("/search")
     await expect(page.getByPlaceholder("Search posts...")).toBeVisible()
     // Seed the existing seen-tag list, just as a past visit to Market would.
-    await page.evaluate(async (tag) => {
-      await new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("localforage")
-        request.onupgradeneeded = () => request.result.createObjectStore("keyvaluepairs")
-        request.onerror = () => reject(request.error)
-        request.onsuccess = () => {
-          const db = request.result
-          const tx = db.transaction("keyvaluepairs", "readwrite")
-          tx.objectStore("keyvaluepairs").put([tag, "PepperSauce"], "market-tags")
-          tx.oncomplete = () => {
-            db.close()
-            resolve()
-          }
-          tx.onerror = () => reject(tx.error)
-        }
-      })
-    }, seen)
+    await seedObservedTags(page, [seen, "PepperSauce"])
     await context.route(/search-minilm-q8[^/]*\.onnx(?:\?.*)?$/, async (route) => {
       if (!new URL(route.request().url()).searchParams.has("url")) await gate
       await route.continue().catch(() => {})

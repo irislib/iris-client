@@ -1,5 +1,6 @@
 import {words as tokenize, stopWords, type FilterHints, type SearchPlan} from "./query"
 import {similarity} from "./embeddings"
+import tagWeights from "./model/search-tag-head.json"
 import {semanticMatch} from "./ranking"
 
 // Use whole words from the pinned tokenizer, supplemented with network terminology
@@ -165,7 +166,8 @@ export async function selectKnownTags(
   plan: SearchPlan,
   neighbors: ReadonlyMap<string, number>,
   vector: Float32Array,
-  vectorFor: (text: string) => Promise<Float32Array>
+  vectorFor: (text: string) => Promise<Float32Array>,
+  allowLearnedFallback = false
 ) {
   const candidates = tags
     .map((tag) => {
@@ -182,6 +184,7 @@ export async function selectKnownTags(
     .sort((a, b) => b.estimate - a.estimate)
   let budget = 8
   const found: {tag: string; score: number}[] = []
+  let fallback: {tag: string; score: number} | undefined
   for (const {tag, label, estimate} of candidates) {
     if (plan.terms.includes(tag) || plan.hashtags.includes(tag)) continue
     let score = neighbors.get(label)
@@ -189,9 +192,22 @@ export async function selectKnownTags(
       budget--
       const candidate = await vectorFor(label)
       score = candidate.reduce((sum, v, i) => sum + v * vector[i], 0)
+      if (allowLearnedFallback && tagWeights.length === candidate.length + 2) {
+        // Reuse this probe. Multi-word searches with no expansion can spend
+        // one existing filter on an observed tag, retaining the exact spelling.
+        const logit = candidate.reduce(
+          (n, v, i) => n + v * tagWeights[i + 2],
+          tagWeights[0] + tagWeights[1] * Math.max(0, score)
+        )
+        const probability = 1 / (1 + Math.exp(-logit))
+        const priority = probability + 0.04 * estimate
+        if (probability >= 0.45 && (!fallback || priority > fallback.score))
+          fallback = {tag, score: priority}
+      }
     }
     if ((score ?? 0) >= 0.45) found.push({tag, score: score! + 0.04 * estimate})
   }
+  if (!found.length && fallback) return [fallback.tag]
   return found
     .sort((a, b) => b.score - a.score)
     .slice(0, 6)
@@ -204,7 +220,8 @@ export async function prepareSemanticQuery(
   index: Int8Array,
   query: Float32Array,
   hints: FilterHints | undefined,
-  vectorFor: (text: string) => Promise<Float32Array>
+  vectorFor: (text: string) => Promise<Float32Array>,
+  useTagHead = true
 ) {
   const selected = planModelFilters(plan, words, index, query, hints)
   const tags = await selectKnownTags(
@@ -212,7 +229,8 @@ export async function prepareSemanticQuery(
     plan,
     selected.neighbors,
     query,
-    vectorFor
+    vectorFor,
+    useTagHead && plan.terms.length > 1 && !selected.terms.length
   )
   const context =
     plan.browse && plan.terms.length === 1 && selected.context.length

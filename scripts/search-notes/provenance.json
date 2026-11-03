@@ -1,0 +1,39 @@
+{
+  "base_encoder_sha256": "b190f50dd46296b9895ae8f274c3455762d08610f8788f4a9bd15019f4f7160c",
+  "blind_review": {
+    "adjacent": 45,
+    "direct": 41,
+    "judged": 192,
+    "queries": 32,
+    "unsupported": 106
+  },
+  "capture_manifest_sha256": "7fb0d1ccf37094cfaf1782ecff8b103b954a1240e5a4887e853e131683cc3cfd",
+  "capture_until": 1793706366,
+  "fresh_signed_unique": 32363,
+  "splits": {
+    "test": {
+      "authors": 1212,
+      "labels": 4382,
+      "notes": 4289,
+      "sha256": "727445c72ae6d33d2e3b7c66f3f247f2195836726882ed39a3059f8ce8b89c46"
+    },
+    "train": {
+      "authors": 5688,
+      "labels": 13741,
+      "notes": 20046,
+      "sha256": "f2b0a2034b8bbbd56cbc433df1b135015e6c191df0c8bed21ee28b501cbc5f14"
+    },
+    "valid": {
+      "authors": 1156,
+      "labels": 3914,
+      "notes": 3795,
+      "sha256": "0bae9b9835aacd63f8da28e546a4c6c8bde42829be7d072f043d82a5b6682a04"
+    }
+  },
+  "tag_head_sha256": "7abebd58ec9bf8b94322a362236ee0a983cf0dae1cf590efcea60c98777a8442",
+  "weak_test": {
+    "queries": 253,
+    "target_families": 104,
+    "target_labels": 131
+  }
+}

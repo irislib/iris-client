@@ -116,6 +116,7 @@ if (corePackages.length !== 1) {
 
 // The on-device search model is shipped with the app and loaded on demand.
 const searchAssets = {
+  "search-tag-head.json": "7abebd58ec9bf8b94322a362236ee0a983cf0dae1cf590efcea60c98777a8442",
   "search-minilm-q8.onnx": "b190f50dd46296b9895ae8f274c3455762d08610f8788f4a9bd15019f4f7160c",
   "search-tokenizer.json": "2fc687b11de0bc1b3d8348f92e3b49ef1089a621506c7661fbf3248fcd54947e",
   "tokenizer_config.json": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3",

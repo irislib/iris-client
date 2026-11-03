@@ -28,6 +28,26 @@ pnpm test    # Run all tests
 pnpm test:ui # E2E tests with UI mode
 ```
 
+### Public-post search
+
+Automatic search uses a ready browser model when available and otherwise runs
+MiniLM on the device. When MiniLM finds no additional words or hashtags for a
+multi-word query, it can now select one observed hashtag using a 3.2 KB scoring
+layer trained from signed public notes. It reuses the existing tag embeddings,
+keeps original tag spelling and stays within the existing relay request budget.
+The post scorer and result ordering are unchanged.
+
+Training and evaluation used 28,130 English-language notes from 8,056 authors
+after filtering and deduplication. Authors and near-duplicate note text were
+separated before training. Held-out query labels came from author-supplied
+hashtags absent from the note body. In a 32-result-per-filter offline relay
+replay, relevant results retrieved rose from 293 to 1,137 across 253 queries.
+In a separate 32-query review of 192 public notes, both full plans retrieved
+25 of 41 directly relevant notes. A second, earlier sample with unseen authors
+retrieved 152 relevant results versus 45 across 51 queries. The sampled relays
+and weak tag labels limit how widely these results generalize. Model training
+and evaluation commands are in `scripts/search-notes`.
+
 ### Discovery graph
 
 Anonymous discovery and accounts with no follows start from Sirius Business Ltd's
