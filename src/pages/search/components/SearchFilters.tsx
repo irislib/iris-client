@@ -4,8 +4,10 @@ import {useSearchStore} from "@/stores/search"
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
 import SearchSparkle from "./SearchSparkle"
 import Feed from "@/shared/components/feed/Feed"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
-import {KIND_TEXT_NOTE} from "@/utils/constants"
+import {RiEqualizerFill} from "@remixicon/react"
+import {useUserStore} from "@/stores/user"
+import {DEFAULT_SOCIAL_GRAPH_ROOT, useFollowsFromGraph} from "@/utils/socialGraph"
+import {KIND_PICTURE_FIRST, KIND_TEXT_NOTE} from "@/utils/constants"
 import SearchInput from "@/shared/components/ui/SearchInput"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
@@ -13,14 +15,16 @@ import {getFeedCacheKey} from "@/stores/feed"
 import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 
 interface SearchFiltersProps {
+  encodedQuery?: string
   showTabSelector?: boolean
 }
 
 const SearchFilters = memo(function SearchFilters({
+  encodedQuery,
   showTabSelector = true,
 }: SearchFiltersProps = {}) {
   const {query} = useParams()
-  const decodedQuery = query ? decodeURIComponent(query) : ""
+  const decodedQuery = decodeURIComponent(encodedQuery ?? query ?? "")
   const navigate = useNavigate()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -29,7 +33,12 @@ const SearchFilters = memo(function SearchFilters({
   const [relevanceStatus, setRelevanceStatus] = useState("")
   // Use store for persistent state
   const {
-    searchQuery,
+    postSort,
+    setPostSort,
+    postType,
+    setPostType,
+    mediaOnly,
+    setMediaOnly,
     setSearchQuery,
     aiSearch,
     setAiSearch,
@@ -40,27 +49,12 @@ const SearchFilters = memo(function SearchFilters({
   } = useSearchStore()
   const ranking = !!decodedQuery && aiSearch && relevanceStatus === "Ranking posts…"
 
-  // Initialize from URL or store
-  const [searchTerm, setSearchTerm] = useState(() => {
-    // If we have a query in the URL, use that
-    if (decodedQuery) return decodedQuery
-    // Otherwise use the stored search query
-    return searchQuery
-  })
-
-  // Update store when URL query changes (navigation)
+  const [searchTerm, setSearchTerm] = useState(decodedQuery)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   useEffect(() => {
-    if (decodedQuery) {
-      // URL has a query, update both store and local state
-      setSearchQuery(decodedQuery)
-      setSearchTerm(decodedQuery)
-    } else if (!decodedQuery && searchQuery) {
-      // URL has no query but store has query - we navigated to /search
-      // This happens when user clears search and submits
-      // Keep the input empty (don't populate from store)
-      setSearchTerm("")
-    }
-  }, [decodedQuery, searchQuery, setSearchQuery])
+    setSearchTerm(decodedQuery)
+    if (decodedQuery) setSearchQuery(decodedQuery)
+  }, [decodedQuery, setSearchQuery])
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -89,28 +83,62 @@ const SearchFilters = memo(function SearchFilters({
     })
   }
 
-  // Memoize the feed config to prevent unnecessary re-renders
-  // Use the actual query being displayed (from URL or store)
-  const activeQuery = decodedQuery || searchQuery
-  const visibility = useRecommendationVisibilitySnapshot(
-    !!activeQuery && !showEventsByUnknownUsers,
-    {useDefaultNetworkWhenEmpty: true, maxFollowDistance: 5}
+  const viewer = useUserStore((state) => state.publicKey)
+  const restrictLanding = !decodedQuery && !showEventsByUnknownUsers
+  const personalFollows = useFollowsFromGraph(restrictLanding ? viewer : null)
+  const starterFollows = useFollowsFromGraph(
+    restrictLanding && !personalFollows.length ? DEFAULT_SOCIAL_GRAPH_ROOT : null
   )
-  const feedConfig = useMemo(() => {
-    if (!activeQuery) return null
-    return {
-      name: "Search Results",
-      id: `search-posts-${activeQuery}`,
+  const visibility = useRecommendationVisibilitySnapshot(!showEventsByUnknownUsers, {
+    useDefaultNetworkWhenEmpty: true,
+    maxFollowDistance: 5,
+  })
+  const feedConfig = useMemo(
+    () => ({
+      name: decodedQuery ? "Search Results" : "Recent posts",
+      id: `search-posts-${decodedQuery}`,
       showRepliedTo: false,
-      postRelevance: aiSearch ? {model: searchModel, ollamaModel} : undefined,
+      hideReplies: postType === "originals",
+      requiresReplies: postType === "replies",
+      requiresMedia: mediaOnly,
+      postRelevance:
+        decodedQuery && aiSearch ? {model: searchModel, ollamaModel} : undefined,
       followDistance: showEventsByUnknownUsers ? undefined : 5,
       filter: {
-        kinds: [KIND_TEXT_NOTE],
+        kinds: [KIND_TEXT_NOTE, KIND_PICTURE_FIRST],
         limit: 100,
-        ...(activeQuery.trim() && {search: activeQuery}),
+        ...(decodedQuery && {search: decodedQuery}),
       },
-    }
-  }, [activeQuery, showEventsByUnknownUsers, aiSearch, searchModel, ollamaModel])
+    }),
+    [
+      decodedQuery,
+      postType,
+      mediaOnly,
+      aiSearch,
+      searchModel,
+      ollamaModel,
+      showEventsByUnknownUsers,
+    ]
+  )
+  // A single direct note request also reads the local event cache. Recommendations
+  // on this screen don't need to wait for reactions and a second round of ID lookups.
+  const landingFilters = useMemo(
+    () =>
+      restrictLanding
+        ? [
+            {
+              ...feedConfig.filter,
+              authors:
+                viewer && personalFollows.length
+                  ? [...personalFollows, viewer]
+                  : starterFollows,
+            },
+          ]
+        : undefined,
+    [restrictLanding, feedConfig.filter, personalFollows, starterFollows, viewer]
+  )
+  const activeFilters =
+    Number(postType !== "all") + Number(mediaOnly) + Number(showEventsByUnknownUsers)
 
   return (
     <div className="flex flex-col gap-2 h-full">
@@ -152,41 +180,79 @@ const SearchFilters = memo(function SearchFilters({
         </form>
       </div>
 
-      {activeQuery && (
-        <div className="flex items-center gap-2 p-2">
-          <input
-            type="checkbox"
-            aria-label="Show posts from unknown users"
-            className="toggle toggle-sm"
-            checked={showEventsByUnknownUsers}
-            onChange={(e) => setShowEventsByUnknownUsers(e.target.checked)}
-          />
-          <span className="text-sm">Show posts from unknown users</span>
-        </div>
-      )}
-
-      <div className="flex-1 w-full">
-        {feedConfig ? (
-          <Feed
-            key={getFeedCacheKey(feedConfig)}
-            feedConfig={feedConfig}
-            onRelevanceStatus={setRelevanceStatus}
-            visibilitySnapshot={visibility.snapshot}
-            enabled={showEventsByUnknownUsers || visibility.ready}
-            emptyPlaceholder={
-              <div className="p-8 text-center text-base-content/50">
-                No matching posts found
-              </div>
-            }
-          />
-        ) : (
-          <div className="mt-4">
-            <AlgorithmicFeed
-              type="popular"
-              displayOptions={{showDisplaySelector: true}}
+      <div className="px-2 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          aria-expanded={filtersOpen}
+          onClick={() => setFiltersOpen(!filtersOpen)}
+        >
+          <RiEqualizerFill size={16} aria-hidden="true" />
+          Filters
+          {activeFilters > 0 && <span className="badge badge-sm">{activeFilters}</span>}
+        </button>
+        <select
+          className="select select-sm w-auto"
+          aria-label="Sort posts"
+          value={!decodedQuery && postSort === "relevance" ? "newest" : postSort}
+          onChange={(e) => setPostSort(e.target.value as typeof postSort)}
+        >
+          {decodedQuery && <option value="relevance">Relevance</option>}
+          <option value="newest">Newest</option>
+          <option value="social">Social</option>
+        </select>
+      </div>
+      {filtersOpen && (
+        <fieldset className="mx-2 p-3 rounded-box bg-base-200 flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+          <legend className="sr-only">Filter posts</legend>
+          <label className="flex items-center gap-2">
+            Post type
+            <select
+              className="select select-sm w-auto"
+              aria-label="Post type"
+              value={postType}
+              onChange={(e) => setPostType(e.target.value as typeof postType)}
+            >
+              <option value="all">All posts</option>
+              <option value="originals">Original posts</option>
+              <option value="replies">Replies</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={mediaOnly}
+              onChange={(e) => setMediaOnly(e.target.checked)}
             />
-          </div>
-        )}
+            With media
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="toggle toggle-sm"
+              checked={showEventsByUnknownUsers}
+              onChange={(e) => setShowEventsByUnknownUsers(e.target.checked)}
+            />
+            Show posts from unknown users
+          </label>
+        </fieldset>
+      )}
+      <div className="flex-1 w-full">
+        <Feed
+          key={getFeedCacheKey(feedConfig)}
+          feedConfig={feedConfig}
+          searchSort={postSort}
+          subscriptionFilters={landingFilters}
+          onRelevanceStatus={setRelevanceStatus}
+          visibilitySnapshot={visibility.snapshot}
+          enabled={showEventsByUnknownUsers || visibility.ready}
+          emptyPlaceholder={
+            <div className="p-8 text-center text-base-content/70">
+              {decodedQuery ? "No matching posts found" : "No recent posts found"}
+            </div>
+          }
+        />
       </div>
     </div>
   )

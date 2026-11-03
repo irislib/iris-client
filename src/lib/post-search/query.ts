@@ -65,9 +65,9 @@ export function collectFilterHints(
   for (const event of events.slice(0, 48)) {
     for (const [name, value] of event.tags.slice(0, 32))
       if (name === "t" && value) tags.add(value)
-    const tokens = unique(words(event.content.slice(0, 480))).filter(
-      (t) => t.length >= 3 && t.length <= 40 && !stopWords.has(t)
-    )
+    const tokens = unique(
+      words(event.content.slice(0, 480).replace(/https?:\/\/[^\s)]+/gi, " "))
+    ).filter((t) => t.length >= 3 && t.length <= 40 && !stopWords.has(t))
     observed.push(tokens.slice(0, 32))
   }
   return {

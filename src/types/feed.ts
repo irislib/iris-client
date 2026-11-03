@@ -1,3 +1,5 @@
+export type PostSearchSort = "relevance" | "newest" | "social"
+
 export type FeedType = "popular" | "for-you"
 
 export interface FeedFilter {

@@ -1,6 +1,7 @@
+import type {PostSearchSort} from "@/types/feed"
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react"
 import {eventComparator} from "../components/feed/utils"
-import {AppEvent, EventFilter} from "@/lib/nostr"
+import {AppEvent, CacheMode, EventFilter} from "@/lib/nostr"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {
   shouldHideUser,
@@ -34,6 +35,7 @@ interface FutureEvent {
 }
 
 interface UseFeedEventsProps {
+  searchSort?: PostSearchSort
   filters: EventFilter
   cacheKey: string
   displayCount: number
@@ -54,6 +56,7 @@ export default function useFeedEvents({
   displayCount,
   feedConfig,
   sortFn,
+  searchSort,
   relayUrls,
   bottomVisibleEventTimestamp = Infinity,
   displayAs = "list",
@@ -416,35 +419,66 @@ export default function useFeedEvents({
   )
   const rankedResults = useRef(ranked.primary)
   rankedResults.current = ranked.primary
-  const presented = useStableSearchResults(
-    ranked.primary,
-    ranked.additional,
-    enabled && plan ? feedIdentity : undefined,
-    displayAs === "grid" ? Infinity : displayCount
-  )
-
-  const filteredEvents = useMemo((): AppEvent[] => {
-    if (plan) return presented.primary
-    if (filters.search) return searchResultsRef.current
-    // Events are already filtered on insertion via shouldAcceptEventRef
-    // No need to re-filter the entire cache - just return as array
-    return Array.from(eventsRef.current.values())
-  }, [eventsVersion, filters.search, plan, presented.primary])
-
-  const additionalSearchResults = useMemo(() => {
-    if (plan) return presented.additional
-    const groups = new Map<string, AppEvent[]>()
-    if (!filters.search) return groups
-    const primaryIds = new Map(filteredEvents.map((event) => [event.pubkey, event.id]))
+  const baseResults = useMemo(() => {
+    if (plan) return ranked
+    const additional = new Map<string, AppEvent[]>()
+    if (!filters.search)
+      return {primary: Array.from(eventsRef.current.values()), additional}
+    const primary = searchResultsRef.current
+    const primaryIds = new Map(primary.map((event) => [event.pubkey, event.id]))
     for (const event of eventsRef.current.values()) {
       const primaryId = primaryIds.get(event.pubkey)
       if (!primaryId || primaryId === event.id) continue
-      const matches = groups.get(event.pubkey) || []
+      const matches = additional.get(event.pubkey) || []
       matches.push(event)
-      groups.set(event.pubkey, matches)
+      additional.set(event.pubkey, matches)
     }
-    return groups
-  }, [eventsVersion, filteredEvents, filters.search, plan, presented.additional])
+    return {primary, additional}
+  }, [eventsVersion, filters.search, plan, ranked.primary, ranked.additional])
+
+  const ordered = useMemo(() => {
+    if (!searchSort || searchSort === "relevance") return baseResults
+    const distance =
+      visibilitySnapshot?.discoveryDistance ??
+      ((key: string) => socialGraph.getFollowDistance(key))
+    const compare = (a: AppEvent, b: AppEvent) =>
+      (searchSort === "social" && a.pubkey !== b.pubkey
+        ? distance(a.pubkey) - distance(b.pubkey) ||
+          socialGraph.followerCount(b.pubkey) - socialGraph.followerCount(a.pubkey)
+        : 0) ||
+      (b.created_at ?? 0) - (a.created_at ?? 0) ||
+      a.id.localeCompare(b.id)
+    if (!filters.search)
+      return {...baseResults, primary: [...baseResults.primary].sort(compare)}
+    // Choose the representative post for each author using the requested order.
+    const primary: AppEvent[] = [],
+      additional = new Map<string, AppEvent[]>()
+    for (const event of baseResults.primary) {
+      const group = [event, ...(baseResults.additional.get(event.pubkey) ?? [])].sort(
+        compare
+      )
+      primary.push(group[0])
+      additional.set(event.pubkey, group.slice(1))
+    }
+    return {primary: primary.sort(compare), additional}
+  }, [
+    baseResults,
+    filters.search,
+    searchSort,
+    socialGraph,
+    visibilityRevision,
+    visibilitySnapshot,
+  ])
+  const presented = useStableSearchResults(
+    ordered.primary,
+    ordered.additional,
+    enabled && filters.search && (plan || (searchSort && searchSort !== "relevance"))
+      ? feedIdentity + searchSort
+      : undefined,
+    displayCount
+  )
+  const filteredEvents = presented.primary
+  const additionalSearchResults = presented.additional
 
   const eventsByUnknownUsers = useMemo(() => {
     if (visibilitySnapshot) return []
@@ -626,6 +660,18 @@ export default function useFeedEvents({
         )
       }
     }
+    // Sample the local kind/time index once while relays answer. Running each
+    // keyword against the cache would scan an established session's entire history.
+    // Local deliveries never advance the independent relay pagination cursors.
+    const cachedPosts = plan
+      ? nostr().subscribe(
+          {kinds: filters.kinds, limit: 48},
+          {cacheUsage: CacheMode.ONLY_CACHE, closeOnEose: true}
+        )
+      : undefined
+    cachedPosts?.on("event", (event: AppEvent) => {
+      if (!event.tags.some(([key]) => key === "h")) handleEvent(event, true)
+    })
     const subs = controller
       ? []
       : resolvedSubscriptionFilters.map((subscriptionFilter) => {
@@ -642,6 +688,7 @@ export default function useFeedEvents({
           return sub
         })
     return () => {
+      cachedPosts?.stop()
       controller?.stop()
       history?.stop()
       loadHistoryRef.current = () => {}
@@ -716,7 +763,7 @@ export default function useFeedEvents({
     } else if (searchController.current) {
       if (plan) {
         ranked.increaseBudget()
-        expansionController.current?.loadMore()
+        expansionController.current?.loadMore(retryIncomplete)
       }
       searchController.current.loadMore(retryIncomplete)
     } else {

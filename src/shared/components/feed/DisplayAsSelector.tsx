@@ -24,14 +24,26 @@ export const DisplayAsSelector = ({
 
   return (
     <div className="flex mb-px md:mb-1">
-      <div className={getClasses("list")} onClick={() => onSelect("list")}>
+      <button
+        type="button"
+        aria-label="List view"
+        aria-pressed={activeSelection === "list"}
+        className={getClasses("list")}
+        onClick={() => onSelect("list")}
+      >
         <span className="rotate-90">
           <Icon name="deck-solid" />
         </span>
-      </div>
-      <div className={getClasses("grid")} onClick={() => onSelect("grid")}>
+      </button>
+      <button
+        type="button"
+        aria-label="Grid view"
+        aria-pressed={activeSelection === "grid"}
+        className={getClasses("grid")}
+        onClick={() => onSelect("grid")}
+      >
         <Icon name="media" />
-      </div>
+      </button>
     </div>
   )
 }

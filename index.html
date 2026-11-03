@@ -67,7 +67,15 @@
     <link rel="manifest" href="./manifest.json" />
   </head>
   <body>
-    <div id="root" class="flex justify-center h-full bg-base-200"></div>
+    <div id="root" class="flex justify-center h-full bg-base-200">
+      <div role="status" class="flex items-center gap-2 self-center text-sm">
+        <span
+          class="loading loading-spinner loading-sm motion-reduce:animate-none"
+          aria-hidden="true"
+        ></span>
+        Loading Iris…
+      </div>
+    </div>
     <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

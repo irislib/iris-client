@@ -223,22 +223,36 @@ export async function prepareSemanticQuery(
   vectorFor: (text: string) => Promise<Float32Array>,
   useTagHead = true
 ) {
-  const selected = planModelFilters(plan, words, index, query, hints)
+  // Isolated words can be close to generic prose in MiniLM's vocabulary space.
+  // A topic sentence disambiguates the planning vector without another inference per post.
+  const topic =
+    !plan.browse && plan.terms.length === 1 && plan.phrase === plan.terms[0]
+      ? await vectorFor(`A post about ${plan.modelQuery}.`)
+      : undefined
+  const selected = planModelFilters(plan, words, index, topic ?? query, hints)
   const tags = await selectKnownTags(
     hints?.tags ?? [],
     plan,
     selected.neighbors,
-    query,
+    topic ?? query,
     vectorFor,
     useTagHead && plan.terms.length > 1 && !selected.terms.length
   )
+  const facets = topic && !selected.context.length ? selected.terms : selected.context
   const context =
-    plan.browse && plan.terms.length === 1 && selected.context.length
-      ? await vectorFor([plan.modelQuery, ...selected.context].join(", "))
+    (plan.browse || topic) && plan.terms.length === 1 && facets.length
+      ? await vectorFor([plan.modelQuery, ...facets].join(", "))
       : undefined
   const intent =
     plan.browse && plan.terms.length === 1 ? await vectorFor(plan.text) : undefined
-  return {terms: selected.terms, tags, context, intent, neighbors: selected.neighbors}
+  return {
+    terms: selected.terms,
+    tags,
+    topic,
+    context,
+    intent,
+    neighbors: selected.neighbors,
+  }
 }
 
 export function scoreSemanticPost(
@@ -250,13 +264,17 @@ export function scoreSemanticPost(
 ) {
   const cosine = Math.max(
     similarity(query, vector),
+    selected?.topic ? similarity(selected.topic, vector) : 0,
     selected?.context ? 0.85 * similarity(selected.context, vector) : 0
   )
-  return semanticMatch(
+  const score = semanticMatch(
     cosine,
     text,
     plan.terms.length === 1 ? selected?.neighbors : undefined,
     plan.browse && plan.terms.length === 1 ? plan.terms[0] : undefined,
     selected?.intent ? similarity(selected.intent, vector) : undefined
   )
+  // Word-level evidence can rescue a paraphrase, but cannot admit an unrelated
+  // whole passage on a generic word or a media host name alone.
+  return selected?.topic ? Math.min(1, score + 0.08, 0.1 + 1.55 * cosine) : score
 }
