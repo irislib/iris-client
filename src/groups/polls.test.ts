@@ -70,6 +70,21 @@ describe("NIP-88 polls", () => {
     })
   })
 
+  it("only uses a poll's local relay if explicitly configured, without redirecting votes", () => {
+    const local = "ws://polls.local/"
+    const event = pollEvent([["relay", local]])
+    expect(parsePoll(event)).toMatchObject({relays: [], relaysUnavailable: true})
+    expect(parsePoll(event, [local])?.relays).toEqual([local])
+    expect(
+      parsePoll(
+        pollEvent([
+          ["relay", local],
+          ["relay", "wss://relay.example"],
+        ])
+      )?.relays
+    ).toEqual(["wss://relay.example/"])
+  })
+
   it("rejects malformed polls instead of inventing choices or deadlines", () => {
     for (const event of [
       {...pollEvent(), kind: 1},

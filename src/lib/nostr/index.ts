@@ -1,5 +1,6 @@
 import {addContentTags} from "./contentTags"
-import {attachLookupRoutes, relayHintsFromUrls} from "./lookupRouting"
+import {attachLookupRoutes} from "./lookupRouting"
+import {normalizedRelayUrls} from "./relayPolicy"
 import {createPrivateNostrRuntime} from "./privateRuntime"
 /** App domain objects. Networking, verification, batching and retries belong to nostr-pubsub. */
 import {
@@ -704,7 +705,7 @@ export class NostrClient extends Emitter {
     this.reconciliation = opts.reconciliation
     this.signAuthEvent = opts.signAuthEvent
     this.enableOutboxModel = opts.enableOutboxModel ?? false
-    this.discoveryRelayUrls = relayHintsFromUrls(opts.discoveryRelayUrls ?? [])
+    this.discoveryRelayUrls = normalizedRelayUrls(opts.discoveryRelayUrls ?? [], 6)
     this.enableRelayHints = opts.enableRelayHints ?? false
     this.signer = opts.signer
     this.cacheAdapter = opts.cacheAdapter

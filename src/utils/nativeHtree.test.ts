@@ -23,6 +23,7 @@ function installWindow({
     location: {
       protocol,
       hostname,
+      origin: `${protocol}//${hostname}`,
       pathname,
       search,
     },
@@ -57,6 +58,23 @@ describe("native htree runtime helpers", () => {
     expect(getInjectedHtreeRelayUrl()).toBe(
       "ws://127.0.0.1:21417/__iris_relay?sessionToken=session-token"
     )
+  })
+
+  it("ignores cross-origin daemon overrides in shared HTTPS links", async () => {
+    const {getInjectedHtreeRelayUrl} = await import("./nativeHtree")
+    const fromLink = (server: string) => {
+      installWindow({
+        protocol: "https:",
+        hostname: "iris.to",
+        search:
+          "?iris_htree_canonical=htree://self/site&iris_htree_server=" +
+          encodeURIComponent(server),
+      })
+      return getInjectedHtreeRelayUrl()
+    }
+    expect(fromLink("http://relay.local:4848")).toBeNull()
+    expect(fromLink("https://other.example")).toBeNull()
+    expect(fromLink("https://iris.to")).toBe("wss://iris.to/ws")
   })
 
   it("falls back to query params when the injected global is unavailable", async () => {

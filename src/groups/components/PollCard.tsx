@@ -1,7 +1,8 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 import {AppEvent} from "@/lib/nostr"
 import TextNote from "@/shared/components/event/TextNote"
-import {usePublicKey} from "@/stores/user"
+import {usePublicKey, useUserStore} from "@/stores/user"
+import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 import {groupAddress, type GroupRef} from "../model"
 import {
   buildPollResponseTags,
@@ -32,7 +33,14 @@ export default function PollCard({
   policyLabel,
 }: PollCardProps) {
   const publicKey = usePublicKey()
-  const poll = useMemo(() => parsePoll(event), [event])
+  const relayConfigs = useUserStore((state) => state.relayConfigs)
+  const poll = useMemo(() => {
+    const injected = getInjectedHtreeRelayUrl()
+    const configured = injected
+      ? [injected]
+      : relayConfigs.filter((r) => !r.disabled).map((r) => r.url)
+    return parsePoll(event, configured)
+  }, [event, relayConfigs])
   const authority = usePollAuthority(poll)
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const [selected, setSelected] = useState<string[] | null>(null)
@@ -49,7 +57,7 @@ export default function PollCard({
     limited,
     error: queryError,
     refresh,
-  } = usePollResponses(poll, closed)
+  } = usePollResponses(poll?.relaysUnavailable ? null : poll, closed)
   const allResponses = useMemo(
     () => (confirmed ? [...responses, confirmed] : responses),
     [responses, confirmed]
@@ -76,9 +84,10 @@ export default function PollCard({
     [poll, publicKey, allResponses, now]
   )
   const choices = selected ?? mine?.selections ?? []
-  const snapshotReady = !poll?.electorate || authority.valid
+  const snapshotReady = !poll?.relaysUnavailable && (!poll?.electorate || authority.valid)
   const eligibleToVote =
     !!poll &&
+    !poll.relaysUnavailable &&
     isPollVoter(
       poll,
       publicKey,
@@ -206,7 +215,7 @@ export default function PollCard({
             className={`btn btn-sm rounded-full ${resultView === "trusted" ? "btn-primary" : "btn-ghost"}`}
             onClick={() => setResultView("trusted")}
           >
-            Trusted votes · {trusted ? trusted.total : "unavailable"}
+            Trusted votes · {snapshotReady && trusted ? trusted.total : "unavailable"}
           </button>
           <button
             type="button"
@@ -286,6 +295,11 @@ export default function PollCard({
           )
         })}
       </fieldset>
+      {poll.relaysUnavailable && (
+        <p className="text-sm">
+          Voting and results are unavailable on this poll’s relays.
+        </p>
+      )}
       {eligibleToVote && !closed && (
         <div className="flex items-center gap-3">
           <button
@@ -304,7 +318,7 @@ export default function PollCard({
       <div className="space-y-1 text-xs text-base-content/60">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span>
-            {!poll.electorate && (
+            {!poll.electorate && !poll.relaysUnavailable && (
               <>
                 {tally.total} {tally.total === 1 ? "vote" : "votes"} ·{" "}
               </>
@@ -318,7 +332,7 @@ export default function PollCard({
               refresh()
               authority.refresh()
             }}
-            disabled={loading}
+            disabled={loading || poll.relaysUnavailable}
           >
             {loading ? "Loading…" : "Refresh results"}
           </button>
@@ -362,7 +376,7 @@ export default function PollCard({
           )}
           {limited && <p className="mt-1">Some votes may be missing.</p>}
         </details>
-        {!eligibleToVote && !closed && !poll.electorate && (
+        {!poll.relaysUnavailable && !eligibleToVote && !closed && !poll.electorate && (
           <p>{publicKey ? "Only eligible members can vote." : "Sign in to vote."}</p>
         )}
         {!publicKey && poll.electorate && !closed && <p>Sign in to vote.</p>}

@@ -1,3 +1,4 @@
+import {isPublicRelayUrl} from "@/lib/nostr/relayPolicy"
 import {verifyEvent, type Event as SignedEvent} from "nostr-tools"
 
 /** NIP-88 poll semantics. Callers supply signature-verified events. */
@@ -22,6 +23,7 @@ export interface Poll {
   type: PollType
   endsAt?: number
   relays: string[]
+  relaysUnavailable?: boolean
   electorate?: PollElectorate
   groupId?: string
   evidenceEvents?: SignedEvent[]
@@ -274,7 +276,10 @@ export function pollRelayUrls(values: readonly string[]): string[] {
   return [...urls]
 }
 
-export function parsePoll(event: PollEvent): Poll | null {
+export function parsePoll(
+  event: PollEvent,
+  configuredRelays: string[] = []
+): Poll | null {
   if (
     event.kind !== KIND_POLL ||
     !isHex(event.id) ||
@@ -314,6 +319,13 @@ export function parsePoll(event: PollEvent): Poll | null {
   } catch {
     return null
   }
+  const advertised = pollRelayUrls(
+    event.tags.filter(([tag]) => tag === "relay").map(([, url]) => url)
+  )
+  const configured = new Set(pollRelayUrls(configuredRelays))
+  const relays = advertised.filter(
+    (url) => configured.has(url) || isPublicRelayUrl(new URL(url))
+  )
   return {
     id: event.id,
     question: event.content,
@@ -324,9 +336,8 @@ export function parsePoll(event: PollEvent): Poll | null {
     options,
     type,
     endsAt,
-    relays: pollRelayUrls(
-      event.tags.filter((tag) => tag[0] === "relay").map((tag) => tag[1])
-    ),
+    relays,
+    ...(advertised.length && !relays.length ? {relaysUnavailable: true} : {}),
   }
 }
 

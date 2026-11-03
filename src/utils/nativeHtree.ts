@@ -31,11 +31,20 @@ export function getInjectedHtreeServerUrl(): string | null {
 
   const injected =
     typeof window.__HTREE_SERVER_URL__ === "string" ? window.__HTREE_SERVER_URL__ : null
-  const fallback = getQueryParam("iris_htree_server")
-  const candidate = injected?.trim() || fallback
+  if (injected?.trim()) return injected.trim().replace(/\/$/, "")
 
-  if (!candidate) return null
-  return candidate.replace(/\/$/, "")
+  const fallback = getQueryParam("iris_htree_server")
+  if (!fallback) return null
+  // A shared link on a public site cannot choose a daemon on the visitor's LAN.
+  const {protocol, hostname, origin} = window.location
+  if (protocol !== "htree:" && !isLoopbackHost(hostname)) {
+    try {
+      if (new URL(fallback).origin !== origin) return null
+    } catch {
+      return null
+    }
+  }
+  return fallback.replace(/\/$/, "")
 }
 
 function trimToNull(value: unknown): string | null {

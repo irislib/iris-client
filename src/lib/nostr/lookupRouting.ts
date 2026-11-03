@@ -1,12 +1,12 @@
 import type {EventFilter, EventSubscription, NostrClient} from "./index"
-import {relayHints} from "./relayPolicy"
+import {normalizedRelayUrls, relayHints, relayHintsFromUrls} from "./relayPolicy"
 
 /** Keep discovery on the shared transport, and release every route with its caller. */
 export function attachLookupRoutes(client: NostrClient, parent: EventSubscription) {
   if (parent.opts.relayUrls || parent.opts.cacheUsage === "cache-only") return
 
   const routes = new Set<string>()
-  const configured = new Set(relayHintsFromUrls(client.explicitRelayUrls))
+  const configured = new Set(normalizedRelayUrls(client.explicitRelayUrls, Infinity))
   const attach = (filters: EventFilter[], urls: string[]) => {
     const selected = urls.filter((url) => {
       if (configured.has(url) || routes.has(url) || routes.size >= 8) return false
@@ -48,24 +48,4 @@ export function attachLookupRoutes(client: NostrClient, parent: EventSubscriptio
   parent.waitForHistory(lists)
   lists.on("event", (event) => attach(parent.filters, relayHints([event], "write")))
   parent.once("close", () => lists.stop())
-}
-
-export function relayHintsFromUrls(urls: string[]): string[] {
-  const valid = new Set<string>()
-  for (const url of urls) {
-    try {
-      const parsed = new URL(url)
-      if (
-        !["ws:", "wss:"].includes(parsed.protocol) ||
-        parsed.username ||
-        parsed.password
-      )
-        continue
-      valid.add(parsed.toString().replace(/\/$/, ""))
-      if (valid.size >= 6) break
-    } catch {
-      /* Ignore malformed relay hints supplied by public events. */
-    }
-  }
-  return [...valid]
 }
