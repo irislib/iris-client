@@ -62,12 +62,34 @@ test("desktop search preserves the right sidebar and its saved hide/show control
   const show = page.getByRole("button", {name: "Show right column"})
   await expect(hide).toBeVisible()
   await expect(page.getByRole("heading", {name: "Popular", exact: true})).toBeVisible()
+  const post = page
+    .getByTestId("feed-item")
+    .filter({hasText: "Nature photos from a walk"})
+    .first()
+  await expect(post).toBeVisible()
+  const header = page.locator("header").filter({hasText: 'Search: "nature"'}).first()
+  const expectFullFeedWidth = async () => {
+    await expect
+      .poll(async () => {
+        const feed = (await post.boundingBox())!
+        const column = (await header.boundingBox())!
+        return Math.abs(feed.x + feed.width - (column.x + column.width))
+      })
+      .toBeLessThanOrEqual(2)
+  }
+  for (const width of [1280, 1680, 1920]) {
+    await page.setViewportSize({width, height: 1200})
+    await expectFullFeedWidth()
+  }
   await hide.click()
   await expect(show).toBeVisible()
+  await expectFullFeedWidth()
   await page.reload()
   await expect(show).toBeVisible()
   await show.click()
   await expect(hide).toBeVisible()
+  await page.setViewportSize({width: 1680, height: 1200})
+  await expectFullFeedWidth()
   await page.screenshot({path: testInfo.outputPath("search-sidebar-restored.png")})
   await page.setViewportSize({width: 390, height: 844})
   await expect(hide).not.toBeVisible()
