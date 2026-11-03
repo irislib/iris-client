@@ -46,7 +46,7 @@ export function selectKeywordFilters(
   if (index.length !== words.length * query.length) throw Error("Invalid keyword index")
   const seenTags = new Set(hints?.tags.map((t) => t.toLowerCase()))
   const neighbors = new Map<string, number>()
-  const candidates: {word: string; score: number}[] = []
+  const candidates: {word: string; score: number; offset: number}[] = []
   for (let i = 0; i < words.length; i++) {
     const offset = i * query.length
     let dot = 0,
@@ -84,6 +84,7 @@ export function selectKeywordFilters(
     const evidence = Math.max(0, (support.get(word) ?? 0) - 0.35)
     candidates.push({
       word,
+      offset: i * query.length,
       // Frequent tokenizer words are often poor standalone relay searches.
       score:
         affinity +
@@ -99,14 +100,41 @@ export function selectKeywordFilters(
   )
   const first = options[0]
   const rest = first ? options.filter((c) => !sameWordFamily(first.word, c.word)) : []
-  const second =
-    rest.find((c) => (support.get(c.word) ?? 0) >= 0.42 || seenTags.has(c.word)) ??
-    rest.find((c) => c.score >= Math.max(0.46, first.score - 0.1))
+  // A tag often co-occurs with unrelated subjects (e.g. general news). Give
+  // observed words priority only within a comparable semantic neighborhood.
+  const minimumAffinity = 0.75 * (neighbors.get(first?.word ?? "") ?? 0)
+  const grounded = (c: {word: string}) =>
+    (neighbors.get(c.word) ?? 0) >= minimumAffinity &&
+    ((support.get(c.word) ?? 0) >= 0.42 || seenTags.has(c.word))
+  let second = rest.find(grounded)
+  if (!second && first) {
+    // On a fresh device, spend the second request on a different, still-close
+    // direction in the embedding space. Near-duplicate spellings add little.
+    let best = -Infinity
+    for (const option of rest.slice(0, 24)) {
+      if (option.score < Math.max(0.52, first.score - 0.27)) break
+      let dot = 0,
+        normA = 0,
+        normB = 0
+      for (let j = 0; j < query.length; j++) {
+        const a = index[first.offset + j],
+          b = index[option.offset + j]
+        dot += a * b
+        normA += a * a
+        normB += b * b
+      }
+      const utility = option.score - (0.35 * dot) / Math.sqrt(normA * normB)
+      if (utility > best) {
+        best = utility
+        second = option
+      }
+    }
+  }
   const terms = [first, second].flatMap((c) => (c ? [c.word] : []))
   // A relevant attested word is a better context for a short, broad subject
   // than repeatedly embedding variations of the user's question.
   const context = candidates
-    .filter((c) => (support.get(c.word) ?? 0) >= 0.42 || seenTags.has(c.word))
+    .filter(grounded)
     .filter((c) => !exclude.has(c.word))
     .slice(0, 4)
     .map((c) => c.word)
@@ -190,7 +218,9 @@ export async function prepareSemanticQuery(
     plan.browse && plan.terms.length === 1 && selected.context.length
       ? await vectorFor([plan.modelQuery, ...selected.context].join(", "))
       : undefined
-  return {terms: selected.terms, tags, context, neighbors: selected.neighbors}
+  const intent =
+    plan.browse && plan.terms.length === 1 ? await vectorFor(plan.text) : undefined
+  return {terms: selected.terms, tags, context, intent, neighbors: selected.neighbors}
 }
 
 export function scoreSemanticPost(
@@ -208,6 +238,7 @@ export function scoreSemanticPost(
     cosine,
     text,
     plan.terms.length === 1 ? selected?.neighbors : undefined,
-    plan.browse && plan.terms.length === 1 ? plan.terms[0] : undefined
+    plan.browse && plan.terms.length === 1 ? plan.terms[0] : undefined,
+    selected?.intent ? similarity(selected.intent, vector) : undefined
   )
 }

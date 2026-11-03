@@ -6,6 +6,8 @@ import {
   planPostSearch,
   postRelevance,
   rankCandidates,
+  semanticMatch,
+  searchPostText,
 } from "./ranking"
 import {buildSearchSubscriptionFilters} from "@/shared/hooks/buildSearchSubscriptionFilters"
 const note = {
@@ -120,4 +122,48 @@ it("selects the original spelling of a relevant observed tag outside the vocabul
     async (text) => (text === "solar weaving" ? query : Float32Array.of(0, 1))
   )
   expect(tags).toEqual(["SolarWeaving"])
+})
+
+it("looks for supporting details when a long post carries a broad topic label", () => {
+  const query = planPostSearch("show me cool tech related posts")
+  const footer =
+    "A company announced a new deal at the meeting this morning. The parties said the agreement was signed last week and would take effect next month pending approval."
+  const event = {...note, content: footer, tags: [["t", "tech"]]}
+  expect(lexicalMatch(query, event)).toBeLessThan(
+    lexicalMatch(planPostSearch("#tech"), event)
+  )
+  const neighbors = new Map([
+    ["technology", 0.83],
+    ["computer", 0.6],
+    ["processor", 0.56],
+    ["hardware", 0.58],
+  ])
+  const passingMention = semanticMatch(
+    0.35,
+    footer + " Technology.",
+    neighbors,
+    "tech",
+    0.3
+  )
+  const corroborated = semanticMatch(
+    0.35,
+    footer + " Technology, computer processor hardware.",
+    neighbors,
+    "tech",
+    0.3
+  )
+  expect(corroborated - passingMention).toBeGreaterThan(0.25)
+})
+
+it("embeds a hashtag once when it appears both in the text and the event tags", () => {
+  expect(
+    searchPostText({
+      content: "Light through a lens #Film",
+      tags: [
+        ["t", "film"],
+        ["t", "Light"],
+        ["t", "light"],
+      ],
+    })
+  ).toBe("Light through a lens #Film #Light")
 })

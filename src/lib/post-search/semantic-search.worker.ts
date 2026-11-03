@@ -63,6 +63,12 @@ async function score({request, query, posts, hints}: SearchRequest) {
           if (response.ok) index = new Int8Array(await response.arrayBuffer())
         }
         if (index) {
+          // Relays keep returning notes while the model and index download.
+          // Snapshot those candidates at planning time, including on a cold visit.
+          if (!hints) {
+            self.postMessage({request, needsHints: true})
+            return
+          }
           const selection = await prepareSemanticQuery(
             plan,
             words,

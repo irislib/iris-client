@@ -117,10 +117,18 @@ export function usePostRelevance(
   }, [candidates, plan, limit])
   const latest = useRef(shortlist)
   latest.current = shortlist
+  const onCandidates = useRef<() => void>(() => {})
   const kick = useRef<() => void>(() => {})
   useEffect(() => {
     if (!plan?.terms.length || !settings) return
     const controller = new AbortController()
+    const broad = plan.browse && plan.terms.length === 1
+    const sampleReady = new Promise<void>((resolve) => {
+      onCandidates.current = () => {
+        if (latest.current.length >= (broad ? 12 : 1)) resolve()
+      }
+      onCandidates.current()
+    })
     let known: string[] = []
     const catalogue = knownSearchTags().then((tags) => {
       known = tags
@@ -151,7 +159,20 @@ export function usePostRelevance(
         })
       },
       () => setAutomaticMiniLM(true),
-      () => collectFilterHints(latest.current, known)
+      async () => {
+        // Known tags and live events arrive independently. A slow relay never
+        // holds the first lexical results, and the planner has a fixed deadline.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const ready = catalogue.then(() => (known.length ? undefined : sampleReady))
+        await Promise.race([
+          ready,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, broad ? 650 : 350)
+          }),
+        ])
+        clearTimeout(timer)
+        return collectFilterHints(latest.current, known)
+      }
     )
     let planned = false
     let running = false,
@@ -163,17 +184,6 @@ export function usePostRelevance(
         if (!planned) {
           planned = true
           setStatus("Ranking posts…")
-          // Primary relay requests already run. Give a cold local catalogue a
-          // short head start, while keeping unavailable storage off the critical path.
-          let timeout: ReturnType<typeof setTimeout> | undefined
-          await Promise.race([
-            catalogue,
-            new Promise<void>((resolve) => {
-              timeout = setTimeout(resolve, 200)
-            }),
-          ])
-          clearTimeout(timeout)
-          if (controller.signal.aborted) return
           await score([])
         }
         while (!controller.signal.aborted) {
@@ -219,6 +229,7 @@ export function usePostRelevance(
   }, [settings, plan, scores])
   useEffect(() => {
     if (!plan?.terms.length) return
+    if (shortlist.length) onCandidates.current()
     const timer = setTimeout(() => kick.current(), 80)
     return () => clearTimeout(timer)
   }, [shortlist, plan, settings])

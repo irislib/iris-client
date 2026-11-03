@@ -28,13 +28,18 @@ export function searchPostText(event: Pick<Note, "content" | "tags">) {
         .replace(/[-_/]+/g, " ")
         .slice(0, 140)
     )
-  return [
-    content,
-    ...event.tags.filter((t) => t[0] === "t" && t[1]).map((t) => "#" + t[1]),
-  ]
-    .join(" ")
-    .trim()
-    .slice(0, 1800)
+  const present = new Set(
+    Array.from(content.matchAll(/(?:^|\s)#([\p{L}\p{M}\p{N}_-]+)/gu), (m) =>
+      m[1].toLowerCase()
+    )
+  )
+  const parts = [content]
+  for (const [key, value] of event.tags) {
+    if (key !== "t" || !value || present.has(value.toLowerCase())) continue
+    parts.push("#" + value)
+    present.add(value.toLowerCase())
+  }
+  return parts.join(" ").trim().slice(0, 1800)
 }
 
 export function cachedLexicalMatch(plan: SearchPlan) {
@@ -77,8 +82,7 @@ export function lexicalMatch(plan: SearchPlan, event: Note) {
   const coverage =
     plan.terms.filter((term) => available.has(term)).length / plan.terms.length
   if (!coverage) return 0
-  if (plan.browse && plan.terms.length === 1 && !tags.has(plan.terms[0]))
-    return 0.58 * coverage
+  if (plan.browse && plan.terms.length === 1) return 0.55 * coverage
   const phrase = (" " + tokens.join(" ") + " ").includes(" " + plan.phrase + " ")
   return 0.9 * coverage + (phrase ? 0.1 : 0)
 }
@@ -95,20 +99,22 @@ export function semanticMatch(
   cosine: number,
   content: string,
   neighbors?: ReadonlyMap<string, number>,
-  broadSubject?: string
+  broadSubject?: string,
+  intentCosine?: number
 ) {
   if (!neighbors?.size) return calibratedSimilarity(cosine)
   // A post about an aspect of a broad subject may never name the subject.
   // Two independent nearby words are stronger evidence than one stray match.
-  let first = 0,
-    second = 0
   const tokens = new Set(words(content))
-  for (const word of tokens) {
-    const affinity = neighbors.get(word) ?? 0
-    if (affinity > first) {
-      second = first
-      first = affinity
-    } else if (affinity > second) second = affinity
+  const evidence = Array.from(tokens, (t) => neighbors.get(t) ?? 0).sort((a, b) => b - a)
+  const [first = 0, second = 0] = evidence
+  // On long posts two incidental mentions can swamp the article's subject.
+  // Require support across more of the text, capping the effect of synonyms.
+  if (broadSubject && tokens.size >= 24) {
+    const support =
+      evidence.slice(0, 4).reduce((sum, n) => sum + Math.min(0.65, n), 0) / 4
+    const meaning = 0.4 * cosine + 0.6 * (intentCosine ?? cosine)
+    return calibratedSimilarity(Math.max(0.8 * cosine, 0.8 * support + 0.2 * meaning))
   }
   const nearby = 0.7 * first + 0.3 * second
   let match = Math.max(cosine, 0.8 * nearby + 0.14 * cosine)

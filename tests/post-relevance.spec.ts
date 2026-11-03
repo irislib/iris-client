@@ -62,13 +62,28 @@ test("a conversational topic search finds technical posts and substantive replie
   }
 })
 
-test("the local model searches a previously seen hashtag in its original spelling", async ({
+test("the local model searches previously seen and incoming hashtags in their original spelling", async ({
   page,
+  context,
 }) => {
   const seen = "FilmPhotography"
   const called: string[] = []
+  const note = finalizeEvent(
+    {
+      kind: 1,
+      content: "Trying a new photography technique.",
+      tags: [["t", "Camera"]],
+      created_at: Math.floor(Date.now() / 1000) - 10,
+    },
+    generateSecretKey()
+  )
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => {
+    release = resolve
+  })
   const relay = await startNostrRelay({
     port: 0,
+    initialEvents: [note],
     onRequest: (filters) => {
       for (const filter of filters) called.push(...(filter["#t"] ?? []))
     },
@@ -104,10 +119,18 @@ test("the local model searches a previously seen hashtag in its original spellin
         }
       })
     }, seen)
+    await context.route(/search-minilm-q8[^/]*\.onnx(?:\?.*)?$/, async (route) => {
+      if (!new URL(route.request().url()).searchParams.has("url")) await gate
+      await route.continue().catch(() => {})
+    })
     await page.goto("/search/photography")
+    await expect(page.getByText(note.content, {exact: true}).first()).toBeVisible()
+    release()
     await expect.poll(() => called, {timeout: 12000}).toContain(seen)
+    await expect.poll(() => called).toContain("Camera")
     expect(called).not.toContain("PepperSauce")
   } finally {
+    release()
     await relay.close()
   }
 })
