@@ -89,7 +89,12 @@ test.describe("Stack Navigation", () => {
     await relayIndicator.click()
     await expect(page).toHaveURL(/\/settings\/network$/)
     const peerSettings = page.getByTestId("peer-network-settings")
-    await expect(peerSettings.getByRole("heading", {name: /^Peers/})).toBeVisible()
+    await expect(
+      peerSettings.getByRole("heading", {name: /^Direct FIPS peers/})
+    ).toBeVisible()
+    await expect(
+      peerSettings.getByRole("heading", {name: /^Nostr endpoints/})
+    ).toBeVisible()
     await expect(peerSettings.getByTestId("peer-traffic")).toContainText("WebRTC")
     await expect(peerSettings.getByTestId("peer-traffic")).toContainText("Received")
     await expect(peerSettings.getByTestId("peer-bandwidth-chart")).toBeVisible()
