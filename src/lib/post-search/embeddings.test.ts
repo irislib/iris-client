@@ -19,11 +19,14 @@ describe("MiniLM batch pooling", () => {
         ...Array(125).fill(0n),
         ...Array(128).fill(1n),
       ])
-      const states = new Float32Array(2 * 128 * 2)
-      for (let token = 0; token < 256; token++) {
-        // Deliberately give padding a large hidden state.
-        states.set(token < 3 ? [1, 0] : token < 128 ? [0, 100] : [0, 1], token * 2)
-      }
+      // Deliberately give padding a large hidden state.
+      const states = Float32Array.from(
+        [
+          ...Array(3).fill([1, 0]),
+          ...Array(125).fill([0, 100]),
+          ...Array(128).fill([0, 1]),
+        ].flat()
+      )
       return {last_hidden_state: new Tensor("float32", states, [2, 128, 2])}
     })
     const vectors = await embedBatch({run} as unknown as InferenceSession, tokenizer, [
