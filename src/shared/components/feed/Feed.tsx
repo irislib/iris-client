@@ -278,12 +278,14 @@ const Feed = memo(function Feed({
     }
   }, [filteredEvents, onEvent])
 
-  const loadMoreItems = () => {
-    const hasMore = eventSource
-      ? selectEvents
-        ? filteredEvents.length < allEvents.length
-        : displayCount < allEvents.length
-      : hookLoadMoreItems()
+  const loadMoreItems = (retryIncomplete = false) => {
+    let hasMore: boolean
+    if (eventSource) {
+      const visibleCount = selectEvents ? filteredEvents.length : displayCount
+      hasMore = visibleCount < allEvents.length
+    } else {
+      hasMore = hookLoadMoreItems(retryIncomplete)
+    }
     if (hasMore) {
       setDisplayCount((prev: number) => prev + (selectEvents ? 20 : DISPLAY_INCREMENT))
     }
@@ -547,7 +549,7 @@ const Feed = memo(function Feed({
             </InfiniteScroll>
           )}
           {selectEvents && filteredEvents.length < allEvents.length && (
-            <button className="btn btn-ghost w-full" onClick={loadMoreItems}>
+            <button className="btn btn-ghost w-full" onClick={() => loadMoreItems(true)}>
               Show more posts
             </button>
           )}
@@ -568,7 +570,10 @@ const Feed = memo(function Feed({
                 <span role="status">{relevanceStatus || "Searching posts…"}</span>
               )}
               {!searchLoading && enabled && canSearchMore && (
-                <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => loadMoreItems(true)}
+                >
                   Search older posts
                 </button>
               )}
@@ -592,7 +597,10 @@ const Feed = memo(function Feed({
               <div className="p-4 text-center text-base-content/50">
                 {historyLoading && <span role="status">Loading older posts…</span>}
                 {!searchLoading && canLoadHistory && (
-                  <button className="btn btn-ghost btn-sm" onClick={loadMoreItems}>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => loadMoreItems(true)}
+                  >
                     Load older posts
                   </button>
                 )}

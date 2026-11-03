@@ -59,7 +59,9 @@ export function subscribeSearch(
     const active = sources.filter(
       (source) =>
         initial ||
-        (source.retry ? !(automatic && source.delegated.size) : source.cursor.advance())
+        (source.retry
+          ? !(automatic && (source.delegated.size || source.cursor.current.search))
+          : source.cursor.advance())
     )
     if (!active.length) {
       onProgress({loading: false, canLoadMore: sources.some((source) => source.retry)})
@@ -80,7 +82,10 @@ export function subscribeSearch(
         source.retry = timedOut
         source.pending = false
         clearTimeout(source.timer)
-        source.sub?.stop()
+        // History timeouts are only an incomplete snapshot. Keep a slow text
+        // index subscribed so its eventual matches are not cancelled and retried
+        // before they can arrive. Explicit loadMore retries the same interval.
+        if (!timedOut || !source.cursor.current.search) source.sub?.stop()
         const boundary = oldestSearched()
         // Publish completed text intervals immediately, while other relays or
         // less selective term indexes are still working on this batch.
@@ -103,13 +108,13 @@ export function subscribeSearch(
         isolated: true,
       })
       source.sub.on("event", (event, relay, _sub, fromCache) => {
-        if (stopped || settled) return
+        if (stopped || (settled && !source.retry)) return
         if (!source.delegated.has(relay?.url))
           source.cursor.record(event, relay?.url, fromCache)
         onEvent(event)
       })
       source.sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
-        if (!stopped && !settled && !source.delegated.has(relay?.url))
+        if (!stopped && (!settled || source.retry) && !source.delegated.has(relay?.url))
           source.cursor.record(event, relay?.url, fromCache)
       })
       source.sub.on("eose", () => {
@@ -139,9 +144,9 @@ export function subscribeSearch(
 
   run(true)
   return {
-    loadMore() {
+    loadMore(retryIncomplete = true) {
       pagesLeft = 3
-      run()
+      run(false, !retryIncomplete)
     },
     stop() {
       stopped = true

@@ -108,7 +108,7 @@ it("waits for indexed results instead of ordinary relay completion", async () =>
 })
 
 it.each([false, true])(
-  "retries an interrupted index page (partial: %s)",
+  "keeps a slow index open and explicitly retries its original interval (partial: %s)",
   async (partial) => {
     vi.useFakeTimers()
     const nostr = new NostrClient()
@@ -116,13 +116,26 @@ it.each([false, true])(
     const textRequests: number[] = []
     const onProgress = vi.fn()
     const onEvent = vi.fn()
+    let deliverLate = () => {}
     nostr.transportPlugins.push({
       name: "worker-transport",
       onSubscribe(subscription, filters) {
         const filter = filters[0]
         if (filter.search) textRequests.push(filter.until!)
-        // The first text request loses its connection; the old tag index works.
+        // The first text request is slow; the old tag index works.
         if (filter.search && textRequests.length === 1) {
+          deliverLate = () =>
+            subscription.eventReceived(
+              new AppEvent(nostr, {
+                id: "late-match",
+                pubkey: "d".repeat(64),
+                kind: 1,
+                created_at: 925,
+                content: "iris",
+                tags: [],
+              }),
+              relay
+            )
           if (partial) {
             setTimeout(() => {
               subscription.eventReceived(
@@ -166,6 +179,14 @@ it.each([false, true])(
       onProgress
     )
     await vi.advanceTimersByTimeAsync(16_000)
+    expect(textRequests).toEqual([1000])
+    search.loadMore(false)
+    await vi.advanceTimersByTimeAsync(100)
+    expect(textRequests).toEqual([1000])
+    deliverLate()
+    expect(onEvent.mock.calls.some(([event]) => event.id === "late-match")).toBe(true)
+    search.loadMore()
+    await vi.advanceTimersByTimeAsync(100)
     expect(textRequests).toEqual([1000, 1000])
     expect(
       onProgress.mock.calls.find(([state]) => state.oldestSearched !== undefined)?.[0]

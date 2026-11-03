@@ -56,7 +56,10 @@ it("honors explicit since and timestamp zero without inventing older history", (
 
 it("keeps a bounded saturated second limited instead of skipping remaining ties", () => {
   const page = new SearchPageCursor({kinds: [1], until: 1000, limit: 1600})
-  for (let i = 0; i < 1600; i++) page.record(event(`tie-${i}`, 1000), "relay")
+  // Cursor inputs have already passed signature verification at the transport.
+  const template = event("timestamp tie", 1000)
+  for (let i = 0; i < 1600; i++)
+    page.record({...template, id: i.toString(16).padStart(64, "0")}, "relay")
   expect(page.next()).toBeNull()
   expect(page.advance()).toBe(false)
 })

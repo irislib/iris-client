@@ -374,6 +374,11 @@ export default function useFeedEvents({
 
       hasReceivedEventsRef.current = true
       eventsRef.current.set(event.id, event)
+      // Display verified matches as they arrive. An unavailable text index must
+      // not hide posts already returned by hashtag or recent-note subscriptions.
+      if (filters.search && !plan) {
+        searchResultsRef.current = uniqueSearchAuthors(eventsRef.current.values())
+      }
 
       if (markLoadDone && !initialLoadDoneRef.current) {
         initialLoadDoneRef.current = true
@@ -394,7 +399,7 @@ export default function useFeedEvents({
         })
       }
     },
-    [cacheKey, feedConfig.id, feedConfig.name]
+    [cacheKey, feedConfig.id, feedConfig.name, filters.search, plan]
   )
 
   const candidates = useMemo(
@@ -577,24 +582,17 @@ export default function useFeedEvents({
           nostr(),
           resolvedSubscriptionFilters,
           handleEvent,
+          // Visible older matches don't prove that a newer interval was searched.
+          // Keep pagination coverage independent from progressive presentation.
           () =>
-            (plan
-              ? rankedResults.current.filter((e) => e.created_at! >= coveredSince).length
-              : searchResultsRef.current.length) <= displayCountRef.current,
+            (plan ? rankedResults.current : searchResultsRef.current).filter(
+              (event) => event.created_at! >= coveredSince
+            ).length <= displayCountRef.current,
           (progress) => {
             if (generation !== feedGenerationRef.current) return
             if (progress.oldestSearched !== undefined)
               coveredSince = progress.oldestSearched
             setSearchProgress(progress)
-            if (!plan && progress.oldestSearched !== undefined) {
-              searchResultsRef.current = uniqueSearchAuthors([
-                ...searchResultsRef.current,
-                ...Array.from(eventsRef.current.values()).filter(
-                  (event) => event.created_at! >= progress.oldestSearched!
-                ),
-              ])
-              setEventsVersion((version) => version + 1)
-            }
             if (!progress.loading) {
               initialLoadDoneRef.current = true
               setInitialLoadDoneState(true)
@@ -712,7 +710,7 @@ export default function useFeedEvents({
     }
   }, [])
 
-  const loadMoreItems = () => {
+  const loadMoreItems = (retryIncomplete = false) => {
     if (filteredEvents.length > displayCount) {
       return true
     } else if (searchController.current) {
@@ -720,7 +718,7 @@ export default function useFeedEvents({
         ranked.increaseBudget()
         expansionController.current?.loadMore()
       }
-      searchController.current.loadMore()
+      searchController.current.loadMore(retryIncomplete)
     } else {
       loadHistoryRef.current()
     }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.59 - 2026-11-03
+
+- Show matching posts immediately in plain search, including when the text index is slow or unavailable, while continuing to search incomplete history.
+- Keep slow text-search subscriptions open after a history timeout so late results can still arrive.
+
 ## 2.5.58 - 2026-10-25
 
 - Keep For You posts from repeating the same author consecutively in larger networks, including delayed batches and returning to the feed.

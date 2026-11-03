@@ -4,6 +4,97 @@ import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools
 import {Relay} from "nostr-tools/relay"
 import {SocialGraph} from "nostr-social-graph"
 import {usingBuiltDist} from "./utils/built-dist"
+import {WebSocketServer} from "ws"
+import {once} from "node:events"
+
+test.beforeEach(async ({page}) => {
+  // These tests exercise literal search; semantic ranking has its own suite.
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "search-storage",
+      JSON.stringify({version: 1, state: {aiSearch: false}})
+    )
+  })
+})
+
+test("plain search displays matches immediately and retains a slow text index", async ({
+  page,
+}, testInfo) => {
+  const now = Math.floor(Date.now() / 1000) - 60
+  const post = finalizeEvent(
+    {
+      kind: 1,
+      content: "Nature walk through the forest",
+      tags: [["t", "nature"]],
+      created_at: now,
+    },
+    generateSecretKey()
+  )
+  const relay = new WebSocketServer({host: "127.0.0.1", port: 0})
+  await once(relay, "listening")
+  let textRequests = 0
+  const latePost = finalizeEvent(
+    {
+      kind: 1,
+      content: "Nature recovered from the slow text index",
+      tags: [],
+      created_at: now + 1,
+    },
+    generateSecretKey()
+  )
+  const deliverLate: (() => void)[] = []
+  relay.on("connection", (socket) => {
+    const subscriptions = new Set<string>()
+    socket.on("message", (raw) => {
+      const [type, id, ...filters] = JSON.parse(String(raw))
+      if (type === "CLOSE") subscriptions.delete(id)
+      if (type !== "REQ") return
+      subscriptions.add(id)
+      if (filters.some((filter) => filter.search)) {
+        textRequests++
+        deliverLate.push(() => {
+          if (!subscriptions.has(id)) return
+          socket.send(JSON.stringify(["EVENT", id, latePost]))
+          socket.send(JSON.stringify(["EOSE", id]))
+        })
+        return // Stay silent until after the runtime's history deadline.
+      }
+      if (filters.some((filter) => filter.kinds?.includes(1))) {
+        socket.send(JSON.stringify(["EVENT", id, post]))
+      }
+      socket.send(JSON.stringify(["EOSE", id]))
+    })
+  })
+  try {
+    const address = relay.address()
+    if (!address || typeof address === "string") throw new Error("Missing relay port")
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({
+          version: 1,
+          state: {aiSearch: false, showEventsByUnknownUsers: true},
+        })
+      )
+    }, address.port)
+    await page.goto("/search/nature")
+    await expect.poll(() => textRequests).toBeGreaterThan(0)
+    const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
+    await expect(posts.filter({hasText: post.content})).toBeVisible({timeout: 10000})
+    await expect(page.getByText("No matching posts found")).toHaveCount(0)
+    await expect(page.getByRole("button", {name: "Search older posts"})).toBeVisible({
+      timeout: 12000,
+    })
+    expect(textRequests).toBe(1)
+    deliverLate.forEach((deliver) => deliver())
+    await expect(posts.filter({hasText: latePost.content})).toBeVisible()
+    await page.screenshot({path: testInfo.outputPath("plain-search-silent-index.png")})
+  } finally {
+    for (const socket of relay.clients) socket.terminate()
+    await new Promise<void>((resolve) => relay.close(() => resolve()))
+  }
+})
 
 test("can search for content", async ({page}) => {
   await signUp(page)
@@ -126,7 +217,6 @@ test("post search matches whole words and collapses repeated authors across page
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto(`/search/${encodeURIComponent(`iris ${token}`)}`)
-  await page.getByRole("button", {name: "AI search"}).click()
   await page.getByRole("checkbox", {name: "Show posts from unknown users"}).check()
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(posts.filter({hasText: "newest match"})).toBeVisible({timeout: 15000})
@@ -172,7 +262,6 @@ test("an empty search can continue past several pages of nonmatches", async ({pa
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto(`/search/${query}`)
-  await page.getByRole("button", {name: "AI search"}).click()
   await expect(page.getByText("No matching posts found")).toBeVisible({timeout: 15000})
   await page.getByRole("button", {name: "Search older posts"}).click()
   await expect(
