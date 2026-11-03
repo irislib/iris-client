@@ -188,7 +188,11 @@ const Feed = memo(function Feed({
 
   const cacheKey = useMemo(() => getFeedCacheKey(feedConfig), [feedConfig])
   const [expandedSearchAuthors, setExpandedSearchAuthors] = useState(new Set<string>())
-  useEffect(() => setExpandedSearchAuthors(new Set()), [cacheKey])
+  const previousCacheKey = useRef(cacheKey)
+  useEffect(() => {
+    if (previousCacheKey.current !== cacheKey) setExpandedSearchAuthors(new Set())
+    previousCacheKey.current = cacheKey
+  }, [cacheKey])
 
   const [displayCount, setDisplayCount] = useHistoryState(
     INITIAL_DISPLAY_COUNT,

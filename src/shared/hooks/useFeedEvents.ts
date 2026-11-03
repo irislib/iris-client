@@ -22,7 +22,7 @@ import DebugManager from "@/utils/DebugManager"
 import {KIND_PICTURE_FIRST} from "@/utils/constants"
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 import {getEventReplyReference} from "@/utils/threadReferences"
-import {subscribeSearch, type SearchProgress} from "./subscribeSearch"
+import {subscribeSearch, type SearchProgress, type SearchSession} from "./subscribeSearch"
 import {createPostSearchMatcher, uniqueSearchAuthors} from "./postSearch"
 import {planPostSearch} from "@/lib/post-search/ranking"
 import {usePostRelevance} from "./usePostRelevance"
@@ -167,6 +167,10 @@ export default function useFeedEvents({
       return Array.isArray(builtFilters) ? builtFilters : [builtFilters]
     })
   }, [subscriptionFingerprint, plan])
+  const searchSession = useMemo<SearchSession>(
+    () => ({}),
+    [feedIdentity, resolvedSubscriptionFilters, relayUrls]
+  )
   // Memoize normalized relay URLs to avoid recreating on every event
   const normalizedTargetRelays = useMemo(() => {
     if (!feedConfig.relayUrls?.length) return null
@@ -632,7 +636,8 @@ export default function useFeedEvents({
               setInitialLoadDoneState(true)
             }
           },
-          relayUrls
+          relayUrls,
+          searchSession
         )
       : null
     searchController.current = controller
@@ -706,11 +711,16 @@ export default function useFeedEvents({
     addEventToMain,
     enabled,
     relayUrls,
+    searchSession,
   ])
 
   // Expand once from model-selected vocabulary without resetting the primary cursors.
   const expansion = ranked.relatedTerms
   const expandedTags = ranked.relatedTags
+  const expansionSession = useMemo<SearchSession>(
+    () => ({}),
+    [searchSession, expansion, expandedTags]
+  )
   const expansionController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
   const [expansionProgress, setExpansionProgress] = useState<SearchProgress>({
     loading: false,
@@ -737,14 +747,23 @@ export default function useFeedEvents({
       (event) => replayEventRef.current(event),
       () => false,
       setExpansionProgress,
-      relayUrls
+      relayUrls,
+      expansionSession
     )
     expansionController.current = extra
     return () => {
       extra.stop()
       expansionController.current = null
     }
-  }, [enabled, plan, expansion, expandedTags, subscriptionFingerprint, relayUrls])
+  }, [
+    enabled,
+    plan,
+    expansion,
+    expandedTags,
+    expansionSession,
+    subscriptionFingerprint,
+    relayUrls,
+  ])
 
   // Cleanup future event timers on unmount
   useEffect(() => {

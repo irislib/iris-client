@@ -51,19 +51,22 @@ const SearchFilters = memo(function SearchFilters({
   const [searchTerm, setSearchTerm] = useState(decodedQuery)
   const [filtersOpen, setFiltersOpen] = useState(false)
   useEffect(() => {
-    setSearchTerm(decodedQuery)
     if (decodedQuery) setSearchQuery(decodedQuery)
   }, [decodedQuery, setSearchQuery])
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSearchTerm(decodedQuery)
+    navigate("/search")
+  }
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const currentValue = searchTerm.trim()
 
     // If empty string, reset and go back to /search
-    if (!currentValue || currentValue === "") {
-      setSearchQuery("")
-      setSearchTerm("")
-      navigate("/search")
+    if (!currentValue) {
+      clearSearch()
       return
     }
 
@@ -77,6 +80,7 @@ const SearchFilters = memo(function SearchFilters({
       clearInput: () => setSearchTerm(""),
       onTextSearch: (query) => {
         setSearchQuery(query)
+        setSearchTerm(decodedQuery)
         navigate(`/search/${encodeURIComponent(query)}`)
       },
     })
@@ -138,14 +142,11 @@ const SearchFilters = memo(function SearchFilters({
         <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">
           <SearchInput
             ref={searchInputRef}
+            aria-label="Search posts"
             placeholder="Search posts..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            onClear={() => {
-              setSearchTerm("")
-              setSearchQuery("")
-              navigate("/search")
-            }}
+            onClear={clearSearch}
             onPaste={async (e) => {
               const pastedText = e.clipboardData.getData("text")
               e.preventDefault()

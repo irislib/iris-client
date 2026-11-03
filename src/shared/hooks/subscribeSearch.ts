@@ -12,6 +12,22 @@ export interface SearchProgress {
   oldestSearched?: number
 }
 
+const sourceFor = (cursor: SearchPageCursor, relayUrls?: string[]) => ({
+  cursor,
+  relayUrls,
+  delegated: new Set<string>(),
+  sub: undefined as EventSubscription | undefined,
+  timer: undefined as ReturnType<typeof setTimeout> | undefined,
+  retry: false,
+  pending: true,
+})
+
+// Owned by one mounted query. Effect cleanup releases the subscriptions while
+// retaining each source's completed or interrupted page for Back navigation.
+export interface SearchSession {
+  sources?: ReturnType<typeof sourceFor>[]
+}
+
 /** Bounded search batches keep independent text/tag/recent-note cursors. */
 export function subscribeSearch(
   nostr: NostrClient,
@@ -19,18 +35,12 @@ export function subscribeSearch(
   onEvent: (event: AppEvent) => void,
   needsMore: () => boolean,
   onProgress: (state: SearchProgress) => void,
-  relayUrls?: string[]
+  relayUrls?: string[],
+  session: SearchSession = {}
 ) {
-  const sourceFor = (cursor: SearchPageCursor, urls = relayUrls) => ({
-    cursor,
-    relayUrls: urls,
-    delegated: new Set<string>(),
-    sub: undefined as EventSubscription | undefined,
-    timer: undefined as ReturnType<typeof setTimeout> | undefined,
-    retry: false,
-    pending: true,
-  })
-  const sources = filters.map((filter) => sourceFor(new SearchPageCursor(filter)))
+  const sources = (session.sources ??= filters.map((filter) =>
+    sourceFor(new SearchPageCursor(filter), relayUrls)
+  ))
   const textSources = sources.filter((source) => source.cursor.current.search)
   // Every AND match contains each individual word. The index that has searched
   // furthest back covers that interval on its own. A phrase index may omit
@@ -56,15 +66,19 @@ export function subscribeSearch(
 
   const run = (initial = false, automatic = false) => {
     if (stopped || loading) return
-    const active = sources.filter(
-      (source) =>
-        initial ||
-        (source.retry
+    const active = sources.filter((source) =>
+      initial
+        ? source.pending || source.retry
+        : source.retry
           ? !(automatic && (source.delegated.size || source.cursor.current.search))
-          : source.cursor.advance())
+          : source.cursor.advance()
     )
     if (!active.length) {
-      onProgress({loading: false, canLoadMore: sources.some((source) => source.retry)})
+      onProgress({
+        loading: false,
+        canLoadMore: sources.some((source) => source.retry || !!source.cursor.next()),
+        oldestSearched: oldestSearched(),
+      })
       return
     }
     loading = true
@@ -118,6 +132,7 @@ export function subscribeSearch(
           source.cursor.record(event, relay?.url, fromCache)
       })
       source.sub.on("eose", () => {
+        if (stopped || settled) return
         // Incomplete history is retryable; it must not advance past unseen posts.
         const completion = source.sub?.completion
         if (!textSources.length && completion?.complete === false) {
@@ -153,6 +168,8 @@ export function subscribeSearch(
       for (const source of sources) {
         clearTimeout(source.timer)
         source.sub?.stop()
+        source.sub = undefined
+        source.timer = undefined
       }
     },
   }

@@ -1,4 +1,4 @@
-import {useLocation, useNavigate} from "@/navigation"
+import {useLocation, useNavigate, useNavigation} from "@/navigation"
 import {getCurrentRouteInfo} from "@/navigation/utils"
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import LoginDialog from "@/shared/components/user/LoginDialog"
@@ -12,7 +12,7 @@ import ErrorBoundary from "./ui/ErrorBoundary"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {useUIStore} from "@/stores/ui"
 import {Helmet} from "react-helmet"
-import {useEffect, ReactNode, useRef, useMemo, useState} from "react"
+import {Activity, useEffect, ReactNode, useRef, useMemo, useState} from "react"
 import {useIsLargeScreen} from "@/shared/hooks/useIsLargeScreen"
 import {useIsTwoColumnLayout} from "@/shared/hooks/useIsTwoColumnLayout"
 import {useUniversalPaste} from "@/shared/hooks/useUniversalPaste"
@@ -48,6 +48,7 @@ const Layout = ({children}: {children: ReactNode}) => {
   const initializeProviders = useWalletProviderStore((state) => state.initializeProviders)
   const navigate = useNavigate()
   const location = useLocation()
+  const {stack} = useNavigation()
   const isLargeScreen = useIsLargeScreen()
   const isTwoColumnLayout = useIsTwoColumnLayout()
 
@@ -108,6 +109,15 @@ const Layout = ({children}: {children: ReactNode}) => {
   }
 
   const middleColumnTitle = getMiddleColumnTitle()
+  const middleRoute = middleColumnContent === "home" ? "/" : lastSearchRoute
+  // Post searches keep their own results and scroll container for as long as
+  // their route is in the router's bounded history.
+  const middleRoutes = new Set([middleRoute])
+  if (isTwoColumnLayout) {
+    for (const {url} of stack) {
+      if (getCurrentRouteInfo(url).type === "search") middleRoutes.add(url)
+    }
+  }
 
   const shouldShowMainFeed =
     isTwoColumnLayout &&
@@ -121,9 +131,12 @@ const Layout = ({children}: {children: ReactNode}) => {
     initializeProviders()
   }, [initializeProviders])
 
+  const handledNavClick = useRef(navItemClicked.signal)
   // Handle nav item clicks for middle column content
   useEffect(() => {
-    if (navItemClicked.signal === 0 || !shouldShowMainFeed) return
+    if (navItemClicked.signal === handledNavClick.current) return
+    handledNavClick.current = navItemClicked.signal
+    if (!shouldShowMainFeed) return
 
     if (navItemClicked.path === "/") {
       setMiddleColumnContent("home")
@@ -247,22 +260,27 @@ const Layout = ({children}: {children: ReactNode}) => {
             <Header showBack={false} showNotifications={true}>
               <span className="md:px-3 md:py-2">{middleColumnTitle}</span>
             </Header>
-            <div
-              ref={middleColumnRef}
-              className="flex-1 overflow-y-scroll overflow-x-hidden scrollbar-hide"
-              data-main-scroll-container="middle-column"
-              data-header-scroll-target
-            >
-              {middleColumnContent === "home" ? (
-                <ScrollProvider scrollContainerRef={middleColumnRef}>
-                  <HomeFeed />
-                </ScrollProvider>
-              ) : (
-                shouldShowMainFeed && (
-                  <UnifiedSearchContent searchRoute={lastSearchRoute} />
-                )
-              )}
-            </div>
+            {Array.from(middleRoutes, (route) => (
+              <Activity
+                key={route}
+                mode={route === middleRoute && shouldShowMainFeed ? "visible" : "hidden"}
+              >
+                <div
+                  ref={route === middleRoute ? middleColumnRef : undefined}
+                  className="flex-1 overflow-y-scroll overflow-x-hidden scrollbar-hide"
+                  data-main-scroll-container="middle-column"
+                  data-header-scroll-target
+                >
+                  {route === "/" ? (
+                    <ScrollProvider scrollContainerRef={middleColumnRef}>
+                      <HomeFeed />
+                    </ScrollProvider>
+                  ) : (
+                    <UnifiedSearchContent searchRoute={route} />
+                  )}
+                </div>
+              </Activity>
+            ))}
           </div>
         )}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">{children}</div>

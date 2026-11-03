@@ -7,11 +7,12 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-it("uses the most selective word index without waiting for unrelated fallbacks", async () => {
+it("uses completed word indexes and resumes only the interrupted fallback", async () => {
   vi.useFakeTimers()
   const nostr = new NostrClient()
   const relay = new Relay("wss://search.example", undefined, nostr)
   const onProgress = vi.fn()
+  const requests: (string | undefined)[] = []
   const boundaries = new Map([
     ["iris", 100],
     ["marketplace", 900],
@@ -21,6 +22,7 @@ it("uses the most selective word index without waiting for unrelated fallbacks",
     name: "worker-transport",
     onSubscribe(subscription, filters) {
       const term = filters[0].search
+      requests.push(term)
       if (!term) return // A slow ordinary relay must not hold back text results.
       const timer = setTimeout(() => {
         subscription.eventReceived(
@@ -39,17 +41,17 @@ it("uses the most selective word index without waiting for unrelated fallbacks",
       subscription.once("close", () => clearTimeout(timer))
     },
   })
-  const search = subscribeSearch(
-    nostr,
-    [undefined, "iris marketplace", "iris", "marketplace"].map((search) => ({
+  const filters = [undefined, "iris marketplace", "iris", "marketplace"].map(
+    (search) => ({
       kinds: [1],
       search,
       until: 1000,
-    })),
-    vi.fn(),
-    () => false,
-    onProgress
+    })
   )
+  const session = {}
+  const start = () =>
+    subscribeSearch(nostr, filters, vi.fn(), () => false, onProgress, undefined, session)
+  const search = start()
   await vi.advanceTimersByTimeAsync(100)
   // Every match must contain "iris", so that term alone covers this interval.
   // The phrase index can omit words in another order and cannot set the boundary.
@@ -59,6 +61,11 @@ it("uses the most selective word index without waiting for unrelated fallbacks",
     oldestSearched: 100,
   })
   search.stop()
+  requests.length = 0
+  const resumed = start()
+  await vi.advanceTimersByTimeAsync(100)
+  expect(requests).toEqual([undefined])
+  resumed.stop()
 })
 
 it("waits for indexed results instead of ordinary relay completion", async () => {

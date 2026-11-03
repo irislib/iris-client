@@ -15,7 +15,7 @@ export function useSearchInputAutofocus(
     const checkVisibility = () => {
       const input = inputRef.current
       if (input && input.offsetParent !== null) {
-        input.focus()
+        input.focus({preventScroll: true})
       }
     }
 

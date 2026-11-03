@@ -53,7 +53,7 @@ test("a conversational topic search finds technical posts and substantive replie
     for (const post of reactions)
       await expect(rows.filter({hasText: post.content})).toHaveCount(0)
     await page.screenshot({path: testInfo.outputPath("tech-topic-search.png")})
-    const input = page.getByPlaceholder("Search posts...")
+    const input = page.getByRole("textbox", {name: "Search posts", exact: true})
     await input.fill("cool")
     await input.press("Enter")
     await expect(rows.filter({hasText: "Cool!"}).first()).toBeVisible()
@@ -248,7 +248,9 @@ test("the local model searches previously seen and incoming hashtags in their or
       )
     }, relay.port)
     await page.goto("/search")
-    await expect(page.getByPlaceholder("Search posts...")).toBeVisible()
+    await expect(
+      page.getByRole("textbox", {name: "Search posts", exact: true})
+    ).toBeVisible()
     // Seed the existing seen-tag list, just as a past visit to Market would.
     await seedObservedTags(page, [seen, "PepperSauce"])
     await context.route(
@@ -286,12 +288,14 @@ test("the result view follows submitted searches and survives a reload", async (
   await view.press("Enter")
   await expect(view).toHaveText("Show AI selected")
   expect(await filterPosition()).toEqual(before)
-  await page.getByPlaceholder("Search posts...").fill("garden")
-  await page.getByPlaceholder("Search posts...").press("Enter")
+  await page.getByRole("textbox", {name: "Search posts", exact: true}).fill("garden")
+  await page.getByRole("textbox", {name: "Search posts", exact: true}).press("Enter")
   await expect(page).toHaveURL(/search\/garden$/)
   await page.reload()
   await expect(view).toHaveText("Show AI selected")
-  await expect(page.getByPlaceholder("Search posts...")).toHaveValue("garden")
+  await expect(
+    page.getByRole("textbox", {name: "Search posts", exact: true})
+  ).toHaveValue("garden")
   await page.screenshot({path: testInfo.outputPath("result-view.png")})
   await page.getByRole("button", {name: "Filters"}).click()
   await page.getByRole("link", {name: "Search model settings"}).click()
@@ -501,7 +505,7 @@ test("text results stay interactive during a cold model load and subsequent sear
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto("/search")
-  const input = page.getByPlaceholder("Search posts...")
+  const input = page.getByRole("textbox", {name: "Search posts", exact: true})
   let releaseWeights!: () => void
   const gate = new Promise<void>((resolve) => {
     releaseWeights = resolve
@@ -819,7 +823,9 @@ test("returning to bare search shows progress and recent notes without rerunning
       await route.fulfill({contentType: "application/octet-stream", body: snapshot})
     })
     await page.goto("/search")
-    await expect(page.getByPlaceholder("Search posts...")).toHaveValue("")
+    await expect(
+      page.getByRole("textbox", {name: "Search posts", exact: true})
+    ).toHaveValue("")
     const progress = page.getByRole("status").filter({hasText: "Loading your network"})
     await expect(progress).toBeInViewport()
     await page.screenshot({path: testInfo.outputPath("returning-search-progress.png")})
@@ -829,7 +835,7 @@ test("returning to bare search shows progress and recent notes without rerunning
     })
     await expect(progress).toHaveCount(0)
     expect(searches).toEqual([])
-    const input = page.getByPlaceholder("Search posts...")
+    const input = page.getByRole("textbox", {name: "Search posts", exact: true})
     await input.fill("swallows")
     await input.press("Enter")
     const rows = page.locator('#main-content [data-testid="feed-item"]:visible')

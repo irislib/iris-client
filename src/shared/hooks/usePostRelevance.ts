@@ -49,7 +49,11 @@ export function usePostRelevance(
   const relatedTerms = current?.terms ?? emptyTerms
   const relatedTags = current?.tags ?? emptyTerms
   const [status, setStatus] = useState("")
-  const scores = useMemo(() => new Map<string, number>(), [plan, settings])
+  const scoring = useMemo(
+    () => ({scores: new Map<string, number>(), planned: false}),
+    [plan, settings]
+  )
+  const {scores} = scoring
   const lexical = useMemo(() => plan && cachedLexicalMatch(plan), [plan])
   const discovery = useMemo(() => {
     if (!relatedTags.length && !relatedTerms.length) return undefined
@@ -203,22 +207,24 @@ export function usePostRelevance(
         return collectFilterHints(latest.current, known)
       }
     )
-    let planned = false
-    let running = false,
-      spent = 0
+    let running = false
     const run = async () => {
       if (running || controller.signal.aborted) return
       running = true
       try {
-        if (!planned) {
-          planned = true
+        if (!scoring.planned) {
           setStatus("Ranking posts…")
           await score([])
+          if (controller.signal.aborted) return
+          scoring.planned = true
         }
         while (!controller.signal.aborted) {
           const batch = latest.current
             .filter((e) => !scores.has(e.id))
-            .slice(0, Math.max(0, Math.min(batchLimit(), budgetRef.current - spent)))
+            .slice(
+              0,
+              Math.max(0, Math.min(batchLimit(), budgetRef.current - scores.size))
+            )
           if (!batch.length) break
           setStatus("Ranking posts…")
           const results = await score(batch.map(searchPostText))
@@ -229,7 +235,6 @@ export function usePostRelevance(
           )
             throw Error("Invalid scores")
           batch.forEach((e, i) => scores.set(e.id, results[i]))
-          spent += batch.length
           update((v) => v + 1)
         }
         if (!controller.signal.aborted) setStatus("")
@@ -253,11 +258,11 @@ export function usePostRelevance(
     kick.current = () => {
       if (running || controller.signal.aborted) return
       const waiting = latest.current.filter((e) => !scores.has(e.id)).length
-      if (planned && (!waiting || spent >= budgetRef.current)) return
+      if (scoring.planned && (!waiting || scores.size >= budgetRef.current)) return
       // Start a ready backlog immediately. A sparse burst gets one fixed
       // coalescing window; each incoming relay event must not restart the clock.
       const urgent =
-        !planned || !visibleCount.current || waiting >= Math.min(batchLimit(), 16)
+        !scoring.planned || !visibleCount.current || waiting >= Math.min(batchLimit(), 16)
       const coalesceMs = capacity > 4 ? 16 : 80
       const delay = urgent ? 0 : coalesceMs
       const next = performance.now() + delay
@@ -275,7 +280,7 @@ export function usePostRelevance(
       controller.abort()
       kick.current = () => {}
     }
-  }, [settings, plan, scores])
+  }, [settings, plan, scores, scoring])
   useEffect(() => {
     if (!plan?.terms.length) return
     if (shortlist.length) onCandidates.current()
