@@ -270,72 +270,29 @@ test("the local model searches previously seen and incoming hashtags in their or
   }
 })
 
-test.describe("search sparkle", () => {
-  test.use({hasTouch: true, viewport: {width: 390, height: 780}})
-
-  test("a touch hold opens the model picker without toggling AI search", async ({
-    page,
-    context,
-  }, testInfo) => {
-    await page.goto("/search/bicycle")
-    const sparkle = page.getByRole("button", {name: "AI search", exact: true})
-    await sparkle.tap()
-    await expect(sparkle).toHaveAttribute("aria-pressed", "false")
-    const box = (await sparkle.boundingBox())!
-    const touch = await context.newCDPSession(page)
-    await touch.send("Input.dispatchTouchEvent", {
-      type: "touchStart",
-      touchPoints: [{x: box.x + box.width / 2, y: box.y + box.height / 2}],
-    })
-    const model = page.getByRole("combobox", {name: "AI search model"})
-    await expect(model).toBeFocused()
-    await touch.send("Input.dispatchTouchEvent", {type: "touchEnd", touchPoints: []})
-    await expect(model).toBeFocused()
-    await expect(model).toBeInViewport()
-    await page.screenshot({path: testInfo.outputPath("sparkle-model-picker.png")})
-    await model.selectOption("browser")
-    await page.goBack()
-    await expect(page.getByPlaceholder("Search posts...")).toHaveValue("bicycle")
-    await expect(sparkle).toHaveAttribute("aria-pressed", "false")
-    await sparkle.tap()
-    await expect(sparkle).toHaveAttribute("aria-pressed", "true")
-    await sparkle.press("ContextMenu")
-    await expect(model).toBeFocused()
-    await expect(model).toHaveValue("browser")
-  })
-})
-
-test("the search sparkle supports mouse and keyboard options gestures", async ({
+test("the result view follows submitted searches and survives a reload", async ({
   page,
-}) => {
-  await page.goto("/search")
-  const sparkle = page.getByRole("button", {name: "AI search", exact: true})
-  const model = page.getByRole("combobox", {name: "AI search model"})
-  await expect(sparkle).toBeVisible()
-  const box = (await sparkle.boundingBox())!
-  const x = box.x + box.width / 2
-  const y = box.y + box.height / 2
-  await page.mouse.move(x, y)
-  await page.mouse.down()
-  await page.mouse.move(x - 60, y)
-  // Wait beyond the hold threshold to verify a drag cancels the gesture.
-  await page.waitForTimeout(600)
-  await page.mouse.up()
-  await expect(sparkle).toHaveAttribute("aria-pressed", "true")
-  await page.mouse.move(x, y)
-  await page.mouse.down()
-  await expect(model).toBeFocused()
-  await page.mouse.up()
+}, testInfo) => {
+  await page.setViewportSize({width: 390, height: 780})
+  await page.goto("/search/bicycle")
+  const view = page.getByRole("combobox", {name: "Result view"})
+  await expect(page.getByRole("button", {name: "AI search", exact: true})).toHaveCount(0)
+  await expect(view).toHaveValue("ai")
+  await view.selectOption("all")
+  await page.getByPlaceholder("Search posts...").fill("garden")
+  await page.getByPlaceholder("Search posts...").press("Enter")
+  await expect(page).toHaveURL(/search\/garden$/)
+  await page.reload()
+  await expect(view).toHaveValue("all")
+  await expect(page.getByPlaceholder("Search posts...")).toHaveValue("garden")
+  await page.screenshot({path: testInfo.outputPath("result-view.png")})
+  await page.getByRole("button", {name: "Filters"}).click()
+  await page.getByRole("link", {name: "Search model settings"}).click()
+  await expect(page.getByRole("combobox", {name: "AI search model"})).toBeFocused()
   await page.goBack()
-  await sparkle.click({button: "right"})
-  await expect(model).toBeFocused()
-  await page.goBack()
-  await sparkle.press("Shift+F10")
-  await expect(model).toBeFocused()
-  await page.goBack()
-  await expect(sparkle).toHaveAttribute("aria-pressed", "true")
-  await sparkle.press("Space")
-  await expect(sparkle).toHaveAttribute("aria-pressed", "false")
+  await view.selectOption("ai")
+  await page.reload()
+  await expect(view).toHaveValue("ai")
 })
 
 test("automatic search falls back to on-device discovery when the browser returns unusable scores", async ({
@@ -375,17 +332,17 @@ test("automatic search falls back to on-device discovery when the browser return
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto("/search/bicycle")
-  const toggle = page.getByRole("button", {name: "AI search"})
-  await expect(toggle).toHaveAttribute("aria-pressed", "true")
+  const view = page.getByRole("combobox", {name: "Result view"})
+  await expect(view).toHaveValue("ai")
   const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(rows.first()).toContainText(target, {timeout: 30000})
   await page.screenshot({path: testInfo.outputPath("semantic-post-search.png")})
-  await toggle.click()
-  await expect(toggle).toHaveAttribute("aria-pressed", "false")
+  await view.selectOption("all")
+  await expect(view).toHaveValue("all")
   await expect(rows.filter({hasText: target})).toHaveCount(0)
   await page.reload()
-  await expect(toggle).toHaveAttribute("aria-pressed", "false")
-  await toggle.click()
+  await expect(view).toHaveValue("all")
+  await view.selectOption("ai")
   await expect(rows.first()).toContainText(target, {timeout: 30000})
 })
 
@@ -490,26 +447,26 @@ test("text results stay interactive during a cold model load and subsequent sear
       )
     )
   }
-  const toggle = page.getByRole("button", {name: "AI search"})
+  const view = page.getByRole("combobox", {name: "Result view"})
   try {
     await submit("bicycle")
     const first = await visibleTime(exact)
     await expect.poll(() => downloads, {timeout: 10000}).toBe(1)
-    await expect(toggle).toHaveAttribute("aria-busy", "true")
+    await expect(view).toHaveAttribute("aria-busy", "true")
     await input.fill("editing while the model loads")
     await expect(input).toHaveValue("editing while the model loads")
     await expect(page).toHaveURL(/search\/bicycle/)
     await input.fill("bicycle")
     const released = await page.evaluate(() => performance.now())
     releaseWeights()
-    await expect(toggle).toHaveAttribute("aria-busy", "false")
+    await expect(view).toHaveAttribute("aria-busy", "false")
     const cold = await page.evaluate(
       (start) => Math.round(performance.now() - start),
       released
     )
     await submit("how can I get my missing documents back after a drive failure")
     const warm = await visibleTime(semantic)
-    await expect(toggle).toHaveAttribute("aria-busy", "false")
+    await expect(view).toHaveAttribute("aria-busy", "false")
     expect(downloads).toBe(1)
     expect(browserProbes).toBe(1)
     const path = testInfo.outputPath("search-timings.json")
@@ -693,9 +650,10 @@ test("late browser scores preserve the reading position until Update results is 
       rows.evaluateAll((items) => items.map((el) => el.getAttribute("data-event-id")))
     const before = await ids()
     release()
-    await expect(
-      page.getByRole("button", {name: "AI search", exact: true})
-    ).toHaveAttribute("aria-busy", "false")
+    await expect(page.getByRole("combobox", {name: "Result view"})).toHaveAttribute(
+      "aria-busy",
+      "false"
+    )
     const update = page.getByRole("button", {name: "Update results", exact: true})
     await expect(update).toBeInViewport()
     expect((await ids()).slice(0, before.length)).toEqual(before)

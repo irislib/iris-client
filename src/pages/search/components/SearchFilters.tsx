@@ -1,8 +1,7 @@
 import {useEffect, useRef, useState, FormEvent, useMemo, memo} from "react"
-import {useParams, useNavigate} from "@/navigation"
+import {Link, useParams, useNavigate} from "@/navigation"
 import {useSearchStore} from "@/stores/search"
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
-import SearchSparkle from "./SearchSparkle"
 import Feed from "@/shared/components/feed/Feed"
 import {RiEqualizerFill} from "@remixicon/react"
 import {useUserStore} from "@/stores/user"
@@ -172,15 +171,22 @@ const SearchFilters = memo(function SearchFilters({
               })
             }}
           />
-          <SearchSparkle
-            aiSearch={aiSearch}
-            ranking={ranking}
-            onToggle={() => setAiSearch(!aiSearch)}
-          />
         </form>
       </div>
 
       <div className="px-2 flex flex-wrap items-center gap-2">
+        {decodedQuery && (
+          <select
+            className="select select-sm w-auto"
+            aria-label="Result view"
+            aria-busy={ranking}
+            value={aiSearch ? "ai" : "all"}
+            onChange={(e) => setAiSearch(e.target.value === "ai")}
+          >
+            <option value="all">All results</option>
+            <option value="ai">AI selected</option>
+          </select>
+        )}
         <button
           type="button"
           className="btn btn-sm btn-ghost"
@@ -236,6 +242,9 @@ const SearchFilters = memo(function SearchFilters({
             />
             Show posts from unknown users
           </label>
+          <Link to="/settings/content/search-model" className="link">
+            Search model settings
+          </Link>
         </fieldset>
       )}
       <div className="flex-1 w-full">
