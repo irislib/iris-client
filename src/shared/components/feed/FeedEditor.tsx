@@ -4,6 +4,7 @@ import {type FeedConfig} from "@/stores/feed"
 import MultiRelaySelector from "@/shared/components/ui/MultiRelaySelector"
 import MultiUserSelector from "@/shared/components/ui/MultiUserSelector"
 import EventKindsSelector from "@/shared/components/ui/EventKindsSelector"
+import ResultViewToggle from "@/shared/components/search/ResultViewToggle"
 import {GeohashField} from "./FeedEditor/GeohashField"
 import {FollowDistanceField} from "./FeedEditor/FollowDistanceField"
 
@@ -230,35 +231,42 @@ function FeedEditor({
 
       {/* Search Term */}
       <div className="flex items-start gap-2">
-        <span className="text-sm text-base-content/70 min-w-[7rem] pt-2">Search</span>
-        <div className="flex-1">
+        <label
+          htmlFor="feed-search"
+          className="text-sm text-base-content/70 min-w-[7rem] pt-2"
+        >
+          Search
+        </label>
+        <div className="flex-1 min-w-0">
           <input
+            id="feed-search"
             type="text"
             value={localConfig.filter?.search || ""}
             onChange={(e) => {
-              const inputValue = e.target.value.trim()
+              const inputValue = e.target.value
               const currentFilter = localConfig.filter || {}
-              if (inputValue === "") {
+              if (!inputValue.trim()) {
                 // Remove search property if input is empty
                 const filterWithoutSearch = Object.fromEntries(
                   Object.entries(currentFilter).filter(([key]) => key !== "search")
                 )
-                updateConfig(
-                  "filter",
-                  Object.keys(filterWithoutSearch).length > 0
-                    ? filterWithoutSearch
-                    : undefined
-                )
+                updateConfig("filter", filterWithoutSearch)
               } else {
                 updateConfig("filter", {...currentFilter, search: inputValue})
               }
             }}
+            onBlur={() => {
+              if (localConfig !== feedConfig) onConfigChange(localConfig)
+            }}
             className="input input-sm w-full text-sm"
-            placeholder="Search terms"
+            placeholder={
+              localConfig.aiSearch ? "Describe the posts you want" : "Search terms"
+            }
           />
-          <span className="text-xs text-base-content/50 mt-1 block">
-            Text to search for in posts
-          </span>
+          <ResultViewToggle
+            aiSelected={!!localConfig.aiSearch}
+            onChange={(aiSearch) => onConfigChange({...localConfig, aiSearch})}
+          />
         </div>
       </div>
 

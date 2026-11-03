@@ -22,6 +22,7 @@ export interface FeedConfig {
   showRepliedTo?: boolean
   hideReplies?: boolean
   filter?: FeedFilter
+  aiSearch?: boolean
   followDistance?: number // undefined = no follow distance filtering, number = max degrees
   requiresMedia?: boolean
   requiresReplies?: boolean

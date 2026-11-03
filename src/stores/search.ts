@@ -1,6 +1,7 @@
 import {SearchResult} from "@/utils/profileSearch"
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
+import {useMemo} from "react"
 
 export type CustomSearchResult = SearchResult & {
   query?: string
@@ -88,3 +89,12 @@ export const useSearchStore = create<SearchState>()(
     }
   )
 )
+
+export function usePostSearchSettings(enabled: boolean) {
+  const model = useSearchStore((state) => state.searchModel)
+  const ollamaModel = useSearchStore((state) => state.ollamaModel)
+  return useMemo(
+    () => (enabled ? {model, ollamaModel} : undefined),
+    [enabled, model, ollamaModel]
+  )
+}

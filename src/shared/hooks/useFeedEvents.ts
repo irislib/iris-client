@@ -665,7 +665,7 @@ export default function useFeedEvents({
     // Local deliveries never advance the independent relay pagination cursors.
     const cachedPosts = plan
       ? nostr().subscribe(
-          {kinds: filters.kinds, limit: 48},
+          {...filters, search: undefined, limit: Math.min(filters.limit ?? 48, 48)},
           {cacheUsage: CacheMode.ONLY_CACHE, closeOnEose: true}
         )
       : undefined
@@ -724,13 +724,13 @@ export default function useFeedEvents({
       nostr(),
       [
         {
-          ...base,
           "#t": [
             ...new Set([
               ...expandedTags,
               ...expansion.map((term) => term.replace(/\s+/g, "")),
             ]),
           ],
+          ...base,
         },
         ...expansion.map((search) => ({...base, search})),
       ],

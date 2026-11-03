@@ -273,26 +273,118 @@ test("the local model searches previously seen and incoming hashtags in their or
 test("the result view follows submitted searches and survives a reload", async ({
   page,
 }, testInfo) => {
-  await page.setViewportSize({width: 390, height: 780})
+  await page.setViewportSize({width: 320, height: 780})
   await page.goto("/search/bicycle")
-  const view = page.getByRole("combobox", {name: "Result view"})
+  const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
   await expect(page.getByRole("button", {name: "AI search", exact: true})).toHaveCount(0)
-  await expect(view).toHaveValue("ai")
-  await view.selectOption("all")
+  await expect(view).toHaveText("Show all")
+  const filters = page.getByRole("button", {name: "Filters", exact: true})
+  const filterPosition = () =>
+    filters.evaluate((button: HTMLElement) => [button.offsetLeft, button.offsetTop])
+  const before = await filterPosition()
+  await view.focus()
+  await view.press("Enter")
+  await expect(view).toHaveText("Show AI selected")
+  expect(await filterPosition()).toEqual(before)
   await page.getByPlaceholder("Search posts...").fill("garden")
   await page.getByPlaceholder("Search posts...").press("Enter")
   await expect(page).toHaveURL(/search\/garden$/)
   await page.reload()
-  await expect(view).toHaveValue("all")
+  await expect(view).toHaveText("Show AI selected")
   await expect(page.getByPlaceholder("Search posts...")).toHaveValue("garden")
   await page.screenshot({path: testInfo.outputPath("result-view.png")})
   await page.getByRole("button", {name: "Filters"}).click()
   await page.getByRole("link", {name: "Search model settings"}).click()
   await expect(page.getByRole("combobox", {name: "AI search model"})).toBeFocused()
   await page.goBack()
-  await view.selectOption("ai")
+  await view.click()
   await page.reload()
-  await expect(view).toHaveValue("ai")
+  await expect(view).toHaveText("Show all")
+})
+
+test("a feed remembers AI selection independently of search and other feeds", async ({
+  page,
+}, testInfo) => {
+  const viewer = generateSecretKey()
+  const author = generateSecretKey()
+  const now = Math.floor(Date.now() / 1000) - 60
+  const query = "protect plants from frost"
+  const literal = "How to protect plants from frost overnight."
+  const related = "The seedlings survived the cold night under an old sheet."
+  const note = (text: string, key: Uint8Array) =>
+    finalizeEvent({kind: 1, tags: [], content: text, created_at: now}, key)
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [
+      finalizeEvent(
+        {kind: 3, tags: [["p", getPublicKey(author)]], content: "", created_at: now},
+        viewer
+      ),
+      note(literal, viewer),
+      note(related, author),
+    ],
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      if (!localStorage.getItem("search-storage"))
+        localStorage.setItem(
+          "search-storage",
+          JSON.stringify({version: 1, state: {aiSearch: false, searchModel: "browser"}})
+        )
+      Object.defineProperty(window, "LanguageModel", {
+        configurable: true,
+        value: {
+          availability: async () => "available",
+          create: async () => ({
+            destroy() {},
+            async prompt(input: string) {
+              const {posts} = JSON.parse(input)
+              return JSON.stringify(
+                posts.length ? {scores: posts.map(() => 95)} : {terms: []}
+              )
+            },
+          }),
+        },
+      })
+    }, relay.port)
+    await signUp(page, nip19.nsecEncode(viewer))
+    const main = page.locator("#main-content")
+    await main.getByRole("button", {name: "Latest", exact: true}).click()
+    await main.getByTitle("Edit feeds").click()
+    const search = main.getByRole("textbox", {name: "Search", exact: true})
+    await search.pressSequentially(query)
+    await expect(search).toHaveValue(query)
+    const ai = main.getByRole("button", {name: "Show AI selected", exact: true})
+    const all = main.getByRole("button", {name: "Show all", exact: true})
+    await ai.click()
+    await page.reload()
+    const posts = main.getByTestId("feed-item")
+    await expect(posts.filter({hasText: related})).toBeVisible({timeout: 15000})
+    await main.getByTitle("Edit feeds").click()
+    await expect(search).toHaveValue(query)
+    await expect(all).toBeVisible()
+    await search.scrollIntoViewIfNeeded()
+    await page.screenshot({path: testInfo.outputPath("feed-ai-filter.png")})
+    await page.goto("/search/garden")
+    await expect(ai).toBeVisible()
+    await page.goto("/")
+    await main.getByTitle("Edit feeds").click()
+    await expect(all).toBeVisible()
+    await main.getByRole("button", {name: "Articles", exact: true}).click()
+    await expect(ai).toBeVisible()
+    await expect(search).toHaveValue("")
+    await main.getByRole("button", {name: "Latest", exact: true}).click()
+    await all.click()
+    await main.getByRole("button", {name: "Done", exact: true}).click()
+    await expect(posts.filter({hasText: literal})).toBeVisible()
+    await expect(posts.filter({hasText: related})).toHaveCount(0)
+    await page.reload()
+    await main.getByTitle("Edit feeds").click()
+    await expect(ai).toBeVisible()
+  } finally {
+    await relay.close()
+  }
 })
 
 test("automatic search falls back to on-device discovery when the browser returns unusable scores", async ({
@@ -332,17 +424,17 @@ test("automatic search falls back to on-device discovery when the browser return
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto("/search/bicycle")
-  const view = page.getByRole("combobox", {name: "Result view"})
-  await expect(view).toHaveValue("ai")
+  const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
+  await expect(view).toHaveText("Show all")
   const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(rows.first()).toContainText(target, {timeout: 30000})
   await page.screenshot({path: testInfo.outputPath("semantic-post-search.png")})
-  await view.selectOption("all")
-  await expect(view).toHaveValue("all")
+  await view.click()
+  await expect(view).toHaveText("Show AI selected")
   await expect(rows.filter({hasText: target})).toHaveCount(0)
   await page.reload()
-  await expect(view).toHaveValue("all")
-  await view.selectOption("ai")
+  await expect(view).toHaveText("Show AI selected")
+  await view.click()
   await expect(rows.first()).toContainText(target, {timeout: 30000})
 })
 
@@ -447,7 +539,7 @@ test("text results stay interactive during a cold model load and subsequent sear
       )
     )
   }
-  const view = page.getByRole("combobox", {name: "Result view"})
+  const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
   try {
     await submit("bicycle")
     const first = await visibleTime(exact)
@@ -650,10 +742,9 @@ test("late browser scores preserve the reading position until Update results is 
       rows.evaluateAll((items) => items.map((el) => el.getAttribute("data-event-id")))
     const before = await ids()
     release()
-    await expect(page.getByRole("combobox", {name: "Result view"})).toHaveAttribute(
-      "aria-busy",
-      "false"
-    )
+    await expect(
+      page.getByRole("button", {name: /^Show (all|AI selected)$/})
+    ).toHaveAttribute("aria-busy", "false")
     const update = page.getByRole("button", {name: "Update results", exact: true})
     await expect(update).toBeInViewport()
     expect((await ids()).slice(0, before.length)).toEqual(before)

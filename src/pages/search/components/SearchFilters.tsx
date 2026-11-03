@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, FormEvent, useMemo, memo} from "react"
 import {Link, useParams, useNavigate} from "@/navigation"
-import {useSearchStore} from "@/stores/search"
+import {usePostSearchSettings, useSearchStore} from "@/stores/search"
+import ResultViewToggle from "@/shared/components/search/ResultViewToggle"
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
 import Feed from "@/shared/components/feed/Feed"
 import {RiEqualizerFill} from "@remixicon/react"
@@ -41,11 +42,10 @@ const SearchFilters = memo(function SearchFilters({
     setSearchQuery,
     aiSearch,
     setAiSearch,
-    searchModel,
-    ollamaModel,
     showEventsByUnknownUsers,
     setShowEventsByUnknownUsers,
   } = useSearchStore()
+  const postRelevance = usePostSearchSettings(!!decodedQuery && aiSearch)
   const ranking = !!decodedQuery && aiSearch && relevanceStatus === "Ranking posts…"
 
   const [searchTerm, setSearchTerm] = useState(decodedQuery)
@@ -100,8 +100,7 @@ const SearchFilters = memo(function SearchFilters({
       hideReplies: postType === "originals",
       requiresReplies: postType === "replies",
       requiresMedia: mediaOnly,
-      postRelevance:
-        decodedQuery && aiSearch ? {model: searchModel, ollamaModel} : undefined,
+      postRelevance,
       followDistance: showEventsByUnknownUsers ? undefined : 5,
       filter: {
         kinds: [KIND_TEXT_NOTE, KIND_PICTURE_FIRST],
@@ -109,15 +108,7 @@ const SearchFilters = memo(function SearchFilters({
         ...(decodedQuery && {search: decodedQuery}),
       },
     }),
-    [
-      decodedQuery,
-      postType,
-      mediaOnly,
-      aiSearch,
-      searchModel,
-      ollamaModel,
-      showEventsByUnknownUsers,
-    ]
+    [decodedQuery, postType, mediaOnly, postRelevance, showEventsByUnknownUsers]
   )
   // A single direct note request also reads the local event cache. Recommendations
   // on this screen don't need to wait for reactions and a second round of ID lookups.
@@ -174,18 +165,9 @@ const SearchFilters = memo(function SearchFilters({
         </form>
       </div>
 
-      <div className="px-2 flex flex-wrap items-center gap-2">
+      <div className="px-2 flex flex-wrap items-center gap-y-2 gap-x-1 sm:gap-x-2">
         {decodedQuery && (
-          <select
-            className="select select-sm w-auto"
-            aria-label="Result view"
-            aria-busy={ranking}
-            value={aiSearch ? "ai" : "all"}
-            onChange={(e) => setAiSearch(e.target.value === "ai")}
-          >
-            <option value="all">All results</option>
-            <option value="ai">AI selected</option>
-          </select>
+          <ResultViewToggle aiSelected={aiSearch} onChange={setAiSearch} busy={ranking} />
         )}
         <button
           type="button"

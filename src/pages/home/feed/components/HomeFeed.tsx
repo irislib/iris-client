@@ -7,6 +7,7 @@ import Feed from "@/shared/components/feed/Feed.tsx"
 import {useFollowsFromGraph} from "@/utils/socialGraph"
 import {usePublicKey} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
+import {usePostSearchSettings} from "@/stores/search"
 import {
   useFeedStore,
   useEnabledFeedIds,
@@ -61,7 +62,6 @@ function HomeFeed() {
     activeFeed,
     setActiveFeed,
     getAllFeedConfigs,
-    loadFeedConfig,
     deleteFeed,
     cloneFeed,
     resetAllFeedsToDefaults,
@@ -93,9 +93,13 @@ function HomeFeed() {
       .filter((feed): feed is FeedConfig => feed !== undefined)
   }, [allFeeds, enabledFeedIds])
 
+  const savedConfig = feedConfigs[activeFeed]
+  const postRelevance = usePostSearchSettings(
+    !!savedConfig?.aiSearch && !!savedConfig.filter?.search?.trim()
+  )
   const activeFeedConfig = useMemo(
-    () => loadFeedConfig(activeFeed),
-    [loadFeedConfig, activeFeed, feedConfigs]
+    () => (postRelevance ? {...savedConfig, postRelevance} : savedConfig),
+    [savedConfig, postRelevance]
   )
 
   // Editor handler functions
@@ -109,7 +113,7 @@ function HomeFeed() {
     }
 
     const getDisplayName = (feedId: string, defaultName: string) => {
-      const config = loadFeedConfig(feedId)
+      const config = feedConfigs[feedId]
       return config?.customName || defaultName
     }
 

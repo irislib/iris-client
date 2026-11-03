@@ -1,8 +1,21 @@
 import {describe, expect, it} from "vitest"
+import {planPostSearch} from "@/lib/post-search/query"
 
 import {buildSearchSubscriptionFilters} from "./buildSearchSubscriptionFilters"
 
 describe("buildSearchSubscriptionFilters", () => {
+  it("keeps a saved feed's hashtag constraint on every AI search source", () => {
+    for (const search of ["trees", "#trees"]) {
+      const feed = {kinds: [1], "#t": ["garden"], search}
+      const filters = buildSearchSubscriptionFilters(
+        feed,
+        undefined,
+        100,
+        planPostSearch(search)
+      )
+      for (const filter of [filters].flat()) expect(filter["#t"]).toEqual(["garden"])
+    }
+  })
   it("queries multiword terms independently for phrase-only indexes", () => {
     const filters = buildSearchSubscriptionFilters({
       kinds: [1],
