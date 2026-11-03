@@ -41,9 +41,11 @@ MiniLM on the device. When MiniLM finds no additional words or hashtags for a
 multi-word query, it can now select one observed hashtag using a 3.2 KB scoring
 layer trained from signed public notes. It reuses the existing tag embeddings,
 keeps original tag spelling and stays within the existing relay request budget.
-On browsers with a compatible GPU, MiniLM scores up to four posts together
-using a 22.9 MB model downloaded on demand. Other browsers use the 17.5 MB
-CPU model. Both paths cache recently scored text locally in the search worker.
+Matching posts from cache and relays appear while MiniLM works. With a
+compatible GPU, Iris starts with up to four posts when search is empty and
+scores up to 64 at a time when 16 matching authors are already available.
+It downloads a 22.9 MB model on demand. Other browsers use the 17.5 MB CPU
+model. Both paths reuse recent text embeddings in the search worker.
 
 Training and evaluation used 28,130 English-language notes from 8,056 authors
 after filtering and deduplication. Authors and near-duplicate note text were

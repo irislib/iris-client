@@ -75,7 +75,7 @@ interface SearchRequest {
 }
 
 async function score({request, query, posts, hints}: SearchRequest) {
-  const {words} = await (loaded ??= load())
+  const {words, runtime} = await (loaded ??= load())
   const plan = planPostSearch(query)
   const vector = await vectorFor(plan.modelQuery)
   if (!posts.length) {
@@ -110,7 +110,7 @@ async function score({request, query, posts, hints}: SearchRequest) {
     } catch {
       /* Primary words, hashtags and recent notes are already being searched. */
     }
-    self.postMessage({request, scores: [], terms, tags})
+    self.postMessage({request, scores: [], terms, tags, batchSize: runtime.batchSize})
     return
   }
   const postVectors = await vectorsFor(posts)
@@ -123,7 +123,7 @@ async function score({request, query, posts, hints}: SearchRequest) {
       evidence?.query === query ? evidence.selection : undefined
     )
   )
-  self.postMessage({request, scores})
+  self.postMessage({request, scores, batchSize: runtime.batchSize})
 }
 
 async function handle(data: SearchRequest) {

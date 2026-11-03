@@ -18,5 +18,5 @@ export async function loadGpuModel() {
   env.wasm.numThreads = 1
   env.wasm.wasmPaths = {wasm: wasmUrl, mjs: moduleUrl}
   const model = await InferenceSession.create(modelUrl, {executionProviders: ["webgpu"]})
-  return {model, Tensor, batchSize: 4}
+  return {model, Tensor, batchSize: 64}
 }

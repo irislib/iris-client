@@ -62,6 +62,94 @@ test("a conversational topic search finds technical posts and substantive replie
   }
 })
 
+test("relay matches appear before GPU scoring, then a backlog and a lone arrival both get scored", async ({
+  page,
+  context,
+}) => {
+  const now = Math.floor(Date.now() / 1000)
+  const note = (n: number, time: number) =>
+    finalizeEvent(
+      {
+        kind: 1,
+        content: `Binoculars for birdwatching model ${n}`,
+        tags: [],
+        created_at: time,
+      },
+      generateSecretKey()
+    )
+  const initial = Array.from({length: 32}, (_, i) => note(i, now - i - 5))
+  const pendingEose: (() => void)[] = []
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: initial,
+    endStoredEvents: (filters, finish) => {
+      if (filters.some((filter) => filter.kinds?.includes(1))) pendingEose.push(finish)
+      else finish()
+    },
+  })
+  const batches: string[][] = []
+  let release!: () => void
+  const ready = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  try {
+    // Control only inference readiness and capacity. The real relay, search
+    // shortlist, display and worker client drive the scheduling in this test.
+    await context.route(
+      /\/semantic-search\.worker[^/]*(?:\.js|\.ts)(?:\?.*)?$/,
+      (route) =>
+        route.fulfill({
+          contentType: "text/javascript",
+          body: `
+        self.onmessage = async ({data: {posts, request}}) => {
+          if (!posts.length) await fetch("/test-mini-model-ready")
+          else await fetch("/test-mini-batch", {method: "POST", body: JSON.stringify(posts)})
+          self.postMessage({request, batchSize: 64, scores: posts.map(() => .85), ...(!posts.length && {terms: [], tags: []})})
+        }`,
+        })
+    )
+    await context.route("**/test-mini-model-ready", async (route) => {
+      await ready
+      await route.fulfill({body: "ready"}).catch(() => {})
+    })
+    await context.route("**/test-mini-batch", (route) => {
+      batches.push(route.request().postDataJSON())
+      return route.fulfill({body: "ok"})
+    })
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({
+          version: 1,
+          state: {showEventsByUnknownUsers: true, searchModel: "minilm"},
+        })
+      )
+    }, relay.port)
+    await page.goto("/search/binoculars")
+    await expect(page.getByText(initial[0].content, {exact: true}).first()).toBeVisible()
+    expect(batches).toHaveLength(0)
+    release()
+    await expect.poll(() => batches.some((batch) => batch.length > 16)).toBe(true)
+    const fresh = note(33, now)
+    const writer = await Relay.connect(`ws://127.0.0.1:${relay.port}`)
+    try {
+      await writer.publish(fresh)
+    } finally {
+      writer.close()
+    }
+    await expect
+      .poll(() =>
+        batches.some((batch) => batch.length === 1 && batch[0].includes(fresh.content))
+      )
+      .toBe(true)
+  } finally {
+    release()
+    pendingEose.forEach((finish) => finish())
+    await relay.close()
+  }
+})
+
 async function seedObservedTags(page: Page, tags: string[]) {
   await page.evaluate(async (tags) => {
     await new Promise<void>((resolve, reject) => {

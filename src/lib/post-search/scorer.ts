@@ -50,7 +50,7 @@ export function createPostScorer(
   query: string,
   lifetime: AbortSignal,
   onTerms: (terms: string[], tags?: string[]) => void,
-  onUseMiniLM: () => void,
+  onUseMiniLM: (batchSize?: number) => void,
   getHints?: () => Promise<FilterHints>
 ) {
   const plan = planPostSearch(query)
@@ -106,6 +106,7 @@ export function createPostScorer(
         if (data.error) failed()
         else {
           reusable = true
+          if (data.batchSize) onUseMiniLM(data.batchSize)
           if (data.terms) onTerms(data.terms, data.tags)
           resolve(data.scores)
         }

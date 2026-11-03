@@ -20,6 +20,8 @@ type NostrRelayMessage =
 
 export interface NostrRelayOptions {
   onRequest?: (filters: Filter[]) => void
+  /** Control the end of a stored-event batch in streaming integration tests. */
+  endStoredEvents?: (filters: Filter[], finish: () => void) => void
   /** Optional relay policy for deterministic publish-failure integration tests. */
   rejectEvent?: (event: NostrEvent) => string | undefined
   /** Optional delivery gate for deterministic late-acknowledgement tests. */
@@ -285,7 +287,9 @@ export async function startNostrRelay(
           safeSend(ws, ["EVENT", subId, ev])
           sub.deliveredIds.add(ev.id)
         }
-        safeSend(ws, ["EOSE", subId])
+        const finish = () => safeSend(ws, ["EOSE", subId])
+        if (opts.endStoredEvents) opts.endStoredEvents(f, finish)
+        else finish()
         return
       }
 

@@ -23,8 +23,17 @@ export function usePostRelevance(
   revision: string,
   discoveryDistance?: (pubkey: string) => number
 ) {
-  const [automaticMiniLM, setAutomaticMiniLM] = useState(false)
-  const pageSize = settings?.model === "minilm" || automaticMiniLM ? 64 : 16
+  const [localModel, setLocalModel] = useState<{
+    plan: SearchPlan
+    settings: SearchSettings
+    capacity: number
+  }>()
+  const local =
+    localModel && localModel.plan === plan && localModel.settings === settings
+      ? localModel
+      : undefined
+  const localPageSize = local && local.capacity > 4 ? 128 : 64
+  const pageSize = settings?.model === "minilm" || local ? localPageSize : 16
   const [extraBudget, setExtraBudget] = useState(0)
   const [version, update] = useState(0)
   const [expansion, setExpansion] = useState<{
@@ -77,6 +86,9 @@ export function usePostRelevance(
     () => rankCandidates(candidates, scores, Date.now() / 1000),
     [candidates, scores, version]
   )
+
+  const visibleCount = useRef(0)
+  visibleCount.current = ranked.primary.length
 
   const limit =
     pageSize +
@@ -134,6 +146,12 @@ export function usePostRelevance(
       known = tags
     })
 
+    let capacity = 4
+    const batchLimit = () => {
+      if (!visibleCount.current) return 4
+      if (visibleCount.current < 16) return Math.min(capacity, 16)
+      return capacity
+    }
     const score = createPostScorer(
       settings,
       plan.text,
@@ -158,7 +176,18 @@ export function usePostRelevance(
           tags: tags.slice(0, 6),
         })
       },
-      () => setAutomaticMiniLM(true),
+      (batchSize = 1) => {
+        // CPU and prompt providers retain the four-post dispatch size.
+        const nextCapacity = Math.max(4, batchSize)
+        capacity = nextCapacity
+        setLocalModel((previous) =>
+          previous?.plan === plan &&
+          previous.settings === settings &&
+          previous.capacity === nextCapacity
+            ? previous
+            : {plan, settings, capacity: nextCapacity}
+        )
+      },
       async () => {
         // Known tags and live events arrive independently. A slow relay never
         // holds the first lexical results, and the planner has a fixed deadline.
@@ -189,7 +218,7 @@ export function usePostRelevance(
         while (!controller.signal.aborted) {
           const batch = latest.current
             .filter((e) => !scores.has(e.id))
-            .slice(0, Math.max(0, Math.min(4, budgetRef.current - spent)))
+            .slice(0, Math.max(0, Math.min(batchLimit(), budgetRef.current - spent)))
           if (!batch.length) break
           setStatus("Ranking posts…")
           const results = await score(batch.map(searchPostText))
@@ -220,13 +249,26 @@ export function usePostRelevance(
       }
     }
     let timer: ReturnType<typeof setTimeout> | undefined
+    let deadline = Infinity
     kick.current = () => {
-      if (timer !== undefined || running) return
-      // Batch nearby arrivals without postponing inference on a busy relay.
+      if (running || controller.signal.aborted) return
+      const waiting = latest.current.filter((e) => !scores.has(e.id)).length
+      if (planned && (!waiting || spent >= budgetRef.current)) return
+      // Start a ready backlog immediately. A sparse burst gets one fixed
+      // coalescing window; each incoming relay event must not restart the clock.
+      const urgent =
+        !planned || !visibleCount.current || waiting >= Math.min(batchLimit(), 16)
+      const coalesceMs = capacity > 4 ? 16 : 80
+      const delay = urgent ? 0 : coalesceMs
+      const next = performance.now() + delay
+      if (timer !== undefined && next >= deadline) return
+      clearTimeout(timer)
+      deadline = next
       timer = setTimeout(() => {
         timer = undefined
+        deadline = Infinity
         void run()
-      }, 80)
+      }, delay)
     }
     return () => {
       clearTimeout(timer)
