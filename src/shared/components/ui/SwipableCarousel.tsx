@@ -23,6 +23,7 @@ interface SwipableCarouselProps {
   threshold?: number
   onIndexChange?: (index: number) => void
   className?: string
+  adaptiveHeight?: boolean
   style?: CSSProperties
   onWasDraggedRef?: (ref: {current: boolean}) => void
   enableKeyboardNav?: boolean
@@ -39,6 +40,7 @@ export function SwipableCarousel({
   threshold = 0.5,
   onIndexChange,
   className = "",
+  adaptiveHeight = false,
   style,
   enableKeyboardNav = false,
   onClose,
@@ -167,11 +169,13 @@ export function SwipableCarousel({
     const curr = items[currentIndex]
     const next = items[navigation.getNextIndex()]
 
+    // In feeds, only the active slide determines height. Adjacent slides remain
+    // centered for swiping without reserving space for a taller hidden image.
     return (
       <>
         <div
           key={prev.url === next.url ? `${prev.url}-prev` : prev.url}
-          className="w-full flex-shrink-0 flex justify-center items-center"
+          className={`w-full flex-shrink-0 flex justify-center items-center ${adaptiveHeight ? "h-0 self-center" : ""}`}
         >
           {renderItem(prev, navigation.getPrevIndex(), wasDragged)}
         </div>
@@ -183,7 +187,7 @@ export function SwipableCarousel({
         </div>
         <div
           key={next.url}
-          className="w-full flex-shrink-0 flex justify-center items-center"
+          className={`w-full flex-shrink-0 flex justify-center items-center ${adaptiveHeight ? "h-0 self-center" : ""}`}
         >
           {renderItem(next, navigation.getNextIndex(), wasDragged)}
         </div>
@@ -193,6 +197,8 @@ export function SwipableCarousel({
 
   return (
     <div
+      role="group"
+      aria-label="Media carousel"
       className={`relative overflow-hidden ${className}`}
       style={{touchAction: items.length > 1 ? "pan-y pinch-zoom" : "auto", ...style}}
     >
@@ -248,6 +254,7 @@ export function SwipableCarousel({
         <>
           <div className="absolute top-1/2 -translate-y-1/2 left-4 z-10">
             <button
+              aria-label="Previous media"
               onClick={(e) => {
                 e.stopPropagation()
                 navigation.goToPrev()
@@ -259,6 +266,7 @@ export function SwipableCarousel({
           </div>
           <div className="absolute top-1/2 -translate-y-1/2 right-4 z-10">
             <button
+              aria-label="Next media"
               onClick={(e) => {
                 e.stopPropagation()
                 navigation.goToNext()

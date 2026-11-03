@@ -1,4 +1,7 @@
 import Header from "@/shared/components/header/Header"
+import RightColumn from "@/shared/components/RightColumn"
+import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import Widget from "@/shared/components/ui/Widget"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {useContext} from "react"
 import {useParams, useLocation} from "@/navigation"
@@ -26,7 +29,7 @@ function SearchPage() {
   // Single column layout - show full interface
   return (
     <div className="flex flex-1 flex-row relative h-full">
-      <div className="flex flex-col flex-1 h-full relative">
+      <div className="flex flex-col flex-1 min-w-0 h-full relative">
         <Header title={decodedQuery ? `Search: "${decodedQuery}"` : "Search"} />
         <ScrollablePageContainer className="flex flex-col items-center">
           <div className="flex-1 w-full max-w-3xl flex flex-col gap-2 md:pt-2">
@@ -37,6 +40,16 @@ function SearchPage() {
           </Helmet>
         </ScrollablePageContainer>
       </div>
+      <RightColumn>
+        {() => (
+          <Widget title="Popular" className="h-96">
+            <AlgorithmicFeed
+              type="popular"
+              displayOptions={{small: true, showDisplaySelector: false}}
+            />
+          </Widget>
+        )}
+      </RightColumn>
     </div>
   )
 }

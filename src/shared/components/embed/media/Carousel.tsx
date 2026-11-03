@@ -1,5 +1,4 @@
 import {useState, useCallback} from "react"
-import classNames from "classnames"
 
 import MediaModal from "@/shared/components/media/MediaModal"
 import {SwipableCarousel} from "@/shared/components/ui/SwipableCarousel"
@@ -167,9 +166,8 @@ function Carousel({media, event}: CarouselProps) {
         renderItem={renderMediaComponent}
         initialIndex={currentIndex}
         onIndexChange={setCurrentIndex}
-        className={classNames("w-full", {
-          "h-[600px]": limitHeight,
-        })}
+        className="w-full"
+        adaptiveHeight
         showArrows={media.length > 1}
         arrowClassName="bg-gray-800 rounded-full opacity-50 text-white p-2"
       />

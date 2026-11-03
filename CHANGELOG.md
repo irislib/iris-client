@@ -4,6 +4,8 @@
 
 - Show matching posts immediately in plain search, including when the text index is slow or unavailable, while continuing to search incomplete history.
 - Keep slow text-search subscriptions open after a history timeout so late results can still arrive.
+- Restore the desktop search sidebar and its saved hide/show control.
+- Fit photo carousels to the displayed image instead of reserving a fixed empty area.
 
 ## 2.5.58 - 2026-10-25
 
