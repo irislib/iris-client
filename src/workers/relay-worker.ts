@@ -298,7 +298,7 @@ async function resolveLatestProfileSearchTreeRoot(
   }
 }
 
-let sourceBridge: ReturnType<typeof connectNostrSource> | undefined
+const sourceBridges = new Map<string, ReturnType<typeof connectNostrSource>>()
 let closeCacheBridge: (() => void) | undefined
 let statusTimer: ReturnType<typeof setInterval> | undefined
 const authRequests = new Map<
@@ -723,7 +723,8 @@ function handleClose() {
   subscriptions.clear()
 
   if (statusTimer) clearInterval(statusTimer)
-  sourceBridge?.close()
+  for (const bridge of sourceBridges.values()) bridge.close()
+  sourceBridges.clear()
   closeCacheBridge?.()
   for (const pending of authRequests.values()) pending.reject(new Error("Worker closed"))
   authRequests.clear()
@@ -794,9 +795,17 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       }
       case "peerSource":
         if (data.port && nostr) {
-          sourceBridge?.close()
-          sourceBridge = connectNostrSource(data.port, "fips", "queued")
-          nostr.getRuntime().addSource(sourceBridge.source)
+          const sourceId = id ?? "fips"
+          sourceBridges.get(sourceId)?.close()
+          const bridge = connectNostrSource(data.port, sourceId, "queued")
+          sourceBridges.set(sourceId, bridge)
+          nostr
+            .getRuntime()
+            .addSource(
+              sourceId === "hashtree-index"
+                ? {id: sourceId, query: bridge.source.query}
+                : bridge.source
+            )
         }
         break
 

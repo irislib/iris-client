@@ -401,3 +401,104 @@ diff --git a/dist/runtime.js b/dist/runtime.js
          const accepted = await new Promise((resolve) => {
              let remaining = attempts.length;
              if (!remaining)
+diff --git a/src/fips-pubsub-client-types.ts b/src/fips-pubsub-client-types.ts
+--- a/src/fips-pubsub-client-types.ts
++++ b/src/fips-pubsub-client-types.ts
+@@ -34,6 +34,8 @@
+   acceptAnonymousPublications?: boolean;
+   /** Local compressed FIPS public key used for deterministic TCP stream ownership. */
+   localPeerId: string;
++  /** Optional diagnostics for established Nostr service streams on this endpoint. */
++  observeConnections?(read: () => readonly string[]): void;
+   /** Explicit application-admitted FIPS identities. Connected peers are not inferred. */
+   peers: () => readonly string[];
+   /** Local retained event index only. Never pass a reader which fetches from remote peers. */
+diff --git a/dist/fips-pubsub-client-types.d.ts b/dist/fips-pubsub-client-types.d.ts
+--- a/dist/fips-pubsub-client-types.d.ts
++++ b/dist/fips-pubsub-client-types.d.ts
+@@ -29,6 +29,8 @@
+     acceptAnonymousPublications?: boolean;
+     /** Local compressed FIPS public key used for deterministic TCP stream ownership. */
+     localPeerId: string;
++    /** Optional diagnostics for established Nostr service streams on this endpoint. */
++    observeConnections?(read: () => readonly string[]): void;
+     /** Explicit application-admitted FIPS identities. Connected peers are not inferred. */
+     peers: () => readonly string[];
+     /** Local retained event index only. Never pass a reader which fetches from remote peers. */
+diff --git a/src/anonymous-fips.ts b/src/anonymous-fips.ts
+--- a/src/anonymous-fips.ts
++++ b/src/anonymous-fips.ts
+@@ -18,6 +18,8 @@
+ export interface AnonymousFipsEndpoint {
+   node: FipsPubsubClientNode;
+   localPeerId: string;
++  /** Optional diagnostics for established Nostr service streams on this endpoint. */
++  observeConnections?(read: () => readonly string[]): void;
+   peers(): readonly string[];
+   close(): Promise<void>;
+ }
+diff --git a/dist/anonymous-fips.d.ts b/dist/anonymous-fips.d.ts
+--- a/dist/anonymous-fips.d.ts
++++ b/dist/anonymous-fips.d.ts
+@@ -7,6 +7,8 @@
+ export interface AnonymousFipsEndpoint {
+     node: FipsPubsubClientNode;
+     localPeerId: string;
++    /** Optional diagnostics for established Nostr service streams on this endpoint. */
++    observeConnections?(read: () => readonly string[]): void;
+     peers(): readonly string[];
+     close(): Promise<void>;
+ }
+diff --git a/src/fips-pubsub-client.ts b/src/fips-pubsub-client.ts
+--- a/src/fips-pubsub-client.ts
++++ b/src/fips-pubsub-client.ts
+@@ -73,6 +73,7 @@
+     this.localPeerId = normalizePeerId(options.localPeerId) ?? '';
+     if (this.localPeerId === '') throw clientError('localPeerId must be a compressed FIPS key');
+     this.peers = options.peers;
++    options.observeConnections?.(() => this.transport?.connectedPeerIds() ?? []);
+     this.onError = options.onError ?? (() => {});
+     this.limits = validateClientLimits(options.limits);
+     this.invWant = new FipsPubsubInvWantState(
+diff --git a/dist/fips-pubsub-client.js b/dist/fips-pubsub-client.js
+--- a/dist/fips-pubsub-client.js
++++ b/dist/fips-pubsub-client.js
+@@ -39,6 +39,7 @@
+         if (this.localPeerId === '')
+             throw clientError('localPeerId must be a compressed FIPS key');
+         this.peers = options.peers;
++        options.observeConnections?.(() => this.transport?.connectedPeerIds() ?? []);
+         this.onError = options.onError ?? (() => { });
+         this.limits = validateClientLimits(options.limits);
+         this.invWant = new FipsPubsubInvWantState(this.limits.maxActiveSubscriptions * this.limits.maxReplayEvents, this.limits.maxPeers);
+diff --git a/src/fips-pubsub-tcp-transport.ts b/src/fips-pubsub-tcp-transport.ts
+--- a/src/fips-pubsub-tcp-transport.ts
++++ b/src/fips-pubsub-tcp-transport.ts
+@@ -156,3 +156,5 @@
++  connectedPeerIds(): string[] { return [...this.active.keys()]; }
++
+   connectedPeerCount(): number {
+     return this.active.size;
+   }
+diff --git a/dist/fips-pubsub-tcp-transport.d.ts b/dist/fips-pubsub-tcp-transport.d.ts
+--- a/dist/fips-pubsub-tcp-transport.d.ts
++++ b/dist/fips-pubsub-tcp-transport.d.ts
+@@ -37,6 +37,7 @@
+     queueFrame(peerId: string, frame: Uint8Array): void;
+     abortPeer(peer: string): Promise<void>;
+     private abortPeerOnce;
++    connectedPeerIds(): string[];
+     connectedPeerCount(): number;
+     isConnected(peerId: string): boolean;
+     idle(): Promise<void>;
+diff --git a/dist/fips-pubsub-tcp-transport.js b/dist/fips-pubsub-tcp-transport.js
+--- a/dist/fips-pubsub-tcp-transport.js
++++ b/dist/fips-pubsub-tcp-transport.js
+@@ -110,6 +110,7 @@
+         this.inputs.delete(peer);
+         this.queues.restart(peer);
+     }
++    connectedPeerIds() { return [...this.active.keys()]; }
+     connectedPeerCount() {
+         return this.active.size;
+     }

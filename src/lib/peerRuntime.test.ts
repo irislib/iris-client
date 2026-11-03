@@ -14,7 +14,7 @@ const harness = vi.hoisted(() => ({
 }))
 const providerId = `02${"11".repeat(32)}`
 vi.mock("@hashtree/fips-transport/browser", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@hashtree/fips-transport/browser")>(),
+  ...(await importOriginal<typeof import("@hashtree/fips-transport/browser")>()),
   supportsBrowserHashtreeFips: () => true,
   createBrowserHashtreeFipsProvider: async (options: Record<string, any>) => {
     harness.options.push(options)
@@ -85,8 +85,9 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-it("keeps real FIPS private copies and profile scopes off the live device endpoint", async () => {
+it("sends inbox interests and anonymous private copies but no browsing filters to Nostr endpoints", async () => {
   vi.stubEnv("VITE_E2E", "")
+  vi.stubEnv("VITE_NOSTR_EVENT_INDEX", "")
   vi.stubEnv("VITE_FIPS_PEERS", providerId)
   harness.options.length = 0
   harness.endpoints.length = 0
@@ -135,15 +136,20 @@ it("keeps real FIPS private copies and profile scopes off the live device endpoi
       [{kinds: [1059], "#p": ["dd".repeat(32)]}],
       () => {}
     )
-    const discovery = await runtime!.source.subscribe!(
-      [{kinds: [0, 37368], authors: ["aa".repeat(32), "bb".repeat(32)]}],
-      () => {}
-    )
+    const browsing = [
+      {kinds: [0, 37368], authors: ["aa".repeat(32), "bb".repeat(32)]},
+      {kinds: [7], "#e": ["ab".repeat(32)]},
+      {ids: ["cd".repeat(32)]},
+      {kinds: [1], search: "query text"},
+      {kinds: [1059], "#p": ["dd".repeat(32)], "#e": ["ab".repeat(32)]},
+    ]
+    const discovery = await runtime!.source.subscribe!(browsing, () => {})
+    await runtime!.source.query!(browsing)
     await vi.waitFor(() =>
-      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(3)
+      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(1)
     )
-    expect(harness.endpoints).toHaveLength(6) // device + three copies + two subjects
-    expect(new Set(harness.endpoints.map((endpoint) => endpoint.id)).size).toBe(6)
+    expect(harness.endpoints).toHaveLength(4) // device + three private copies
+    expect(new Set(harness.endpoints.map((endpoint) => endpoint.id)).size).toBe(4)
     expect(harness.endpoints.slice(1, 4).every((endpoint) => endpoint.stopped)).toBe(true)
     for (const options of harness.options.slice(1)) {
       expect(options.localStore).not.toBe(harness.options[0].localStore)
@@ -155,10 +161,7 @@ it("keeps real FIPS private copies and profile scopes off the live device endpoi
     const requests = frames
       .filter((frame) => frame.type === "req")
       .map((frame) => frame.filters)
-    expect(requests).toContainEqual([{kinds: [1059], "#p": ["dd".repeat(32)]}])
-    for (const filters of requests.filter((filters) => filters[0].authors)) {
-      expect(filters[0].authors).toHaveLength(1)
-    }
+    expect(requests).toEqual([[{kinds: [1059], "#p": ["dd".repeat(32)]}]])
     expect(frames.filter((frame) => frame.type === "event")).toHaveLength(3)
     expect(frames.some((frame) => frame.type === "inv" || frame.type === "want")).toBe(
       false
@@ -174,6 +177,7 @@ it("keeps real FIPS private copies and profile scopes off the live device endpoi
 
 it("does not export privately looked-up profiles or adverts from the shared retained reader", async () => {
   vi.stubEnv("VITE_E2E", "")
+  vi.stubEnv("VITE_NOSTR_EVENT_INDEX", "")
   vi.stubEnv("VITE_FIPS_PEERS", providerId)
   harness.options.length = 0
   harness.endpoints.length = 0
@@ -235,6 +239,7 @@ it("does not export privately looked-up profiles or adverts from the shared reta
 
 it("keeps inbox reception working with no anonymous message provider configured", async () => {
   vi.stubEnv("VITE_E2E", "")
+  vi.stubEnv("VITE_NOSTR_EVENT_INDEX", "")
   vi.stubEnv("VITE_FIPS_PEERS", "")
   harness.options.length = 0
   harness.endpoints.length = 0

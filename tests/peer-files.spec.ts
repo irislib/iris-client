@@ -7,6 +7,15 @@ import {
 } from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {FipsNode, generateIdentity, identityFromSecretKey} from "@fips/core"
+import {WebSocketTransport} from "@fips/transport-websocket"
+import {FipsNostrPubsubClient} from "nostr-pubsub"
+import {
+  HashtreeRuntimeEventStore,
+  type HashtreeRuntimeState,
+} from "@hashtree/nostr-pubsub"
+import {MemoryStore, toHex} from "@hashtree/core"
+import {finalizeEvent, generateSecretKey, nip19, Relay} from "nostr-tools"
 import {randomBytes} from "node:crypto"
 // Same real FIPS seed fixture used by Iris Social; no file or event storage in the seed.
 import {
@@ -16,6 +25,7 @@ import {
 
 test.setTimeout(90000)
 test.skip(usingBuiltDist, "the peer harness imports app modules from the source server")
+const relayUrl = process.env.IRIS_PEER_TEST_RELAY ?? "ws://127.0.0.1:7777"
 let seed: LocalFipsWebSocketSeed
 test.beforeAll(async () => {
   seed = await startLocalFipsWebSocketSeed()
@@ -24,16 +34,37 @@ test.afterAll(async () => {
   await seed?.close()
 })
 
-async function client(browser: Browser): Promise<{context: BrowserContext; page: Page}> {
+async function client(
+  browser: Browser,
+  indexRef = "",
+  messaging?: {deviceSecret: string; peerId: string}
+): Promise<{context: BrowserContext; page: Page}> {
   const context = await browser.newContext()
-  await context.addInitScript((seedUrl) => {
-    window.__IRIS_FIPS_TEST_CONFIG__ = {relays: ["ws://127.0.0.1:7777"], seeds: [seedUrl]}
-    window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
-    localStorage.setItem(
-      "ui-storage",
-      JSON.stringify({state: {showRelayIndicator: true}, version: 0})
-    )
-  }, seed.url)
+  await context.addInitScript(
+    ({seedUrl, discoveryApp, indexRef, relayUrl, messaging}) => {
+      if (messaging)
+        localStorage.setItem("iris-client:fips-device-secret", messaging.deviceSecret)
+      window.__IRIS_FIPS_TEST_CONFIG__ = {
+        discoveryApp,
+        relays: [relayUrl],
+        seeds: [seedUrl],
+        indexRef,
+        peers: messaging ? [messaging.peerId] : [],
+      }
+      window.__HTREE_SERVER_URL__ = relayUrl.replace("ws:", "http:")
+      localStorage.setItem(
+        "ui-storage",
+        JSON.stringify({state: {showRelayIndicator: true}, version: 0})
+      )
+    },
+    {
+      seedUrl: seed.url,
+      discoveryApp: "iris-peer-test-" + new URL(seed.url).port + "-" + test.info().testId,
+      indexRef,
+      relayUrl,
+      messaging,
+    }
+  )
   // A remote file service cannot accidentally satisfy the test.
   await context.route("https://**/*", (route) => route.abort())
   const page = await context.newPage()
@@ -88,6 +119,14 @@ test("cached encrypted attachment is served across real browser peers without fi
       settings.locator('[data-testid="network-peer"][data-transport="webrtc"]').first()
     ).toBeVisible()
     await expect(settings.getByText("WebRTC · Connected").first()).toBeVisible()
+    const remote = await first.page.evaluate(
+      async () =>
+        (await (await import("/src/lib/peerRuntime.ts")).getPeerRuntime())!.provider
+          .localPeerId
+    )
+    await expect(
+      settings.getByTestId("nostr-endpoint").locator(`[title="${remote}"]`)
+    ).toBeVisible()
     await expect
       .poll(async () =>
         second.page.evaluate(async () => {
@@ -97,7 +136,10 @@ test("cached encrypted attachment is served across real browser peers without fi
       )
       .toBeGreaterThan(bytes.length)
     await expect(settings.getByTestId("peer-bandwidth-chart")).toBeVisible()
-    await second.page.screenshot({path: "work/network-desktop.png", fullPage: true})
+    await second.page.screenshot({
+      path: test.info().outputPath("network-desktop.png"),
+      fullPage: true,
+    })
     await second.page.setViewportSize({width: 390, height: 844})
     await expect(settings).toBeVisible()
     expect(
@@ -105,10 +147,13 @@ test("cached encrypted attachment is served across real browser peers without fi
         () => document.documentElement.scrollWidth <= window.innerWidth
       )
     ).toBe(true)
-    await second.page.screenshot({path: "work/network-mobile.png", fullPage: true})
+    await second.page.screenshot({
+      path: test.info().outputPath("network-mobile.png"),
+      fullPage: true,
+    })
     await settings.getByTestId("peer-bandwidth-chart").scrollIntoViewIfNeeded()
     await second.page.screenshot({
-      path: "work/network-mobile-traffic.png",
+      path: test.info().outputPath("network-mobile-traffic.png"),
       fullPage: true,
     })
     // Cached encrypted chunks survive app/worker restart.
@@ -146,7 +191,10 @@ test("seed-only connectivity stays amber and disconnects clear the visible peer 
       instance.page.getByTestId("connectivity-indicator").first()
     ).toHaveAttribute("data-connection-state", "servers")
     await expect(
-      settings.getByRole("heading", {name: "Peers (1)", exact: true})
+      settings.getByRole("heading", {name: "Direct FIPS peers (1)", exact: true})
+    ).toBeVisible()
+    await expect(
+      settings.getByRole("heading", {name: "Nostr endpoints (0)", exact: true})
     ).toBeVisible()
     await expect(settings.getByText("No peers connected yet.")).toHaveCount(0)
     await instance.page.evaluate(async () => {
@@ -160,46 +208,137 @@ test("seed-only connectivity stays amber and disconnects clear the visible peer 
   }
 })
 
-test("a reloaded client serves retained notes over the same peer network", async ({
+test("a routed Nostr endpoint appears separately from its forwarding seed", async ({
   browser,
 }) => {
-  const first = await client(browser)
-  const second = await client(browser)
+  const identity = await generateIdentity()
+  const deviceSecret = generateSecretKey()
+  const device = await identityFromSecretKey(deviceSecret)
+  const peerId = toHex(identity.publicKey)
+  const node = new FipsNode({
+    identity,
+    transports: [new WebSocketTransport({seedUrls: [seed.url]})],
+    routingMode: "reply_learned",
+  })
+  await node.start()
+  const service = new FipsNostrPubsubClient({
+    node,
+    localPeerId: peerId,
+    peers: () => [toHex(device.publicKey)],
+  }).start()
   try {
-    // Relay acknowledges public posts but never stores or forwards them.
-    // Discovery and all other real app interests keep using the local relay.
-    await first.context.routeWebSocket("ws://127.0.0.1:7777", (socket) => {
-      const server = socket.connectToServer()
-      socket.onMessage((message) => {
-        try {
-          const frame = JSON.parse(String(message))
-          if (frame[0] === "EVENT" && frame[1]?.kind === 1) {
-            socket.send(JSON.stringify(["OK", frame[1].id, true, ""]))
-            return
-          }
-        } catch {
-          // Forward non-Nostr frames unchanged.
-        }
-        server.send(message)
+    const instance = await client(browser, "", {
+      deviceSecret: toHex(deviceSecret),
+      peerId,
+    })
+    try {
+      await instance.page.getByTestId("connectivity-indicator").first().click()
+      const settings = instance.page.getByTestId("peer-network-settings")
+      const endpoint = settings
+        .getByTestId("nostr-endpoint")
+        .filter({has: instance.page.locator(`[title="${peerId}"]`)})
+      await expect(endpoint).toContainText("Routed", {timeout: 30000})
+      await expect(
+        settings.getByTestId("network-peer").locator(`[title="${peerId}"]`)
+      ).toHaveCount(0)
+      await instance.page.evaluate(async () => {
+        const {getPeerRuntime} = await import("/src/lib/peerRuntime.ts")
+        await (await getPeerRuntime())?.close()
       })
-    })
-    await first.page.reload()
-    await expect
-      .poll(async () => (await peers(first.page)).length, {timeout: 30000})
-      .toBeGreaterThan(0)
-    const content = `A note available only through a peer ${Date.now()}`
-    await first.page.locator("#main-content").getByTestId("new-post-button").click()
-    const dialog = first.page.getByRole("dialog")
-    await dialog.getByPlaceholder("What's on your mind?").fill(content)
-    await dialog.getByRole("button", {name: "Post", exact: true}).click()
-    await first.page.waitForURL(/\/note[a-z0-9]+/)
-    const pathname = new URL(first.page.url()).pathname
-    await first.page.reload()
-    await second.page.goto(pathname)
-    await expect(second.page.getByText(content, {exact: true}).first()).toBeVisible({
-      timeout: 30000,
-    })
+      await expect(settings.getByTestId("nostr-endpoint")).toHaveCount(0)
+    } finally {
+      await instance.context.close()
+    }
   } finally {
+    await service.stop()
+    await node.stop()
+  }
+})
+
+test("opens a note from a peer-served index fork and still receives relay events", async ({
+  browser,
+}) => {
+  const blocks = new MemoryStore()
+  let state: HashtreeRuntimeState = {root: null, outboxRoot: null, pending: []}
+  const writer = new HashtreeRuntimeEventStore(blocks, {
+    load: async () => state,
+    save: async (next) => {
+      state = next
+    },
+  })
+  const signNote = (content: string) =>
+    finalizeEvent(
+      {
+        kind: 1,
+        content,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+      },
+      generateSecretKey()
+    )
+  const upstream = signNote("A post in the upstream index")
+  await writer.put(upstream)
+  const forkNote = signNote("A post available only in this index fork")
+  await writer.put(forkNote)
+  const root = state.root!
+  const announcement = finalizeEvent(
+    {
+      kind: 30064,
+      content: "",
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ["d", "nostr-event-index"],
+        ["l", "hashtree"],
+        ["hash", toHex(root.hash)],
+        ...(root.key ? [["key", toHex(root.key)]] : []),
+      ],
+    },
+    generateSecretKey()
+  )
+  const relay = await Relay.connect(relayUrl)
+  await relay.publish(announcement)
+  const first = await client(browser)
+  const second = await client(
+    browser,
+    nip19.npubEncode(announcement.pubkey) + "/nostr-event-index"
+  )
+  try {
+    const entries = await Promise.all(
+      blocks
+        .keys()
+        .map(
+          async (hash) => [toHex(hash), Array.from((await blocks.get(hash))!)] as const
+        )
+    )
+    await first.page.evaluate(async (entries) => {
+      const {localBlocks} = await import("/src/lib/fileStore.ts")
+      for (const [hex, bytes] of entries) {
+        const hash = Uint8Array.from(hex.match(/../g)!, (byte) => parseInt(byte, 16))
+        await localBlocks.put(hash, Uint8Array.from(bytes))
+      }
+    }, entries)
+    await expect
+      .poll(async () => (await peers(second.page)).length, {timeout: 30000})
+      .toBeGreaterThan(0)
+    const openNote = async (id: string) => {
+      const path = "/" + nip19.noteEncode(id)
+      await second.page.evaluate((path) => {
+        window.dispatchEvent(new CustomEvent("iris-deep-link", {detail: {path}}))
+      }, path)
+      await expect(second.page).toHaveURL(new RegExp(path + "$"))
+    }
+    for (const event of [forkNote, upstream]) {
+      await openNote(event.id)
+      await expect(
+        second.page.getByText(event.content, {exact: true}).first()
+      ).toBeVisible({timeout: 30000})
+    }
+    const live = signNote("A post available only from the relay")
+    await relay.publish(live)
+    await openNote(live.id)
+    await expect(second.page.getByText(live.content, {exact: true}).first()).toBeVisible()
+  } finally {
+    relay.close()
     await first.context.close()
     await second.context.close()
   }

@@ -31,6 +31,16 @@ const releases = {
     integrity:
       "sha512-MF7gmvWg+hNj6prihnyyftlXAdbaV+qALJeoOfpUn5yjL5gPihkaODJ6zAS+7BYBAftWlclGO1t3dgIl4KPd5g==",
   },
+  "@hashtree/nostr": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.9/hashtree-nostr-0.2.5.tgz",
+    integrity:
+      "sha512-SSFQtQOVxKPVoU4K9H/TunB7nRdyCqpjYaQV1KFV6goUAJRKFA4jqtI8PiNeSR/PmBL39jovw2bwWdPZbh/7Hg==",
+  },
+  "@hashtree/nostr-pubsub": {
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.11/hashtree-nostr-pubsub-0.1.7.tgz",
+    integrity:
+      "sha512-BmxKhtPatqoBCYojjz6+Z6/ghsfiJPuyy2mM0ePstpm2nJkP34QPYv+WiJStpUT5TUDdfwxeEYqGYJCzLex9Nw==",
+  },
   "@hashtree/worker": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.19/hashtree-worker-0.4.11.tgz",
     integrity:

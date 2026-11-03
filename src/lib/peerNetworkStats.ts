@@ -6,6 +6,7 @@ import type {
 export type PeerNetworkStatus = "starting" | "ready" | "unavailable" | "unsupported"
 export type PeerNetworkSnapshot = BrowserNetworkSnapshot & {
   status: PeerNetworkStatus
+  endpoints: {id: string; direct: boolean}[]
   rates: Record<string, {bytesSent: number; bytesReceived: number}>
   history: {timestamp: number; uploadBps: number; downloadBps: number}[]
 }
@@ -13,11 +14,13 @@ export type PeerNetworkSnapshot = BrowserNetworkSnapshot & {
 let snapshot: PeerNetworkSnapshot = {
   status: "starting",
   peers: [],
+  endpoints: [],
   transports: {},
   rates: {},
   history: [],
 }
 let provider: BrowserHashtreeFipsProvider | undefined
+let readEndpoints: (() => PeerNetworkSnapshot["endpoints"]) | undefined
 let lastSampleAt = 0
 let timer: ReturnType<typeof setInterval> | undefined
 const listeners = new Set<() => void>()
@@ -60,7 +63,7 @@ function sample() {
     seconds > 0
       ? [...snapshot.history, {timestamp: now, ...total}].slice(-30)
       : snapshot.history
-  publish({...next, rates, history, status: "ready"})
+  publish({...next, endpoints: readEndpoints?.() ?? [], rates, history, status: "ready"})
 }
 
 export function subscribePeerNetwork(listener: () => void) {
@@ -80,10 +83,14 @@ export function subscribePeerNetwork(listener: () => void) {
 }
 
 export function setPeerNetworkStatus(status: PeerNetworkStatus) {
-  publish({...snapshot, status, peers: [], rates: {}})
+  publish({...snapshot, status, peers: [], endpoints: [], rates: {}})
 }
 
-export function observePeerNetwork(next: BrowserHashtreeFipsProvider) {
+export function observePeerNetwork(
+  next: BrowserHashtreeFipsProvider,
+  endpoints: () => PeerNetworkSnapshot["endpoints"]
+) {
+  readEndpoints = endpoints
   provider = next
   lastSampleAt = 0
   sample()
@@ -92,6 +99,7 @@ export function observePeerNetwork(next: BrowserHashtreeFipsProvider) {
     unsubscribe()
     if (provider !== next) return
     provider = undefined
+    readEndpoints = undefined
     lastSampleAt = 0
     setPeerNetworkStatus("unavailable")
   }

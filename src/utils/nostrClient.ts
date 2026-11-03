@@ -100,6 +100,20 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
     })
   workerTransport = new WorkerTransport(workerFactory)
 
+  // Register historical reads before the worker replays its first subscriptions.
+  // Hashtree also works through its block cache and CDN when WebRTC is unavailable.
+  const lifetime = workerTransport.lifetime.signal
+  let index: Promise<import("nostr-pubsub").NostrEventReader> | undefined
+  workerTransport.attachSource({
+    id: "hashtree-index",
+    query: async (filters, options) => {
+      index ??= import("@/lib/peerEventIndex").then((module) =>
+        module.openBrowsingIndex(nostr, lifetime)
+      )
+      return (await index).query(filters, options)
+    },
+  })
+
   // Start configuration asynchronously (but don't block return)
   initPromise = performInit(relayRuntime)
   await initPromise
@@ -168,7 +182,7 @@ async function performInit(relayRuntime: RelayRuntimeConfig) {
     .then(async ({getPeerRuntime, setRetainedEventReader}) => {
       if (workerTransport) setRetainedEventReader(workerTransport.retainedEventReader)
       const peers = await getPeerRuntime()
-      if (peers) workerTransport?.attachPeerSource(peers.source)
+      if (peers) workerTransport?.attachSource(peers.source)
     })
     .catch((error) => console.warn("Peer startup failed", error))
   if (relayRuntime.autoConnectUserRelays) {

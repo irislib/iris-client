@@ -55,7 +55,8 @@ function TransportLabel({
 }
 
 export function PeerNetworkSettings() {
-  const {peers, peerCount, status, transports, rates, history} = usePeerNetwork()
+  const {peers, endpoints, peerCount, status, transports, rates, history} =
+    usePeerNetwork()
   const message = {
     unsupported: "Peer connections aren’t supported in this browser.",
     unavailable: "Peer network unavailable.",
@@ -65,10 +66,10 @@ export function PeerNetworkSettings() {
 
   return (
     <div className="space-y-6" data-testid="peer-network-settings">
-      <SettingsGroup title={`Peers (${peerCount})`}>
+      <SettingsGroup title={`Direct FIPS peers (${peerCount})`}>
         <div className="p-4 space-y-3">
           <p className="text-sm text-base-content/60">
-            Share events and cached files over WebRTC. Seeds help connect the network.
+            WebRTC and seed connections to this device’s main endpoint.
           </p>
           {!peerCount && <p className="text-sm">{message}</p>}
           {peers.map((peer) => (
@@ -98,6 +99,28 @@ export function PeerNetworkSettings() {
                   ↑ {formatTraffic(peer.bytesSent)}
                 </div>
               </div>
+            </div>
+          ))}
+        </div>
+      </SettingsGroup>
+      <SettingsGroup title={`Nostr endpoints (${endpoints.length})`}>
+        <div className="p-4 space-y-3">
+          <p className="text-sm text-base-content/60">
+            Nostr services connected directly or through another FIPS peer.
+          </p>
+          {!endpoints.length && <p className="text-sm">No Nostr endpoints connected.</p>}
+          {endpoints.map(({id, direct}) => (
+            <div
+              className="flex items-center justify-between gap-3"
+              key={id}
+              data-testid="nostr-endpoint"
+            >
+              <span className="font-mono text-sm truncate" title={id}>
+                {id.slice(0, 10)}…{id.slice(-6)}
+              </span>
+              <span className="text-xs text-base-content/60">
+                {direct ? "Direct" : "Routed"}
+              </span>
             </div>
           ))}
         </div>
