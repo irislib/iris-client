@@ -37,11 +37,17 @@ async function vectorFor(text: string) {
   vectors.set(text, vector)
   return vector
 }
-self.onmessage = async ({data}: MessageEvent<{query: string; posts: string[]}>) => {
+interface SearchRequest {
+  request: number
+  query: string
+  posts: string[]
+}
+
+async function score({request, query, posts}: SearchRequest) {
   try {
     const {words} = await (loaded ??= load())
-    const vector = await vectorFor(data.query)
-    if (!data.posts.length) {
+    const vector = await vectorFor(query)
+    if (!posts.length) {
       let terms: string[] = []
       // A missing optional keyword index must not disable post scoring.
       try {
@@ -49,7 +55,7 @@ self.onmessage = async ({data}: MessageEvent<{query: string; posts: string[]}>) 
           const response = await fetch(indexUrl)
           if (response.ok) index = new Int8Array(await response.arrayBuffer())
         }
-        const plan = planPostSearch(data.query)
+        const plan = planPostSearch(query)
         if (index)
           terms = relatedKeywords(
             words,
@@ -60,14 +66,21 @@ self.onmessage = async ({data}: MessageEvent<{query: string; posts: string[]}>) 
       } catch {
         /* Primary words, hashtags and recent notes are already being searched. */
       }
-      self.postMessage({scores: [], terms})
+      self.postMessage({request, scores: [], terms})
       return
     }
     const scores: number[] = []
-    for (const post of data.posts)
+    for (const post of posts)
       scores.push(calibratedSimilarity(similarity(vector, await vectorFor(post))))
-    self.postMessage({scores})
+    self.postMessage({request, scores})
   } catch {
-    self.postMessage({error: true})
+    self.postMessage({request, error: true})
   }
+}
+
+// ONNX uses one session. Finish a previous query's small outstanding batch
+// before starting the next, even when its caller has already navigated away.
+let pending = Promise.resolve()
+self.onmessage = ({data}: MessageEvent<SearchRequest>) => {
+  pending = pending.then(() => score(data))
 }

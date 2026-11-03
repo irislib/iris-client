@@ -43,6 +43,7 @@ export const releaseProfile = {
       "src/utils/groupTransport.typing.test.ts",
       "src/lib/nostr/privateRuntime.test.ts",
       "src/lib/peerRuntime.test.ts",
+      "src/lib/post-search/scorer.test.ts",
       "src/lib/nostr/cache.test.ts",
       "src/shared/utils/linkInvites.test.ts",
     ],

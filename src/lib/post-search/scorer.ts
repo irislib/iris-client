@@ -16,10 +16,10 @@ interface BrowserModel {
   create(options: object): Promise<PromptSession>
 }
 
-// Keep one completed worker warm for successive searches. An in-flight request
-// is terminated on cancellation, and an unused model is released after a minute.
+// Keep a loaded model warm across queries, even if its final batch is finishing.
 let idleWorker: Worker | undefined
 let idleTimer: ReturnType<typeof setTimeout>
+let nextRequest = 0
 let retrySlowBrowserAt = 0
 function takeWorker() {
   clearTimeout(idleTimer)
@@ -41,7 +41,7 @@ function keepWarm(worker: Worker) {
   }, 60000)
 }
 
-// The caller serializes batches. Closing the search cancels inference and downloads.
+// Each search owns its prompts and batches. A cold worker is discarded on cancellation.
 export function createPostScorer(
   settings: SearchSettings,
   query: string,
@@ -65,16 +65,24 @@ export function createPostScorer(
   const scoreOnDevice = (posts: string[]) => {
     const signal = AbortSignal.any([lifetime, AbortSignal.timeout(45000)])
     signal.throwIfAborted()
-    reusable = false
-    const runtime = (worker ??= takeWorker())
+    if (!worker) {
+      reusable = !!idleWorker
+      worker = takeWorker()
+    }
+    const runtime = worker
+    const request = ++nextRequest
     return new Promise<number[]>((resolve, reject) => {
-      const failed = () => reject(Error("On-device model unavailable"))
+      const failed = () => {
+        if (!lifetime.aborted) reusable = false
+        reject(Error("On-device model unavailable"))
+      }
       signal.addEventListener("abort", failed, {once: true})
       runtime.onerror = () => {
         signal.removeEventListener("abort", failed)
         failed()
       }
       runtime.onmessage = ({data}) => {
+        if (data.request !== request) return
         signal.removeEventListener("abort", failed)
         if (data.error) failed()
         else {
@@ -83,7 +91,7 @@ export function createPostScorer(
           resolve(data.scores)
         }
       }
-      runtime.postMessage({query, posts})
+      runtime.postMessage({request, query, posts})
     })
   }
 
