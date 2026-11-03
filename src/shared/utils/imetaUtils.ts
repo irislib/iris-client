@@ -71,16 +71,14 @@ export function extractImetaImages(event: AppEvent): ImetaMediaItem[] {
     .filter(Boolean) as ImetaMediaItem[]
 }
 
-/**
- * Gets parsed imeta data for a specific URL
- */
+export function getImetaTagForUrl(event: EmbedEvent | undefined, url: string) {
+  return event?.tags?.find((tag) => tag[0] === "imeta" && tag.includes(`url ${url}`))
+}
+
 export function getImetaDataForUrl(
-  event: AppEvent | EmbedEvent,
+  event: EmbedEvent,
   url: string
 ): ImetaData | undefined {
-  if (!event?.tags) return undefined
-  const tag = event.tags.find(
-    (tag) => tag[0] === "imeta" && tag[1] && tag[1].includes(url)
-  )
-  return tag ? parseImetaTag(tag.slice(1)) : undefined
+  const tag = getImetaTagForUrl(event, url)
+  return tag ? parseImetaTag(tag) : undefined
 }

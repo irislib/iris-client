@@ -263,6 +263,15 @@ const Feed = memo(function Feed({
   const searchLoading =
     eventSource?.loading ??
     (subscribedSearchLoading || historyLoading || relevanceStatus === "Ranking posts…")
+  let searchStatus = relevanceStatus
+  if (!enabled) {
+    searchStatus = "Loading your network…"
+  } else if (
+    !searchStatus &&
+    (searchLoading || (!initialLoadDone && !filteredEvents.length))
+  ) {
+    searchStatus = filters.search ? "Searching posts…" : "Loading recent posts…"
+  }
 
   useEffect(() => {
     onRelevanceStatus?.(relevanceStatus)
@@ -465,28 +474,23 @@ const Feed = memo(function Feed({
   return (
     <PerfProfiler id="Feed">
       <div ref={feedContainerRef} className="relative scroll-mt-16 md:scroll-mt-2">
-        {showDisplayAsSelector && (
-          <DisplayAsSelector activeSelection={displayAs} onSelect={setDisplayAs} />
+        {(searchSort || showDisplayAsSelector) && (
+          <div
+            className={searchSort ? "flex min-h-12 items-center gap-2 px-2" : undefined}
+          >
+            {searchSort && (
+              <div
+                role="status"
+                className="flex-1 px-2 text-sm leading-4 text-base-content/70"
+              >
+                {searchStatus}
+              </div>
+            )}
+            {showDisplayAsSelector && (
+              <DisplayAsSelector activeSelection={displayAs} onSelect={setDisplayAs} />
+            )}
+          </div>
         )}
-
-        {searchSort &&
-          (!enabled ||
-            (!initialLoadDone && !filteredEvents.length) ||
-            searchLoading ||
-            relevanceStatus) && (
-            <div role="status" className="flex items-center gap-2 px-4 py-2 text-sm">
-              {(!enabled || searchLoading || !initialLoadDone) && (
-                <span
-                  className="loading loading-spinner loading-sm motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-              )}
-              {!enabled
-                ? "Loading your network…"
-                : relevanceStatus ||
-                  (filters.search ? "Searching posts…" : "Loading recent posts…")}
-            </div>
-          )}
 
         {hasRankingUpdates && (
           <div className="sticky top-16 md:top-2 z-20 h-0 flex justify-center pointer-events-none">
@@ -590,7 +594,7 @@ const Feed = memo(function Feed({
             enabled &&
             emptyPlaceholder}
           {filters.search && (
-            <div className="p-4 text-center text-base-content/50">
+            <div className="min-h-16 p-4 text-center text-base-content/50">
               {!searchSort && (searchLoading || !enabled || relevanceStatus) && (
                 <span role="status">{relevanceStatus || "Searching posts…"}</span>
               )}
@@ -619,7 +623,7 @@ const Feed = memo(function Feed({
             !eventSource &&
             enabled &&
             initialLoadDone && (
-              <div className="p-4 text-center text-base-content/50">
+              <div className="min-h-16 p-4 text-center text-base-content/50">
                 {historyLoading && <span role="status">Loading older posts…</span>}
                 {!searchLoading && canLoadHistory && (
                   <button

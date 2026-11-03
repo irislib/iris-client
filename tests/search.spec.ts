@@ -1,4 +1,4 @@
-import {test as base, expect} from "@playwright/test"
+import {test as base, expect, type Page} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {Relay} from "nostr-tools/relay"
@@ -34,6 +34,16 @@ test.beforeEach(async ({page}) => {
     )
   })
 })
+
+// Fast relays can deliver a whole page before its first paint. Slower batches
+// can leave a newer ordering or additional author matches waiting for the reader.
+async function applySettledResults(page: Page) {
+  await expect(
+    page.getByRole("status").filter({hasText: "Searching posts…"})
+  ).toHaveCount(0)
+  const update = page.getByRole("button", {name: "Update results", exact: true})
+  if (await update.isVisible()) await update.click()
+}
 
 test("plain search displays matches immediately and retains a slow text index", async ({
   page,
@@ -99,15 +109,25 @@ test("plain search displays matches immediately and retains a slow text index", 
     await page.goto("/search/nature")
     await expect.poll(() => textRequests).toBeGreaterThan(0)
     const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
-    await expect(posts.filter({hasText: post.content})).toBeVisible({timeout: 10000})
+    const firstMatch = posts.filter({hasText: post.content})
+    await expect(firstMatch).toBeVisible({timeout: 10000})
+    const progress = page.getByRole("status").filter({hasText: "Searching posts…"})
+    await expect(progress).toBeVisible()
+    const top = () => firstMatch.evaluate((row) => row.getBoundingClientRect().top)
+    const searchingTop = await top()
     await expect(page.getByText("No matching posts found")).toHaveCount(0)
     await expect(page.getByRole("button", {name: "Search older posts"})).toBeVisible({
       timeout: 12000,
     })
+    await expect(progress).toHaveCount(0)
+    expect(Math.abs((await top()) - searchingTop)).toBeLessThan(1)
     expect(textRequests).toBe(1)
     deliverLate.forEach((deliver) => deliver())
     await expect(posts.filter({hasText: latePost.content})).toBeVisible()
+    expect(Math.abs((await top()) - searchingTop)).toBeLessThan(1)
     await page.screenshot({path: testInfo.outputPath("plain-search-silent-index.png")})
+    await page.getByRole("button", {name: "Update results"}).click()
+    await expect(posts.first()).toContainText(latePost.content)
   } finally {
     for (const socket of relay.clients) socket.terminate()
     await new Promise<void>((resolve) => relay.close(() => resolve()))
@@ -182,7 +202,9 @@ test("search uses the starter network and does not skip between recent and old m
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto(`/search/${query}`)
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
-  await expect(posts.filter({hasText: "recent July match"})).toBeVisible({timeout: 15000})
+  await expect(posts.first()).toBeVisible({timeout: 15000})
+  await applySettledResults(page)
+  await expect(posts.filter({hasText: "recent July match"})).toBeVisible()
   await expect(posts.filter({hasText: "middle June match"})).toBeVisible({timeout: 15000})
   await expect(posts.filter({hasText: "old February match"})).toBeVisible()
   await expect(posts.filter({hasText: "unknown match"})).toHaveCount(0)
@@ -200,6 +222,8 @@ test("search uses the starter network and does not skip between recent and old m
   expect(await firstRow!.evaluate((element) => element.isConnected)).toBe(true)
   await page.getByRole("button", {name: "Filters", exact: true}).click()
   await page.getByRole("checkbox", {name: "Show posts from unknown users"}).check()
+  await expect(posts.first()).toBeVisible()
+  await applySettledResults(page)
   await expect(posts.filter({hasText: "unknown match"})).toBeVisible({timeout: 15000})
   await expect(posts.filter({hasText: "muted match"})).toHaveCount(0)
   await page.screenshot({path: testInfo.outputPath("search-results.png")})
@@ -241,8 +265,10 @@ test("post search matches whole words and collapses repeated authors across page
   await page.getByRole("button", {name: "Filters", exact: true}).click()
   await page.getByRole("checkbox", {name: "Show posts from unknown users"}).check()
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
-  await expect(posts.filter({hasText: "newest match"})).toBeVisible({timeout: 15000})
-  await expect(posts.filter({hasText: "another author"})).toBeVisible({timeout: 15000})
+  await expect(posts.first()).toBeVisible({timeout: 15000})
+  await applySettledResults(page)
+  await expect(posts.filter({hasText: "newest match"})).toBeVisible()
+  await expect(posts.filter({hasText: "another author"})).toBeVisible()
   await expect(posts.filter({hasText: "substring only"})).toHaveCount(0)
   await expect(posts.filter({hasText: "repeated match"})).toHaveCount(0)
   await expect(posts).toHaveCount(2)

@@ -74,14 +74,21 @@ const Header = ({
         ref={contentRef}
         className="flex justify-between items-center flex-1 w-full py-2"
       >
-        <div className="flex items-center gap-2 w-full">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {leftButton}
           <div
-            className={classNames("flex items-center gap-4 w-full text-base-content", {
-              "text-2xl font-semibold leading-tight": bold,
-            })}
+            className={classNames(
+              "flex min-w-0 items-center gap-4 w-full text-base-content",
+              {
+                "text-2xl font-semibold leading-tight": bold,
+              }
+            )}
           >
-            {children || title}
+            {children || (
+              <span className="truncate" title={title}>
+                {title}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2 mr-2 flex-shrink-0">

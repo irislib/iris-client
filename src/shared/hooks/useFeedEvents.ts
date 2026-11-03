@@ -472,7 +472,7 @@ export default function useFeedEvents({
   const presented = useStableSearchResults(
     ordered.primary,
     ordered.additional,
-    enabled && filters.search && (plan || (searchSort && searchSort !== "relevance"))
+    enabled && filters.search && (plan || searchSort)
       ? feedIdentity + searchSort
       : undefined,
     displayCount

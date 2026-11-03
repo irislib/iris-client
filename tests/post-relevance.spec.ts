@@ -580,14 +580,26 @@ test("a selected browser model can rank paraphrases and an unavailable provider 
   await page.goto("/settings/content")
   await page.getByLabel("AI search model").selectOption("ollama")
   await page.getByRole("textbox", {name: "Ollama model"}).fill("unavailable-test-model")
-  await page.route("http://127.0.0.1:11434/api/chat", (r) =>
-    r.fulfill({status: 404, body: "model not found"})
-  )
-  await page.goto("/search/seedlings")
-  await expect(page.getByText(text, {exact: true})).toBeVisible()
+  let finishRequest!: () => void
+  const pending = new Promise<void>((resolve) => {
+    finishRequest = resolve
+  })
+  await page.route("http://127.0.0.1:11434/api/chat", async (route) => {
+    await pending
+    await route.fulfill({status: 404, body: "model not found"})
+  })
+  await page.setViewportSize({width: 320, height: 800})
+  await page.goto("/search/seedlings", {waitUntil: "domcontentloaded"})
+  const result = page.getByText(text, {exact: true})
+  await expect(result).toBeVisible()
+  await expect(page.getByText("Ranking posts…", {exact: true})).toBeVisible()
+  const top = () => result.evaluate((el) => el.getBoundingClientRect().top)
+  const before = await top()
+  finishRequest()
   await expect(
     page.getByText("Ollama unavailable · using text and network relevance")
   ).toBeVisible()
+  expect(Math.abs((await top()) - before)).toBeLessThan(1)
   await page.screenshot({path: testInfo.outputPath("unavailable-model-fallback.png")})
 })
 

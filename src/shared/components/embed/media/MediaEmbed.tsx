@@ -1,5 +1,6 @@
 import Embed, {EmbedProps} from "../index.ts"
 import Carousel from "./Carousel.tsx"
+import {getImetaTagForUrl} from "@/shared/utils/imetaUtils"
 
 export const IMAGE_REGEX =
   /(https?:\/\/[^\s]+?\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s#]*)?(?:#[^\s]*)?(?:\s+https?:\/\/[^\s]+?\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s#]*)?(?:#[^\s]*)?)*)/gi
@@ -21,18 +22,11 @@ const MediaEmbed: Embed = {
     const urls = match.trim().split(/\s+/)
 
     // Extract imeta tags for each URL
-    const mediaItems: MediaItem[] = urls.map((url) => {
-      // Find imeta tag for this URL
-      const imetaTag = event?.tags.find(
-        (tag) => tag[0] === "imeta" && tag[1] && tag[1].includes(url)
-      )
-
-      return {
-        url,
-        type: url.match(/\.(mp4|webm|ogg|mov|m3u8)(?:\?|$)/) ? "video" : "image",
-        imeta: imetaTag ? imetaTag : undefined,
-      }
-    })
+    const mediaItems: MediaItem[] = urls.map((url) => ({
+      url,
+      type: url.match(/\.(mp4|webm|ogg|mov|m3u8)(?:\?|$)/) ? "video" : "image",
+      imeta: getImetaTagForUrl(event, url),
+    }))
 
     return <Carousel media={mediaItems} event={event} />
   },

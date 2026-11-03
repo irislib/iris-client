@@ -12,7 +12,10 @@ const test = base.extend<{searchRelay: void}>({
           kind: 1,
           content: `Nature photos from a walk\n${landscape} ${portrait}`,
           created_at: Math.floor(Date.now() / 1000) - 60,
-          tags: [["t", "nature"]],
+          tags: [
+            ["t", "nature"],
+            ["imeta", "dim 1200x600", `url ${landscape}`],
+          ],
         },
         generateSecretKey()
       )
@@ -97,24 +100,61 @@ test("desktop search preserves the right sidebar and its saved hide/show control
   await expect(hide).toBeVisible()
 })
 
+test("a long mobile search title stays above the tabs when connectivity changes", async ({
+  page,
+  context,
+}, testInfo) => {
+  await page.setViewportSize({width: 320, height: 800})
+  const query = "nature photos from a walk through the forest"
+  await page.goto(`/search/${encodeURIComponent(query)}`)
+  const header = page.locator("header").filter({hasText: `Search: "${query}"`})
+  const tabs = page.getByRole("button", {name: "Posts", exact: true})
+  const offline = header.getByRole("link", {name: "Offline"})
+  await expect(tabs).toBeVisible()
+  await expect(offline).toBeHidden()
+  const before = (await header.boundingBox())!
+  await context.setOffline(true)
+  await expect(offline).toBeVisible()
+  const disconnected = (await header.boundingBox())!
+  expect(disconnected.height).toBe(before.height)
+  expect(disconnected.y + disconnected.height).toBeLessThanOrEqual(
+    (await tabs.boundingBox())!.y
+  )
+  await page.screenshot({path: testInfo.outputPath("mobile-search-offline.png")})
+  await context.setOffline(false)
+  await expect(offline).toBeHidden()
+  expect((await header.boundingBox())!.height).toBe(before.height)
+})
+
 for (const width of [1440, 390]) {
   test(`search photo carousel fits the active image at ${width}px`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({width, height: 1000})
-    await page.goto("/search/nature")
+    let releasePhoto!: () => void
+    const photoReady = new Promise<void>((resolve) => {
+      releasePhoto = resolve
+    })
+    await page.route(landscape, async (route) => {
+      await photoReady
+      await route.fallback()
+    })
+    await page.goto("/search/nature", {waitUntil: "domcontentloaded"})
     const post = page
       .getByTestId("feed-item")
       .filter({hasText: "Nature photos from a walk"})
       .first()
     await expect(post).toBeVisible()
     const photo = post.locator(`img[src="${landscape}"]`)
+    const carousel = post.getByRole("group", {name: "Media carousel"})
+    await expect(carousel).toBeVisible()
+    const reservedFrame = await carousel.boundingBox()
+    releasePhoto()
     await expect
       .poll(() => photo.evaluate((el: HTMLImageElement) => el.naturalWidth))
       .toBe(1200)
-    const carousel = post.getByRole("group", {name: "Media carousel"})
-    await expect(carousel).toBeVisible()
     const frame = await carousel.boundingBox()
+    expect(Math.abs(frame!.height - reservedFrame!.height)).toBeLessThan(1)
     const image = await photo.boundingBox()
     expect(frame!.height).toBeLessThanOrEqual(image!.width / 2 + 20)
     expect(image!.height / image!.width).toBeCloseTo(0.5, 1)
