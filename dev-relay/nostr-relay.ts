@@ -356,9 +356,12 @@ export async function startNostrRelay(
         }
       }
       await new Promise<void>((resolve) => wss.close(() => resolve()))
-      await new Promise<void>((resolve, reject) =>
+      await new Promise<void>((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))
-      )
+        // Browsers can leave speculative or partial HTTP requests open too.
+        // Stop accepting connections before disposing those remaining sockets.
+        server.closeAllConnections()
+      })
     },
   }
 }

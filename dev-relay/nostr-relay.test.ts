@@ -1,4 +1,6 @@
 import {describe, expect, it} from "vitest"
+import {once} from "node:events"
+import {createConnection} from "node:net"
 import WebSocket from "ws"
 import {finalizeEvent, generateSecretKey, getPublicKey} from "nostr-tools"
 
@@ -40,6 +42,29 @@ function waitForMessage(
 }
 
 describe("dev-relay nostr relay (node)", () => {
+  it("closes while a browser has an unfinished HTTP connection", async () => {
+    const relay = await startNostrRelay({port: 0})
+    const socket = createConnection({host: relay.host, port: relay.port})
+    await once(socket, "connect")
+    socket.write("GET /health HTTP/1.1\r\n")
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const closing = relay.close()
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    try {
+      const closed = await Promise.race([
+        closing.then(() => true),
+        new Promise<boolean>((resolve) => {
+          timeout = setTimeout(() => resolve(false), 1000)
+        }),
+      ])
+      expect(closed).toBe(true)
+    } finally {
+      clearTimeout(timeout)
+      socket.destroy()
+      await closing
+    }
+  })
+
   it("replays stored events + sends EOSE", async () => {
     const sk = generateSecretKey()
     const pk = getPublicKey(sk)

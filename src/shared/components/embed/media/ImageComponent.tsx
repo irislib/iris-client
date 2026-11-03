@@ -64,15 +64,14 @@ const ImageComponent = ({
     )
   }
 
-  // Define default dimensions to prevent layout shift
+  // Reserve space while loading, then use the image's own aspect ratio.
   const defaultWidth = Math.min(650, window.innerWidth)
-  const defaultHeight = limitHeight ? 400 : 500 // reasonable default aspect ratio
 
   const styleWithDimensions = {
     ...calculatedDimensions,
-    // Always provide dimensions to prevent layout shift
     width: calculatedDimensions?.width || `${defaultWidth}px`,
-    height: calculatedDimensions?.height || `${defaultHeight}px`,
+    height: "auto",
+    aspectRatio: `auto ${originalWidth || 650} / ${originalHeight || (limitHeight ? 400 : 500)}`,
     backgroundImage: blurhashUrl ? `url(${blurhashUrl})` : undefined,
     backgroundSize: "cover",
     backgroundPosition: "center",
@@ -85,7 +84,8 @@ const ImageComponent = ({
       onClick={onClick}
       className={classNames("my-2 max-w-full cursor-pointer object-contain", {
         "blur-md": blur,
-        "max-h-[90vh] lg:max-h-[600px]": true,
+        "max-h-[min(90vh,600px)]": limitHeight,
+        "max-h-[90vh] lg:max-h-[600px]": !limitHeight,
       })}
       style={styleWithDimensions}
       src={match}
