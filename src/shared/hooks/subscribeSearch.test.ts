@@ -181,3 +181,59 @@ it.each([false, true])(
     search.stop()
   }
 )
+
+it("continues completed relay history while retaining the interrupted page for retry", async () => {
+  vi.useFakeTimers()
+  const nostr = new NostrClient()
+  const archive = new Relay("wss://archive.example/", undefined, nostr)
+  const offline = new Relay("wss://offline.example/", undefined, nostr)
+  const onEvent = vi.fn()
+  const requests: {relays?: string[]; until?: number}[] = []
+  nostr.transportPlugins.push({
+    name: "worker-transport",
+    onSubscribe(sub, [filter], opts) {
+      const relays = opts?.relayUrls
+      requests.push({relays, until: filter.until})
+      const scoped = relays?.includes(archive.url)
+      const recovered = !scoped && requests.length > 1
+      const relay = recovered ? offline : archive
+      const event = new AppEvent(nostr, {
+        id: scoped ? "older" : relay.url,
+        kind: 1,
+        pubkey: "a".repeat(64),
+        created_at: scoped ? 700 : 900,
+        content: "photo",
+        tags: [],
+      })
+      sub.eventReceived(event, relay)
+      sub.eoseReceived(null, {
+        complete: !!scoped || recovered,
+        reason: scoped || recovered ? "eose" : "timeout",
+        sources: scoped
+          ? [{id: archive.url, complete: true}]
+          : [
+              {id: archive.url, complete: true},
+              {id: offline.url, complete: recovered},
+            ],
+      })
+    },
+  })
+  const history = subscribeSearch(
+    nostr,
+    [{kinds: [1], until: 1000}],
+    onEvent,
+    () => !onEvent.mock.calls.some(([e]) => e.id === "older"),
+    vi.fn()
+  )
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests).toEqual([
+    {relays: undefined, until: 1000},
+    {relays: [archive.url], until: 900},
+  ])
+  expect(onEvent.mock.calls.map(([e]) => e.id)).toEqual([archive.url, "older"])
+  history.loadMore()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests.slice(2)).toContainEqual({relays: undefined, until: 1000})
+  expect(onEvent.mock.calls.some(([e]) => e.id === offline.url)).toBe(true)
+  history.stop()
+})

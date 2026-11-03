@@ -1,6 +1,4 @@
-import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
-import {INITIAL_DISPLAY_COUNT, DISPLAY_INCREMENT} from "./utils"
-import {useMemo, useCallback, useState} from "react"
+import {useMemo, useCallback} from "react"
 import MediaModal from "../media/MediaModal"
 import {AppEvent} from "@/lib/nostr"
 import ImageGridItem from "./ImageGridItem"
@@ -10,28 +8,22 @@ import {useMediaCache} from "@/shared/hooks/useMediaCache"
 
 interface MediaFeedProps {
   events: (AppEvent | {id: string})[]
+  displayCount?: number
   eventsToHighlight?: Set<string>
 }
 
-export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
-  const [displayCount, setDisplayCount] = useState(INITIAL_DISPLAY_COUNT)
-
-  // Use custom hooks for better organization
+export default function MediaFeed({
+  events,
+  displayCount,
+  eventsToHighlight,
+}: MediaFeedProps) {
   const {calculateAllMedia} = useMediaExtraction()
   const {showModal, activeItemIndex, modalMedia, openModal, closeModal} = useMediaModal()
   const {fetchedEventsMap, handleEventFetched} = useMediaCache()
 
   const visibleEvents = useMemo(() => {
-    return events.slice(0, displayCount)
+    return displayCount === undefined ? events : events.slice(0, displayCount)
   }, [events, displayCount])
-
-  const loadMoreItems = useCallback(() => {
-    if (events.length > displayCount) {
-      setDisplayCount(displayCount + DISPLAY_INCREMENT)
-      return true
-    }
-    return false
-  }, [events.length, displayCount])
 
   const handleImageClick = useCallback(
     (event: AppEvent, clickedUrl: string) => {
@@ -90,22 +82,20 @@ export default function MediaFeed({events, eventsToHighlight}: MediaFeedProps) {
         />
       )}
 
-      <InfiniteScroll onLoadMore={loadMoreItems}>
-        <div className="@container">
-          <div className="grid grid-cols-3 gap-px @2xl:gap-0.5 @4xl:gap-1">
-            {visibleEvents.map((item, index) => (
-              <ImageGridItem
-                key={`${item.id}_${index}`}
-                event={item}
-                index={index}
-                setActiveItemIndex={handleImageClick}
-                onEventFetched={handleEventFetched}
-                highlightAsNew={eventsToHighlight?.has(item.id) || false}
-              />
-            ))}
-          </div>
+      <div className="@container">
+        <div className="grid grid-cols-3 gap-px @2xl:gap-0.5 @4xl:gap-1">
+          {visibleEvents.map((item, index) => (
+            <ImageGridItem
+              key={`${item.id}_${index}`}
+              event={item}
+              index={index}
+              setActiveItemIndex={handleImageClick}
+              onEventFetched={handleEventFetched}
+              highlightAsNew={eventsToHighlight?.has(item.id) || false}
+            />
+          ))}
         </div>
-      </InfiniteScroll>
+      </div>
     </>
   )
 }

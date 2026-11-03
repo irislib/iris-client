@@ -21,13 +21,16 @@ export function subscribeSearch(
   onProgress: (state: SearchProgress) => void,
   relayUrls?: string[]
 ) {
-  const sources = filters.map((filter) => ({
-    cursor: new SearchPageCursor(filter),
+  const sourceFor = (cursor: SearchPageCursor, urls = relayUrls) => ({
+    cursor,
+    relayUrls: urls,
+    delegated: new Set<string>(),
     sub: undefined as EventSubscription | undefined,
     timer: undefined as ReturnType<typeof setTimeout> | undefined,
     retry: false,
     pending: true,
-  }))
+  })
+  const sources = filters.map((filter) => sourceFor(new SearchPageCursor(filter)))
   const textSources = sources.filter((source) => source.cursor.current.search)
   // Every AND match contains each individual word. The index that has searched
   // furthest back covers that interval on its own. A phrase index may omit
@@ -51,13 +54,15 @@ export function subscribeSearch(
   let loading = false
   let pagesLeft = 3
 
-  const run = (initial = false) => {
+  const run = (initial = false, automatic = false) => {
     if (stopped || loading) return
     const active = sources.filter(
-      (source) => initial || source.retry || source.cursor.advance()
+      (source) =>
+        initial ||
+        (source.retry ? !(automatic && source.delegated.size) : source.cursor.advance())
     )
     if (!active.length) {
-      onProgress({loading: false, canLoadMore: false})
+      onProgress({loading: false, canLoadMore: sources.some((source) => source.retry)})
       return
     }
     loading = true
@@ -86,28 +91,47 @@ export function subscribeSearch(
           (source) => source.retry || !!source.cursor.next()
         )
         if (canLoadMore && pagesLeft > 0 && needsMore()) {
-          queueMicrotask(() => run())
+          queueMicrotask(() => run(false, true))
         } else {
           onProgress({loading: false, canLoadMore, oldestSearched: boundary})
         }
       }
       source.sub = nostr.subscribe(source.cursor.current, {
-        relayUrls,
+        relayUrls: source.relayUrls,
         cacheUsage: CacheMode.ONLY_RELAY,
         groupable: false,
         isolated: true,
       })
       source.sub.on("event", (event, relay, _sub, fromCache) => {
         if (stopped || settled) return
-        source.cursor.record(event, relay?.url, fromCache)
+        if (!source.delegated.has(relay?.url))
+          source.cursor.record(event, relay?.url, fromCache)
         onEvent(event)
       })
       source.sub.on("event:dup", (event, relay, _elapsed, _sub, fromCache) => {
-        if (!stopped && !settled) source.cursor.record(event, relay?.url, fromCache)
+        if (!stopped && !settled && !source.delegated.has(relay?.url))
+          source.cursor.record(event, relay?.url, fromCache)
       })
       source.sub.on("eose", () => {
         // Incomplete history is retryable; it must not advance past unseen posts.
-        settle(source.sub?.completion?.complete === false)
+        const completion = source.sub?.completion
+        if (!textSources.length && completion?.complete === false) {
+          // A failed relay must retry its original interval. Relays that actually
+          // supplied this filter and completed it can continue independently.
+          const incomplete = new Set(
+            completion.sources.filter((s) => !s.complete).map((s) => s.id)
+          )
+          for (const {id, complete} of completion.sources) {
+            if (!complete || incomplete.has(id) || incomplete.has("local-cache")) continue
+            const cursor = source.cursor.takeRelay(id)
+            if (!cursor) continue
+            source.delegated.add(id)
+            const scoped = sourceFor(cursor, [id])
+            scoped.pending = false
+            sources.push(scoped)
+          }
+        }
+        settle(completion?.complete === false)
       })
       source.timer = setTimeout(() => settle(true), 15_000)
     }

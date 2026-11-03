@@ -14,6 +14,7 @@ import {useUserStore} from "@/stores/user"
 import debounce from "lodash/debounce"
 import {nostr} from "@/utils/nostrClient"
 import {hasMedia} from "@/shared/components/embed"
+import {extractImetaImages} from "@/shared/utils/imetaUtils"
 import {hasImageOrVideo} from "@/shared/utils/mediaUtils"
 import {type FeedConfig} from "@/stores/feed"
 import DebugManager from "@/utils/DebugManager"
@@ -199,13 +200,11 @@ export default function useFeedEvents({
 
     // Display mode filtering - in grid mode, only accept events with images/videos
     if (displayAs === "grid") {
-      if (
-        !event.content ||
-        typeof event.content !== "string" ||
-        !hasImageOrVideo(event.content)
-      ) {
-        return false
-      }
+      const hasTile =
+        event.kind === KIND_PICTURE_FIRST
+          ? extractImetaImages(event).length > 0
+          : hasImageOrVideo(event.content)
+      if (!hasTile) return false
     }
 
     // Location tag filtering for map feeds

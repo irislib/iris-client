@@ -50,6 +50,16 @@ export class SearchPageCursor {
     if (created && !accepted) this.relays.delete(relay)
   }
 
+  /** Continue a relay that finished even if the rest of the query timed out. */
+  takeRelay(url: string): SearchPageCursor | undefined {
+    const entry = this.relays.get(url)
+    if (!entry) return
+    this.relays.delete(url)
+    const scoped = new SearchPageCursor(this.filter)
+    scoped.relays.set(url, entry)
+    return scoped
+  }
+
   /** Called only after complete EOSE; interrupted pages are retried unchanged. */
   next(): EventFilter | null {
     if (this.planned !== undefined) return this.planned

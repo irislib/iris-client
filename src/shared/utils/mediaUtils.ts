@@ -2,5 +2,5 @@ import {IMAGE_REGEX, VIDEO_REGEX} from "@/shared/components/embed/media/MediaEmb
 
 // Utility function to check if content has image or video files
 export const hasImageOrVideo = (content: string): boolean => {
-  return IMAGE_REGEX.test(content) || VIDEO_REGEX.test(content)
+  return content.search(IMAGE_REGEX) !== -1 || content.search(VIDEO_REGEX) !== -1
 }

@@ -490,17 +490,28 @@ const Feed = memo(function Feed({
         )}
 
         <div>
-          {filteredEvents.length > 0 && (
+          {(filteredEvents.length > 0 ||
+            (displayAs === "grid" &&
+              enabled &&
+              !eventSource &&
+              !filters.search &&
+              initialLoadDone &&
+              (canLoadHistory || historyLoading))) && (
             <InfiniteScroll
               onLoadMore={selectEvents ? () => false : loadMoreItems}
               loadMoreKey={`${filteredEvents.length}:${displayCount}`}
               loading={
                 searchLoading &&
-                (!feedConfig.postRelevance || filteredEvents.length <= displayCount)
+                ((displayAs !== "grid" && !feedConfig.postRelevance) ||
+                  filteredEvents.length <= displayCount)
               }
             >
               {displayAs === "grid" ? (
-                <MediaFeed events={gridEvents} eventsToHighlight={eventsToHighlight} />
+                <MediaFeed
+                  events={gridEvents}
+                  displayCount={displayCount}
+                  eventsToHighlight={eventsToHighlight}
+                />
               ) : (
                 <>
                   {filteredEvents.slice(0, displayCount).map((event, index) => {
