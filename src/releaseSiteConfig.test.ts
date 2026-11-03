@@ -179,11 +179,14 @@ describe("release site config", () => {
     })
 
     expect(calls).toEqual([
+      "check-source-start",
       "build",
       "test-1",
       "test-2",
       "test-3",
       "test-4",
+      "test-5",
+      "check-source-final",
       "publish",
       "deploy",
     ])

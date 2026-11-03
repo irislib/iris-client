@@ -8,6 +8,7 @@ import {
   usesBuiltInWorker,
 } from "@iris/release-tools"
 import {resolveHtreeCommand} from "./hashtreePaths.mjs"
+import {sourceCommit} from "./check-release-source.mjs"
 
 export {parsePublishOutput} from "@iris/release-tools"
 
@@ -35,6 +36,8 @@ export const releaseProfile = {
       "exec",
       "vitest",
       "run",
+      "src/releaseSource.test.ts",
+      "src/releaseSiteConfig.test.ts",
       "src/portableBuildConfig.test.ts",
       "src/wellKnownProxyWorker.test.ts",
       "src/shared/services/runtimePublish.test.ts",
@@ -127,6 +130,7 @@ export function parseArgs(argv, env = process.env) {
 }
 
 export function createReleasePlan(options) {
+  const commit = sourceCommit(appDir)
   const plan = createSharedReleasePlan({
     appDir,
     options,
@@ -139,7 +143,21 @@ export function createReleasePlan(options) {
     if (step.command[0] === "npx" && step.command[1] === `wrangler@${wranglerVersion}`) {
       step.command = ["pnpm", "exec", "wrangler", ...step.command.slice(2)]
     }
+    if (step.id === "deploy" && options.workerName) {
+      step.command.push("--tag", commit.slice(0, 12), "--message", `Source ${commit}`)
+    }
   }
+  const checkSource = (id) => ({
+    id,
+    label: "Verify release source includes current master",
+    cwd: appDir,
+    command: ["node", path.join(__dirname, "check-release-source.mjs"), commit],
+  })
+  plan.steps.unshift(checkSource("check-source-start"))
+  const publishIndex = plan.steps.findIndex(
+    (step) => step.id === "publish" || step.id === "deploy"
+  )
+  plan.steps.splice(publishIndex, 0, checkSource("check-source-final"))
   return plan
 }
 

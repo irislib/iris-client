@@ -6,6 +6,7 @@
 - Keep slow text-search subscriptions open after a history timeout so late results can still arrive.
 - Restore the desktop search sidebar and its saved hide/show control.
 - Let search results fill the available column on wide screens without a gap before the sidebar.
+- Reject site releases from outdated or changed checkouts, and label Cloudflare versions with their source commit.
 - Fit photo carousels to the displayed image instead of reserving a fixed empty area.
 
 ## 2.5.58 - 2026-10-25

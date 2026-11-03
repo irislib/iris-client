@@ -1,3 +1,4 @@
 - Prefer Playwright e2e for user-visible behavior, regressions, and cross-component flows.
 - Use Vitest only for pure logic or low-level code where e2e is disproportionate.
 - Prefer deleting shallow UI Vitest tests when replacing them with meaningful e2e coverage.
+- Production release checkouts must include current `master`. Use `pnpm release:iris` and retain both source checks when resuming a release; do not publish an older saved build over newer source. Rebuild and retest if the checkout or `master` changes during validation.
