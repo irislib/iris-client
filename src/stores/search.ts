@@ -9,7 +9,17 @@ export type CustomSearchResult = SearchResult & {
 
 import type {SearchModel} from "@/lib/post-search/scorer"
 
+import type {PostSearchSort} from "@/types/feed"
+
+type PostType = "all" | "originals" | "replies"
+
 interface SearchState {
+  postSort: PostSearchSort
+  postType: PostType
+  mediaOnly: boolean
+  setPostSort: (sort: PostSearchSort) => void
+  setPostType: (type: PostType) => void
+  setMediaOnly: (enabled: boolean) => void
   aiSearch: boolean
   searchModel: SearchModel
   ollamaModel: string
@@ -31,6 +41,9 @@ export const useSearchStore = create<SearchState>()(
   persist(
     (set) => {
       const initialState = {
+        postSort: "relevance" as PostSearchSort,
+        postType: "all" as PostType,
+        mediaOnly: false,
         recentSearches: [] as CustomSearchResult[],
         searchQuery: "",
         aiSearch: true,
@@ -41,6 +54,9 @@ export const useSearchStore = create<SearchState>()(
       }
 
       const actions = {
+        setPostSort: (postSort: PostSearchSort) => set({postSort}),
+        setPostType: (postType: PostType) => set({postType}),
+        setMediaOnly: (mediaOnly: boolean) => set({mediaOnly}),
         setAiSearch: (aiSearch: boolean) => set({aiSearch}),
         setSearchModel: (searchModel: SearchModel) => set({searchModel}),
         setOllamaModel: (ollamaModel: string) => set({ollamaModel}),

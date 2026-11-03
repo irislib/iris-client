@@ -1,4 +1,5 @@
 import {memo} from "react"
+import {matchPath} from "@/navigation/utils"
 import UserSearchContent from "@/pages/user-search/components/UserSearchContent"
 import SearchFilters from "@/pages/search/components/SearchFilters"
 import MarketFilters from "@/pages/market/components/MarketFilters"
@@ -21,7 +22,9 @@ const UnifiedSearchContent = memo(function UnifiedSearchContent({
   if (searchRoute.startsWith("/search")) {
     return (
       <div className="pt-4">
-        <SearchFilters showTabSelector={true} />
+        <SearchFilters
+          encodedQuery={matchPath(searchRoute, "/search/:query")?.params.query ?? ""}
+        />
       </div>
     )
   }

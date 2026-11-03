@@ -28,6 +28,12 @@ pnpm test    # Run all tests
 pnpm test:ui # E2E tests with UI mode
 ```
 
+### Nostr event index
+
+Iris reads public events from its relays and from the same public Hashtree archive as Iris Social. To use a different index or a downstream fork, set `VITE_NOSTR_EVENT_INDEX` to the publisher’s `npub/tree-name` or an immutable `nhash` before building. An empty value disables index reads. The client verifies signed events and fetches missing index blocks by hash from Hashtree peers and the CDN.
+
+Public browsing filters stay off Nostr peer connections. A block provider can still recognize a requested hash. Private inbox subscriptions and peer discovery use separate Nostr requests.
+
 ### Public-post search
 
 Automatic search uses a ready browser model when available and otherwise runs

@@ -55,8 +55,9 @@ export class WorkerTransport {
       reject: (err: Error) => void
     }
   >()
-  private peerSource?: RuntimeSource
-  private closeSourceBridge?: () => void
+  private readonly sources = new Map<string, RuntimeSource>()
+  private readonly sourceBridges = new Map<string, () => void>()
+  readonly lifetime = new AbortController()
   private cacheBridge?: ReturnType<typeof connectNostrSource>
   readonly retainedEventReader: NostrEventReader = {
     query: (filters, opts) =>
@@ -139,7 +140,7 @@ export class WorkerTransport {
       ) {
         this.ready = true
         this.connectPeerCache()
-        this.connectPeerSource()
+        for (const source of this.sources.values()) this.connectSource(source)
         worker.removeEventListener("message", handler)
         this.restartAttempts = 0
         // Subscriptions are desired state, including changes made while the
@@ -230,7 +231,8 @@ export class WorkerTransport {
     if (this.closed) return
 
     // Recreate worker
-    this.closeSourceBridge?.()
+    for (const close of this.sourceBridges.values()) close()
+    this.sourceBridges.clear()
     this.cacheBridge?.close()
     this.worker.terminate()
     this.worker = this.createWorker()
@@ -318,17 +320,18 @@ export class WorkerTransport {
     // Don't await - let worker init in background
   }
 
-  attachPeerSource(source: RuntimeSource): void {
-    this.peerSource = source
-    if (this.ready) this.connectPeerSource()
+  attachSource(source: RuntimeSource): void {
+    this.sources.set(source.id, source)
+    if (this.ready) this.connectSource(source)
   }
 
-  private connectPeerSource(): void {
-    this.closeSourceBridge?.()
-    if (!this.peerSource) return
+  private connectSource(source: RuntimeSource): void {
+    this.sourceBridges.get(source.id)?.()
     const channel = new MessageChannel()
-    this.closeSourceBridge = serveNostrSource(channel.port1, this.peerSource)
-    this.worker.postMessage({type: "peerSource", port: channel.port2}, [channel.port2])
+    this.sourceBridges.set(source.id, serveNostrSource(channel.port1, source))
+    this.worker.postMessage({type: "peerSource", id: source.id, port: channel.port2}, [
+      channel.port2,
+    ])
   }
 
   private postMessage(msg: WorkerMessage): void {
@@ -502,6 +505,7 @@ export class WorkerTransport {
   }
 
   close(): void {
+    this.lifetime.abort()
     this.closed = true
     this.ready = false
     this.stopHeartbeat()
@@ -522,7 +526,8 @@ export class WorkerTransport {
       this.removeTransportPlugin(this.nostr)
     }
 
-    this.closeSourceBridge?.()
+    for (const close of this.sourceBridges.values()) close()
+    this.sourceBridges.clear()
     this.cacheBridge?.close()
     this.worker.terminate()
   }

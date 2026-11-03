@@ -22,6 +22,7 @@ interface ImageGridItemProps {
   setActiveItemIndex: (event: AppEvent, url: string) => void
   onEventFetched?: (event: AppEvent) => void
   lastElementRef?: MutableRefObject<HTMLDivElement>
+  oneTilePerPost?: boolean
   highlightAsNew?: boolean
 }
 
@@ -69,6 +70,7 @@ const ImageGridItem = memo(function ImageGridItem({
   setActiveItemIndex,
   onEventFetched,
   lastElementRef,
+  oneTilePerPost = false,
   highlightAsNew = false,
 }: ImageGridItemProps) {
   const navigate = useNavigate()
@@ -161,7 +163,9 @@ const ImageGridItem = memo(function ImageGridItem({
 
   const imetaTags = useMemo(() => {
     return urls.map((url) => {
-      const tag = event?.tags.find((tag) => tag[0] === "imeta" && tag[1].includes(url))
+      const tag = event?.tags.find(
+        (tag) => tag[0] === "imeta" && tag.includes(`url ${url}`)
+      )
       return tag
     })
   }, [urls, event?.tags])
@@ -177,7 +181,7 @@ const ImageGridItem = memo(function ImageGridItem({
   // if it's not a gif and imeta indicates it's fairly small, load the original
   // otherwise we might run out of mem and crash on mobile
   const loadOriginalIfProxyFails = useMemo(() => {
-    return urls.map((url, i) => {
+    return (oneTilePerPost ? urls.slice(0, 1) : urls).map((url, i) => {
       // On desktop, always load original if proxy fails
       if (!isMobile) return true
 
@@ -246,7 +250,7 @@ const ImageGridItem = memo(function ImageGridItem({
     return <MarketGridItem event={event} shouldBlur={shouldBlur} width={width} />
   }
 
-  return urls.map((url, i) => {
+  return (oneTilePerPost ? urls.slice(0, 1) : urls).map((url, i) => {
     // For kind 20 events, all media are images (not videos)
     // For other events, check if it's a video URL
     const isVideo =
@@ -261,6 +265,7 @@ const ImageGridItem = memo(function ImageGridItem({
 
     return (
       <div
+        data-search-media={oneTilePerPost ? event.id : undefined}
         key={`feed${url}${index}-${i}`}
         className={`aspect-square cursor-pointer relative bg-neutral-300 hover:opacity-80 ${
           shouldBlur ? "blur-xl" : ""
@@ -281,6 +286,14 @@ const ImageGridItem = memo(function ImageGridItem({
           }
         }}
       >
+        {oneTilePerPost && urls.length > 1 && (
+          <span
+            className="absolute top-2 right-2 z-10 rounded-full bg-black/70 px-2 text-xs text-white"
+            aria-label={`${urls.length} attachments`}
+          >
+            +{urls.length - 1}
+          </span>
+        )}
         {hasError || (isVideo && (!imgproxy.enabled || proxyFailed[i])) ? (
           <div
             className="w-full h-full flex items-center justify-center"
@@ -302,7 +315,7 @@ const ImageGridItem = memo(function ImageGridItem({
             square={true}
             width={width}
             src={url}
-            alt=""
+            alt={imetaTags[i]?.find((part) => part.startsWith("alt "))?.slice(4) ?? ""}
             className="w-full h-full object-cover"
             style={{
               backgroundImage: blurhashUrls[i] ? `url(${blurhashUrls[i]})` : undefined,

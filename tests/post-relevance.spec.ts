@@ -608,3 +608,185 @@ test("late browser scores preserve the reading position until Update results is 
     await relay.close()
   }
 })
+
+test("returning to bare search shows progress and recent notes without rerunning the saved query", async ({
+  page,
+}, testInfo) => {
+  const author = generateSecretKey()
+  const root = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
+  const {SocialGraph} = await import("nostr-social-graph")
+  const graph = new SocialGraph(root)
+  const farther = generateSecretKey()
+  graph.addFollower(root, getPublicKey(author))
+  graph.addFollower(getPublicKey(author), getPublicKey(farther))
+  await graph.recalculateFollowDistances()
+  const snapshot = Buffer.from(await graph.toBinary())
+  const note = finalizeEvent(
+    {
+      kind: 1,
+      content: "Swallows returned to the river today.",
+      tags: [],
+      created_at: Math.floor(Date.now() / 1000) - 60,
+    },
+    author
+  )
+  const searches: string[] = []
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [
+      note,
+      finalizeEvent(
+        {
+          kind: 1,
+          content: "Swallows over the marsh.",
+          tags: [],
+          created_at: note.created_at + 10,
+        },
+        farther
+      ),
+    ],
+    onRequest: (filters) => {
+      for (const f of filters) if (f.search) searches.push(f.search)
+    },
+  })
+  let resume!: () => void
+  const gate = new Promise<void>((resolve) => {
+    resume = resolve
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({version: 1, state: {searchQuery: "stale-history-probe"}})
+      )
+    }, relay.port)
+    await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, async (route) => {
+      if (route.request().resourceType() === "script") return route.continue()
+      await gate
+      await route.fulfill({contentType: "application/octet-stream", body: snapshot})
+    })
+    await page.goto("/search")
+    await expect(page.getByPlaceholder("Search posts...")).toHaveValue("")
+    const progress = page.getByRole("status").filter({hasText: "Loading your network"})
+    await expect(progress).toBeInViewport()
+    await page.screenshot({path: testInfo.outputPath("returning-search-progress.png")})
+    resume()
+    await expect(page.getByText(note.content, {exact: true}).first()).toBeVisible({
+      timeout: 15000,
+    })
+    await expect(progress).toHaveCount(0)
+    expect(searches).toEqual([])
+    const input = page.getByPlaceholder("Search posts...")
+    await input.fill("swallows")
+    await input.press("Enter")
+    const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
+    await expect(rows).toHaveCount(2)
+    const sort = page.getByRole("combobox", {name: "Sort posts"})
+    await sort.selectOption("newest")
+    await expect(rows.first()).toContainText("over the marsh")
+    await sort.selectOption("social")
+    await expect(rows.first()).toContainText(note.content)
+    await expect(
+      page.getByRole("checkbox", {name: "Show posts from unknown users"})
+    ).toHaveCount(0)
+  } finally {
+    resume()
+    await relay.close()
+  }
+})
+
+test("nature search keeps political media out of the grid and filters and sorts matching posts", async ({
+  page,
+}, testInfo) => {
+  const now = Math.floor(Date.now() / 1000) - 60
+  const note = (content: string, age: number, tags: string[][] = [], kind = 1) =>
+    finalizeEvent({kind, content, created_at: now - age, tags}, generateSecretKey())
+  const media = (name: string) => `https://example.com/${name}.jpg`
+  const forest = note(
+    "Cedar trees, red moss, and tiny mushrooms covered the forest floor after the rain. " +
+      media("one") +
+      " " +
+      media("two"),
+    80,
+    [["t", "nature"]]
+  )
+  const orchid = note(
+    "Wild orchids are flowering along the riverbank. Bees visit each blossom before moving to the next.",
+    30
+  )
+  const reply = note("Nature walk this morning. I saw another otter.", 1, [
+    ["e", forest.id, "", "reply"],
+  ])
+  const gallery = note(
+    "",
+    45,
+    [
+      [
+        "imeta",
+        "url " + media("gallery"),
+        "m image/jpeg",
+        "alt Nature photograph of a mountain lake.",
+      ],
+    ],
+    20
+  )
+  const news = note(
+    "The youngest victim was reportedly 14 years old. There is now great outrage and riots in the capital against the national guard. " +
+      media("report"),
+    2,
+    [["client", "Nostrich"]]
+  )
+  const uncaptioned = note(
+    "https://images.americanthinker.com/cr/crki4buignxltt0hbslg_640.jpg",
+    4,
+    [["client", "Nostrich"]]
+  )
+  const ads = note(
+    "The parties reported their spending on political advertising. Weekly TikTok placements in Germany through September. " +
+      Array.from({length: 12}, (_, i) => media("ads" + i)).join(" "),
+    3
+  )
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [forest, orchid, gallery, reply, news, ads, uncaptioned],
+  })
+  try {
+    await page.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      localStorage.setItem(
+        "search-storage",
+        JSON.stringify({
+          version: 1,
+          state: {searchModel: "minilm", showEventsByUnknownUsers: true},
+        })
+      )
+    }, relay.port)
+    await page.goto("/search/nature")
+    const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
+    await expect(rows.filter({hasText: orchid.content})).toBeVisible({timeout: 20000})
+    await expect(page.getByText("Ranking posts…", {exact: true})).toHaveCount(0, {
+      timeout: 15000,
+    })
+    await expect(rows.filter({hasText: "youngest victim"})).toHaveCount(0)
+    await expect(rows.filter({hasText: "political advertising"})).toHaveCount(0)
+    await expect(page.locator(`[data-event-id="${uncaptioned.id}"]`)).toHaveCount(0)
+    await page.getByRole("combobox", {name: "Sort posts"}).selectOption("newest")
+    await expect(rows.first()).toContainText("Nature walk")
+    await page.getByRole("button", {name: /^Filters/}).click()
+    await page.getByLabel("Post type", {exact: true}).selectOption("originals")
+    await expect(rows.filter({hasText: "Nature walk"})).toHaveCount(0)
+    await page.getByLabel("With media", {exact: true}).check()
+    await expect(rows.filter({hasText: orchid.content})).toHaveCount(0)
+    await page.getByRole("button", {name: "Grid view"}).click()
+    await expect(page.locator(`[data-search-media="${forest.id}"]`)).toHaveCount(1)
+    await expect(page.locator(`[data-search-media="${gallery.id}"]`)).toHaveCount(1)
+    await expect(page.getByLabel("2 attachments")).toBeVisible()
+    await expect(page.locator(`[data-search-media="${uncaptioned.id}"]`)).toHaveCount(0)
+    await page.getByRole("combobox", {name: "Sort posts"}).selectOption("social")
+    await expect(page.locator("[data-search-media]")).toHaveCount(2)
+    await page.screenshot({path: testInfo.outputPath("nature-grid-filters.png")})
+  } finally {
+    await relay.close()
+  }
+})

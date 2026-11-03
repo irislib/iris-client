@@ -167,3 +167,24 @@ it("embeds a hashtag once when it appears both in the text and the event tags", 
     })
   ).toBe("Light through a lens #Film #Light")
 })
+
+it("uses photo descriptions without mistaking storage hosts and image hashes for subject matter", () => {
+  const url = "https://images.americanthinker.com/cr/crki4buignxltt0hbslg_640.jpg"
+  const photo = {...note, content: url, tags: [["client", "Nostrich"]]}
+  expect(searchPostText(photo)).toBe("")
+  expect(lexicalMatch(planPostSearch("nature"), photo)).toBe(-1)
+  photo.tags = [["imeta", "url " + url, "alt Wild orchids on the riverbank"]]
+  expect(searchPostText(photo)).toBe("Wild orchids on the riverbank")
+  expect(lexicalMatch(planPostSearch("orchids"), photo)).toBe(1)
+})
+
+it("ignores the publishing client when scoring post topics", () => {
+  const post = {
+    ...note,
+    content: "Results of the municipal election.",
+    tags: [["client", "Nostrich"]],
+  }
+  expect(searchPostText(post)).toBe(post.content)
+  expect(lexicalMatch(planPostSearch("nature"), post)).toBe(0)
+  expect(lexicalMatch(planPostSearch("Nostrich"), post)).toBe(0)
+})

@@ -168,7 +168,9 @@ const Layout = ({children}: {children: ReactNode}) => {
       setMiddleColumnContent("home")
     } else if (routeInfo.baseRoute) {
       // This is a search route, update both content and last route
-      setLastSearchRoute(routeInfo.baseRoute)
+      setLastSearchRoute(
+        routeInfo.type === "search" ? location.pathname : routeInfo.baseRoute
+      )
       setMiddleColumnContent("search")
     }
     // If not a recognized route, keep the current middle column content

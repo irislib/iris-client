@@ -1,4 +1,4 @@
-import {test, expect} from "@playwright/test"
+import {test as base, expect} from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {Relay} from "nostr-tools/relay"
@@ -6,6 +6,24 @@ import {SocialGraph} from "nostr-social-graph"
 import {usingBuiltDist} from "./utils/built-dist"
 import {WebSocketServer} from "ws"
 import {once} from "node:events"
+
+import {startNostrRelay} from "../dev-relay/nostr-relay"
+
+// History windows depend on the raw number of events at the relay. Other
+// concurrent browser tests must not insert hundreds of notes between pages.
+const test = base.extend<{historyRelay: string}>({
+  historyRelay: async ({page}, use) => {
+    const relay = await startNostrRelay({port: 0})
+    try {
+      await page.addInitScript((port) => {
+        window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+      }, relay.port)
+      await use(relay.url)
+    } finally {
+      await relay.close()
+    }
+  },
+})
 
 test.beforeEach(async ({page}) => {
   // These tests exercise literal search; semantic ranking has its own suite.
@@ -109,6 +127,7 @@ test("can search for content", async ({page}) => {
 
 test("search uses the starter network and does not skip between recent and old matches", async ({
   page,
+  historyRelay,
 }, testInfo) => {
   test.skip(usingBuiltDist || !!process.env.VITE_USE_TEST_RELAY, "requires local relay")
   const viewer = generateSecretKey()
@@ -132,7 +151,7 @@ test("search uses the starter network and does not skip between recent and old m
   const query = `iris${getPublicKey(viewer).slice(0, 12)}`
   const now = Math.floor(Date.now() / 1000) - 10
   const day = 86400
-  const relay = await Relay.connect("ws://127.0.0.1:7777")
+  const relay = await Relay.connect(historyRelay)
   const publish = (
     key: Uint8Array,
     content: string,
@@ -179,6 +198,7 @@ test("search uses the starter network and does not skip between recent and old m
     )
   })
   expect(await firstRow!.evaluate((element) => element.isConnected)).toBe(true)
+  await page.getByRole("button", {name: "Filters", exact: true}).click()
   await page.getByRole("checkbox", {name: "Show posts from unknown users"}).check()
   await expect(posts.filter({hasText: "unknown match"})).toBeVisible({timeout: 15000})
   await expect(posts.filter({hasText: "muted match"})).toHaveCount(0)
@@ -187,6 +207,7 @@ test("search uses the starter network and does not skip between recent and old m
 
 test("post search matches whole words and collapses repeated authors across pages", async ({
   page,
+  historyRelay,
 }, testInfo) => {
   test.skip(usingBuiltDist || !!process.env.VITE_USE_TEST_RELAY, "requires local relay")
   const viewer = generateSecretKey()
@@ -195,7 +216,7 @@ test("post search matches whole words and collapses repeated authors across page
   const nonmatch = generateSecretKey()
   const token = `search${getPublicKey(viewer).slice(0, 12)}`
   const now = Math.floor(Date.now() / 1000) - 10
-  const relay = await Relay.connect("ws://127.0.0.1:7777")
+  const relay = await Relay.connect(historyRelay)
   const publish = (
     key: Uint8Array,
     content: string,
@@ -217,6 +238,7 @@ test("post search matches whole words and collapses repeated authors across page
   }
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto(`/search/${encodeURIComponent(`iris ${token}`)}`)
+  await page.getByRole("button", {name: "Filters", exact: true}).click()
   await page.getByRole("checkbox", {name: "Show posts from unknown users"}).check()
   const posts = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(posts.filter({hasText: "newest match"})).toBeVisible({timeout: 15000})
@@ -236,12 +258,15 @@ test("post search matches whole words and collapses repeated authors across page
   await page.screenshot({path: testInfo.outputPath("distinct-author-search.png")})
 })
 
-test("an empty search can continue past several pages of nonmatches", async ({page}) => {
+test("an empty search can continue past several pages of nonmatches", async ({
+  page,
+  historyRelay,
+}) => {
   test.skip(usingBuiltDist || !!process.env.VITE_USE_TEST_RELAY, "requires local relay")
   const viewer = generateSecretKey()
   const query = `iris${getPublicKey(viewer).slice(0, 12)}`
   const now = Math.floor(Date.now() / 1000) - 5
-  const relay = await Relay.connect("ws://127.0.0.1:7777")
+  const relay = await Relay.connect(historyRelay)
   try {
     for (let i = 0; i < 320; i++) {
       await relay.publish(

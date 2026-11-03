@@ -66,7 +66,7 @@ export function usePostRelevance(
       if (author === undefined) {
         author = authorSignal(
           discoveryDistance?.(event.pubkey) ?? graph.getFollowDistance(event.pubkey),
-          graph.getFollowersByUser(event.pubkey).size
+          graph.followerCount(event.pubkey)
         )
         authors.set(event.pubkey, author)
       }
@@ -219,10 +219,17 @@ export function usePostRelevance(
         running = false
       }
     }
+    let timer: ReturnType<typeof setTimeout> | undefined
     kick.current = () => {
-      void run()
+      if (timer !== undefined || running) return
+      // Batch nearby arrivals without postponing inference on a busy relay.
+      timer = setTimeout(() => {
+        timer = undefined
+        void run()
+      }, 80)
     }
     return () => {
+      clearTimeout(timer)
       controller.abort()
       kick.current = () => {}
     }
@@ -230,8 +237,7 @@ export function usePostRelevance(
   useEffect(() => {
     if (!plan?.terms.length) return
     if (shortlist.length) onCandidates.current()
-    const timer = setTimeout(() => kick.current(), 80)
-    return () => clearTimeout(timer)
+    kick.current()
   }, [shortlist, plan, settings])
 
   return {

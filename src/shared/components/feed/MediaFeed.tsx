@@ -8,6 +8,7 @@ import {useMediaCache} from "@/shared/hooks/useMediaCache"
 
 interface MediaFeedProps {
   events: (AppEvent | {id: string})[]
+  oneTilePerPost?: boolean
   displayCount?: number
   eventsToHighlight?: Set<string>
 }
@@ -15,6 +16,7 @@ interface MediaFeedProps {
 export default function MediaFeed({
   events,
   displayCount,
+  oneTilePerPost,
   eventsToHighlight,
 }: MediaFeedProps) {
   const {calculateAllMedia} = useMediaExtraction()
@@ -88,6 +90,7 @@ export default function MediaFeed({
             <ImageGridItem
               key={`${item.id}_${index}`}
               event={item}
+              oneTilePerPost={oneTilePerPost}
               index={index}
               setActiveItemIndex={handleImageClick}
               onEventFetched={handleEventFetched}

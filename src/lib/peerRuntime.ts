@@ -14,6 +14,7 @@ import type {BrowserHashtreeFipsProvider} from "@hashtree/fips-transport/browser
 import {useUserStore} from "@/stores/user"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 
+import {irisMessagingSource} from "./irisMessagingSource"
 import {localBlocks} from "./fileStore"
 import {observePeerNetwork, setPeerNetworkStatus} from "./peerNetworkStats"
 const DEVICE_KEY = "iris-client:fips-device-secret"
@@ -76,15 +77,15 @@ async function start(): Promise<PeerRuntime | null> {
         ? [getInjectedHtreeRelayUrl()!]
         : user.relayConfigs.filter((r) => !r.disabled).map((r) => r.url))
     )
-  const configured = csv(import.meta.env.VITE_FIPS_PEERS).map((peer) =>
-    peer.toLowerCase()
+  const configured = (overrides?.peers ?? csv(import.meta.env.VITE_FIPS_PEERS)).map(
+    (peer) => peer.toLowerCase()
   )
   if (configured.some((peer) => !/^(02|03)[0-9a-f]{64}$/.test(peer)))
     throw new Error("Invalid message provider")
   const seeds = overrides?.seeds ?? csv(import.meta.env.VITE_FIPS_WEBSOCKET_SEEDS)
   const base = {
     relays,
-    discoveryApp: "iris-client",
+    discoveryApp: overrides?.discoveryApp ?? "iris-client",
     providerRoutes: configured.map((peerId) => ({peerId, htl: 0})),
     ...(seeds.length ? {websocketSeedUrls: seeds} : {}),
     maxConnections: 4,
@@ -135,6 +136,10 @@ async function start(): Promise<PeerRuntime | null> {
   let receiver: FipsNostrPubsubClient | undefined
   try {
     const lifetime = new AbortController()
+    const endpointReaders = new Map<
+      BrowserHashtreeFipsProvider,
+      () => readonly string[]
+    >()
     const createEndpoint = async () => {
       lifetime.signal.throwIfAborted()
       if (!configured.length) throw new Error("No private message provider is configured")
@@ -154,13 +159,19 @@ async function start(): Promise<PeerRuntime | null> {
         node: endpoint.node,
         localPeerId: endpoint.localPeerId,
         peers: () => configured,
-        close: () => endpoint.stop(),
+        observeConnections: (read: () => readonly string[]) =>
+          endpointReaders.set(endpoint, read),
+        close: () => {
+          endpointReaders.delete(endpoint)
+          return endpoint.stop()
+        },
       }
     }
     receiver = new FipsNostrPubsubClient({
       node: provider.node,
       localPeerId: provider.localPeerId,
       peers: () => [...new Set([...configured, ...provider.listConnectedPeerIds()])],
+      observeConnections: (read) => endpointReaders.set(provider, read),
       role: "receiver",
       // This graph contains public kind-3 follows, never private contacts or groups.
       receiverPublicAuthors: () => {
@@ -192,10 +203,20 @@ async function start(): Promise<PeerRuntime | null> {
             subscribe: async () => ({close() {}}),
           },
     })
-    const stopObserving = observePeerNetwork(provider)
+    const stopObserving = observePeerNetwork(provider, () => {
+      const endpoints = new Map<string, boolean>()
+      for (const [local, read] of endpointReaders) {
+        const adjacent = new Set(local.listConnectedPeerIds())
+        for (const id of read())
+          endpoints.set(id, adjacent.has(id) || endpoints.get(id) === true)
+      }
+      return Array.from(endpoints, ([id, direct]) => ({id, direct})).sort((a, b) =>
+        a.id.localeCompare(b.id)
+      )
+    })
     return {
       provider,
-      source,
+      source: irisMessagingSource(source),
       close: async () => {
         lifetime.abort()
         source.close()
@@ -222,6 +243,12 @@ async function start(): Promise<PeerRuntime | null> {
 
 declare global {
   interface Window {
-    __IRIS_FIPS_TEST_CONFIG__?: {relays: string[]; seeds: string[]}
+    __IRIS_FIPS_TEST_CONFIG__?: {
+      relays: string[]
+      seeds: string[]
+      discoveryApp?: string
+      indexRef?: string
+      peers?: string[]
+    }
   }
 }

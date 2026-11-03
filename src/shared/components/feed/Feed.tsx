@@ -26,7 +26,10 @@ import {useSocialGraph, useFollowsFromGraph} from "@/utils/socialGraph"
 import {addSeenEventId} from "@/utils/memcache.ts"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
 
+import type {PostSearchSort} from "@/types/feed"
+
 interface FeedProps {
+  searchSort?: PostSearchSort
   feedConfig: FeedConfig
   asReply?: boolean
   showReplies?: number
@@ -55,6 +58,7 @@ const DefaultEmptyPlaceholder = (
 
 const Feed = memo(function Feed({
   feedConfig,
+  searchSort,
   asReply = false,
   showReplies = 0,
   onRelevanceStatus,
@@ -229,6 +233,7 @@ const Feed = memo(function Feed({
     canLoadHistory,
   } = useFeedEvents({
     filters,
+    searchSort,
     cacheKey,
     displayCount,
     feedConfig,
@@ -464,6 +469,25 @@ const Feed = memo(function Feed({
           <DisplayAsSelector activeSelection={displayAs} onSelect={setDisplayAs} />
         )}
 
+        {searchSort &&
+          (!enabled ||
+            (!initialLoadDone && !filteredEvents.length) ||
+            searchLoading ||
+            relevanceStatus) && (
+            <div role="status" className="flex items-center gap-2 px-4 py-2 text-sm">
+              {(!enabled || searchLoading || !initialLoadDone) && (
+                <span
+                  className="loading loading-spinner loading-sm motion-reduce:animate-none"
+                  aria-hidden="true"
+                />
+              )}
+              {!enabled
+                ? "Loading your network…"
+                : relevanceStatus ||
+                  (filters.search ? "Searching posts…" : "Loading recent posts…")}
+            </div>
+          )}
+
         {hasRankingUpdates && (
           <div className="sticky top-16 md:top-2 z-20 h-0 flex justify-center pointer-events-none">
             <button
@@ -512,6 +536,7 @@ const Feed = memo(function Feed({
                 <MediaFeed
                   events={gridEvents}
                   displayCount={displayCount}
+                  oneTilePerPost={!!filters.search}
                   eventsToHighlight={eventsToHighlight}
                 />
               ) : (
@@ -566,7 +591,7 @@ const Feed = memo(function Feed({
             emptyPlaceholder}
           {filters.search && (
             <div className="p-4 text-center text-base-content/50">
-              {(searchLoading || !enabled || relevanceStatus) && (
+              {!searchSort && (searchLoading || !enabled || relevanceStatus) && (
                 <span role="status">{relevanceStatus || "Searching posts…"}</span>
               )}
               {!searchLoading && enabled && canSearchMore && (

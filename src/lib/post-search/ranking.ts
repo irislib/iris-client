@@ -10,6 +10,35 @@ const conversational = new Set(
   )
 )
 
+// Hosts and opaque attachment IDs describe storage, not the subject of a photo.
+function readableLink(url: string) {
+  const path = url.split(/[?#]/, 1)[0]
+  if (/\.(?:jpe?g|png|webp|gif|avif|heic|svg|mp4|m4v|mov|webm)$/i.test(path)) return ""
+  return path
+    .replace(/^https?:\/\//i, "")
+    .replace(/[\w-]{32,}|\b[\da-f]{12,}\b/gi, " ")
+    .replace(/[-_/]+/g, " ")
+    .trim()
+    .slice(0, 140)
+}
+const links = /https?:\/\/[^\s)]+/gi
+
+function mediaDescriptions(event: Pick<Note, "tags">) {
+  return [
+    ...new Set(
+      event.tags
+        .slice(0, 64)
+        .flatMap(([name, ...values]) => {
+          if (name === "alt" || name === "title") return values.slice(0, 1)
+          if (name === "imeta")
+            return values.filter((v) => v.startsWith("alt ")).map((v) => v.slice(4))
+          return []
+        })
+        .map((s) => s.slice(0, 240))
+    ),
+  ]
+}
+
 // Long Nostr pointers and tracking parameters can take up the model's entire
 // 128-token window. Keep readable link slugs for notes that just share a link.
 export function searchPostText(event: Pick<Note, "content" | "tags">) {
@@ -20,20 +49,13 @@ export function searchPostText(event: Pick<Note, "content" | "tags">) {
       /<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\s*\/?>|&(?:#\d+|#x[\da-f]+|[a-z]{2,12});/gi,
       " "
     )
-    .replace(/https?:\/\/[^\s)]+/gi, (url) =>
-      url
-        .replace(/^https?:\/\//i, "")
-        .split(/[?#]/, 1)[0]
-        .replace(/[\w-]{32,}/g, " ")
-        .replace(/[-_/]+/g, " ")
-        .slice(0, 140)
-    )
+    .replace(links, readableLink)
   const present = new Set(
     Array.from(content.matchAll(/(?:^|\s)#([\p{L}\p{M}\p{N}_-]+)/gu), (m) =>
       m[1].toLowerCase()
     )
   )
-  const parts = [content]
+  const parts = [content, ...mediaDescriptions(event)]
   for (const [key, value] of event.tags) {
     if (key !== "t" || !value || present.has(value.toLowerCase())) continue
     parts.push("#" + value)
@@ -64,9 +86,14 @@ export function lexicalMatch(plan: SearchPlan, event: Note) {
     if (plan.hashtags.length) return 1
     return event.content.normalize("NFKC").includes(plan.text.normalize("NFKC")) ? 1 : 0
   }
-  const tokens = words(event.content.slice(0, 12000))
+  const described = [
+    event.content.slice(0, 12000).replace(links, readableLink),
+    ...mediaDescriptions(event),
+  ].join(" ")
+  const tokens = words(described)
+  if (!tokens.length && !tags.size) return -1
   if (tokens.length <= 12 && !plan.terms.every((t) => conversational.has(t))) {
-    const body = words(event.content.slice(0, 12000).replace(references, " "))
+    const body = words(described.replace(references, " "))
     if (!body.length && !tags.size && !plan.terms.some((t) => tokens.includes(t)))
       return -1
     const substance = body.filter((t) => !conversational.has(t))
@@ -141,7 +168,10 @@ export function postRelevance(
   const topical =
     semantic === undefined
       ? 0.64 * lexical
-      : Math.max(0.48 * lexical, 0.76 * semantic + 0.24 * lexical)
+      : Math.max(
+          (0.25 + 0.23 * Math.min(1, semantic / 0.42)) * lexical,
+          0.76 * semantic + 0.24 * lexical
+        )
   const freshness = 1 / (1 + Math.max(0, ageDays) / 30)
   return topical * (0.8 + 0.13 * author + 0.07 * freshness)
 }
