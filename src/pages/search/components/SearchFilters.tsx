@@ -2,7 +2,7 @@ import {useEffect, useRef, useState, FormEvent, useMemo, memo} from "react"
 import {useParams, useNavigate} from "@/navigation"
 import {useSearchStore} from "@/stores/search"
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
-import {RiSparklingFill} from "@remixicon/react"
+import SearchSparkle from "./SearchSparkle"
 import Feed from "@/shared/components/feed/Feed"
 import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
 import {KIND_TEXT_NOTE} from "@/utils/constants"
@@ -144,20 +144,11 @@ const SearchFilters = memo(function SearchFilters({
               })
             }}
           />
-          <button
-            type="button"
-            className={`btn btn-square ${aiSearch ? "btn-primary" : "btn-ghost"}`}
-            aria-label="AI search"
-            aria-pressed={aiSearch}
-            aria-busy={ranking}
-            title={aiSearch ? "Turn off AI search" : "Turn on AI search"}
-            onClick={() => setAiSearch(!aiSearch)}
-          >
-            <RiSparklingFill
-              size={20}
-              className={ranking ? "motion-safe:animate-pulse" : undefined}
-            />
-          </button>
+          <SearchSparkle
+            aiSearch={aiSearch}
+            ranking={ranking}
+            onToggle={() => setAiSearch(!aiSearch)}
+          />
         </form>
       </div>
 

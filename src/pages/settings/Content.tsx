@@ -6,13 +6,21 @@ import {useSettingsStore} from "@/stores/settings"
 import useMutes from "@/shared/hooks/useMutes"
 import {useSearchStore} from "@/stores/search"
 import type {SearchModel} from "@/lib/post-search/scorer"
-import {useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
-function Content() {
+function Content({focusSearchModel}: {focusSearchModel: boolean}) {
   const {content, updateContent} = useSettingsStore()
   const {searchModel, setSearchModel, ollamaModel, setOllamaModel} = useSearchStore()
   const mutes = useMutes()
   const [showMutedUsers, setShowMutedUsers] = useState<boolean>(false)
+  const modelPicker = useRef<HTMLSelectElement>(null)
+
+  useEffect(() => {
+    if (focusSearchModel && modelPicker.current) {
+      modelPicker.current.focus({preventScroll: true})
+      modelPicker.current.scrollIntoView({block: "center"})
+    }
+  }, [focusSearchModel])
 
   const handleToggleChange = (key: keyof typeof content) => {
     updateContent({[key]: !content[key]})
@@ -93,7 +101,8 @@ function Content() {
               <label className="flex flex-wrap items-center justify-between gap-2">
                 AI search model
                 <select
-                  className="select select-bordered select-sm"
+                  ref={modelPicker}
+                  className="select select-bordered select-sm focus:outline-primary"
                   value={searchModel}
                   onChange={(e) => setSearchModel(e.target.value as SearchModel)}
                 >
@@ -113,7 +122,7 @@ function Content() {
                   />
                   <span className="text-sm opacity-70">
                     Queries and candidate posts go to your Ollama server on port 11434.
-                    Allow this site's origin in OLLAMA_ORIGINS.
+                    Allow this site’s origin in OLLAMA_ORIGINS.
                   </span>
                 </label>
               )}

@@ -211,6 +211,7 @@ function Settings() {
                         className={classNames({
                           "bg-base-200":
                             location.pathname === path ||
+                            location.pathname.startsWith(path + "/") ||
                             (isSettingsRoot && path === "/settings/profile"),
                         })}
                       >
@@ -270,7 +271,9 @@ function Settings() {
                     case "iris":
                       return <IrisSettings />
                     case "content":
-                      return <Content />
+                      return (
+                        <Content focusSearchModel={pathSegments[2] === "search-model"} />
+                      )
                     case "messages":
                       return <MessagesSettings />
                     case "devices":

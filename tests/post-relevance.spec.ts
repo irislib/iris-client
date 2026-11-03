@@ -5,6 +5,74 @@ import {Relay} from "nostr-tools/relay"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
+test.describe("search sparkle", () => {
+  test.use({hasTouch: true, viewport: {width: 390, height: 780}})
+
+  test("a touch hold opens the model picker without toggling AI search", async ({
+    page,
+    context,
+  }, testInfo) => {
+    await page.goto("/search/bicycle")
+    const sparkle = page.getByRole("button", {name: "AI search", exact: true})
+    await sparkle.tap()
+    await expect(sparkle).toHaveAttribute("aria-pressed", "false")
+    const box = (await sparkle.boundingBox())!
+    const touch = await context.newCDPSession(page)
+    await touch.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{x: box.x + box.width / 2, y: box.y + box.height / 2}],
+    })
+    const model = page.getByRole("combobox", {name: "AI search model"})
+    await expect(model).toBeFocused()
+    await touch.send("Input.dispatchTouchEvent", {type: "touchEnd", touchPoints: []})
+    await expect(model).toBeFocused()
+    await expect(model).toBeInViewport()
+    await page.screenshot({path: testInfo.outputPath("sparkle-model-picker.png")})
+    await model.selectOption("browser")
+    await page.goBack()
+    await expect(page.getByPlaceholder("Search posts...")).toHaveValue("bicycle")
+    await expect(sparkle).toHaveAttribute("aria-pressed", "false")
+    await sparkle.tap()
+    await expect(sparkle).toHaveAttribute("aria-pressed", "true")
+    await sparkle.press("ContextMenu")
+    await expect(model).toBeFocused()
+    await expect(model).toHaveValue("browser")
+  })
+})
+
+test("the search sparkle supports mouse and keyboard options gestures", async ({
+  page,
+}) => {
+  await page.goto("/search")
+  const sparkle = page.getByRole("button", {name: "AI search", exact: true})
+  const model = page.getByRole("combobox", {name: "AI search model"})
+  await expect(sparkle).toBeVisible()
+  const box = (await sparkle.boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(x - 60, y)
+  // Wait beyond the hold threshold to verify a drag cancels the gesture.
+  await page.waitForTimeout(600)
+  await page.mouse.up()
+  await expect(sparkle).toHaveAttribute("aria-pressed", "true")
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await expect(model).toBeFocused()
+  await page.mouse.up()
+  await page.goBack()
+  await sparkle.click({button: "right"})
+  await expect(model).toBeFocused()
+  await page.goBack()
+  await sparkle.press("Shift+F10")
+  await expect(model).toBeFocused()
+  await page.goBack()
+  await expect(sparkle).toHaveAttribute("aria-pressed", "true")
+  await sparkle.press("Space")
+  await expect(sparkle).toHaveAttribute("aria-pressed", "false")
+})
+
 test("on-device relevance discovers older paraphrases through a related relay term", async ({
   page,
 }, testInfo) => {
