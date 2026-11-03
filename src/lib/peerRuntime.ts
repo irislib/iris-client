@@ -6,8 +6,7 @@ import {
   createScopedFipsSource,
   FipsNostrPubsubClient,
   FipsNostrPubsubEventSource,
-  isPrivateRelayEvent,
-  type NostrEventReader,
+  openPublicPeerFeedSource,
   type RuntimeSource,
 } from "nostr-pubsub"
 import type {BrowserHashtreeFipsProvider} from "@hashtree/fips-transport/browser"
@@ -15,13 +14,10 @@ import {useUserStore} from "@/stores/user"
 import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 
 import {irisMessagingSource} from "./irisMessagingSource"
+import {watchPublicPeerFeeds, latestPosts} from "./publicPeerFeeds"
 import {localBlocks} from "./fileStore"
 import {observePeerNetwork, setPeerNetworkStatus} from "./peerNetworkStats"
 const DEVICE_KEY = "iris-client:fips-device-secret"
-let retainedEventReader: NostrEventReader | undefined
-export function setRetainedEventReader(reader: NostrEventReader) {
-  retainedEventReader = reader
-}
 let pending: Promise<PeerRuntime | null> | undefined
 export interface PeerRuntime {
   provider: BrowserHashtreeFipsProvider
@@ -92,33 +88,13 @@ async function start(): Promise<PeerRuntime | null> {
     iceGatherTimeoutMs: 2000,
     requestTimeoutMs: 2500,
   }
-  const {getSocialGraph} = await import("@/utils/socialGraph")
   const secret = deviceKey()
   const deviceAuthor = getPublicKey(secret)
   const announcements = await openBrowserAnnouncements(
     deviceAuthor,
     base.discoveryApp,
     relays,
-    {
-      query: async (filters, options) => {
-        const report = await retainedEventReader?.query(filters, options)
-        return report
-          ? {
-              ...report,
-              events: report.events.filter(
-                ({event}) =>
-                  !isPrivateRelayEvent(event) &&
-                  !(
-                    event.kind === 37368 &&
-                    event.tags.some(
-                      (tag) => tag[0] === "type" && tag[1] === "group_roster"
-                    )
-                  )
-              ),
-            }
-          : {events: [], complete: false}
-      },
-    },
+    undefined,
     (error) => console.warn("Peer announcement discovery failed", error)
   )
   let provider: BrowserHashtreeFipsProvider
@@ -167,31 +143,30 @@ async function start(): Promise<PeerRuntime | null> {
         },
       }
     }
+    let publicAuthors = [deviceAuthor]
     receiver = new FipsNostrPubsubClient({
       node: provider.node,
       localPeerId: provider.localPeerId,
       peers: () => [...new Set([...configured, ...provider.listConnectedPeerIds()])],
       observeConnections: (read) => endpointReaders.set(provider, read),
       role: "receiver",
-      // This graph contains public kind-3 follows, never private contacts or groups.
-      receiverPublicAuthors: () => {
-        const owner = useUserStore.getState().publicKey
-        return [
-          deviceAuthor,
-          ...(owner ? [owner, ...getSocialGraph().getFollowedByUser(owner)] : []),
-        ]
-      },
+      receiverPublicAuthors: () => publicAuthors,
       limits: {maxFiltersPerSubscription: 32, maxActiveSubscriptions: 1024},
       retainedEventReader: announcements.retained,
     }).start()
     const activeReceiver = receiver
-    announcements.attach(new FipsNostrPubsubEventSource(activeReceiver))
+    const raw = new FipsNostrPubsubEventSource(activeReceiver)
+    announcements.attach(raw)
+    const publicFeed = await openPublicPeerFeedSource(raw, latestPosts)
+    const stopFeeds = watchPublicPeerFeeds(publicFeed, (authors) => {
+      publicAuthors = [deviceAuthor, ...authors]
+    })
     const anonymousPublisher = createAnonymousFipsPublisher({
       createEndpoint,
       timeoutMs: 2500,
     })
     const source = createScopedFipsSource({
-      receiver: new FipsNostrPubsubEventSource(activeReceiver),
+      receiver: raw,
       publisher: {
         publish: (event, origin) =>
           anonymousPublisher.publish(event, origin, {signal: lifetime.signal}),
@@ -216,9 +191,11 @@ async function start(): Promise<PeerRuntime | null> {
     })
     return {
       provider,
-      source: irisMessagingSource(source),
+      source: irisMessagingSource(source, publicFeed),
       close: async () => {
         lifetime.abort()
+        stopFeeds()
+        publicFeed.close()
         source.close()
         stopObserving()
         try {

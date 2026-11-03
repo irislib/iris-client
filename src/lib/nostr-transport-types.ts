@@ -35,7 +35,6 @@ export interface WorkerMessage {
   type:
     | "init"
     | "peerSource"
-    | "peerCache"
     | "authSigned"
     | "subscribe"
     | "unsubscribe"

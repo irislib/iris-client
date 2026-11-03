@@ -179,8 +179,7 @@ async function performInit(relayRuntime: RelayRuntimeConfig) {
   }
 
   void import("@/lib/peerRuntime")
-    .then(async ({getPeerRuntime, setRetainedEventReader}) => {
-      if (workerTransport) setRetainedEventReader(workerTransport.retainedEventReader)
+    .then(async ({getPeerRuntime}) => {
       const peers = await getPeerRuntime()
       if (peers) workerTransport?.attachSource(peers.source)
     })

@@ -1,10 +1,5 @@
-import {connectNostrSource, serveNostrSource} from "@hashtree/worker/nostr-source-port"
-import type {
-  NostrEventReader,
-  RuntimeSource,
-  RuntimePublishResult,
-  RuntimeCompletion,
-} from "nostr-pubsub"
+import {serveNostrSource} from "@hashtree/worker/nostr-source-port"
+import type {RuntimeSource, RuntimePublishResult, RuntimeCompletion} from "nostr-pubsub"
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   type NostrClient,
@@ -58,12 +53,6 @@ export class WorkerTransport {
   private readonly sources = new Map<string, RuntimeSource>()
   private readonly sourceBridges = new Map<string, () => void>()
   readonly lifetime = new AbortController()
-  private cacheBridge?: ReturnType<typeof connectNostrSource>
-  readonly retainedEventReader: NostrEventReader = {
-    query: (filters, opts) =>
-      this.cacheBridge?.source.query?.(filters, opts) ??
-      Promise.resolve({events: [], complete: false}),
-  }
   private ready = false
   private restartAttempts = 0
   private restarting = false
@@ -109,13 +98,6 @@ export class WorkerTransport {
     }
   }
 
-  private connectPeerCache() {
-    this.cacheBridge?.close()
-    const channel = new MessageChannel()
-    this.cacheBridge = connectNostrSource(channel.port1, "client-cache")
-    this.worker.postMessage({type: "peerCache", port: channel.port2}, [channel.port2])
-  }
-
   private createWorker(): Worker {
     if (this.workerFactory) {
       const worker = this.workerFactory()
@@ -139,7 +121,6 @@ export class WorkerTransport {
         worker === this.worker
       ) {
         this.ready = true
-        this.connectPeerCache()
         for (const source of this.sources.values()) this.connectSource(source)
         worker.removeEventListener("message", handler)
         this.restartAttempts = 0
@@ -233,7 +214,6 @@ export class WorkerTransport {
     // Recreate worker
     for (const close of this.sourceBridges.values()) close()
     this.sourceBridges.clear()
-    this.cacheBridge?.close()
     this.worker.terminate()
     this.worker = this.createWorker()
     this.restarting = false
@@ -528,7 +508,6 @@ export class WorkerTransport {
 
     for (const close of this.sourceBridges.values()) close()
     this.sourceBridges.clear()
-    this.cacheBridge?.close()
     this.worker.terminate()
   }
 

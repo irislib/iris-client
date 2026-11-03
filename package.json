@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.59",
+  "version": "2.5.60",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -118,7 +118,7 @@
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.183.tgz",
-    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.21/nostr-pubsub-0.5.21.tgz",
+    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.24/nostr-pubsub-0.5.24.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
@@ -161,7 +161,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^26.1.0",
     "knip": "^5.88.1",
-    "nostr-pubsub-reconcile": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.0/nostr-pubsub-reconcile-0.1.0.tgz",
+    "nostr-pubsub-reconcile": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.1/nostr-pubsub-reconcile-0.1.1.tgz",
     "postcss": "^8.5.31",
     "prettier": "^3.9.6",
     "tailwindcss": "^3.4.19",
@@ -185,7 +185,7 @@
     "patchedDependencies": {
       "@hashtree/fips-transport@0.4.24": "patches/hashtree-fips-transport.patch",
       "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch",
-      "nostr-pubsub@0.5.21": "patches/nostr-pubsub.patch"
+      "nostr-pubsub@0.5.24": "patches/nostr-pubsub.patch"
     },
     "overrides": {
       "dexie": "$dexie",

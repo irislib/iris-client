@@ -1,10 +1,5 @@
-import {
-  verifyNostrEvent,
-  localIndexSource,
-  SOURCE_PRIORITY_LOCAL_INDEX,
-} from "nostr-pubsub"
 import type {Event, EventTemplate} from "nostr-tools"
-import {serveNostrSource, connectNostrSource} from "@hashtree/worker/nostr-source-port"
+import {connectNostrSource} from "@hashtree/worker/nostr-source-port"
 /**
  * Relay Worker
  *
@@ -299,7 +294,6 @@ async function resolveLatestProfileSearchTreeRoot(
 }
 
 const sourceBridges = new Map<string, ReturnType<typeof connectNostrSource>>()
-let closeCacheBridge: (() => void) | undefined
 let statusTimer: ReturnType<typeof setInterval> | undefined
 const authRequests = new Map<
   string,
@@ -725,7 +719,6 @@ function handleClose() {
   if (statusTimer) clearInterval(statusTimer)
   for (const bridge of sourceBridges.values()) bridge.close()
   sourceBridges.clear()
-  closeCacheBridge?.()
   for (const pending of authRequests.values()) pending.reject(new Error("Worker closed"))
   authRequests.clear()
   void nostr?.close()
@@ -770,27 +763,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
           if (data.error) request.reject(new Error(data.error))
           else request.resolve(data.event as Event)
         }
-        break
-      }
-      case "peerCache": {
-        if (!data.port) break
-        closeCacheBridge?.()
-        closeCacheBridge = serveNostrSource(data.port, {
-          id: "client-cache",
-          query: async (filters, options) => {
-            const report = await nostr
-              .getRuntime()
-              .query(filters, {...options, cache: "cache-only"})
-            return {
-              events: report.events.map((event) => ({
-                event: verifyNostrEvent(event),
-                source: localIndexSource("client-cache"),
-                priority: SOURCE_PRIORITY_LOCAL_INDEX,
-              })),
-              complete: report.complete,
-            }
-          },
-        })
         break
       }
       case "peerSource":

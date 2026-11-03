@@ -9,12 +9,26 @@ import {
 
 const harness = vi.hoisted(() => ({
   options: [] as Record<string, any>[],
+  retainedReaders: [] as unknown[],
   endpoints: [] as {id: string; stopped: boolean}[],
+  me: {publicKey: "", privateKey: "", nip07Login: false},
+  contacts: undefined as undefined | ((event: any) => void),
+  updateAccount: undefined as undefined | (() => void),
   makeNode: undefined as unknown as (id: string) => any,
 }))
 const providerId = `02${"11".repeat(32)}`
 vi.mock("@hashtree/fips-transport/browser", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@hashtree/fips-transport/browser")>()),
+  openBrowserAnnouncements: async (
+    ...args: Parameters<
+      typeof import("@hashtree/fips-transport/browser").openBrowserAnnouncements
+    >
+  ) => {
+    const actual =
+      await importOriginal<typeof import("@hashtree/fips-transport/browser")>()
+    harness.retainedReaders.push(args[3])
+    return actual.openBrowserAnnouncements(...args)
+  },
   supportsBrowserHashtreeFips: () => true,
   createBrowserHashtreeFipsProvider: async (options: Record<string, any>) => {
     harness.options.push(options)
@@ -39,10 +53,29 @@ vi.mock("./peerNetworkStats", () => ({
 vi.mock("@/stores/user", () => ({
   useUserStore: {
     getState: () => ({
-      publicKey: getPublicKey(new Uint8Array(32).fill(1)),
+      ...harness.me,
+      publicKey: harness.me.publicKey || getPublicKey(new Uint8Array(32).fill(1)),
       relayConfigs: [{url: "ws://fixture.invalid"}],
     }),
+    subscribe: (fn: () => void) => {
+      harness.updateAccount = fn
+      return () => {
+        harness.updateAccount = undefined
+      }
+    },
   },
+}))
+vi.mock("@/utils/nostrClient", () => ({
+  nostr: () => ({
+    subscribe: () => ({
+      on: (_: string, callback: (event: any) => void) => {
+        harness.contacts = callback
+      },
+      stop: () => {
+        harness.contacts = undefined
+      },
+    }),
+  }),
 }))
 vi.mock("@/utils/nativeHtree", () => ({getInjectedHtreeRelayUrl: () => null}))
 vi.mock("@/utils/socialGraph", () => ({
@@ -82,6 +115,8 @@ class Network {
   }
 }
 afterEach(() => {
+  harness.me = {publicKey: "", privateKey: "", nip07Login: false}
+  harness.retainedReaders.length = 0
   vi.unstubAllEnvs()
 })
 
@@ -146,7 +181,7 @@ it("sends inbox interests and anonymous private copies but no browsing filters t
     const discovery = await runtime!.source.subscribe!(browsing, () => {})
     await runtime!.source.query!(browsing)
     await vi.waitFor(() =>
-      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(1)
+      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(2)
     )
     expect(harness.endpoints).toHaveLength(4) // device + three private copies
     expect(new Set(harness.endpoints.map((endpoint) => endpoint.id)).size).toBe(4)
@@ -161,7 +196,12 @@ it("sends inbox interests and anonymous private copies but no browsing filters t
     const requests = frames
       .filter((frame) => frame.type === "req")
       .map((frame) => frame.filters)
-    expect(requests).toEqual([[{kinds: [1059], "#p": ["dd".repeat(32)]}]])
+    expect(requests).toEqual(
+      expect.arrayContaining([
+        [{kinds: [1, 6, 16, 20, 1111, 30023]}],
+        [{kinds: [1059], "#p": ["dd".repeat(32)]}],
+      ])
+    )
     expect(frames.filter((frame) => frame.type === "event")).toHaveLength(3)
     expect(frames.some((frame) => frame.type === "inv" || frame.type === "want")).toBe(
       false
@@ -175,7 +215,7 @@ it("sends inbox interests and anonymous private copies but no browsing filters t
   expect(harness.endpoints.every((endpoint) => endpoint.stopped)).toBe(true)
 })
 
-it("does not export privately looked-up profiles or adverts from the shared retained reader", async () => {
+it("isolates profile and post reads from peer replay while offering signed account feeds", async () => {
   vi.stubEnv("VITE_E2E", "")
   vi.stubEnv("VITE_NOSTR_EVENT_INDEX", "")
   vi.stubEnv("VITE_FIPS_PEERS", providerId)
@@ -189,13 +229,26 @@ it("does not export privately looked-up profiles or adverts from the shared reta
       {kind, created_at: 1700000000, tags: [], content: "cached public body"},
       secret
     )
-  const ownProfile = event(0, new Uint8Array(32).fill(1))
-  const privateResults = [0, 37195, 54321].map((kind) => event(kind, privateContact))
+  const owner = new Uint8Array(32).fill(1)
+  const followed = getPublicKey(privateContact)
+  harness.me = {
+    publicKey: getPublicKey(owner),
+    privateKey: "01".repeat(32),
+    nip07Login: false,
+  }
+  const publicList = finalizeEvent(
+    {kind: 3, created_at: 1700000000, tags: [["p", followed]], content: ""},
+    owner
+  )
+  const publicPost = event(1, owner)
+  const browsed = [0, 1].map((kind) => event(kind, privateContact))
   const provider = new FipsNostrPubsubClient({
     node: network.node(providerId),
     localPeerId: providerId,
     peers: () => harness.endpoints.map((endpoint) => endpoint.id),
   }).start()
+  // Outgoing subscriptions validate locally through the same decoder as inbound wire frames.
+  const broad = provider.subscribe([{kinds: [0, 1]}], () => {})
   const frames: FipsPubsubWireMessage[] = []
   const decode = provider.codec.decodeFrame.bind(provider.codec)
   vi.spyOn(provider.codec, "decodeFrame").mockImplementation((bytes) => {
@@ -203,37 +256,51 @@ it("does not export privately looked-up profiles or adverts from the shared reta
     frames.push(message)
     return message
   })
-  const {getPeerRuntime, setRetainedEventReader} = await import("./peerRuntime")
-  setRetainedEventReader({
-    query: async () => ({
-      complete: true,
-      events: [ownProfile, ...privateResults].map((event) => ({
-        event,
-        source: localIndexSource("shared-cache"),
-        priority: 300,
-      })),
-    }),
-  })
+  const {getPeerRuntime} = await import("./peerRuntime")
   const runtime = await getPeerRuntime()
   try {
-    const broad = provider.subscribe([{kinds: [0, 37195, 54321]}], () => {})
+    expect(harness.retainedReaders).toEqual([undefined])
+    harness.contacts!({rawEvent: () => publicList})
     await vi.waitFor(() =>
       expect(
-        frames.some((frame) => frame.type === "event" && frame.event.id === ownProfile.id)
+        frames
+          .filter((frame) => frame.type === "req")
+          .some((frame) =>
+            frame.filters.some((filter) => filter.authors?.includes(followed))
+          )
       ).toBe(true)
     )
-    // Allow queued TCP records to flush; both full EVENT and inventory are checked.
-    await new Promise((resolve) => setTimeout(resolve, 50))
+    // A local profile/post read (including a followed author) must not provide
+    // replay inventory. Explicit publication still reaches the waiting peer.
+    await runtime!.source.query!([
+      {kinds: [0], authors: [followed]},
+      {ids: [browsed[1].id]},
+    ])
+    await vi.waitFor(() =>
+      expect(provider.peerSubscriptionCount(harness.endpoints[0].id)).toBeGreaterThan(0)
+    )
+    await vi.waitFor(async () => {
+      await runtime!.source.publish!(publicPost, localIndexSource("outbox"))
+      expect(
+        frames.some((frame) => frame.type === "event" && frame.event.id === publicPost.id)
+      ).toBe(true)
+    })
     const wire = JSON.stringify(frames)
-    for (const event of privateResults) {
-      expect(wire).not.toContain(event.id)
-      expect(wire).not.toContain(event.pubkey)
-    }
+    for (const item of browsed) expect(wire).not.toContain(item.id)
+    const requests = frames.flatMap((frame) =>
+      frame.type === "req" ? frame.filters : []
+    )
+    expect(requests).toContainEqual({
+      kinds: [1, 6, 7, 9735],
+      "#p": [harness.me.publicKey],
+    })
+    expect(requests.every((filter) => !filter.ids && !filter.kinds?.includes(0))).toBe(
+      true
+    )
     broad.close()
   } finally {
     await runtime?.close()
     await provider.stop()
-    setRetainedEventReader({query: async () => ({events: [], complete: true})})
   }
 })
 
@@ -266,9 +333,11 @@ it("keeps inbox reception working with no anonymous message provider configured"
       () => {}
     )
     await vi.waitFor(() =>
-      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(1)
+      expect(frames.filter((frame) => frame.type === "req")).toHaveLength(2)
     )
-    expect(frames.find((frame) => frame.type === "req")).toMatchObject({filters: [inbox]})
+    expect(frames).toContainEqual(
+      expect.objectContaining({type: "req", filters: [inbox]})
+    )
     const event = finalizeEvent(
       {
         kind: 1060,
