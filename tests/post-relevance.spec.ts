@@ -163,10 +163,13 @@ test("the local model searches previously seen and incoming hashtags in their or
     await expect(page.getByPlaceholder("Search posts...")).toBeVisible()
     // Seed the existing seen-tag list, just as a past visit to Market would.
     await seedObservedTags(page, [seen, "PepperSauce"])
-    await context.route(/search-minilm-q8[^/]*\.onnx(?:\?.*)?$/, async (route) => {
-      if (!new URL(route.request().url()).searchParams.has("url")) await gate
-      await route.continue().catch(() => {})
-    })
+    await context.route(
+      /search-minilm-(?:q8|gpu)[^/]*\.onnx(?:\?.*)?$/,
+      async (route) => {
+        if (!new URL(route.request().url()).searchParams.has("url")) await gate
+        await route.continue().catch(() => {})
+      }
+    )
     await page.goto("/search/photography")
     await expect(page.getByText(note.content, {exact: true}).first()).toBeVisible()
     release()
@@ -367,7 +370,7 @@ test("text results stay interactive during a cold model load and subsequent sear
     releaseWeights = resolve
   })
   let downloads = 0
-  await context.route(/search-minilm-q8[^/]*\.onnx(?:\?.*)?$/, async (route) => {
+  await context.route(/search-minilm-(?:q8|gpu)[^/]*\.onnx(?:\?.*)?$/, async (route) => {
     if (new URL(route.request().url()).searchParams.has("url")) return route.continue()
     downloads++
     await gate
@@ -570,7 +573,7 @@ test("late browser scores preserve the reading position until Update results is 
   let bundledDownloads = 0
   page.on("request", (request) => {
     if (
-      /search-minilm-q8[^/]*\.onnx$/.test(new URL(request.url()).pathname) &&
+      /search-minilm-(?:q8|gpu)[^/]*\.onnx$/.test(new URL(request.url()).pathname) &&
       !new URL(request.url()).searchParams.has("url")
     )
       bundledDownloads++
