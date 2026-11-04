@@ -89,9 +89,7 @@ describe("extractSessionPubkeysFromRuntime", () => {
   })
 
   it("includes all session pubkeys when our public key is unknown", () => {
-    const result = extractSessionPubkeysFromRuntime(
-      createRuntimeWithPrivateAuthors()
-    )
+    const result = extractSessionPubkeysFromRuntime(createRuntimeWithPrivateAuthors())
 
     expect(result).toEqual([OUR_PUBKEY, PEER_ONE, PEER_TWO])
   })
@@ -180,5 +178,50 @@ describe("clearNotifications", () => {
     expect(getNotifications).toHaveBeenCalledOnce()
     expect(close).toHaveBeenCalledOnce()
     vi.unstubAllGlobals()
+  })
+
+  it("keeps unrelated post alerts on focus and clears only the viewed target for this account", async () => {
+    const push = (kind: number, id: string, tags: string[][]) => ({
+      close: vi.fn(),
+      data: {event: {kind, id, tags}},
+    })
+    const tags = [
+      ["e", "root", "", "root"],
+      ["e", "post", "", "reply"],
+      ["p", OUR_PUBKEY],
+    ]
+    const reply = push(1, "reply", tags)
+    const reaction = push(7, "reaction", tags)
+    const other = push(7, "other", [
+      ["e", "root"],
+      ["p", OUR_PUBKEY],
+    ])
+    const otherUser = push(7, "other-user", [
+      ["e", "post"],
+      ["p", PEER_ONE],
+    ])
+    const message = push(MESSAGE_EVENT_KIND, "message", [])
+    const alerts = [reply, reaction, other, otherUser, message]
+    vi.stubGlobal("navigator", {
+      serviceWorker: {
+        getRegistrations: async () => [{getNotifications: async () => alerts}],
+      },
+    })
+    try {
+      await clearNotifications()
+      expect(alerts.filter((alert) => alert.close.mock.calls.length)).toEqual([message])
+      await clearNotifications({publicKey: OUR_PUBKEY, postId: "reply"})
+      expect(reply.close).toHaveBeenCalledOnce()
+      expect(reaction.close).not.toHaveBeenCalled()
+      await clearNotifications({publicKey: OUR_PUBKEY, postId: "post"})
+      expect(reaction.close).toHaveBeenCalledOnce()
+      expect(other.close).not.toHaveBeenCalled()
+      await clearNotifications({publicKey: OUR_PUBKEY})
+      expect(other.close).toHaveBeenCalledOnce()
+      expect(otherUser.close).not.toHaveBeenCalled()
+      expect(message.close).toHaveBeenCalledOnce()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

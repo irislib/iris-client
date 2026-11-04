@@ -140,3 +140,64 @@ test("notifications reject an overmuted reply while preserving a followed reply"
   await expect(page.getByText(controlContent)).toBeVisible({timeout: 30000})
   await expect(page.getByText(hiddenContent)).toHaveCount(0)
 })
+
+test("opening a post reads only its activity and later reactions are still unread", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90000)
+  const viewer = createUser()
+  const sender = createUser()
+  const now = Math.floor(Date.now() / 1000) - 5
+  const post = (name: string) =>
+    signEvent(viewer, {kind: 1, content: name, tags: [], created_at: now - 2})
+  const first = post("First post " + viewer.publicKey.slice(0, 8))
+  const second = post("Second post " + viewer.publicKey.slice(0, 8))
+  const reaction = (target: VerifiedEvent, created_at: number) =>
+    signEvent(sender, {
+      kind: 7,
+      content: "+",
+      tags: [
+        ["e", target.id],
+        ["p", viewer.publicKey],
+      ],
+      created_at,
+    })
+  await publishEvents([
+    signEvent(viewer, {kind: 3, content: "", tags: [["p", sender.publicKey]]}),
+    first,
+    second,
+    reaction(second, now - 1),
+    reaction(first, now),
+  ])
+
+  await signUp(page, nip19.nsecEncode(viewer.privateKey))
+  const badge = page.locator('li a[href="/notifications"] .indicator-item')
+  await expect(badge).toBeVisible({timeout: 20000})
+  await page.goto("/" + nip19.neventEncode({id: first.id}))
+  await expect(page.getByText(first.content, {exact: true}).first()).toBeVisible()
+  await expect(badge).toBeVisible({timeout: 20000})
+
+  await page.locator('li a[href="/notifications"]').click()
+  const row = (content: string) =>
+    page
+      .locator("div.cursor-pointer.border-b")
+      .filter({hasText: "reacted"})
+      .filter({hasText: content})
+  await expect(row(first.content)).toBeVisible()
+  await expect(row(second.content)).toHaveClass(/bg-info\/20/)
+  await expect(row(first.content)).not.toHaveClass(/bg-info\/20/)
+  await page.screenshot({path: testInfo.outputPath("selectively-read.png")})
+  await expect(badge).toBeHidden()
+
+  // Reopening the app must recover the old read state and admit fresh activity.
+  await page.goto("/")
+  await publishEvents([reaction(first, Math.floor(Date.now() / 1000) + 1)])
+  await expect(badge).toBeVisible({timeout: 20000})
+  const detail = await page.context().newPage()
+  await detail.goto("/" + nip19.noteEncode(first.id))
+  await expect(detail.getByText(first.content, {exact: true}).first()).toBeVisible()
+  // The original tab is still subscribed. Its badge clearing proves that the
+  // detail read took effect, even if the detail loaded before relay history.
+  await expect(badge).toBeHidden({timeout: 15000})
+  await detail.screenshot({path: testInfo.outputPath("post-read.png")})
+})

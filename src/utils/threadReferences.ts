@@ -7,7 +7,25 @@ import {
   getRootEventId,
   getRootTag,
 } from "@/lib/nostr"
-import {KIND_TEXT_NOTE, KIND_ZAP_RECEIPT} from "@/utils/constants"
+import {KIND_REACTION, KIND_TEXT_NOTE, KIND_ZAP_RECEIPT} from "@/utils/constants"
+
+export function getNotificationTarget(event: Pick<AppEvent, "id" | "kind" | "tags">) {
+  if (event.kind === KIND_TEXT_NOTE) {
+    const tags = event.tags.filter((tag) => tag[0] === "e")
+    if (!tags.length) return undefined
+    // A quoted post isn't the parent. If all references are mentions, the
+    // notification concerns the note itself.
+    return (
+      getReplyTag({
+        kind: event.kind,
+        tags: tags.filter((tag) => tag[3] !== "mention"),
+      })?.[1] ?? event.id
+    )
+  }
+  if (event.kind === KIND_REACTION)
+    return event.tags.filter((tag) => tag[0] === "e").at(-1)?.[1]
+  return event.tags.find((tag) => tag[0] === "e")?.[1]
+}
 
 const HEX_EVENT_ID_REGEX = /^[0-9a-f]{64}$/i
 

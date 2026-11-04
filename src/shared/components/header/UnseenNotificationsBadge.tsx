@@ -2,12 +2,10 @@ import {useNotificationsStore} from "@/stores/notifications"
 import {useEffect} from "react"
 import {useUserStore} from "@/stores/user"
 import {startNotificationsSubscription} from "@/shared/components/feed/notificationsSubscription"
+import {isNotificationUnread, notifications} from "@/utils/notifications"
 
 export default function UnseenNotificationsBadge() {
-  const {latestNotification} = useNotificationsStore()
-  const notificationsSeenAt = useNotificationsStore(
-    (state) => state.notificationsSeenAt || 0
-  )
+  const {notificationsSeenAt, readEventsByAccount} = useNotificationsStore()
 
   // Ensure we start the subscription as soon as the user is logged in
   const publicKey = useUserStore((state) => state.publicKey)
@@ -18,7 +16,15 @@ export default function UnseenNotificationsBadge() {
     }
   }, [publicKey])
 
-  const shouldShow = notificationsSeenAt < latestNotification && latestNotification > 0
+  const shouldShow =
+    !!publicKey &&
+    Array.from(notifications.values()).some((notification) =>
+      isNotificationUnread(
+        notification,
+        notificationsSeenAt,
+        readEventsByAccount[publicKey]
+      )
+    )
 
   return (
     <>

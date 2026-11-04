@@ -5,6 +5,7 @@ import {
   buildReplySubscriptionFilters,
   getEventReplyReference,
   getEventRootReference,
+  getNotificationTarget,
   getThreadReferenceRoute,
 } from "./threadReferences"
 
@@ -47,6 +48,13 @@ describe("threadReferences", () => {
 
   it("returns the thread root reference for nested generic replies", () => {
     expect(getEventRootReference(nestedArticleReply)).toBe(article.tagId())
+  })
+
+  it("keeps quoted references out of notification targets", () => {
+    const mention = ["e", "quoted", "", "mention"]
+    const reply = {kind: 1, id: "reply", tags: [["e", "parent", "", "root"], mention]}
+    expect(getNotificationTarget(reply)).toBe("parent")
+    expect(getNotificationTarget({...reply, tags: [mention]})).toBe("reply")
   })
 
   it("builds route paths for note ids and address references", () => {

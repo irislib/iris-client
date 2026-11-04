@@ -1,4 +1,8 @@
-import {notifications} from "@/utils/notifications"
+import {
+  clearNotifications,
+  isNotificationUnread,
+  notifications,
+} from "@/utils/notifications"
 import NotificationsFeedItem from "@/pages/notifications/NotificationsFeedItem"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
 import {useEffect, useCallback, Suspense, useState} from "react"
@@ -16,6 +20,9 @@ const DISPLAY_INCREMENT = 10
 function NotificationsFeed() {
   const notificationsSeenAt = useNotificationsStore((state) => state.notificationsSeenAt)
   const publicKey = useUserStore((state) => state.publicKey)
+  const readEvents = useNotificationsStore(
+    (state) => state.readEventsByAccount[publicKey]
+  )
   const [animationSeenAt, setAnimationSeenAt] = useState(notificationsSeenAt) // Initialize with current seen time
   const location = useLocation()
   const isTopOfStack = useIsTopOfStack()
@@ -53,21 +60,16 @@ function NotificationsFeed() {
     updateSeenAt()
   }, [latestNotificationTime, updateSeenAt])
 
-  // When navigating to notifications page, set seen time immediately but delay animation
+  // Dismiss this account's browser alerts when the inbox is actually visible.
   useEffect(() => {
-    if (isTopOfStack && location.pathname === "/notifications") {
-      // Set seen time immediately
-      const newSeenTime = Math.round(Date.now() / 1000)
-      useNotificationsStore.getState().setNotificationsSeenAt(newSeenTime)
-
-      // Start fade animation after 10 seconds
-      const timer = setTimeout(() => {
-        setAnimationSeenAt(newSeenTime)
-      }, 10000)
-
-      return () => clearTimeout(timer)
+    if (!publicKey || !isTopOfStack || location.pathname !== "/notifications") return
+    const dismiss = () => {
+      if (document.visibilityState === "visible") void clearNotifications({publicKey})
     }
-  }, [location.pathname, isTopOfStack]) // Run when pathname or stack position changes
+    dismiss()
+    document.addEventListener("visibilitychange", dismiss)
+    return () => document.removeEventListener("visibilitychange", dismiss)
+  }, [publicKey, location.pathname, isTopOfStack])
 
   useEffect(() => {
     const handleUpdate = () => updateSeenAt()
@@ -113,7 +115,7 @@ function NotificationsFeed() {
             .slice(0, displayCount)
             .map((entry) => (
               <NotificationsFeedItem
-                highlight={entry[1].time > animationSeenAt}
+                highlight={isNotificationUnread(entry[1], animationSeenAt, readEvents)}
                 key={entry[0]}
                 notification={entry[1]}
               />

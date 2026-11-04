@@ -2,6 +2,8 @@ import {MESSAGE_EVENT_KIND, type NdrRuntime} from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
+import {useNotificationsStore} from "@/stores/notifications"
+import {getNotificationTarget} from "./threadReferences"
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {EventTag, AppEvent} from "@/lib/nostr"
 import debounce from "lodash/debounce"
@@ -12,6 +14,8 @@ import {
   KIND_REPOST,
   KIND_REACTION,
   KIND_ZAP_RECEIPT,
+  KIND_PICTURE_FIRST,
+  KIND_HIGHLIGHT,
   DEBUG_NAMESPACES,
 } from "@/utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
@@ -49,6 +53,43 @@ export interface Notification {
 }
 
 export const notifications = new SortedMap<string, Notification>([], "time")
+
+function notificationEvents(notification: Notification) {
+  // Older entries only have the group's representative event.
+  return notification.events?.length
+    ? notification.events
+    : [{event: {id: notification.id}, time: notification.time}]
+}
+
+export function isNotificationUnread(
+  notification: Notification,
+  seenAt: number,
+  readEvents: Record<string, number> = {}
+) {
+  return (
+    notification.time > seenAt &&
+    notificationEvents(notification).some(
+      ({event, time}) => time > seenAt && !(event.id in readEvents)
+    )
+  )
+}
+
+export function readPostNotifications(publicKey: string, postId: string) {
+  const {notificationsSeenAt, markEventsRead} = useNotificationsStore.getState()
+  const readEvents: Record<string, number> = {}
+  for (const notification of notifications.values()) {
+    if (notification.time <= notificationsSeenAt) continue
+    for (const {event, time} of notificationEvents(notification)) {
+      if (
+        time > notificationsSeenAt &&
+        (notification.originalEventId === postId || event.id === postId)
+      ) {
+        readEvents[event.id] = time
+      }
+    }
+  }
+  markEventsRead(publicKey, readEvents)
+}
 
 /**
  * Runs one synchronization at a time and collapses queued work to the newest value.
@@ -285,10 +326,7 @@ const syncDmNotifications = async (generation: number) => {
     try {
       const runtime = getNdrRuntime()
       if (!runtime.getState().sessionManagerReady) return
-      sessionAuthors = extractSessionPubkeysFromRuntime(
-        runtime,
-        publicKey
-      )
+      sessionAuthors = extractSessionPubkeysFromRuntime(runtime, publicKey)
     } catch (err) {
       error("Failed to load session data for DM push subscription:", err)
       return
@@ -344,15 +382,20 @@ function sameStringSet(a: string[], b: string[]) {
 }
 
 export function extractSessionPubkeysFromRuntime(
-  runtime: Pick<NdrRuntime, "getSessionUserRecords" | "getSessionMessagePushAuthorPubkeys">,
+  runtime: Pick<
+    NdrRuntime,
+    "getSessionUserRecords" | "getSessionMessagePushAuthorPubkeys"
+  >,
   ourPublicKey?: string
 ): string[] {
-  return Array.from(new Set(
-    Array.from(runtime.getSessionUserRecords().keys())
-      .filter((publicKey) => !ourPublicKey || publicKey !== ourPublicKey)
-      .flatMap((publicKey) => runtime.getSessionMessagePushAuthorPubkeys(publicKey))
-      .filter((key) => !ourPublicKey || key !== ourPublicKey)
-  ))
+  return Array.from(
+    new Set(
+      Array.from(runtime.getSessionUserRecords().keys())
+        .filter((publicKey) => !ourPublicKey || publicKey !== ourPublicKey)
+        .flatMap((publicKey) => runtime.getSessionMessagePushAuthorPubkeys(publicKey))
+        .filter((key) => !ourPublicKey || key !== ourPublicKey)
+    )
+  )
 }
 
 let notificationSyncGeneration = 0
@@ -476,7 +519,23 @@ const scheduleNotificationSync = debounce(queueNotificationSync, 5000)
 export const subscribeToNotifications = () =>
   scheduleNotificationSync(++notificationSyncGeneration)
 
-export const clearNotifications = async () => {
+type PostPushEvent = Pick<AppEvent, "id" | "kind" | "tags">
+
+function getPostPushEvent(data: {event?: PostPushEvent} | undefined) {
+  const event = data?.event
+  if (
+    event &&
+    Array.isArray(event.tags) &&
+    (MANAGED_NOTIFICATION_KINDS.includes(event.kind) ||
+      event.kind === KIND_PICTURE_FIRST ||
+      event.kind === KIND_HIGHLIGHT)
+  )
+    return event
+}
+
+// Opening the app still dismisses non-post alerts. Post alerts wait for their
+// own detail view or for the account's notifications feed to be opened.
+export const clearNotifications = async (view?: {publicKey: string; postId?: string}) => {
   if (!("serviceWorker" in navigator)) {
     return
   }
@@ -485,7 +544,24 @@ export const clearNotifications = async () => {
   for (const registration of registrations) {
     if (typeof registration.getNotifications !== "function") continue
     const notifications = await registration.getNotifications()
-    notifications.forEach((notification) => notification.close())
+    for (const notification of notifications) {
+      const event = getPostPushEvent(notification.data)
+      if (!event) {
+        if (!view) notification.close()
+        continue
+      }
+      if (!view) continue
+      const recipients = event.tags.filter((tag) => tag[0] === "p")
+      if (recipients.length && !recipients.some((tag) => tag[1] === view.publicKey))
+        continue
+      if (
+        !view.postId ||
+        view.postId === event.id ||
+        view.postId === getNotificationTarget(event)
+      ) {
+        notification.close()
+      }
+    }
   }
 }
 

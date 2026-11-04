@@ -27,6 +27,7 @@ import ReplyHeader from "../ReplyHeader"
 import {fetchEventReliable} from "@/utils/fetchEventsReliable"
 import {KIND_REACTION, KIND_ZAP_RECEIPT} from "@/utils/constants"
 import InlineNoteCreator from "@/shared/components/create/InlineNoteCreator"
+import ViewedPostNotifications from "@/pages/thread/ViewedPostNotifications"
 import {usePublicKey} from "@/stores/user"
 import {
   buildReplyFeedFilter,
@@ -292,6 +293,9 @@ function FeedItem({
   return (
     <GroupEventScope event={referredEvent || event}>
       <ErrorBoundary>
+        {standalone && (
+          <ViewedPostNotifications postId={event.id} postRef={feedItemRef} />
+        )}
         {showThreadRoot && (
           <div className="px-4 py-2 text-sm text-base-content/70">
             <Link

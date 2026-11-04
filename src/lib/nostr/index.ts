@@ -968,7 +968,7 @@ export const getRootTag = (event: AppEvent) =>
     ? event.tags.find((t) => t[0] === "E" || t[0] === "A")
     : (event.tags.find((t) => t[0] === "e" && t[3] === "root") ??
       event.tags.find((t) => t[0] === "e"))
-export const getReplyTag = (event: AppEvent) =>
+export const getReplyTag = (event: Pick<AppEvent, "kind" | "tags">) =>
   event.kind === 1111
     ? event.tags.find((t) => t[0] === "e" || t[0] === "a")
     : (event.tags.find((t) => t[0] === "e" && t[3] === "reply") ??

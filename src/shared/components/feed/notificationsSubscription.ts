@@ -1,7 +1,8 @@
 import {getSocialGraph, socialGraphLoaded} from "@/utils/socialGraph"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 import {shouldHideUnsolicitedEvent} from "@/utils/visibility"
-import {getTag, getZappingUser, getZapAmount} from "@/utils/nostr.ts"
+import {getZappingUser, getZapAmount} from "@/utils/nostr.ts"
+import {getNotificationTarget} from "@/utils/threadReferences"
 import {notifications, Notification as IrisNotification} from "@/utils/notifications"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useNotificationsStore} from "@/stores/notifications"
@@ -272,7 +273,7 @@ const startNotificationsSubscriptionNow = async (
       return
     }
 
-    const eTag = getTag("e", event.tags)
+    const eTag = getNotificationTarget(event)
     if (!eTag || !event.created_at) return
 
     const canUseEvent = () =>
