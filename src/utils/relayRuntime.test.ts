@@ -3,6 +3,33 @@ import {describe, expect, it} from "vitest"
 import {buildWorkerRelayUrls, resolveRelayRuntimeConfig} from "./relayRuntime"
 
 describe("relay runtime selection", () => {
+  it("keeps fresh private defaults separate, including explicit empty private choices", () => {
+    const options = {
+      enabledRelayUrls: ["wss://old.test/", "wss://relay.ditto.pub/"],
+      forceLocalRelayEnv: false,
+      storeNdkOutboxModel: false,
+      storeAutoConnectUserRelays: false,
+    }
+    expect(
+      resolveRelayRuntimeConfig({...options, privateRelayUrls: ["wss://old.test/"]})
+    ).toMatchObject({
+      relayUrls: options.enabledRelayUrls,
+      privateRelayUrls: ["wss://old.test/"],
+    })
+    expect(
+      resolveRelayRuntimeConfig({...options, privateRelayUrls: []}).privateRelayUrls
+    ).toEqual([])
+    expect(resolveRelayRuntimeConfig(options).privateRelayUrls).toEqual(
+      options.enabledRelayUrls
+    )
+    expect(
+      resolveRelayRuntimeConfig({
+        ...options,
+        privateRelayUrls: ["wss://old.test/"],
+        injectedHtreeRelayUrl: "ws://127.0.0.1:7777",
+      }).privateRelayUrls
+    ).toEqual(["ws://127.0.0.1:7777"])
+  })
   it("keeps an intentionally empty relay scope offline", () => {
     const config = resolveRelayRuntimeConfig({
       enabledRelayUrls: [],

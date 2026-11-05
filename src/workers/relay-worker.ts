@@ -290,7 +290,8 @@ function requestAuthSignature(_relay: string, event: EventTemplate): Promise<Eve
 async function initialize(
   relayUrls?: string[],
   initialSettings?: SettingsState,
-  disableExtraRelayUrls: boolean = false
+  disableExtraRelayUrls: boolean = false,
+  privateRelayUrls?: string[]
 ) {
   try {
     log("[Relay Worker] Starting initialization with relays:", relayUrls)
@@ -320,6 +321,7 @@ async function initialize(
 
     nostr = new NostrClient({
       explicitRelayUrls: relaysToUse,
+      privateRelayUrls,
       signAuthEvent: requestAuthSignature,
       verifyEvent: (event) => verifyRelayEvent(event, wasmVerifier),
       cacheAdapter: cache,
@@ -427,6 +429,7 @@ function handleSubscribe(
   const groupableDelay = shouldGroup ? (opts?.groupableDelay ?? 100) : undefined
 
   const sub = nostr.subscribe(filters, {
+    privateRelayScope: opts?.privateRelayScope,
     isolated: opts?.isolated,
     relayUrls:
       opts?.relayUrls ??
@@ -538,7 +541,9 @@ async function handlePublish(
         .map((relay) => relay.url)
       if (!relayUrls.length) throw new Error("No connected message server")
     }
-    const result = await runtime.publish(eventData, {
+    const result = await (
+      opts?.privateRelayScope ? runtime.publishPrivate : runtime.publish.bind(runtime)
+    )(eventData, {
       relays: relayUrls,
       requireAck: opts?.requireAck,
     })
@@ -720,7 +725,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
     switch (type) {
       case "init":
-        await initialize(relays, data.settings, data.disableExtraRelayUrls)
+        await initialize(
+          relays,
+          data.settings,
+          data.disableExtraRelayUrls,
+          data.privateRelays
+        )
         break
 
       case "authSigned": {
@@ -782,6 +792,10 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         if (data.url) {
           handleRemoveRelay(data.url)
         }
+        break
+
+      case "setPrivateRelays":
+        if (data.privateRelays) nostr?.setPrivateRelays(data.privateRelays)
         break
 
       case "connectRelay":

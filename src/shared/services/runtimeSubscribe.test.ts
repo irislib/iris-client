@@ -78,8 +78,10 @@ describe("createRuntimeSubscribe", () => {
     expect(calls[1]?.opts).toMatchObject({
       closeOnEose: true,
       cacheUsage: CacheMode.ONLY_RELAY,
-      relayUrls: ["wss://relay.one", "wss://relay.two"],
+      privateRelayScope: true,
     })
+    expect(calls[0]?.opts.privateRelayScope).toBe(true)
+    expect(calls.every((call) => call.opts.relayUrls === undefined)).toBe(true)
 
     calls[1]?.subscription.emit({id: "backfill-event"})
     expect(onEvent).toHaveBeenCalledWith({id: "backfill-event"})

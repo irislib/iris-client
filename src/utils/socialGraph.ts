@@ -1,4 +1,4 @@
-import {DEFAULT_RELAYS} from "@/shared/constants/relays"
+import {DEFAULT_RELAYS, LEGACY_PRODUCTION_RELAYS} from "@/shared/constants/relays"
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
 import {EventSubscription, CacheMode, type EventFilter} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
@@ -41,8 +41,10 @@ function usesDefaultGraphRelays(relays: string[]): boolean {
     !import.meta.env.VITE_USE_LOCAL_RELAY &&
     !import.meta.env.VITE_USE_TEST_RELAY &&
     !getInjectedHtreeRelayUrl() &&
-    relays.length === DEFAULT_RELAYS.length &&
-    DEFAULT_RELAYS.every((url) => relays.includes(url))
+    [DEFAULT_RELAYS, LEGACY_PRODUCTION_RELAYS].some(
+      (defaults) =>
+        relays.length === defaults.length && defaults.every((url) => relays.includes(url))
+    )
   )
 }
 

@@ -45,6 +45,40 @@ class FakeWorker {
 }
 
 describe("WorkerTransport search", () => {
+  it("retains both relay scopes and private subscription intent across worker restart", async () => {
+    vi.useFakeTimers()
+    const workers: FakeWorker[] = []
+    const transport = new WorkerTransport(() => {
+      const worker = new FakeWorker()
+      workers.push(worker)
+      return worker as unknown as Worker
+    })
+    const nostr = {transportPlugins: []} as unknown as NostrClient
+    try {
+      await transport.connect(nostr, ["wss://old.example/"], {
+        privateRelayUrls: ["wss://old.example/"],
+      })
+      workers[0].dispatchMessage({type: "ready"})
+      transport.subscribe("private", [{kinds: [1060]}], vi.fn(), undefined, {
+        privateRelayScope: true,
+      })
+      await transport.addRelay("wss://public.example/")
+      await transport.removeRelay("wss://old.example")
+      transport.setPrivateRelays([])
+      workers[0].onerror?.({message: "worker crashed"} as ErrorEvent)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(
+        workers[1].postedMessages.find((message) => message.type === "init")
+      ).toMatchObject({relays: ["wss://public.example/"], privateRelays: []})
+      workers[1].dispatchMessage({type: "ready"})
+      expect(
+        workers[1].postedMessages.find((message) => message.type === "subscribe")
+      ).toMatchObject({id: "private", subscribeOpts: {privateRelayScope: true}})
+    } finally {
+      transport.close()
+      vi.useRealTimers()
+    }
+  })
   it("keeps partial search updates alive until the final search result arrives", async () => {
     const worker = new FakeWorker()
     const transport = new WorkerTransport(() => worker as unknown as Worker)

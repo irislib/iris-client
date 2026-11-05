@@ -73,6 +73,8 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
   const relayRuntime = resolveRelayRuntimeConfig({
     enabledRelayUrls: enabledRelays,
     explicitRelayUrls: opts?.explicitRelayUrls,
+    privateRelayUrls:
+      opts?.privateRelayUrls ?? opts?.explicitRelayUrls ?? store.privateRelays,
     injectedHtreeRelayUrl: getInjectedHtreeRelayUrl(),
     forceLocalRelayEnv: import.meta.env.VITE_USE_LOCAL_RELAY,
     storeNdkOutboxModel: store.ndkOutboxModel,
@@ -84,6 +86,7 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
     ...irisClientTagOptions,
     ...opts,
     explicitRelayUrls: relayRuntime.explicitRelayUrls,
+    privateRelayUrls: relayRuntime.privateRelayUrls,
     enableOutboxModel: relayRuntime.enableOutboxModel,
     autoConnectUserRelays: relayRuntime.autoConnectUserRelays,
     discoveryRelayUrls:
@@ -150,6 +153,7 @@ async function performInit(relayRuntime: RelayRuntimeConfig) {
   // Connect transport (registers as plugin and sends init).
   workerTransport!.connect(clientInstance!, relays, {
     disableExtraRelayUrls: relayRuntime.disableExtraRelayUrls,
+    privateRelayUrls: relayRuntime.privateRelayUrls,
   })
 
   const nostr = clientInstance!
@@ -300,20 +304,31 @@ function watchLocalSettings(instance: NostrClient, relayRuntime: RelayRuntimeCon
 
     // Handle both legacy relays array and new relayConfigs
     const shouldUpdateRelays =
-      state.relays !== prevState.relays || state.relayConfigs !== prevState.relayConfigs
+      state.relays !== prevState.relays ||
+      state.relayConfigs !== prevState.relayConfigs ||
+      state.privateRelays !== prevState.privateRelays
 
     if (shouldUpdateRelays) {
       if (relayRuntime.pinnedRelayUrls) {
         return
       }
+      instance.setPrivateRelays(state.privateRelays)
 
       // Use relayConfigs if available, otherwise fall back to relays array
-      const relayList =
+      const relayList: {url: string; disabled?: boolean}[] =
         state.relayConfigs && state.relayConfigs.length > 0
           ? state.relayConfigs
           : state.relays.map((url) => ({url})) // No disabled flag means enabled
 
       if (Array.isArray(relayList)) {
+        const enabledUrls = relayList
+          .filter((config) => !config.disabled)
+          .map((config) => config.url)
+        const enabled = new Set(enabledUrls.map(normalizeRelayUrl))
+        instance.explicitRelayUrls = enabledUrls
+        for (const url of [...instance.pool.relays.keys()]) {
+          if (!enabled.has(normalizeRelayUrl(url))) instance.pool.removeRelay(url)
+        }
         const normalizedPoolUrls = Array.from(instance.pool.relays.keys()).map(
           normalizeRelayUrl
         )

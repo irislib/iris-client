@@ -1,6 +1,7 @@
 export interface ResolveRelayRuntimeConfigOptions {
   enabledRelayUrls: string[]
   explicitRelayUrls?: string[]
+  privateRelayUrls?: string[]
   injectedHtreeRelayUrl?: string | null
   forceLocalRelayEnv: boolean
   storeNdkOutboxModel: boolean
@@ -10,6 +11,7 @@ export interface ResolveRelayRuntimeConfigOptions {
 export interface RelayRuntimeConfig {
   relayUrls: string[]
   explicitRelayUrls: string[]
+  privateRelayUrls: string[]
   pinnedRelayUrls: string[] | null
   enableOutboxModel: boolean
   autoConnectUserRelays: boolean
@@ -43,6 +45,12 @@ export function resolveRelayRuntimeConfig(
   return {
     relayUrls,
     explicitRelayUrls: relayUrls,
+    privateRelayUrls: uniqueRelayUrls(
+      injectedRelayUrls ||
+        (localRelayOnlyMode
+          ? relayUrls
+          : (options.privateRelayUrls ?? configuredRelayUrls))
+    ),
     pinnedRelayUrls: injectedRelayUrls,
     enableOutboxModel: disableExtraRelayUrls ? false : options.storeNdkOutboxModel,
     autoConnectUserRelays: disableExtraRelayUrls

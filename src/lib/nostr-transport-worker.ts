@@ -8,6 +8,7 @@ import {
   type EventFilter,
   type SubscriptionOptions,
   type Relay,
+  normalizeRelayUrl,
 } from "@/lib/nostr"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -39,6 +40,7 @@ export class WorkerTransport {
   private workerFactory?: () => Worker
   private nostr?: NostrClient
   private relayUrls: string[] = []
+  private privateRelayUrls?: string[]
   private disableExtraRelayUrls = false
   private subscriptions = new Map<string, Set<WorkerEventHandler>>()
   private eoseHandlers = new Map<string, Set<(status?: RuntimeCompletion) => void>>()
@@ -223,6 +225,7 @@ export class WorkerTransport {
       try {
         await this.connect(this.nostr, this.relayUrls, {
           disableExtraRelayUrls: this.disableExtraRelayUrls,
+          privateRelayUrls: this.privateRelayUrls,
         })
         log(`Worker restarted successfully after ${this.restartAttempts} attempts`)
       } catch (error) {
@@ -235,13 +238,14 @@ export class WorkerTransport {
   async connect(
     nostr: NostrClient,
     relayUrls?: string[],
-    options?: {disableExtraRelayUrls?: boolean}
+    options?: {disableExtraRelayUrls?: boolean; privateRelayUrls?: string[]}
   ): Promise<void> {
     if (this.nostr && this.nostr !== nostr) {
       this.removeTransportPlugin(this.nostr)
     }
     this.nostr = nostr
     this.relayUrls = relayUrls || []
+    this.privateRelayUrls = options?.privateRelayUrls
     this.disableExtraRelayUrls = !!options?.disableExtraRelayUrls
 
     // Register as transport plugin for publish and subscription interception
@@ -267,6 +271,7 @@ export class WorkerTransport {
     this.worker.postMessage({
       type: "init",
       relays: relayUrls || [],
+      privateRelays: this.privateRelayUrls,
       settings,
       disableExtraRelayUrls: this.disableExtraRelayUrls,
     } as WorkerMessage)
@@ -303,6 +308,10 @@ export class WorkerTransport {
   attachSource(source: RuntimeSource): void {
     this.sources.set(source.id, source)
     if (this.ready) this.connectSource(source)
+  }
+  setPrivateRelays(urls: string[]): void {
+    this.privateRelayUrls = urls
+    this.postMessage({type: "setPrivateRelays", privateRelays: urls})
   }
 
   private connectSource(source: RuntimeSource): void {
@@ -425,6 +434,7 @@ export class WorkerTransport {
 
     // Convert cacheUsage enum to destinations array for worker
     const subscribeOpts: WorkerSubscribeOpts = {}
+    if (opts?.privateRelayScope) subscribeOpts.privateRelayScope = true
     if (opts?.relayUrls) subscribeOpts.relayUrls = opts.relayUrls
     if (opts?.isolated) subscribeOpts.isolated = true
     if (opts?.cacheUsage) {
@@ -549,6 +559,12 @@ export class WorkerTransport {
    * Add relay to worker pool
    */
   async addRelay(url: string): Promise<void> {
+    if (
+      !this.relayUrls.some(
+        (existing) => normalizeRelayUrl(existing) === normalizeRelayUrl(url)
+      )
+    )
+      this.relayUrls = [...this.relayUrls, url]
     this.postMessage({type: "addRelay", url} as WorkerMessage)
   }
 
@@ -556,6 +572,9 @@ export class WorkerTransport {
    * Remove relay from worker pool
    */
   async removeRelay(url: string): Promise<void> {
+    this.relayUrls = this.relayUrls.filter(
+      (existing) => normalizeRelayUrl(existing) !== normalizeRelayUrl(url)
+    )
     this.postMessage({type: "removeRelay", url} as WorkerMessage)
   }
 

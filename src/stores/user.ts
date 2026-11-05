@@ -4,12 +4,7 @@ import {
 } from "@/pages/settings/mediaservers-utils"
 import {persist} from "zustand/middleware"
 import {create} from "zustand"
-import {DEFAULT_RELAYS} from "@/shared/constants/relays"
-import {createDebugLogger} from "@/utils/createDebugLogger"
-import {DEBUG_NAMESPACES} from "@/utils/constants"
-
-const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
-
+import {DEFAULT_RELAYS, DEFAULT_PRIVATE_RELAYS} from "@/shared/constants/relays"
 type MediaServerProtocol = "blossom" | "nip96"
 
 interface MediaServer {
@@ -34,6 +29,7 @@ interface UserState {
   DHTPrivateKey: string
 
   relays: string[]
+  privateRelays: string[]
   relayConfigs: RelayConfig[]
   mediaservers: MediaServer[]
   defaultMediaserver: MediaServer | null
@@ -103,6 +99,7 @@ export const useUserStore = create<UserState>()(
         DHTPublicKey: "",
         DHTPrivateKey: "",
         relays: DEFAULT_RELAYS,
+        privateRelays: DEFAULT_PRIVATE_RELAYS,
         relayConfigs: DEFAULT_RELAYS.map((url) => ({url})),
         mediaservers: [],
         defaultMediaserver: null,
@@ -138,13 +135,23 @@ export const useUserStore = create<UserState>()(
             const newConfigs = relays.map(
               (url) => existingConfigs.get(url) || {url} // No disabled flag means enabled
             )
-            return {relays, relayConfigs: newConfigs}
+            return {
+              relays,
+              relayConfigs: newConfigs,
+              privateRelays: newConfigs
+                .filter((config) => !config.disabled)
+                .map((config) => config.url),
+            }
           })
         },
         setRelayConfigs: (configs: RelayConfig[]) => {
           // Update both relayConfigs and relays array (for backward compatibility)
           const enabledRelays = configs.filter((c) => !c.disabled).map((c) => c.url)
-          set({relayConfigs: configs, relays: enabledRelays})
+          set({
+            relayConfigs: configs,
+            relays: enabledRelays,
+            privateRelays: enabledRelays,
+          })
         },
         toggleRelayConnection: (url: string) => {
           set((state) => {
@@ -152,7 +159,11 @@ export const useUserStore = create<UserState>()(
               c.url === url ? {...c, disabled: !c.disabled} : c
             )
             const enabledRelays = configs.filter((c) => !c.disabled).map((c) => c.url)
-            return {relayConfigs: configs, relays: enabledRelays}
+            return {
+              relayConfigs: configs,
+              relays: enabledRelays,
+              privateRelays: enabledRelays,
+            }
           })
         },
         addRelay: (url: string, disabled: boolean = false) => {
@@ -164,14 +175,22 @@ export const useUserStore = create<UserState>()(
             const newConfig = disabled ? {url, disabled} : {url}
             const configs = [...state.relayConfigs, newConfig]
             const enabledRelays = configs.filter((c) => !c.disabled).map((c) => c.url)
-            return {relayConfigs: configs, relays: enabledRelays}
+            return {
+              relayConfigs: configs,
+              relays: enabledRelays,
+              privateRelays: enabledRelays,
+            }
           })
         },
         removeRelay: (url: string) => {
           set((state) => {
             const configs = state.relayConfigs.filter((c) => c.url !== url)
             const enabledRelays = configs.filter((c) => !c.disabled).map((c) => c.url)
-            return {relayConfigs: configs, relays: enabledRelays}
+            return {
+              relayConfigs: configs,
+              relays: enabledRelays,
+              privateRelays: enabledRelays,
+            }
           })
         },
         setMediaservers: (mediaservers: MediaServer[]) => set({mediaservers}),
@@ -246,16 +265,35 @@ export const useUserStore = create<UserState>()(
     {
       name: "user-storage",
       version: 3, // Bump version to trigger media server migration
+      merge: (persistedState, currentState) => {
+        const saved = (persistedState || {}) as Partial<UserState>
+        // Inspect persisted fields before merging defaults. Empty and disabled
+        // lists are intentional; legacy relay-only settings are authoritative too.
+        const relayConfigs: RelayConfig[] = Array.isArray(saved.relayConfigs)
+          ? saved.relayConfigs
+          : Array.isArray(saved.relays)
+            ? saved.relays.map((url) => ({url}))
+            : currentState.relayConfigs
+        return {
+          ...currentState,
+          ...saved,
+          relayConfigs,
+          // A saved relay choice governed both kinds of traffic before this
+          // split. Only a truly fresh store receives distinct private defaults.
+          privateRelays: Array.isArray(saved.privateRelays)
+            ? saved.privateRelays
+            : Array.isArray(saved.relayConfigs) || Array.isArray(saved.relays)
+              ? relayConfigs
+                  .filter((config) => !config.disabled)
+                  .map((config) => config.url)
+              : currentState.privateRelays,
+          relays: relayConfigs
+            .filter((config) => !config.disabled)
+            .map((config) => config.url),
+        }
+      },
       onRehydrateStorage: () => (state, error) => {
         if (state) {
-          // Missing legacy settings need defaults; an explicitly empty list is
-          // the user's choice to make no relay connections, including on reload.
-          if (!state.relayConfigs) {
-            log("Migrating: Adding default relays to relayConfigs")
-            state.relayConfigs = DEFAULT_RELAYS.map((url) => ({url}))
-            state.relays = DEFAULT_RELAYS
-          }
-
           state.hasHydrated = true
         }
 
@@ -277,15 +315,6 @@ export const useUserStore = create<UserState>()(
       },
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as Record<string, unknown>
-        if (version === 0 || version === 1) {
-          // Migrate from version 0/1 to 2
-          const configs = state.relayConfigs as RelayConfig[] | undefined
-          if (!configs || configs.length === 0) {
-            state.relayConfigs = DEFAULT_RELAYS.map((url: string) => ({url}))
-            state.relays = DEFAULT_RELAYS
-          }
-        }
-
         if (version <= 2) {
           const defaultFallbacks = getDefaultServers(false)
           const persistedMediaServers = Array.isArray(state.mediaservers)

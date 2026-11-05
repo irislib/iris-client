@@ -50,6 +50,7 @@ interface RuntimeSubscribeNdk {
       closeOnEose: boolean
       cacheUsage: CacheMode
       relayUrls?: string[]
+      privateRelayScope?: boolean
     }
   ) => {
     on: (event: "event", handler: (event: AppEvent) => void) => void
@@ -65,8 +66,6 @@ export const createRuntimeSubscribe = (
   const tracker = new RuntimeSubscriptionTracker()
 
   return (filter, onEvent) => {
-    const relayUrls = ndkInstance.pool.connectedRelays().map((relay) => relay.url)
-    const relayOptions = relayUrls.length > 0 ? {relayUrls} : {}
     const {forward, dispose} = createDeduplicatingForwarder(onEvent)
     const forwardEvent = (event: AppEvent) => {
       const rawEvent =
@@ -81,7 +80,7 @@ export const createRuntimeSubscribe = (
     const liveSubscription = ndkInstance.subscribe(filter as EventFilter, {
       closeOnEose: false,
       cacheUsage,
-      ...relayOptions,
+      privateRelayScope: true,
     })
     liveSubscription.on("event", forwardEvent)
     liveSubscription.start()
@@ -93,7 +92,7 @@ export const createRuntimeSubscribe = (
       ndkInstance.subscribe(backfillFilter as EventFilter, {
         closeOnEose: true,
         cacheUsage: CacheMode.ONLY_RELAY,
-        ...relayOptions,
+        privateRelayScope: true,
       })
     )
 

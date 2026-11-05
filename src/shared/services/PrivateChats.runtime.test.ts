@@ -400,6 +400,7 @@ describe("PrivateChats runtime startup", () => {
     expect(mocks.publishEvent).toHaveBeenCalledWith(expect.anything(), undefined, {
       requireAck: true,
       connectedOnly: true,
+      privateRelayScope: true,
     })
   })
 

@@ -3,6 +3,7 @@ import {
   type NostrRuntime,
   type RuntimeCompletion,
   type NostrFilter,
+  isPrivateRelayEvent,
 } from "nostr-pubsub"
 
 type Subscribe = NostrRuntime["subscribe"]
@@ -57,13 +58,47 @@ function completion(statuses: RuntimeCompletion[]): RuntimeCompletion {
 
 export function privateDiscoverySubscribe(
   receiver: Subscribe,
-  discovery: Subscribe
+  discovery: Subscribe,
+  privateScope?: {receiver: Subscribe; discovery: Subscribe}
 ): Subscribe {
   return (filters, handlers, options = {}) => {
     const split = splitPrivateDiscoveryFilters(filters)
+    const publicFilters: NostrFilter[] = []
+    const privateFilters: NostrFilter[] = []
+    for (const filter of split.receiver) {
+      if (!privateScope) {
+        publicFilters.push(filter)
+        continue
+      }
+      if (!filter.kinds && filter["#p"]) {
+        privateFilters.push(filter)
+        continue
+      }
+      const privateKinds =
+        filter.kinds?.filter((kind) => isPrivateRelayEvent({kind})) ?? []
+      if (!privateKinds.length) {
+        publicFilters.push(filter)
+        continue
+      }
+      privateFilters.push({...filter, kinds: privateKinds})
+      const publicKinds = filter.kinds!.filter((kind) => !isPrivateRelayEvent({kind}))
+      if (publicKinds.length) publicFilters.push({...filter, kinds: publicKinds})
+    }
     const routes = [
-      ...(split.receiver.length ? [{subscribe: receiver, filters: split.receiver}] : []),
-      ...split.discovery.map((filters) => ({subscribe: discovery, filters})),
+      ...(publicFilters.length ? [{subscribe: receiver, filters: publicFilters}] : []),
+      ...(privateFilters.length
+        ? [{subscribe: privateScope!.receiver, filters: privateFilters}]
+        : []),
+      ...split.discovery.map((filters) => ({
+        subscribe:
+          privateScope &&
+          filters.some((filter) =>
+            filter.kinds?.some((kind) => [1059, 10050, 30078, 37368].includes(kind))
+          )
+            ? privateScope.discovery
+            : discovery,
+        filters,
+      })),
     ]
     if (!routes.length) return receiver(filters, handlers, options)
     if (routes.length === 1)

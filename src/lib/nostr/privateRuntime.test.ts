@@ -19,6 +19,105 @@ afterEach(async () => {
   vi.unstubAllGlobals()
 })
 
+it("keeps new public relays out of private reads, delivery and authorization until explicitly selected", async () => {
+  vi.stubGlobal("WebSocket", WebSocket)
+  const original = new RuntimeRelayFixture()
+  const addedPublic = new RuntimeRelayFixture()
+  const oldUrl = await original.url()
+  const newUrl = await addedPublic.url()
+  cleanup.push(
+    () => original.close(),
+    () => addedPublic.close()
+  )
+  const identity = generateSecretKey()
+  const owner = getPublicKey(identity)
+  const client = new NostrClient({
+    explicitRelayUrls: [oldUrl, newUrl],
+    privateRelayUrls: [oldUrl],
+    cacheAdapter: new EventCache(),
+  })
+  cleanup.push(() => client.close())
+  const runtime = client.getRuntime()
+  runtime.subscribe([{kinds: [1]}], {onEvent() {}}, {cache: "network-only"})
+  runtime.subscribePrivate(
+    [{kinds: [1060], authors: [owner]}],
+    {onEvent() {}},
+    {cache: "network-only"}
+  )
+  runtime.subscribePrivate(
+    [{kinds: [37368], authors: [owner]}],
+    {onEvent() {}},
+    {cache: "network-only"}
+  )
+  const activeKinds = (relay: RuntimeRelayFixture) =>
+    [...relay.clients.values()].flatMap((subscriptions) =>
+      [...subscriptions.values()].flatMap((filters) =>
+        filters.flatMap((filter) => filter.kinds ?? [])
+      )
+    )
+  await until(
+    () =>
+      activeKinds(original).includes(1060) &&
+      activeKinds(original).includes(37368) &&
+      activeKinds(addedPublic).includes(1)
+  )
+  expect(activeKinds(addedPublic)).not.toContain(1060)
+  expect(activeKinds(addedPublic)).not.toContain(37368)
+  const publicPost = finalizeEvent(
+    {kind: 1, content: "public fixture", tags: [], created_at: 100},
+    identity
+  )
+  await runtime.publish(publicPost, {requireAck: true})
+  await until(() => addedPublic.events.some((event) => event.id === publicPost.id))
+  const privatePost = Session.init(
+    getPublicKey(generateSecretKey()),
+    generateSecretKey(),
+    true,
+    generateSecretKey()
+  ).sendEvent({kind: 14, content: "private fixture"}, [["p", owner]]).event
+  await runtime.publish(privatePost, {relays: [oldUrl, newUrl], requireAck: true})
+  const authorization = finalizeEvent(
+    {kind: 37368, content: "authorization fixture", tags: [], created_at: 100},
+    identity
+  )
+  await runtime.publishPrivate(authorization, {requireAck: true})
+  await until(
+    () =>
+      original.events.some((event) => event.id === privatePost.id) &&
+      original.events.some((event) => event.id === authorization.id)
+  )
+  expect(
+    addedPublic.events.some((event) =>
+      [privatePost.id, authorization.id].includes(event.id)
+    )
+  ).toBe(false)
+
+  client.setPrivateRelays([newUrl])
+  await until(
+    () => activeKinds(addedPublic).includes(1060) && !activeKinds(original).includes(1060)
+  )
+  client.setPrivateRelays([])
+  await until(
+    () =>
+      !activeKinds(addedPublic).includes(1060) &&
+      !activeKinds(addedPublic).includes(37368)
+  )
+  const offlineAuthorization = finalizeEvent(
+    {kind: 37368, content: "offline authorization", tags: [], created_at: 101},
+    identity
+  )
+  const result = await runtime.publishPrivate(offlineAuthorization, {
+    relays: [oldUrl, newUrl],
+    requireAck: true,
+  })
+  expect(result.remoteAccepted).toBe(false)
+  expect(
+    [...original.events, ...addedPublic.events].some(
+      (event) => event.id === offlineAuthorization.id
+    )
+  ).toBe(false)
+})
+
 it("keeps broad public group discovery available without weakening private subject scopes", async () => {
   vi.stubGlobal("WebSocket", WebSocket)
   const relay = new RuntimeRelayFixture()

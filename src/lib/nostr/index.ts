@@ -19,7 +19,6 @@ import {
 } from "nostr-tools"
 import {decode as decodeInvoice} from "light-bolt11-decoder"
 import {
-  type NostrRuntime,
   type NostrRuntimeOptions,
   type RuntimeCompletion,
   type RuntimeEventStore,
@@ -71,6 +70,7 @@ export const CacheMode = {
 } as const
 export type CacheMode = (typeof CacheMode)[keyof typeof CacheMode]
 export type SubscriptionOptions = {
+  privateRelayScope?: boolean
   closeOnEose?: boolean
   cacheUsage?: CacheMode
   relayUrls?: string[]
@@ -643,6 +643,7 @@ export interface ClientOptions {
   verifyEvent?: NostrRuntimeOptions["verifyEvent"]
   signAuthEvent?: NostrRuntimeOptions["signAuthEvent"]
   explicitRelayUrls?: string[]
+  privateRelayUrls?: string[]
   signer?: Signer
   cacheAdapter?: {
     store: RuntimeEventStore
@@ -661,6 +662,7 @@ export class NostrClient extends Emitter {
   signer?: Signer
   activeUser?: User
   explicitRelayUrls: string[]
+  privateRelayUrls?: string[]
   transportPlugins: ClientTransport[] = []
   subscriptions = new Map<string, EventSubscription>()
   clientName?: string
@@ -672,7 +674,7 @@ export class NostrClient extends Emitter {
   devWriteRelaySet?: RelaySet
   private verifyEvent?: NostrRuntimeOptions["verifyEvent"]
   private reconciliation?: NostrRuntimeOptions["reconciliation"]
-  private runtime?: NostrRuntime
+  private runtime?: ReturnType<typeof createPrivateNostrRuntime>
   private signAuthEvent?: NostrRuntimeOptions["signAuthEvent"]
   pool: Emitter & {
     relays: Map<string, Relay>
@@ -710,6 +712,7 @@ export class NostrClient extends Emitter {
     this.signer = opts.signer
     this.cacheAdapter = opts.cacheAdapter
     this.explicitRelayUrls = opts.explicitRelayUrls ?? []
+    this.privateRelayUrls = opts.privateRelayUrls
     this.clientName = opts.clientName
     this.clientTagFilter = opts.clientTagFilter
     const relays = new Map<string, Relay>()
@@ -744,6 +747,7 @@ export class NostrClient extends Emitter {
     return (this.runtime ??= createPrivateNostrRuntime(
       {
         relays: this.explicitRelayUrls,
+        privateRelayUrls: this.privateRelayUrls,
         store: this.cacheAdapter?.store,
         batchWindowMs: 20,
         historyTimeoutMs: 5000,
@@ -763,6 +767,11 @@ export class NostrClient extends Emitter {
   }
   async connect(_timeout?: number) {
     this.getRuntime()
+  }
+  setPrivateRelays(urls: string[]) {
+    this.privateRelayUrls = urls
+    this.runtime?.setPrivateRelays(urls)
+    this.transportPlugins.forEach((plugin) => plugin.setPrivateRelays?.(urls))
   }
   assertSigner() {
     if (!this.signer) throw new Error("No signer available")
@@ -811,7 +820,12 @@ export class NostrClient extends Emitter {
         plugin.onSubscribe?.(sub, sub.filters, sub.opts)
       return
     }
-    const handle = this.getRuntime().subscribe(
+    const runtime = this.getRuntime()
+    const handle = (
+      sub.opts.privateRelayScope
+        ? runtime.subscribePrivate
+        : runtime.subscribe.bind(runtime)
+    )(
       sub.filters,
       {
         onEvent: (event, info) =>
@@ -906,7 +920,7 @@ export class NostrClient extends Emitter {
   async publishEvent(
     event: AppEvent,
     relaySet?: RelaySet,
-    options?: {requireAck?: boolean; connectedOnly?: boolean}
+    options?: {requireAck?: boolean; connectedOnly?: boolean; privateRelayScope?: boolean}
   ): Promise<Set<Relay>> {
     if (this.transportPlugins.length) {
       const accepted = new Set<Relay>()
@@ -934,7 +948,10 @@ export class NostrClient extends Emitter {
         .map((relay) => relay.url)
       if (!relayUrls.length) throw new PublishError("No connected message server")
     }
-    const result = await this.getRuntime().publish(event.rawEvent(), {
+    const runtime = this.getRuntime()
+    const result = await (
+      options?.privateRelayScope ? runtime.publishPrivate : runtime.publish.bind(runtime)
+    )(event.rawEvent(), {
       relays: relayUrls,
       requireAck: options?.requireAck,
     })
@@ -1015,6 +1032,7 @@ export interface ClientTransport {
   disconnectRelay?(url: string): void
   addRelay?(url: string): void
   removeRelay?(url: string): void
+  setPrivateRelays?(urls: string[]): void
   close?(): void
 }
 declare global {

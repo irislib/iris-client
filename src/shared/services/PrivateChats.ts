@@ -85,7 +85,7 @@ export const getNostrSubscribe = (): NostrSubscribe => {
 
 const createFetch = (ndkInstance: NostrClient): NostrFetch => {
   return async (filter) => {
-    const events = await ndkInstance.fetchEvents(filter)
+    const events = await ndkInstance.fetchEvents(filter, {privateRelayScope: true})
     return Array.from(events).map((event) => event.rawEvent() as VerifiedEvent)
   }
 }
@@ -103,6 +103,7 @@ const createPublish = (ndkInstance: NostrClient, requireAccess: () => void) => {
     await ndkInstance.publishEvent(e, undefined, {
       requireAck: true,
       connectedOnly: !!context,
+      privateRelayScope: true,
     })
     if (innerEventId) await usePrivateMessagesStore.getState().awaitHydration()
     requireAccess()

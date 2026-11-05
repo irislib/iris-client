@@ -3,7 +3,12 @@ import {normalizedRelayUrls, relayHints, relayHintsFromUrls} from "./relayPolicy
 
 /** Keep discovery on the shared transport, and release every route with its caller. */
 export function attachLookupRoutes(client: NostrClient, parent: EventSubscription) {
-  if (parent.opts.relayUrls || parent.opts.cacheUsage === "cache-only") return
+  if (
+    parent.opts.privateRelayScope ||
+    parent.opts.relayUrls ||
+    parent.opts.cacheUsage === "cache-only"
+  )
+    return
 
   const routes = new Set<string>()
   const configured = new Set(normalizedRelayUrls(client.explicitRelayUrls, Infinity))

@@ -7,6 +7,7 @@ import type {SearchHitSource} from "../workers/profile-search"
 export type {SearchResult} from "../utils/profileSearchData"
 
 export interface WorkerSubscribeOpts {
+  privateRelayScope?: boolean
   relayUrls?: string[]
   isolated?: boolean
   destinations?: ("cache" | "relay")[]
@@ -17,6 +18,7 @@ export interface WorkerSubscribeOpts {
 }
 
 export interface WorkerPublishOpts {
+  privateRelayScope?: boolean
   connectedOnly?: boolean
   requireAck?: boolean
   publishTo?: ("cache" | "relay" | "subscriptions")[]
@@ -44,6 +46,7 @@ export interface WorkerMessage {
     | "getStats"
     | "addRelay"
     | "removeRelay"
+    | "setPrivateRelays"
     | "connectRelay"
     | "disconnectRelay"
     | "reconnectDisconnected"
@@ -58,6 +61,7 @@ export interface WorkerMessage {
   filters?: EventFilter[]
   event?: unknown
   relays?: string[]
+  privateRelays?: string[]
   url?: string
   subscribeOpts?: WorkerSubscribeOpts
   publishOpts?: WorkerPublishOpts
