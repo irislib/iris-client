@@ -46,7 +46,8 @@ import {
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 import {buildWorkerRelayUrls} from "../utils/relayRuntime"
 import EventCache, {db} from "@/lib/nostr/cache"
-import {fromHex, type CID} from "@hashtree/core"
+import type {CID} from "@hashtree/core"
+import {HASHTREE_ROOT_KINDS, parseHashtreeRootEvent} from "@hashtree/nostr"
 import type {
   WorkerMessage,
   WorkerResponse,
@@ -206,50 +207,6 @@ type TreeRootEventSnapshot = {
   createdAt: number
 }
 
-function parseTreeRootEvent(rawEvent: {
-  id?: string
-  kind?: number
-  created_at?: number
-  tags?: string[][]
-}): TreeRootEventSnapshot | null {
-  if (rawEvent.kind !== 30078 || !Array.isArray(rawEvent.tags)) {
-    return null
-  }
-
-  const hasHashtreeLabel = rawEvent.tags.some(
-    (tag) => tag[0] === "l" && tag[1] === "hashtree"
-  )
-  const hasAnyLabel = rawEvent.tags.some((tag) => tag[0] === "l")
-  if (hasAnyLabel && !hasHashtreeLabel) {
-    return null
-  }
-
-  const hashHex = rawEvent.tags.find((tag) => tag[0] === "hash")?.[1]
-  if (
-    typeof hashHex !== "string" ||
-    !/^[0-9a-f]{64}$/i.test(hashHex) ||
-    typeof rawEvent.id !== "string" ||
-    typeof rawEvent.created_at !== "number"
-  ) {
-    return null
-  }
-
-  const keyHex = rawEvent.tags.find((tag) => tag[0] === "key")?.[1]
-
-  try {
-    return {
-      root: {
-        hash: fromHex(hashHex),
-        key: keyHex ? fromHex(keyHex) : undefined,
-      },
-      eventId: rawEvent.id,
-      createdAt: rawEvent.created_at,
-    }
-  } catch {
-    return null
-  }
-}
-
 function compareTreeRootEvents(
   left: TreeRootEventSnapshot,
   right: TreeRootEventSnapshot
@@ -271,7 +228,7 @@ async function resolveLatestProfileSearchTreeRoot(
     }
 
     const ndkEvents = await nostr.fetchEvents({
-      kinds: [30078],
+      kinds: [...HASHTREE_ROOT_KINDS],
       authors: [decoded.data],
       "#d": [treeName],
       limit: 20,
@@ -279,9 +236,19 @@ async function resolveLatestProfileSearchTreeRoot(
 
     const candidates: TreeRootEventSnapshot[] = []
     for (const event of ndkEvents ?? []) {
-      const parsed = parseTreeRootEvent(event.rawEvent() as any)
-      if (parsed) {
-        candidates.push(parsed)
+      const raw = event.rawEvent()
+      const parsed = parseHashtreeRootEvent(raw)
+      if (
+        parsed?.visibility === "public" &&
+        parsed.treeName === treeName &&
+        raw.pubkey === decoded.data &&
+        raw.tags.filter((tag) => tag[0] === "d").length === 1
+      ) {
+        candidates.push({
+          root: parsed.rootCid,
+          eventId: raw.id,
+          createdAt: raw.created_at,
+        })
       }
     }
 

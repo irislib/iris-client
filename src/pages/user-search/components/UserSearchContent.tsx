@@ -12,6 +12,7 @@ import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import classNames from "classnames"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
+import type {SearchResult} from "@/utils/profileSearchData"
 import {useStableSearchResults} from "../stableSearchResults"
 
 export default function UserSearchContent() {
@@ -47,10 +48,13 @@ export default function UserSearchContent() {
   const rootUser = socialGraph.getRoot()
   const follows = socialGraph.getFollowedByUser(rootUser)
 
-  const displayUsers = useMemo(() => {
+  const displayUsers = useMemo<
+    Array<{pubkey: string; followedByCount: number; fallbackProfile?: SearchResult}>
+  >(() => {
     if (searchValue.trim()) {
       return stableSearch.visibleResults.map((result) => ({
         pubkey: result.pubKey,
+        fallbackProfile: result,
         followedByCount: socialGraph.followedByFriends(result.pubKey).size,
       }))
     }
@@ -61,6 +65,7 @@ export default function UserSearchContent() {
     return Array.from(follows)
       .map((pubkey) => ({
         pubkey,
+        fallbackProfile: undefined,
         followedByCount: socialGraph.followedByFriends(pubkey).size,
       }))
       .sort((a, b) => b.followedByCount - a.followedByCount)
@@ -157,17 +162,23 @@ export default function UserSearchContent() {
           <div className="mt-4">
             <InfiniteScroll onLoadMore={loadMore}>
               <div className="flex flex-col gap-2 px-4">
-                {displayUsers.slice(0, displayCount).map(({pubkey}, index) => (
-                  <div
-                    key={pubkey}
-                    className={classNames("rounded-md cursor-pointer p-2", {
-                      "bg-primary text-primary-content": index === activeIndex,
-                      "hover:bg-primary/20": index !== activeIndex,
-                    })}
-                  >
-                    <UserRow pubKey={pubkey} linkToProfile={true} />
-                  </div>
-                ))}
+                {displayUsers
+                  .slice(0, displayCount)
+                  .map(({pubkey, fallbackProfile}, index) => (
+                    <div
+                      key={pubkey}
+                      className={classNames("rounded-md cursor-pointer p-2", {
+                        "bg-primary text-primary-content": index === activeIndex,
+                        "hover:bg-primary/20": index !== activeIndex,
+                      })}
+                    >
+                      <UserRow
+                        pubKey={pubkey}
+                        fallbackProfile={fallbackProfile}
+                        linkToProfile={true}
+                      />
+                    </div>
+                  ))}
               </div>
             </InfiniteScroll>
           </div>

@@ -58,6 +58,7 @@ export const releaseProfile = {
       "src/utils/socialGraphInitialization.test.ts",
       "src/utils/socialGraphRecalculation.test.ts",
       "src/utils/profileSearchRanking.test.ts",
+      "src/workers/profile-search.test.ts",
       "src/utils/relayRuntime.test.ts",
     ],
     ["pnpm", "run", "smoke:portable"],

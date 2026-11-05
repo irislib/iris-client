@@ -18,28 +18,40 @@ const nhashDecodeMock = vi.fn()
 const nhashEncodeMock = vi.fn()
 
 vi.mock("@hashtree/index", () => ({
-  SearchIndex: vi.fn().mockImplementation(function () { return {
-    parseKeywords: (query: string) => [query.toLowerCase()],
-    search: searchMock,
-    searchLinks: searchLinksMock,
-  }}),
+  SearchIndex: vi.fn().mockImplementation(function () {
+    return {
+      parseKeywords: (query: string) => [query.toLowerCase()],
+      search: searchMock,
+      searchLinks: searchLinksMock,
+    }
+  }),
 }))
 
 vi.mock("@hashtree/core", () => ({
-  BlossomStore: vi.fn().mockImplementation(function () { return {} }),
-  MemoryStore: vi.fn().mockImplementation(function () { return {} }),
-  FallbackStore: vi
-    .fn()
-    .mockImplementation(function ({fallbacks}: {fallbacks: unknown[]}) { return fallbacks[0] ?? {} }),
+  BlossomStore: vi.fn().mockImplementation(function () {
+    return {}
+  }),
+  MemoryStore: vi.fn().mockImplementation(function () {
+    return {}
+  }),
+  FallbackStore: vi.fn().mockImplementation(function ({
+    fallbacks,
+  }: {
+    fallbacks: unknown[]
+  }) {
+    return fallbacks[0] ?? {}
+  }),
   LinkType: {
     Blob: "blob",
     File: "file",
     Dir: "dir",
   },
-  HashTree: vi.fn().mockImplementation(function () { return {
-    readFile: readFileMock,
-    listDirectory: listDirectoryMock,
-  }}),
+  HashTree: vi.fn().mockImplementation(function () {
+    return {
+      readFile: readFileMock,
+      listDirectory: listDirectoryMock,
+    }
+  }),
   nhashDecode: nhashDecodeMock,
   nhashEncode: nhashEncodeMock,
 }))
@@ -217,7 +229,7 @@ describe("profile search index", () => {
     ).toBe(true)
   })
 
-  it("emits immediate remote candidates from existing index keys without reading hashtree value blobs", async () => {
+  it("uses index keys when no inline profile metadata is available", async () => {
     vi.stubEnv("VITE_PROFILE_SEARCH_INDEX", "nhash1testprofileindex")
 
     listDirectoryMock.mockImplementation(async (cid: {hash: Uint8Array}) => {
@@ -262,7 +274,7 @@ describe("profile search index", () => {
       ])
     )
     expect(readFileMock).not.toHaveBeenCalled()
-    expect(searchMock).not.toHaveBeenCalled()
+    expect(searchMock).toHaveBeenCalledTimes(1)
   })
 
   it("queries remote hashtree profile search results when the local cache misses", async () => {
@@ -301,6 +313,25 @@ describe("profile search index", () => {
     })
     expect(second[0]?.item.pubKey).toBe("pubkey-remote")
     expect(readFileMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("keeps indexed names available for ranking even when matching keys exist", async () => {
+    vi.stubEnv("VITE_PROFILE_SEARCH_INDEX", "nhash1testprofileindex")
+    listDirectoryMock.mockResolvedValue([
+      {
+        name: "p:ben:pubkey-ben",
+        type: "blob",
+        cid: {hash: new Uint8Array([3])},
+        size: 123,
+      },
+    ])
+    searchMock.mockResolvedValue([
+      {id: "pubkey-ben", value: JSON.stringify({name: "Ben"}), score: 1},
+    ])
+    const {searchRemoteProfiles} = await loadProfileSearchModule()
+    expect(await searchRemoteProfiles("ben")).toMatchObject([
+      {item: {pubKey: "pubkey-ben", name: "Ben"}},
+    ])
   })
 
   it("uses a cached tree snapshot first, then refreshes npub/treeName roots when newer data exists", async () => {
@@ -376,6 +407,33 @@ describe("profile search index", () => {
       },
       cachedAt: expect.any(Number),
     })
+  })
+
+  it("recovers from an unavailable snapshot through the current publication", async () => {
+    vi.stubEnv("VITE_PROFILE_SEARCH_INDEX", "npub1owner/profile-search")
+    vi.stubEnv("VITE_PROFILE_SEARCH_INDEX_SNAPSHOT", "nhash1snapshot")
+    listDirectoryMock.mockImplementation(async (root: {hash: Uint8Array}) => {
+      if (root.hash[0] === 1) throw new Error("Snapshot unavailable")
+      return []
+    })
+    searchMock.mockResolvedValue([
+      {
+        id: "pubkey-live",
+        value: JSON.stringify({pubkey: "pubkey-live", name: "Derek"}),
+        score: 1,
+      },
+    ])
+    const {searchRemoteProfiles, setRemoteProfileSearchTreeResolver} =
+      await loadProfileSearchModule()
+    setRemoteProfileSearchTreeResolver(async () => ({
+      root: {hash: new Uint8Array([9]), key: new Uint8Array([8])},
+      eventId: "event-new",
+      createdAt: 200,
+    }))
+
+    expect(await searchRemoteProfiles("derek")).toMatchObject([
+      {item: {pubKey: "pubkey-live", name: "Derek"}, source: "remote"},
+    ])
   })
 
   it("uses an env-provided snapshot root for npub/treeName when Dexie has no cached root yet", async () => {

@@ -627,12 +627,6 @@ async function searchRemoteRoot(
   query: string,
   onProgress?: SearchProgressCallback
 ): Promise<SearchHit[]> {
-  const keyOnlyResults = await searchRemoteRootByKeys(remote, root, query)
-  if (keyOnlyResults.length > 0) {
-    onProgress?.(keyOnlyResults)
-    return keyOnlyResults
-  }
-
   const fetchLimit = remoteSearchFetchLimit(query)
   const immediateResults = (
     await remote.index.search(root, PROFILE_SEARCH_PREFIX, query, {
@@ -647,6 +641,12 @@ async function searchRemoteRoot(
     onProgress?.(hits)
     hydrateImmediateRemoteSearchHitsInBackground(immediateResults, remote, onProgress)
     return hits
+  }
+
+  const keyOnlyResults = await searchRemoteRootByKeys(remote, root, query)
+  if (keyOnlyResults.length > 0) {
+    onProgress?.(keyOnlyResults)
+    return keyOnlyResults
   }
 
   const results = await remote.index.searchLinks(root, PROFILE_SEARCH_PREFIX, query, {
@@ -973,8 +973,14 @@ export async function searchRemoteProfiles(
   const seeded = resolveSeededTreeRoot()
   const current = selectStartupTreeRoot(cached, seeded)
   if (current) {
-    const cachedResults = await searchRemoteRoot(remote, current.root, query, onProgress)
+    // A retired snapshot must not prevent discovering a newer publication.
     const refresh = getOrStartTreeRootRefresh(npub, treeName, current)
+    let cachedResults: SearchHit[] = []
+    try {
+      cachedResults = await searchRemoteRoot(remote, current.root, query, onProgress)
+    } catch (error) {
+      console.warn("[Relay Worker] Profile search snapshot unavailable:", error)
+    }
     if (cachedResults.length > 0) {
       void refresh
       return cachedResults
