@@ -83,11 +83,20 @@ async function exportedGraph(page: Page) {
 
 async function configure(page: Page, scope = "default") {
   const sockets: string[] = []
+  const catchupRequests: string[] = []
   await page.routeWebSocket(/^(?:wss?:\/\/)/, (socket) => {
     sockets.push(socket.url())
     socket.onMessage((raw) => {
       if (typeof raw !== "string" || !raw.startsWith("[")) return
-      const [type, id] = JSON.parse(String(raw))
+      const [type, id, filter] = JSON.parse(String(raw))
+      if (
+        type === "NEG-OPEN" &&
+        filter?.kinds?.includes(3) &&
+        filter.kinds.includes(10000)
+      ) {
+        catchupRequests.push(socket.url())
+        socket.send(JSON.stringify(["NEG-ERR", id, "Fixture uses ordinary REQ"]))
+      }
       if (type === "REQ") socket.send(JSON.stringify(["EOSE", id]))
     })
   })
@@ -115,14 +124,14 @@ async function configure(page: Page, scope = "default") {
     },
     {scope, publicRelays}
   )
-  return sockets
+  return {sockets, catchupRequests}
 }
 
 for (const retained of [false, true]) {
   test(`default HTTP bootstrap imports real binary in ${retained ? "retained" : "empty"} graph`, async ({
     page,
   }, testInfo) => {
-    const sockets = await configure(page)
+    const {sockets, catchupRequests} = await configure(page)
     const body = await fixtureGraph()
     let requests = 0
     await page.route(freshGraphBootstrap, (route) => {
@@ -152,6 +161,7 @@ for (const retained of [false, true]) {
     await expect
       .poll(() => sockets.some((url) => url.startsWith("wss://graph-relay.iris.to")))
       .toBe(true)
+    await expect.poll(() => catchupRequests.length).toBeGreaterThan(0)
     if (retained) {
       expect(graph.getFollowedByUser(account)).toEqual(new Set([friend]))
       expect(graph.getMutedByUser(account)).toEqual(new Set([muted]))
@@ -173,7 +183,7 @@ for (const scope of ["custom", "disabled", "empty", "native"]) {
   test(`${scope} relay scope uses bundled graph without default graph traffic`, async ({
     page,
   }) => {
-    const sockets = await configure(page, scope)
+    const {sockets} = await configure(page, scope)
     let requests = 0
     await page.route(freshGraphBootstrap, (route) => {
       requests++
@@ -196,7 +206,7 @@ for (const scope of ["custom", "disabled", "empty", "native"]) {
 test("changing relay settings aborts a pending public bootstrap and preserves personal lists", async ({
   page,
 }) => {
-  const sockets = await configure(page)
+  const {sockets, catchupRequests} = await configure(page)
   const personal = new SocialGraph(account)
   setList(personal, account, 3, [friend])
   setList(personal, account, 10000, [muted])
@@ -241,6 +251,7 @@ test("changing relay settings aborts a pending public bootstrap and preserves pe
     expect(graph.getMutedByUser(account)).toEqual(new Set([muted]))
     expect(graph.getFollowedByUser(manifest.root).has(discovered)).toBe(false)
     expect(sockets.some((url) => url.startsWith("wss://graph-relay.iris.to"))).toBe(false)
+    expect(catchupRequests).toEqual([])
   } finally {
     release()
   }
