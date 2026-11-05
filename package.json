@@ -59,6 +59,7 @@
     "verify:social-graph": "tsx ./scripts/updateSocialGraph.ts --verify",
     "update:social-graph": "tsx ./scripts/updateSocialGraph.ts --refresh",
     "test:release:search": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/post-relevance.spec.ts --workers=1 --reporter=list",
+    "test:release:feed": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/for-you-replies.spec.ts --workers=1 --reporter=list",
     "test:graph-bootstrap": "playwright test --config playwright.graph-bootstrap.config.ts"
   },
   "build": {

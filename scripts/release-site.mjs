@@ -49,11 +49,15 @@ export const releaseProfile = {
       "src/lib/post-search/scorer.test.ts",
       "src/lib/nostr/cache.test.ts",
       "src/shared/utils/linkInvites.test.ts",
+      "src/utils/feedReplies.test.ts",
+      "src/utils/threadReferences.test.ts",
+      "src/shared/hooks/useCombinedPostFetcher.test.ts",
     ],
     ["pnpm", "run", "smoke:portable"],
     ["pnpm", "run", "test:release:e2e"],
     ["pnpm", "run", "test:release:chat"],
     ["pnpm", "run", "test:release:search"],
+    ["pnpm", "run", "test:release:feed"],
   ],
 }
 

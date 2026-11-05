@@ -101,6 +101,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     visibilitySnapshot,
     popularRatio,
     excludeOwnPosts,
+    excludeReplies: filterSeen && !showReplies,
     enforceAuthorDiversity: filterSeen && eligibleAuthorCount > 3,
   })
 

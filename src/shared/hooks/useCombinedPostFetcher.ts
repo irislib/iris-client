@@ -10,6 +10,7 @@ import {
 import {useUserStore} from "@/stores/user"
 import {fetchEventsReliable} from "@/utils/fetchEventsReliable"
 import type {AlgorithmicVisibilitySnapshot} from "@/utils/visibility"
+import {isFeedReply} from "@/utils/feedReplies"
 
 interface CombinedPostFetcherCache {
   scopeKey?: string
@@ -29,6 +30,7 @@ interface CombinedPostFetcherProps {
   visibilitySnapshot: AlgorithmicVisibilitySnapshot | null
   popularRatio?: number
   excludeOwnPosts?: boolean
+  excludeReplies?: boolean
   enforceAuthorDiversity?: boolean
 }
 
@@ -44,6 +46,7 @@ export default function useCombinedPostFetcher({
   visibilitySnapshot,
   popularRatio = 0.5,
   excludeOwnPosts = false,
+  excludeReplies = false,
   enforceAuthorDiversity = false,
 }: CombinedPostFetcherProps) {
   const [events, setEvents] = useState<AppEvent[]>([])
@@ -56,7 +59,7 @@ export default function useCombinedPostFetcher({
   const generationRef = useRef(0)
   const activeScopeRef = useRef<string | null>(null)
   const attemptedReadinessRef = useRef<string | null>(null)
-  const scopeKey = `${myPubKey || "anonymous"}:${sourceKey}`
+  const scopeKey = `${myPubKey || "anonymous"}:${sourceKey}${excludeReplies ? ":top-level" : ""}`
   const policyReady = ready && !!visibilitySnapshot
   const visibilityRef = useRef(visibilitySnapshot)
   visibilityRef.current = visibilitySnapshot
@@ -64,10 +67,12 @@ export default function useCombinedPostFetcher({
   // the diverse selection. Apply this after moderation, which can remove separators.
   const visibleEvents = useMemo(() => {
     const visible = events.filter(
-      (event) => !visibilitySnapshot?.shouldHideAlgorithmicEvent(event)
+      (event) =>
+        !(excludeReplies && isFeedReply(event)) &&
+        !visibilitySnapshot?.shouldHideAlgorithmicEvent(event)
     )
     return enforceAuthorDiversity ? selectNonConsecutiveAuthors(visible) : visible
-  }, [events, visibilitySnapshot, enforceAuthorDiversity])
+  }, [events, visibilitySnapshot, enforceAuthorDiversity, excludeReplies])
   const normalizedPopularRatio = Math.min(1, Math.max(0, popularRatio))
   const popularSourceEnabled = normalizedPopularRatio > 0
   const chronologicalSourceEnabled = normalizedPopularRatio < 1
@@ -107,7 +112,9 @@ export default function useCombinedPostFetcher({
     const cacheMatchesScope = cache.scopeKey === scopeKey
     const eligibleCachedEvents = cacheMatchesScope
       ? (cache.events || []).filter(
-          (event) => !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
+          (event) =>
+            !(excludeReplies && isFeedReply(event)) &&
+            !visibilitySnapshot.shouldHideAlgorithmicEvent(event)
         )
       : []
     const cachedEvents = enforceAuthorDiversity
@@ -120,7 +127,14 @@ export default function useCombinedPostFetcher({
     cache.hasLoadedInitial = hasLoadedInitial.current
     setEvents(cachedEvents)
     setLoading(false)
-  }, [cache, policyReady, scopeKey, visibilitySnapshot, enforceAuthorDiversity])
+  }, [
+    cache,
+    policyReady,
+    scopeKey,
+    visibilitySnapshot,
+    enforceAuthorDiversity,
+    excludeReplies,
+  ])
 
   useEffect(() => {
     if (!policyReady) return
@@ -159,74 +173,85 @@ export default function useCombinedPostFetcher({
   const loadBatch = useCallback(
     async (batchSize: number = 10, claimed?: {sources: number}) => {
       if (!visibilitySnapshot) return []
+      const generation = generationRef.current
 
-      const popularCount = Math.floor(batchSize * normalizedPopularRatio)
-      const chronologicalCount = batchSize - popularCount
+      // Recommended IDs do not reveal whether their posts are replies. Refill
+      // empty filtered pages, capped at five batches per call for reply-only
+      // pools. Missing bodies do not trigger extra refills.
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const popularCount = Math.floor(batchSize * normalizedPopularRatio)
+        const chronologicalCount = batchSize - popularCount
 
-      const allIds: string[] = []
-      const seenIds = new Set<string>()
-      const appendIds = (ids: string[]) => {
-        for (const id of ids) {
-          if (seenIds.has(id) || allIds.length >= batchSize) continue
-          seenIds.add(id)
-          allIds.push(id)
-        }
-      }
-      const takePopular = (count: number) => {
-        if (claimed && initialSourcesRef.current & 1 && !(claimed.sources & 1)) return
-        if (count > 0 && popularSourceReady) {
-          const before = allIds.length
-          appendIds(getNextPopular(count))
-          if (claimed && allIds.length > before) {
-            claimed.sources |= 1
-            initialSourcesRef.current |= 1
+        const allIds: string[] = []
+        const seenIds = new Set<string>()
+        const appendIds = (ids: string[]) => {
+          for (const id of ids) {
+            if (seenIds.has(id) || allIds.length >= batchSize) continue
+            seenIds.add(id)
+            allIds.push(id)
           }
         }
-      }
-      const takeChronological = (count: number) => {
-        if (claimed && initialSourcesRef.current & 2 && !(claimed.sources & 2)) return
-        if (count > 0 && chronologicalSourceReady) {
-          const before = allIds.length
-          appendIds(getNextChronological(count))
-          if (claimed && allIds.length > before) {
-            claimed.sources |= 2
-            initialSourcesRef.current |= 2
+        const takePopular = (count: number) => {
+          if (claimed && initialSourcesRef.current & 1 && !(claimed.sources & 1)) return
+          if (count > 0 && popularSourceReady) {
+            const before = allIds.length
+            appendIds(getNextPopular(count))
+            if (claimed && allIds.length > before) {
+              claimed.sources |= 1
+              initialSourcesRef.current |= 1
+            }
           }
         }
+        const takeChronological = (count: number) => {
+          if (claimed && initialSourcesRef.current & 2 && !(claimed.sources & 2)) return
+          if (count > 0 && chronologicalSourceReady) {
+            const before = allIds.length
+            appendIds(getNextChronological(count))
+            if (claimed && allIds.length > before) {
+              claimed.sources |= 2
+              initialSourcesRef.current |= 2
+            }
+          }
+        }
+
+        takePopular(popularCount)
+        takeChronological(chronologicalCount)
+
+        // Let either ready source fill space left by an unavailable or exhausted
+        // source. Disabled sources are never called, including Chronological in
+        // the popular-only feed.
+        takePopular(batchSize - allIds.length)
+        takeChronological(batchSize - allIds.length)
+
+        if (allIds.length === 0) {
+          return []
+        }
+        const postFilter: EventFilter = {
+          ids: allIds,
+        }
+
+        const {promise} = fetchEventsReliable(postFilter, {
+          timeout: 4000,
+          settleAfterMs: 300,
+        })
+        let eventsArray = await promise
+        if (generation !== generationRef.current) return []
+
+        if (excludeOwnPosts && myPubKey) {
+          eventsArray = eventsArray.filter((event) => event.pubkey !== myPubKey)
+        }
+
+        const removedReplies = excludeReplies && eventsArray.some(isFeedReply)
+        eventsArray = eventsArray.filter(
+          (event) =>
+            !(excludeReplies && isFeedReply(event)) &&
+            !visibilityRef.current?.shouldHideAlgorithmicEvent(event)
+        )
+
+        if (eventsArray.length === 0 && removedReplies) continue
+        return shuffle(eventsArray)
       }
-
-      takePopular(popularCount)
-      takeChronological(chronologicalCount)
-
-      // Let either ready source fill space left by an unavailable or exhausted
-      // source. Disabled sources are never called, including Chronological in
-      // the popular-only feed.
-      takePopular(batchSize - allIds.length)
-      takeChronological(batchSize - allIds.length)
-
-      if (allIds.length === 0) {
-        return []
-      }
-      const postFilter: EventFilter = {
-        ids: allIds,
-      }
-
-      const {promise} = fetchEventsReliable(postFilter, {
-        timeout: 4000,
-        settleAfterMs: 300,
-      })
-      let eventsArray = await promise
-
-      if (excludeOwnPosts && myPubKey) {
-        eventsArray = eventsArray.filter((event) => event.pubkey !== myPubKey)
-      }
-
-      eventsArray = eventsArray.filter(
-        (event) => !visibilityRef.current?.shouldHideAlgorithmicEvent(event)
-      )
-
-      const shuffledEvents = shuffle(eventsArray)
-      return shuffledEvents
+      return []
     },
     [
       getNextPopular,
@@ -236,6 +261,7 @@ export default function useCombinedPostFetcher({
       chronologicalSourceReady,
       myPubKey,
       excludeOwnPosts,
+      excludeReplies,
       visibilitySnapshot,
     ]
   )

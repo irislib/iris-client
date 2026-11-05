@@ -186,6 +186,7 @@ describe("release site config", () => {
       "test-3",
       "test-4",
       "test-5",
+      "test-6",
       "check-source-final",
       "publish",
       "deploy",

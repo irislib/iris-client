@@ -46,6 +46,19 @@ describe("threadReferences", () => {
     expect(getEventReplyReference(nestedArticleReply)).toBe(articleReply.id)
   })
 
+  it("keeps NIP-10 mentions and quotes out of reply context", () => {
+    const mention = ["e", "b".repeat(64), "", "mention"]
+    const post = (tags: string[][]) => new AppEvent(nostr, {kind: 1, tags} as NostrEvent)
+    expect(getEventReplyReference(post([mention]))).toBeUndefined()
+    expect(getEventRootReference(post([mention]))).toBeUndefined()
+    expect(getEventReplyReference(post([["q", note.id]]))).toBeUndefined()
+    expect(getEventRootReference(post([["q", note.id]]))).toBeUndefined()
+    expect(getEventReplyReference(post([["e", note.id, "", "root"], mention]))).toBe(
+      note.id
+    )
+    expect(getEventReplyReference(post([["e", note.id]]))).toBe(note.id)
+  })
+
   it("returns the thread root reference for nested generic replies", () => {
     expect(getEventRootReference(nestedArticleReply)).toBe(article.tagId())
   })

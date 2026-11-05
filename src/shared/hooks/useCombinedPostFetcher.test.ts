@@ -13,6 +13,7 @@ type VisibilityEvent = Parameters<
 const mocks = vi.hoisted(() => ({
   publicKey: "viewer" as string | null,
   addSeenEventId: vi.fn(),
+  seenEventIds: new Set<string>(),
   fetchEventsReliable: vi.fn(),
   shouldHideAlgorithmicEvent: vi.fn<(event: VisibilityEvent) => boolean>(() => false),
 }))
@@ -24,6 +25,7 @@ vi.mock("@/stores/user", () => ({
 
 vi.mock("@/utils/memcache", () => ({
   addSeenEventId: mocks.addSeenEventId,
+  seenEventIds: mocks.seenEventIds,
 }))
 
 vi.mock("@/utils/fetchEventsReliable", () => ({
@@ -115,6 +117,116 @@ describe("useCombinedPostFetcher", () => {
     expect(latestResult?.events).toEqual([])
     expect(latestResult?.loading).toBe(true)
     expect(mocks.fetchEventsReliable).not.toHaveBeenCalled()
+  })
+
+  it("filters restored replies before rendering or marking them seen", async () => {
+    const reply = Object.assign(event("reply"), {
+      kind: 1,
+      tags: [["e", "a".repeat(64), "", "root"]],
+    })
+    const quote = Object.assign(event("quote"), {kind: 1, tags: [["q", "a".repeat(64)]]})
+    const cache: HookProps["cache"] = {
+      scopeKey: "viewer:scope-a:top-level",
+      events: [reply, quote],
+      hasLoadedInitial: true,
+    }
+    await act(async () =>
+      root.render(createElement(TestHook, baseProps({cache, excludeReplies: true})))
+    )
+    expect(latestResult?.events).toEqual([quote])
+    expect(cache.events).toEqual([quote])
+    expect(mocks.addSeenEventId).toHaveBeenCalledWith(quote.id)
+    expect(mocks.addSeenEventId).not.toHaveBeenCalledWith(reply.id)
+  })
+
+  it("invalidates in-flight and cached results when the reply policy changes", async () => {
+    const reply = Object.assign(event("reply"), {
+      kind: 1,
+      tags: [["e", "a".repeat(64), "", "reply"]],
+    })
+    const pendingFetch = deferred<AppEvent[]>()
+    mocks.fetchEventsReliable.mockReturnValue({promise: pendingFetch.promise})
+    const cache: HookProps["cache"] = {}
+    const props = baseProps({
+      cache,
+      hasPopularData: true,
+      getNextPopular: vi.fn().mockReturnValueOnce([reply.id]).mockReturnValue([]),
+    })
+    await act(async () => root.render(createElement(TestHook, props)))
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {...props, excludeReplies: true, hasPopularData: false})
+      )
+    )
+    await act(async () => {
+      pendingFetch.resolve([reply])
+      await pendingFetch.promise
+    })
+    expect(latestResult?.events).toEqual([])
+    expect(cache.events).toEqual([])
+    expect(cache.scopeKey).toBe("viewer:scope-a:top-level")
+    expect(mocks.addSeenEventId).not.toHaveBeenCalled()
+  })
+
+  it("refills beyond twenty leading replies to reach a standalone post", async () => {
+    const reply = Object.assign(event("reply"), {
+      kind: 1,
+      tags: [["e", "a".repeat(64), "", "reply"]],
+    })
+    const standalone = Object.assign(event("standalone"), {kind: 1})
+    const candidates = [
+      ...Array.from({length: 30}, (_, i) => `reply-${i}`),
+      standalone.id,
+    ]
+    mocks.fetchEventsReliable.mockImplementation(({ids}: {ids: string[]}) => ({
+      promise: Promise.resolve(
+        ids.map((id) =>
+          id === standalone.id ? standalone : Object.assign({}, reply, {id})
+        )
+      ),
+    }))
+    await act(async () =>
+      root.render(
+        createElement(
+          TestHook,
+          baseProps({
+            excludeReplies: true,
+            popularRatio: 1,
+            hasPopularData: true,
+            getNextPopular: (count) => candidates.splice(0, count),
+          })
+        )
+      )
+    )
+    expect(latestResult?.events).toEqual([standalone])
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(4)
+    expect(mocks.addSeenEventId).toHaveBeenCalledOnce()
+    expect(mocks.addSeenEventId).toHaveBeenCalledWith(standalone.id)
+  })
+
+  it("bounds refill for an all-reply pool", async () => {
+    const reply = Object.assign(event("reply"), {
+      kind: 1,
+      tags: [["e", "a".repeat(64), "", "reply"]],
+    })
+    mocks.fetchEventsReliable.mockReturnValue({promise: Promise.resolve([reply])})
+    await act(async () =>
+      root.render(
+        createElement(
+          TestHook,
+          baseProps({
+            excludeReplies: true,
+            popularRatio: 1,
+            hasPopularData: true,
+            getNextPopular: () => [reply.id],
+          })
+        )
+      )
+    )
+    expect(latestResult?.events).toEqual([])
+    expect(latestResult?.loading).toBe(false)
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(10)
+    expect(mocks.addSeenEventId).not.toHaveBeenCalled()
   })
 
   it("renders a matching cache only after readiness and drops it on a scope change", async () => {

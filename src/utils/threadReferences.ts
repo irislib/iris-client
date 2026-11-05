@@ -1,4 +1,5 @@
 import {nip19} from "nostr-tools"
+import {parse} from "nostr-tools/nip10"
 import {
   AppEvent,
   EventFilter,
@@ -32,11 +33,13 @@ const HEX_EVENT_ID_REGEX = /^[0-9a-f]{64}$/i
 export function getEventReplyReference(event: AppEvent): string | undefined {
   // A zap's event reference is its target, not a parent in a reply thread.
   if (event.kind === KIND_ZAP_RECEIPT) return undefined
+  if (event.kind === KIND_TEXT_NOTE) return parse(event).reply?.id
   return getReplyTag(event)?.[1]
 }
 
 export function getEventRootReference(event: AppEvent): string | undefined {
   if (event.kind === KIND_ZAP_RECEIPT) return undefined
+  if (event.kind === KIND_TEXT_NOTE) return parse(event).root?.id
   return getRootTag(event)?.[1] ?? getRootEventId(event) ?? undefined
 }
 

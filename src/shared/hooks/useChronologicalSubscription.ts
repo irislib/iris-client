@@ -4,7 +4,7 @@ import {nostr} from "@/utils/nostrClient"
 import {KIND_TEXT_NOTE, KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useUserStore} from "@/stores/user"
 import {seenEventIds} from "@/utils/memcache"
-import {getEventReplyingTo} from "@/utils/nostr"
+import {isFeedReply} from "@/utils/feedReplies"
 import useCandidateRevision from "./useCandidateRevision"
 import {orderByAuthorRound} from "@/utils/authorDiversity"
 import {
@@ -34,7 +34,7 @@ export default function useChronologicalSubscription(
 ) {
   const {revision, notify} = useCandidateRevision()
   const myPubKey = useUserStore((state) => state.publicKey)
-  const authorScope = `${graphScope}:${ready ? "ready" : "loading"}:${authors.join(",")}`
+  const authorScope = `${graphScope}:${ready ? "ready" : "loading"}:${authors.join(",")}:replies=${!!showReplies}`
   const cacheMatchesScope = cache.authorScope === authorScope
 
   const initialPendingPosts =
@@ -120,7 +120,7 @@ export default function useChronologicalSubscription(
       }
       if (filterSeen && seenEventIds.has(event.id)) return
       if (excludeOwnPosts && event.pubkey === myPubKey) return
-      if (!showReplies && getEventReplyingTo(event)) {
+      if (!showReplies && isFeedReply(event)) {
         return
       }
 
