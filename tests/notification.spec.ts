@@ -34,6 +34,11 @@ test("user sees a highlighted notification when a followed user likes their post
     await composer.getByRole("button", {name: "Post", exact: true}).click()
     await expect(pageA.getByText(postContent).first()).toBeVisible()
 
+    // Activity on the currently viewed post is read immediately. Leave the
+    // thread before the like arrives to exercise the unread notification path.
+    await pageA.goto("/settings")
+    await expect(pageA.getByText(postContent, {exact: true})).toHaveCount(0)
+
     await pageB.goto(`/${nip19.npubEncode(userA.publicKey)}`)
     const post = pageB.getByTestId("feed-item").filter({hasText: postContent}).first()
     await expect(post).toBeVisible({timeout: 20000})
