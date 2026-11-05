@@ -2,13 +2,16 @@ import useReactionSubscription from "./useReactionSubscription"
 import useChronologicalSubscription from "./useChronologicalSubscription"
 import useCombinedPostFetcher from "./useCombinedPostFetcher"
 import usePopularityFilters from "./usePopularityFilters"
+import useSparseDiscovery, {type SparseDiscoveryCache} from "./useSparseDiscovery"
 import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
+import {useFeedStore} from "@/stores/feed"
 
 interface CombinedPostFetcherCache {
   scopeKey?: string
   events?: AppEvent[]
   hasLoadedInitial?: boolean
+  completedInitialSources?: number
 }
 
 interface ReactionSubscriptionCache {
@@ -29,6 +32,7 @@ interface FeedCache {
   combinedPostFetcher?: CombinedPostFetcherCache
   reactionSubscription: ReactionSubscriptionCache
   chronologicalSubscription?: ChronologicalSubscriptionCache
+  sparseDiscovery?: SparseDiscoveryCache
 }
 
 interface FeedConfig {
@@ -46,10 +50,23 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     excludeOwnPosts = false,
   } = config
 
-  const {currentFilters, chronologicalAuthors, visibilitySnapshot, expandFilters} =
-    usePopularityFilters(filterSeen)
+  const {
+    currentFilters,
+    chronologicalAuthors,
+    discoveryAuthors,
+    visibilitySnapshot,
+    expandFilters,
+  } = usePopularityFilters(filterSeen)
   const chronologicalEnabled = popularRatio < 1
   const myPubKey = useUserStore((state) => state.publicKey)
+  const refreshSignal = useFeedStore((state) => state.feedRefreshSignal)
+  cache.sparseDiscovery ||= {}
+  const discovery = useSparseDiscovery(
+    cache.sparseDiscovery,
+    discoveryAuthors,
+    `${currentFilters.scopeKey}:refresh=${refreshSignal}`,
+    currentFilters.ready && filterSeen
+  )
   // Small networks favor rotation but may run out of other active authors.
   // Count eligible follows, not this batch: a slow relay must not turn a large
   // network into a single-author feed. Discovery uses its default network here.
@@ -95,7 +112,7 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     hasPopularData,
     hasChronologicalData: chronologicalEnabled && hasChronologicalData,
     cache: cache.combinedPostFetcher || {},
-    sourceKey: `${sourceKey}|${chronologicalSourceKey}`,
+    sourceKey: `${sourceKey}|${chronologicalSourceKey}${discovery.enabled ? `|${discovery.sourceKey}` : ""}`,
     candidateRevision: `${popularRevision}:${chronologicalRevision}`,
     ready: currentFilters.ready,
     visibilitySnapshot,
@@ -103,6 +120,9 @@ export default function useAlgorithmicFeed(cache: FeedCache, config: FeedConfig 
     excludeOwnPosts,
     excludeReplies: filterSeen && !showReplies,
     enforceAuthorDiversity: filterSeen && eligibleAuthorCount > 3,
+    discoveryEnabled: discovery.enabled,
+    discoveryReady: discovery.ready,
+    discoveryPosts: discovery.events,
   })
 
   return result

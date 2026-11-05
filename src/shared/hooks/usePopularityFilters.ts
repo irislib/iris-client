@@ -3,6 +3,7 @@ import {getSocialGraph, DEFAULT_SOCIAL_GRAPH_ROOT} from "@/utils/socialGraph"
 import {useSocialGraphStore} from "@/stores/socialGraph"
 import {useUserStore} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
+import {selectSparseDiscoveryAuthors} from "@/utils/sparseDiscovery"
 import {
   getOrCreateAlgorithmicVisibilitySnapshot,
   type AlgorithmicVisibilitySnapshot,
@@ -28,6 +29,7 @@ interface FeedGraphSnapshot {
   viewer: string
   reactionAuthors: string[]
   chronologicalAuthors: string[]
+  discoveryAuthors: string[]
   policyKey: string
   visibility: AlgorithmicVisibilitySnapshot
 }
@@ -78,23 +80,37 @@ export default function usePopularityFilters(filterSeen?: boolean) {
     const chronologicalAuthors = myPubKey
       ? Array.from(socialGraph.getFollowedByUser(recommendationRoot, true))
       : []
+    const visibility = getOrCreateAlgorithmicVisibilitySnapshot(
+      socialGraph,
+      maxFollowDistance,
+      graphVersion,
+      muteListVersion,
+      recommendationRoot
+    )
 
     return {
       viewer,
       reactionAuthors: reactionAuthors.sort(),
       chronologicalAuthors: chronologicalAuthors.sort(),
+      discoveryAuthors: filterSeen
+        ? selectSparseDiscoveryAuthors(
+            socialGraph,
+            visibility,
+            recommendationRoot,
+            myPubKey
+          )
+        : [],
       policyKey: `graph=${graphVersion}/${muteListVersion}:root=${recommendationRoot}:distance=${maxFollowDistance ?? "unlimited"}`,
-      visibility: getOrCreateAlgorithmicVisibilitySnapshot(
-        socialGraph,
-        maxFollowDistance,
-        graphVersion,
-        muteListVersion,
-        recommendationRoot
-      ),
+      visibility,
     }
   }, [expectedRoot, myPubKey, policyRevision, rootReady, recommendationRoot])
   const authorKey = snapshot?.reactionAuthors.join(",") || ""
   const chronologicalAuthorKey = snapshot?.chronologicalAuthors.join(",") || ""
+  const discoveryAuthorKey = snapshot?.discoveryAuthors.join(",") || ""
+  const discoveryAuthors = useMemo(
+    () => (discoveryAuthorKey ? discoveryAuthorKey.split(",") : []),
+    [discoveryAuthorKey]
+  )
   const authors = useMemo(() => (authorKey ? authorKey.split(",") : []), [authorKey])
   const chronologicalAuthors = useMemo(
     () => (chronologicalAuthorKey ? chronologicalAuthorKey.split(",") : []),
@@ -131,6 +147,7 @@ export default function usePopularityFilters(filterSeen?: boolean) {
   return {
     currentFilters,
     chronologicalAuthors,
+    discoveryAuthors,
     visibilitySnapshot: snapshot?.visibility || null,
     expandFilters,
   }

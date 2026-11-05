@@ -52,6 +52,8 @@ export const releaseProfile = {
       "src/utils/feedReplies.test.ts",
       "src/utils/threadReferences.test.ts",
       "src/shared/hooks/useCombinedPostFetcher.test.ts",
+      "src/utils/sparseDiscovery.test.ts",
+      "src/shared/hooks/useSparseDiscovery.test.ts",
     ],
     ["pnpm", "run", "smoke:portable"],
     ["pnpm", "run", "test:release:e2e"],

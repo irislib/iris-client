@@ -84,6 +84,7 @@ describe("useCombinedPostFetcher", () => {
     mocks.fetchEventsReliable.mockReset()
     mocks.shouldHideAlgorithmicEvent.mockReset()
     mocks.shouldHideAlgorithmicEvent.mockReturnValue(false)
+    mocks.seenEventIds.clear()
     latestResult = undefined
     container = document.createElement("div")
     root = createRoot(container)
@@ -608,6 +609,176 @@ describe("useCombinedPostFetcher", () => {
     await act(async () => root.render(createElement(TestHook, props)))
     expect(latestResult?.events).toEqual([retained, muted])
     expect(latestResult?.events[0]).toBe(retained)
+  })
+
+  it("fills after existing originals without reordering and appends later original arrivals", async () => {
+    const original = event("original", "first")
+    const discovery = event("discovery", "second")
+    const later = event("later", "third")
+    const getNextPopular = vi.fn().mockReturnValueOnce([original.id]).mockReturnValue([])
+    const getNextChronological = vi
+      .fn()
+      .mockReturnValueOnce([later.id])
+      .mockReturnValue([])
+    mocks.fetchEventsReliable.mockImplementation((filter: {ids: string[]}) => ({
+      promise: Promise.resolve(
+        filter.ids.map((id) => (id === original.id ? original : later))
+      ),
+    }))
+    const props = baseProps({
+      getNextPopular,
+      getNextChronological,
+      hasPopularData: true,
+      discoveryEnabled: true,
+    })
+    await act(async () => root.render(createElement(TestHook, props)))
+    expect(latestResult?.events).toEqual([original])
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {
+          ...props,
+          discoveryReady: true,
+          discoveryPosts: [discovery],
+        })
+      )
+    )
+    expect(latestResult?.events).toEqual([original, discovery])
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {
+          ...props,
+          discoveryReady: true,
+          discoveryPosts: [discovery],
+          hasChronologicalData: true,
+        })
+      )
+    )
+    expect(latestResult?.events).toEqual([original, discovery, later])
+  })
+
+  it("refills ready originals after a partly filtered batch before taking discovery", async () => {
+    const first = event("first", "a")
+    const later = event("later", "b")
+    const extra = event("discovery", "c")
+    const replies = Array.from({length: 9}, (_, i) =>
+      Object.assign(event(`reply-${i}`), {
+        kind: 1,
+        tags: [["e", "a".repeat(64), "", "reply"]],
+      })
+    )
+    const records = new Map([first, later, ...replies].map((e) => [e.id, e]))
+    const getNextPopular = vi
+      .fn()
+      .mockReturnValueOnce([first, ...replies].map((e) => e.id))
+      .mockReturnValueOnce([later.id])
+      .mockReturnValue([])
+    mocks.fetchEventsReliable.mockImplementation((f: {ids: string[]}) => ({
+      promise: Promise.resolve(f.ids.map((id) => records.get(id))),
+    }))
+    await act(async () =>
+      root.render(
+        createElement(
+          TestHook,
+          baseProps({
+            getNextPopular,
+            hasPopularData: true,
+            popularRatio: 1,
+            excludeReplies: true,
+            discoveryEnabled: true,
+            discoveryReady: true,
+            discoveryPosts: [extra],
+          })
+        )
+      )
+    )
+    expect(latestResult?.events).toEqual([first, later, extra])
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledTimes(2)
+  })
+
+  it("allows fast discovery while an original body is pending and later appends that original once", async () => {
+    const slow = event("slow", "a"),
+      fast = event("fast", "b")
+    const pending = deferred<AppEvent[]>()
+    mocks.fetchEventsReliable.mockReturnValue({promise: pending.promise})
+    const getNextPopular = vi.fn().mockReturnValueOnce([slow.id]).mockReturnValue([])
+    const props = baseProps({
+      getNextPopular,
+      hasPopularData: true,
+      popularRatio: 1,
+      discoveryEnabled: true,
+    })
+    await act(async () => root.render(createElement(TestHook, props)))
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {...props, discoveryReady: true, discoveryPosts: [fast]})
+      )
+    )
+    expect(latestResult?.events).toEqual([fast])
+    await act(async () => pending.resolve([slow]))
+    expect(latestResult?.events).toEqual([fast, slow])
+    expect(mocks.fetchEventsReliable).toHaveBeenCalledOnce()
+  })
+
+  it("renders discovery independently of quiet original sources and admits no seen/hidden/own/reply items", async () => {
+    const kept = event("kept")
+    const seen = event("seen")
+    const hidden = event("hidden")
+    const own = event("own", "viewer")
+    const reply = Object.assign(event("reply"), {
+      kind: 1,
+      tags: [["e", "a".repeat(64), "", "root"]],
+    })
+    mocks.seenEventIds.add(seen.id)
+    mocks.shouldHideAlgorithmicEvent.mockImplementation((e) => e === hidden)
+    await act(async () =>
+      root.render(
+        createElement(
+          TestHook,
+          baseProps({
+            discoveryEnabled: true,
+            discoveryReady: true,
+            discoveryPosts: [seen, hidden, own, reply, kept],
+            excludeOwnPosts: true,
+            excludeReplies: true,
+          })
+        )
+      )
+    )
+    expect(latestResult?.events).toEqual([kept])
+    expect(latestResult?.loading).toBe(false)
+    expect(mocks.fetchEventsReliable).not.toHaveBeenCalled()
+    await act(async () => {
+      await latestResult?.loadMore()
+    })
+    expect(latestResult?.events).toEqual([kept])
+  })
+
+  it("does not append discovery to a full initial original page", async () => {
+    const originals = Array.from({length: 10}, (_, i) =>
+      event(`original-${i}`, `author-${i}`)
+    )
+    mocks.fetchEventsReliable.mockReturnValue({promise: Promise.resolve(originals)})
+    const props = baseProps({
+      hasPopularData: true,
+      popularRatio: 1,
+      discoveryEnabled: true,
+      getNextPopular: vi
+        .fn()
+        .mockReturnValueOnce(originals.map((e) => e.id))
+        .mockReturnValue([]),
+    })
+    await act(async () => root.render(createElement(TestHook, props)))
+    const prior = [...latestResult!.events]
+    await act(async () =>
+      root.render(
+        createElement(TestHook, {
+          ...props,
+          discoveryReady: true,
+          discoveryPosts: [event("extra")],
+        })
+      )
+    )
+    expect(latestResult?.events).toEqual(prior)
   })
 
   it("uses the captured visibility policy for initial and later batches", async () => {

@@ -222,7 +222,8 @@ function HomeFeed() {
           <NoFollows myPubKey={myPubKey} />
         )}
         {(() => {
-          if (!myPubKey) return <AlgorithmicFeed type="popular" />
+          if (!myPubKey && !activeFeedConfig?.feedStrategy)
+            return <AlgorithmicFeed type="popular" />
 
           if (activeFeedConfig?.feedStrategy)
             return (

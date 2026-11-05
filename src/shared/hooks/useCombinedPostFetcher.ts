@@ -16,6 +16,7 @@ interface CombinedPostFetcherCache {
   scopeKey?: string
   events?: AppEvent[]
   hasLoadedInitial?: boolean
+  completedInitialSources?: number
 }
 
 interface CombinedPostFetcherProps {
@@ -32,6 +33,9 @@ interface CombinedPostFetcherProps {
   excludeOwnPosts?: boolean
   excludeReplies?: boolean
   enforceAuthorDiversity?: boolean
+  discoveryEnabled?: boolean
+  discoveryReady?: boolean
+  discoveryPosts?: AppEvent[]
 }
 
 export default function useCombinedPostFetcher({
@@ -48,6 +52,9 @@ export default function useCombinedPostFetcher({
   excludeOwnPosts = false,
   excludeReplies = false,
   enforceAuthorDiversity = false,
+  discoveryEnabled = false,
+  discoveryReady = false,
+  discoveryPosts = [],
 }: CombinedPostFetcherProps) {
   const [events, setEvents] = useState<AppEvent[]>([])
   const [loading, setLoading] = useState<boolean>(false)
@@ -56,6 +63,8 @@ export default function useCombinedPostFetcher({
   const isLoadingRef = useRef(false)
   const initialRequestsRef = useRef(0)
   const initialSourcesRef = useRef(0)
+  const completedInitialSourcesRef = useRef(0)
+  const consumedDiscoveryRef = useRef(new Set<string>())
   const generationRef = useRef(0)
   const activeScopeRef = useRef<string | null>(null)
   const attemptedReadinessRef = useRef<string | null>(null)
@@ -78,11 +87,17 @@ export default function useCombinedPostFetcher({
   const chronologicalSourceEnabled = normalizedPopularRatio < 1
   const popularSourceReady = popularSourceEnabled && hasPopularData
   const chronologicalSourceReady = chronologicalSourceEnabled && hasChronologicalData
-  const hasAnySourceReady = popularSourceReady || chronologicalSourceReady
+  const hasAnySourceReady =
+    popularSourceReady || chronologicalSourceReady || discoveryReady
   const allEnabledSourcesReady =
-    (!popularSourceEnabled || popularSourceReady) &&
-    (!chronologicalSourceEnabled || chronologicalSourceReady)
-  const sourceReadinessKey = `${popularSourceReady}:${chronologicalSourceReady}:${candidateRevision}`
+    discoveryReady ||
+    ((!popularSourceEnabled || popularSourceReady) &&
+      (!chronologicalSourceEnabled || chronologicalSourceReady))
+  const availableSources =
+    (popularSourceReady ? 1 : 0) |
+    (chronologicalSourceReady ? 2 : 0) |
+    (discoveryReady ? 4 : 0)
+  const sourceReadinessKey = `${popularSourceReady}:${chronologicalSourceReady}:${discoveryReady}:${candidateRevision}`
 
   useLayoutEffect(() => {
     if (!policyReady || !visibilitySnapshot) {
@@ -93,6 +108,8 @@ export default function useCombinedPostFetcher({
         isLoadingRef.current = false
         initialRequestsRef.current = 0
         initialSourcesRef.current = 0
+        completedInitialSourcesRef.current = 0
+        consumedDiscoveryRef.current = new Set()
         attemptedReadinessRef.current = null
         setEvents([])
         setLoading(false)
@@ -107,9 +124,13 @@ export default function useCombinedPostFetcher({
     isLoadingRef.current = false
     initialRequestsRef.current = 0
     initialSourcesRef.current = 0
+    consumedDiscoveryRef.current = new Set()
     attemptedReadinessRef.current = null
 
     const cacheMatchesScope = cache.scopeKey === scopeKey
+    completedInitialSourcesRef.current = cacheMatchesScope
+      ? cache.completedInitialSources || 0
+      : 0
     const eligibleCachedEvents = cacheMatchesScope
       ? (cache.events || []).filter(
           (event) =>
@@ -125,6 +146,7 @@ export default function useCombinedPostFetcher({
     cache.events = cachedEvents
     hasLoadedInitial.current = cacheMatchesScope && !!cache.hasLoadedInitial
     cache.hasLoadedInitial = hasLoadedInitial.current
+    cache.completedInitialSources = completedInitialSourcesRef.current
     setEvents(cachedEvents)
     setLoading(false)
   }, [
@@ -175,6 +197,32 @@ export default function useCombinedPostFetcher({
       if (!visibilitySnapshot) return []
       const generation = generationRef.current
 
+      const takeDiscovery = (count: number) => {
+        if (!discoveryReady || count <= 0) return []
+        if (claimed && initialSourcesRef.current & 4 && !(claimed.sources & 4)) return []
+        if (claimed) {
+          claimed.sources |= 4
+          initialSourcesRef.current |= 4
+        }
+        const selected: AppEvent[] = []
+        const displayed = new Set((cache.events || []).map((event) => event.id))
+        for (const event of discoveryPosts) {
+          if (
+            consumedDiscoveryRef.current.has(event.id) ||
+            displayed.has(event.id) ||
+            seenEventIds.has(event.id) ||
+            (excludeOwnPosts && event.pubkey === myPubKey) ||
+            (excludeReplies && isFeedReply(event)) ||
+            visibilityRef.current?.shouldHideAlgorithmicEvent(event)
+          )
+            continue
+          consumedDiscoveryRef.current.add(event.id)
+          selected.push(event)
+          if (selected.length === count) break
+        }
+        return selected
+      }
+
       // Recommended IDs do not reveal whether their posts are replies. Refill
       // empty filtered pages, capped at five batches per call for reply-only
       // pools. Missing bodies do not trigger extra refills.
@@ -224,7 +272,7 @@ export default function useCombinedPostFetcher({
         takeChronological(batchSize - allIds.length)
 
         if (allIds.length === 0) {
-          return []
+          return takeDiscovery(batchSize)
         }
         const postFilter: EventFilter = {
           ids: allIds,
@@ -237,6 +285,7 @@ export default function useCombinedPostFetcher({
         let eventsArray = await promise
         if (generation !== generationRef.current) return []
 
+        const fetchedCount = eventsArray.length
         if (excludeOwnPosts && myPubKey) {
           eventsArray = eventsArray.filter((event) => event.pubkey !== myPubKey)
         }
@@ -248,10 +297,19 @@ export default function useCombinedPostFetcher({
             !visibilityRef.current?.shouldHideAlgorithmicEvent(event)
         )
 
-        if (eventsArray.length === 0 && removedReplies) continue
-        return shuffle(eventsArray)
+        const removedOriginals = fetchedCount > eventsArray.length
+        if (
+          eventsArray.length === 0 &&
+          (removedReplies || (discoveryEnabled && removedOriginals))
+        )
+          continue
+        const original = shuffle(eventsArray)
+        // Render a usable original batch immediately. A later bounded refill
+        // drains ready original candidates before discovery fills the deficit.
+        for (const event of original) consumedDiscoveryRef.current.add(event.id)
+        return original.length ? original : takeDiscovery(batchSize)
       }
-      return []
+      return takeDiscovery(batchSize)
     },
     [
       getNextPopular,
@@ -263,21 +321,32 @@ export default function useCombinedPostFetcher({
       excludeOwnPosts,
       excludeReplies,
       visibilitySnapshot,
+      cache,
+      discoveryReady,
+      discoveryPosts,
+      discoveryEnabled,
     ]
   )
 
   const loadInitial = useCallback(async () => {
+    const uncompleted = availableSources & ~completedInitialSourcesRef.current
+    const needsInitialOriginals = !!(uncompleted & 3)
+    const needsDiscoveryFill = !!(uncompleted & 4) && events.length < 10
+    const attemptKey = `${sourceReadinessKey}:${discoveryEnabled ? events.length : ""}`
     if (
       !policyReady ||
       (isLoadingRef.current && initialRequestsRef.current === 0) ||
       initialRequestsRef.current >=
-        (popularSourceEnabled && chronologicalSourceEnabled ? 2 : 1) ||
-      (hasLoadedInitial.current && events.length > 0) ||
-      attemptedReadinessRef.current === sourceReadinessKey
+        (popularSourceEnabled && chronologicalSourceEnabled ? 2 : 1) +
+          (discoveryEnabled ? 1 : 0) ||
+      (hasLoadedInitial.current &&
+        events.length > 0 &&
+        (!discoveryEnabled || (!needsInitialOriginals && !needsDiscoveryFill))) ||
+      attemptedReadinessRef.current === attemptKey
     ) {
       return
     }
-    attemptedReadinessRef.current = sourceReadinessKey
+    attemptedReadinessRef.current = attemptKey
     const generation = generationRef.current
     // Reserve each source only when it supplies IDs. A stream of unavailable
     // recommendations cannot occupy both slots and block healthy chronology.
@@ -288,7 +357,11 @@ export default function useCombinedPostFetcher({
     let shouldFinalize = false
 
     try {
-      let newEvents = await loadBatch(10, claimed)
+      const batchSize =
+        hasLoadedInitial.current && !needsInitialOriginals
+          ? Math.max(0, 10 - events.length)
+          : 10
+      let newEvents = await loadBatch(batchSize, claimed)
       if (generation !== generationRef.current) return
       if (newEvents.length === 0 && !hasLoadedInitial.current) {
         newEvents = await loadBatch(10, claimed)
@@ -311,6 +384,8 @@ export default function useCombinedPostFetcher({
       // Relay or cache failures must never leave the feed in a permanent spinner.
       if (generation === generationRef.current) {
         initialSourcesRef.current &= ~claimed.sources
+        completedInitialSourcesRef.current |= claimed.sources
+        cache.completedInitialSources = completedInitialSourcesRef.current
         if (shouldFinalize) {
           hasLoadedInitial.current = true
           cache.hasLoadedInitial = true
@@ -330,6 +405,8 @@ export default function useCombinedPostFetcher({
     popularSourceEnabled,
     chronologicalSourceEnabled,
     sourceReadinessKey,
+    availableSources,
+    discoveryEnabled,
   ])
 
   const loadMore = useCallback(async () => {
@@ -365,13 +442,20 @@ export default function useCombinedPostFetcher({
     if (
       !policyReady ||
       !hasAnySourceReady ||
-      (hasLoadedInitial.current && events.length > 0)
+      (hasLoadedInitial.current && events.length > 0 && !discoveryEnabled)
     ) {
       return
     }
 
     void loadInitial()
-  }, [events.length, hasAnySourceReady, loadInitial, loading, policyReady])
+  }, [
+    events.length,
+    hasAnySourceReady,
+    loadInitial,
+    loading,
+    policyReady,
+    discoveryEnabled,
+  ])
 
   const isInitializing = policyReady && !hasLoadedInitial.current && hasAnySourceReady
   const waitingForDataSources =

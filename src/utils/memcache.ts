@@ -69,12 +69,19 @@ interface CombinedPostFetcherCache {
   scopeKey?: string
   events?: AppEvent[]
   hasLoadedInitial?: boolean
+  completedInitialSources?: number
 }
 
 interface AlgorithmicFeedCache {
   combinedPostFetcher: CombinedPostFetcherCache
   reactionSubscription: ReactionSubscriptionCache
   chronologicalSubscription: ChronologicalSubscriptionCache
+  sparseDiscovery?: {
+    scopeKey?: string
+    complete?: boolean
+    events?: AppEvent[]
+    until?: number
+  }
 }
 
 export const feedCaches: Partial<Record<FeedType, AlgorithmicFeedCache>> = {}
@@ -136,6 +143,8 @@ export const clearAlgorithmicFeedCaches = () => {
       cache.combinedPostFetcher.events = []
       cache.combinedPostFetcher.hasLoadedInitial = false
       cache.combinedPostFetcher.scopeKey = undefined
+      cache.combinedPostFetcher.completedInitialSources = 0
+      cache.sparseDiscovery = {}
       cache.reactionSubscription.authorScope = undefined
       cache.reactionSubscription.hasInitialData = false
       cache.reactionSubscription.pendingReactionCounts?.clear()
