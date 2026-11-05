@@ -1,3 +1,4 @@
+import {DEFAULT_RELAYS} from "@/shared/constants/relays"
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
 import {EventSubscription, CacheMode, type EventFilter} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
@@ -202,7 +203,11 @@ async function startGraphCatchup(generation: number, relays: string[]) {
   stopGraphCatchup?.()
   stopGraphCatchup = startGraphSync({
     getGraph: () => instance,
-    relays,
+    relays:
+      relays.length === DEFAULT_RELAYS.length &&
+      relays.every((url) => DEFAULT_RELAYS.includes(url))
+        ? ["wss://graph-relay.iris.to", ...relays]
+        : relays,
     maxAuthors: 500,
     maxBytes: 2 * 1024 * 1024,
     onChange: () => {
