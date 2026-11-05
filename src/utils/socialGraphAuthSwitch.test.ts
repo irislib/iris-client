@@ -14,7 +14,11 @@ const createDeferred = <T>() => {
 }
 
 const userStoreMock = vi.hoisted(() => {
-  type UserState = {publicKey: string}
+  type UserState = {
+    publicKey: string
+    relays?: string[]
+    relayConfigs?: {url: string; disabled?: boolean}[]
+  }
   type Listener = (state: UserState, previousState: UserState) => void
 
   let state: UserState = {publicKey: ""}
@@ -322,6 +326,40 @@ const opinionSubscriptionsFor = (publicKey: string) =>
   })
 
 describe("social graph auth-switch readiness", () => {
+  it("stops optional catch-up when relay preferences change without changing accounts", async () => {
+    userStoreMock.reset(ACCOUNT_B)
+    const {setupSocialGraphSubscriptions, socialGraphLoaded} =
+      await import("./socialGraph")
+    const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
+    await socialGraphLoaded
+    const setup = setupSocialGraphSubscriptions()
+    await vi.advanceTimersByTimeAsync(INITIAL_SYNC_TIMEOUT_MS)
+    await setup
+    await flushMicrotasks()
+    const calls = vi.mocked(startGraphSync).mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+    const stop = vi.mocked(startGraphSync).mock.results.at(-1)!.value
+    userStoreMock.useUserStore.setState({relayConfigs: [{url: "wss://custom.test"}]})
+    expect(stop).toHaveBeenCalledOnce()
+    await setupSocialGraphSubscriptions()
+    await flushMicrotasks()
+    expect(vi.mocked(startGraphSync).mock.calls).toHaveLength(calls)
+  })
+
+  it("does not start a stale pending catch-up after relay settings change", async () => {
+    userStoreMock.reset(ACCOUNT_B)
+    const {setupSocialGraphSubscriptions, socialGraphLoaded} =
+      await import("./socialGraph")
+    const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
+    await socialGraphLoaded
+    const setup = setupSocialGraphSubscriptions()
+    userStoreMock.useUserStore.setState({relays: ["wss://custom.test"]})
+    await vi.advanceTimersByTimeAsync(INITIAL_SYNC_TIMEOUT_MS)
+    await setup
+    await flushMicrotasks()
+    expect(startGraphSync).not.toHaveBeenCalled()
+  })
+
   it("does not use cache completion or an incomplete relay to capture cold visibility", async () => {
     const {setupSocialGraphSubscriptions, socialGraphLoaded} =
       await import("./socialGraph")
@@ -346,6 +384,7 @@ describe("social graph auth-switch readiness", () => {
 
   beforeEach(() => {
     vi.resetModules()
+    vi.clearAllMocks()
     vi.useFakeTimers()
     userStoreMock.reset(ACCOUNT_A)
     graphStoreMock.reset()

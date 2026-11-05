@@ -196,10 +196,11 @@ let unsubscribeFromUserStore: (() => void) | undefined
 let activeGraphSync: {publicKey: string; promise: Promise<void>} | undefined
 const activeOpinionSubscriptions = new Set<EventSubscription>()
 let stopGraphCatchup: (() => void) | undefined
+let graphCatchupRelaySettingsChanged = false
 
 async function startGraphCatchup(generation: number, relays: string[]) {
   const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
-  if (generation !== graphSyncGeneration) return
+  if (generation !== graphSyncGeneration || graphCatchupRelaySettingsChanged) return
   stopGraphCatchup?.()
   stopGraphCatchup = startGraphSync({
     getGraph: () => instance,
@@ -371,6 +372,16 @@ export const setupSocialGraphSubscriptions = async () => {
   // several seconds to hydrate, during which login/logout must not be missed.
   if (!unsubscribeFromUserStore) {
     unsubscribeFromUserStore = useUserStore.subscribe((state, prevState) => {
+      if (
+        state.relays !== prevState.relays ||
+        state.relayConfigs !== prevState.relayConfigs
+      ) {
+        // The client retains its startup relay array. Stop optional catch-up
+        // until reload rather than keep using a relay the user just disabled.
+        graphCatchupRelaySettingsChanged = true
+        stopGraphCatchup?.()
+        stopGraphCatchup = undefined
+      }
       if (state.publicKey !== prevState.publicKey) {
         void requestGraphSync(state.publicKey)
       }
