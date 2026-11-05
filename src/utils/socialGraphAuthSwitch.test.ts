@@ -263,6 +263,12 @@ vi.mock("@/stores/socialGraph", () => ({
   useSocialGraphStore: graphStoreMock.useSocialGraphStore,
 }))
 vi.mock("nostr-social-graph", () => ({SocialGraph: socialGraphMock.FakeSocialGraph}))
+vi.mock("nostr-social-graph/publicGraphSync", () => ({
+  loadGraphBootstrap: async () => {
+    throw new Error("Offline bootstrap fixture")
+  },
+  startGraphSync: vi.fn(() => vi.fn()),
+}))
 vi.mock("@/utils/nostrClient", () => ({
   nostr: ndkMock.nostr,
   initNostr: ndkMock.initNostr,

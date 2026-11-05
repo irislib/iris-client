@@ -36,6 +36,14 @@ const notifyGraphChange = () => {
 
 async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
   try {
+    const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
+    const graph = await loadGraphBootstrap({root: DEFAULT_SOCIAL_GRAPH_ROOT})
+    await graph.setRoot(publicKey)
+    return graph
+  } catch {
+    /* The pinned asset remains the offline/bootstrap fallback. */
+  }
+  try {
     const response = await fetch(bundledGraphUrl)
     const binaryData = new Uint8Array(await response.arrayBuffer())
     const graph = await SocialGraph.fromBinary(publicKey, binaryData)
@@ -85,37 +93,9 @@ async function loadDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
   useSocialGraphStore.getState().setReady(false)
   const bundled = await loadPreCrawledGraph(publicKey)
   if (!isCurrent()) return
-  // Graph instances use different numeric IDs. Replay the retained graph's
-  // public-key lists locally so both follow/mute directions and timestamps are
-  // preserved; these projections never leave the graph or enter the event cache.
-  const retained = instance.getInternalData()
-  for (const [kind, lists, timestamps] of [
-    [KIND_CONTACTS, retained.followedByUser, retained.followListCreatedAt],
-    [KIND_MUTE_LIST, retained.mutedByUser, retained.muteListCreatedAt],
-  ] as const) {
-    for (const author of new Set([...lists.keys(), ...timestamps.keys()])) {
-      bundled.handleEvent(
-        {
-          kind,
-          pubkey: retained.str(author),
-          created_at: timestamps.get(author) ?? 0,
-          tags: Array.from(lists.get(author) ?? [], (target) => [
-            "p",
-            retained.str(target),
-          ]),
-          content: "",
-          id: "",
-          sig: "",
-        },
-        true,
-        Number.POSITIVE_INFINITY
-      )
-    }
-  }
-  // Switch atomically before yielding so events arriving during distance
-  // recalculation are applied to the new graph and cannot be overwritten.
-  instance = bundled
-  await bundled.recalculateFollowDistances()
+  // Merge into the retained graph: complete newer bootstrap lists may refresh
+  // it, while partial projections cannot replace a locally crawled list.
+  await instance.merge(bundled)
 }
 
 async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
@@ -214,6 +194,26 @@ let graphSyncGeneration = 0
 let unsubscribeFromUserStore: (() => void) | undefined
 let activeGraphSync: {publicKey: string; promise: Promise<void>} | undefined
 const activeOpinionSubscriptions = new Set<EventSubscription>()
+let stopGraphCatchup: (() => void) | undefined
+
+async function startGraphCatchup(generation: number, relays: string[]) {
+  const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
+  if (generation !== graphSyncGeneration) return
+  stopGraphCatchup?.()
+  stopGraphCatchup = startGraphSync({
+    getGraph: () => instance,
+    relays,
+    maxAuthors: 500,
+    maxBytes: 2 * 1024 * 1024,
+    onChange: () => {
+      if (generation !== graphSyncGeneration) return
+      notifyGraphChange()
+      useSocialGraphStore.getState().incrementMuteListVersion()
+      throttledSave()
+    },
+    onError: error,
+  })
+}
 
 const INITIAL_SYNC_SETTLE_MS = 300
 const INITIAL_SYNC_TIMEOUT_MS = 8_000
@@ -450,6 +450,8 @@ const isCurrentGraphSync = (syncGeneration: number, publicKey: string) =>
   instance.getRoot() === publicKey
 
 const stopGraphSyncSubscriptions = () => {
+  stopGraphCatchup?.()
+  stopGraphCatchup = undefined
   const previousSub = sub
   sub = undefined
   previousSub?.stop()
@@ -476,6 +478,9 @@ async function resetSubscriptionToDefault() {
   notifyGraphChange()
   useSocialGraphStore.getState().incrementMuteListVersion()
   useSocialGraphStore.getState().setReady(true)
+  const {nostr, initNostr} = await import("@/utils/nostrClient")
+  await initNostr()
+  void startGraphCatchup(syncGeneration, nostr().explicitRelayUrls).catch(error)
 }
 
 async function setupSubscription(publicKey: string) {
@@ -711,6 +716,7 @@ async function setupSubscription(publicKey: string) {
   }
 
   if (!isCurrentGraphSync(syncGeneration, publicKey)) return
+  void startGraphCatchup(syncGeneration, relayUrls).catch(error)
   readyGraphRoot = publicKey
   useSocialGraphStore.getState().setReady(true)
   await saveToLocalForage()
