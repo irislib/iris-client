@@ -78,9 +78,9 @@ const releases = {
       "sha512-CPvJzniY+nItLVEQpH4jaRnmU7AMkD3kAN5yByXMgmm4MNChAk8X8HY8oJIw1riX/gW3/WKD8c+eUtSgu98DDA==",
   },
   "nostr-social-graph": {
-    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v2.0.4/nostr-social-graph-2.0.4.tgz",
+    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.0.0/nostr-social-graph-4.0.0.tgz",
     integrity:
-      "sha512-o6LOpo6j1wmR7FIAT5hbuVoLut+OMd5QlOWJqBOr8EKLQaQHze42GEiKqXSQeb4v8Zm3nRZO4ogXq4QuNerApA==",
+      "sha512-Y40HbUfRFxvVCArLTkwFJ13NMJAiww3jEwKeVjHar/hCKfZGbptghb/kX9nW0zgT307kiNm7LFrYBTRQEQ78RQ==",
   },
 }
 
