@@ -237,6 +237,7 @@ const ndkMock = vi.hoisted(() => {
   }
 
   const subscriptions: FakeSubscription[] = []
+  let explicitRelayUrls = ["wss://healthy.test"]
   const subscribe = vi.fn((filters: unknown, options?: unknown) => {
     const subscription = new FakeSubscription(filters, options)
     subscriptions.push(subscription)
@@ -247,8 +248,12 @@ const ndkMock = vi.hoisted(() => {
     subscriptions,
     subscribe,
     initNostr: vi.fn(() => Promise.resolve()),
-    nostr: () => ({subscribe, explicitRelayUrls: ["wss://healthy.test"]}),
+    nostr: () => ({subscribe, explicitRelayUrls}),
+    setRelays(relays: string[]) {
+      explicitRelayUrls = relays
+    },
     reset() {
+      explicitRelayUrls = ["wss://healthy.test"]
       subscriptions.splice(0)
       subscribe.mockClear()
       this.initNostr.mockClear()
@@ -326,6 +331,32 @@ const opinionSubscriptionsFor = (publicKey: string) =>
   })
 
 describe("social graph auth-switch readiness", () => {
+  it.each(["production", "custom", "local", "test"])(
+    "keeps graph catch-up within the %s relay scope",
+    async (scope) => {
+      vi.stubEnv("VITE_USE_LOCAL_RELAY", scope === "local" ? "true" : "")
+      vi.stubEnv("VITE_USE_TEST_RELAY", scope === "test" ? "true" : "")
+      const {DEFAULT_RELAYS} = await import("@/shared/constants/relays")
+      const relays = scope === "custom" ? ["wss://custom.test"] : DEFAULT_RELAYS
+      ndkMock.setRelays(relays)
+      userStoreMock.reset(ACCOUNT_B)
+      const {setupSocialGraphSubscriptions, socialGraphLoaded} =
+        await import("./socialGraph")
+      const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
+      await socialGraphLoaded
+      const setup = setupSocialGraphSubscriptions()
+      await vi.advanceTimersByTimeAsync(INITIAL_SYNC_TIMEOUT_MS)
+      await setup
+      await flushMicrotasks()
+      expect(startGraphSync).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          relays:
+            scope === "production" ? ["wss://graph-relay.iris.to", ...relays] : relays,
+        })
+      )
+    }
+  )
+
   it("stops optional catch-up when relay preferences change without changing accounts", async () => {
     userStoreMock.reset(ACCOUNT_B)
     const {setupSocialGraphSubscriptions, socialGraphLoaded} =
@@ -394,6 +425,7 @@ describe("social graph auth-switch readiness", () => {
   })
 
   afterEach(() => {
+    vi.unstubAllEnvs()
     vi.clearAllTimers()
     vi.useRealTimers()
   })

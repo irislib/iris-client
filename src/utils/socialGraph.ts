@@ -205,6 +205,8 @@ async function startGraphCatchup(generation: number, relays: string[]) {
   stopGraphCatchup = startGraphSync({
     getGraph: () => instance,
     relays:
+      !import.meta.env.VITE_USE_LOCAL_RELAY &&
+      !import.meta.env.VITE_USE_TEST_RELAY &&
       relays.length === DEFAULT_RELAYS.length &&
       relays.every((url) => DEFAULT_RELAYS.includes(url))
         ? ["wss://graph-relay.iris.to", ...relays]
