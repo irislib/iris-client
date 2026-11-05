@@ -1,5 +1,10 @@
 import {expect, test, type Page} from "@playwright/test"
 import {SocialGraph} from "nostr-social-graph"
+import {finalizeEvent, getPublicKey, type Event, type Filter} from "nostr-tools"
+import {
+  Negentropy,
+  NegentropyStorageVector,
+} from "../node_modules/nostr-social-graph/src/vendor/negentropy.js"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 import {freshGraphBootstrap} from "./utils/graph-bootstrap"
 
@@ -40,9 +45,9 @@ function setList(graph: SocialGraph, pubkey: string, kind: 3 | 10000, targets: s
   )
 }
 
-async function fixtureGraph() {
+async function fixtureGraph(discovery = discovered) {
   const graph = new SocialGraph(manifest.root)
-  setList(graph, manifest.root, 3, [discovered])
+  setList(graph, manifest.root, 3, [discovery])
   return Buffer.from(await graph.toBinary())
 }
 
@@ -81,23 +86,80 @@ async function exportedGraph(page: Page) {
   return SocialGraph.fromBinary(manifest.root, Buffer.concat(chunks))
 }
 
-async function configure(page: Page, scope = "default") {
+type Negotiation = "unsupported" | "malformed" | "disconnect" | "silent" | "success"
+type RelayTrace = {url: string; catchup: boolean; closed: boolean; requests: Filter[]}
+
+async function configure(
+  page: Page,
+  scope = "default",
+  negotiation: Negotiation = "unsupported",
+  remoteEvents: Event[] = []
+) {
   const sockets: string[] = []
   const catchupRequests: string[] = []
-  await page.routeWebSocket(/^(?:wss?:\/\/)/, (socket) => {
+  const connections: RelayTrace[] = []
+  await page.context().routeWebSocket(/^(?:wss?:\/\/)/, (socket) => {
     sockets.push(socket.url())
-    socket.onMessage((raw) => {
+    const trace: RelayTrace = {
+      url: socket.url(),
+      catchup: false,
+      closed: false,
+      requests: [],
+    }
+    connections.push(trace)
+    let server: Negentropy | undefined
+    socket.onClose(() => {
+      trace.closed = true
+    })
+    socket.onMessage(async (raw) => {
       if (typeof raw !== "string" || !raw.startsWith("[")) return
-      const [type, id, filter] = JSON.parse(String(raw))
+      const [type, id, filter, initialMessage] = JSON.parse(raw)
       if (
         type === "NEG-OPEN" &&
         filter?.kinds?.includes(3) &&
         filter.kinds.includes(10000)
       ) {
+        trace.catchup = true
         catchupRequests.push(socket.url())
-        socket.send(JSON.stringify(["NEG-ERR", id, "Fixture uses ordinary REQ"]))
+        if (negotiation === "unsupported") {
+          socket.send(
+            JSON.stringify(["NEG-ERR", id, "unsupported: reconciliation unavailable"])
+          )
+        } else if (negotiation === "malformed") {
+          socket.send(JSON.stringify(["NEG-MSG", id, "not-hex"]))
+        } else if (negotiation === "disconnect") {
+          trace.closed = true
+          socket.close()
+        } else if (negotiation === "success") {
+          const storage = new NegentropyStorageVector()
+          for (const event of remoteEvents) {
+            if (
+              filter.authors.includes(event.pubkey) &&
+              filter.kinds.includes(event.kind)
+            ) {
+              storage.insert(event.created_at, event.id)
+            }
+          }
+          storage.seal()
+          server = new Negentropy(storage, 16384)
+          socket.send(
+            JSON.stringify(["NEG-MSG", id, (await server.reconcile(initialMessage))[0]])
+          )
+        }
+      } else if (type === "NEG-MSG" && server) {
+        socket.send(JSON.stringify(["NEG-MSG", id, (await server.reconcile(filter))[0]]))
+      } else if (type === "REQ") {
+        const filters: Filter[] = JSON.parse(raw).slice(2)
+        trace.requests.push(...filters)
+        if (trace.catchup) {
+          for (const event of remoteEvents) {
+            if (filters.some((candidate) => candidate.ids?.includes(event.id))) {
+              socket.send(JSON.stringify(["EVENT", id, event]))
+            }
+          }
+        }
+        socket.send(JSON.stringify(["EOSE", id]))
       }
-      if (type === "REQ") socket.send(JSON.stringify(["EOSE", id]))
     })
   })
   await page.addInitScript(
@@ -124,7 +186,7 @@ async function configure(page: Page, scope = "default") {
     },
     {scope, publicRelays}
   )
-  return {sockets, catchupRequests}
+  return {sockets, catchupRequests, connections}
 }
 
 for (const retained of [false, true]) {
@@ -255,4 +317,89 @@ test("changing relay settings aborts a pending public bootstrap and preserves pe
   } finally {
     release()
   }
+})
+
+for (const negotiation of ["unsupported", "malformed", "disconnect", "silent"] as const) {
+  test(`graph catch-up stops without list fetches when negotiation is ${negotiation}`, async ({
+    page,
+  }) => {
+    test.setTimeout(40000)
+    const {connections} = await configure(page, "default", negotiation)
+    const body = await fixtureGraph()
+    await page.route(freshGraphBootstrap, (route) =>
+      route.fulfill({
+        body,
+        contentType: "application/octet-stream",
+        headers: {
+          "x-graph-root": manifest.root,
+          "access-control-expose-headers": "x-graph-root",
+        },
+      })
+    )
+    await page.goto("/settings/social-graph")
+    // Wait for a terminal state, not an arbitrary quiet period. In the silent
+    // case this observes the real production reconciliation deadline.
+    await expect
+      .poll(() => connections.find((connection) => connection.catchup)?.closed, {
+        timeout: 25000,
+      })
+      .toBe(true)
+    const catchup = connections.filter((connection) => connection.catchup)
+    expect(catchup.length).toBeGreaterThan(0)
+    expect(catchup.flatMap((connection) => connection.requests)).toEqual([])
+    const graph = await exportedGraph(page)
+    expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([discovered]))
+  })
+}
+
+test("successful graph reconciliation fetches exact missing IDs and preserves personal lists", async ({
+  page,
+}) => {
+  const secret = new Uint8Array(32).fill(7)
+  const author = getPublicKey(secret)
+  const events = [
+    finalizeEvent({kind: 3, created_at: 30, tags: [["p", friend]], content: ""}, secret),
+    finalizeEvent(
+      {kind: 10000, created_at: 31, tags: [["p", muted]], content: ""},
+      secret
+    ),
+  ]
+  const {connections} = await configure(page, "default", "success", events)
+  const personal = new SocialGraph(account)
+  setList(personal, account, 3, [friend])
+  setList(personal, account, 10000, [muted])
+  await seedGraph(page, personal)
+  const body = await fixtureGraph(author)
+  await page.route(freshGraphBootstrap, (route) =>
+    route.fulfill({
+      body,
+      contentType: "application/octet-stream",
+      headers: {
+        "x-graph-root": manifest.root,
+        "access-control-expose-headers": "x-graph-root",
+      },
+    })
+  )
+  await page.goto("/settings/social-graph")
+  await expect
+    .poll(
+      () =>
+        connections.filter((connection) => connection.catchup && connection.closed).length
+    )
+    .toBe(3)
+  const requests = connections
+    .filter((connection) => connection.catchup)
+    .flatMap((connection) => connection.requests)
+  expect(requests.length).toBeGreaterThan(0)
+  for (const filter of requests) expect(Object.keys(filter)).toEqual(["ids"])
+  expect(requests.flatMap((filter) => filter.ids ?? []).sort()).toEqual(
+    events.map((event) => event.id).sort()
+  )
+  const graph = await exportedGraph(page)
+  expect(graph.getFollowedByUser(author)).toEqual(new Set([friend]))
+  expect(graph.getMutedByUser(author)).toEqual(new Set([muted]))
+  expect(graph.getFollowedByUser(account)).toEqual(new Set([friend]))
+  expect(graph.getMutedByUser(account)).toEqual(new Set([muted]))
+  expect(graph.getFollowListCreatedAt(account)).toBe(20)
+  expect(graph.getMuteListCreatedAt(account)).toBe(20)
 })
