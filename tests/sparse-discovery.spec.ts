@@ -276,6 +276,16 @@ for (const mode of [
       expect(
         new Set(discoveryFilters.flatMap((f) => f.authors || [])).size
       ).toBeLessThanOrEqual(8)
+      if (mode === "one-follow") {
+        // The existing sidebar samples graph counts every two seconds. Wait
+        // for that display before capturing; the feed already used this root.
+        await expect(
+          page.getByText("1 hop", {exact: true}).locator("..").locator(".font-bold")
+        ).toHaveText("1")
+        await expect(
+          page.getByText("2 hops", {exact: true}).locator("..").locator(".font-bold")
+        ).toHaveText("8")
+      }
       await page.screenshot({path: testInfo.outputPath(`sparse-${mode}.png`)})
     } finally {
       server.clients.forEach((socket) => socket.terminate())
