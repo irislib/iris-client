@@ -98,8 +98,8 @@ test("one-character mentions search immediately and rank like the top search", a
   await search.fill("ben")
   await reply(page, "ben", [bella, ben])
   const topRows = page.locator(".dropdown-content").getByTestId("sidebar-user-row")
-  await expect(topRows.first()).toContainText("Ben Arc")
-  const topNames = await topRows.allTextContents()
+  const topNames = [ben.item.name, bella.item.name]
+  await expect(topRows).toHaveText(topNames)
   await search.fill("")
 
   const composer = await openComposer(page)
@@ -109,8 +109,7 @@ test("one-character mentions search immediately and rank like the top search", a
   await expect(picker).toBeVisible()
   await composer.pressSequentially("en")
   await reply(page, "ben", [bella, ben], false)
-  await expect(picker.getByRole("option").first()).toContainText("Ben Arc")
-  expect(await picker.getByTestId("sidebar-user-row").allTextContents()).toEqual(topNames)
+  await expect(picker.getByTestId("sidebar-user-row")).toHaveText(topNames)
   await page.screenshot({path: testInfo.outputPath("mention-results.png")})
   await composer.dispatchEvent("keydown", {key: "Enter", isComposing: true})
   await expect(composer).toHaveValue("@ben")
