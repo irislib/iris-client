@@ -248,8 +248,9 @@ export const useUserStore = create<UserState>()(
       version: 3, // Bump version to trigger media server migration
       onRehydrateStorage: () => (state, error) => {
         if (state) {
-          // Migration: Initialize relayConfigs with DEFAULT_RELAYS if empty
-          if (!state.relayConfigs || state.relayConfigs.length === 0) {
+          // Missing legacy settings need defaults; an explicitly empty list is
+          // the user's choice to make no relay connections, including on reload.
+          if (!state.relayConfigs) {
             log("Migrating: Adding default relays to relayConfigs")
             state.relayConfigs = DEFAULT_RELAYS.map((url) => ({url}))
             state.relays = DEFAULT_RELAYS

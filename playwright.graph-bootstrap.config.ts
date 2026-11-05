@@ -5,6 +5,7 @@ export default defineConfig({
   testDir: "./tests",
   testMatch: [
     "graph-bootstrap.spec.ts",
+    "graph-bootstrap-policy.spec.ts",
     "graph-cold-start.spec.ts",
     "social-graph-merge.spec.ts",
   ],

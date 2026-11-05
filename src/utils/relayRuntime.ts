@@ -38,24 +38,23 @@ export function resolveRelayRuntimeConfig(
     : null
   const localRelayOnlyMode = options.forceLocalRelayEnv || !!injectedRelayUrls
   const relayUrls = uniqueRelayUrls(injectedRelayUrls || configuredRelayUrls)
+  const disableExtraRelayUrls = localRelayOnlyMode || relayUrls.length === 0
 
   return {
     relayUrls,
     explicitRelayUrls: relayUrls,
     pinnedRelayUrls: injectedRelayUrls,
-    enableOutboxModel: localRelayOnlyMode ? false : options.storeNdkOutboxModel,
-    autoConnectUserRelays: localRelayOnlyMode
+    enableOutboxModel: disableExtraRelayUrls ? false : options.storeNdkOutboxModel,
+    autoConnectUserRelays: disableExtraRelayUrls
       ? false
       : options.storeAutoConnectUserRelays,
-    disableExtraRelayUrls: localRelayOnlyMode,
+    disableExtraRelayUrls,
   }
 }
 
 export function buildWorkerRelayUrls(options: BuildWorkerRelayUrlsOptions): string[] {
-  const relayUrls =
-    options.relayUrls && options.relayUrls.length > 0
-      ? options.relayUrls
-      : options.defaultRelayUrls
+  if (options.relayUrls?.length === 0) return []
+  const relayUrls = options.relayUrls ?? options.defaultRelayUrls
   const extraRelayUrls = options.disableExtraRelayUrls ? [] : options.extraRelayUrls || []
 
   return uniqueRelayUrls([...relayUrls, ...extraRelayUrls])

@@ -13,6 +13,7 @@ import defaultGraph from "@/assets/socialGraph.json"
 import {useMemo} from "react"
 import {KIND_CONTACTS, KIND_MUTE_LIST, DEBUG_NAMESPACES} from "@/utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
+import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -35,14 +36,52 @@ const notifyGraphChange = () => {
   useSocialGraphStore.getState().incrementVersion()
 }
 
+function usesDefaultGraphRelays(relays: string[]): boolean {
+  return (
+    !import.meta.env.VITE_USE_LOCAL_RELAY &&
+    !import.meta.env.VITE_USE_TEST_RELAY &&
+    !getInjectedHtreeRelayUrl() &&
+    relays.length === DEFAULT_RELAYS.length &&
+    DEFAULT_RELAYS.every((url) => relays.includes(url))
+  )
+}
+
+function allowsPublicGraphBootstrap(): boolean {
+  const {relayConfigs} = useUserStore.getState()
+  return usesDefaultGraphRelays(
+    relayConfigs?.filter((config) => !config.disabled).map((config) => config.url) || []
+  )
+}
+
 async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
-  try {
-    const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
-    const graph = await loadGraphBootstrap({root: DEFAULT_SOCIAL_GRAPH_ROOT})
-    await graph.setRoot(publicKey)
-    return graph
-  } catch {
-    /* The pinned asset remains the offline/bootstrap fallback. */
+  await useUserStore.getState().awaitHydration()
+  if (allowsPublicGraphBootstrap()) {
+    const controller = new AbortController()
+    // Install this before importing the loader: settings may change before the
+    // main graph subscription watcher starts or while the response is parsing.
+    const unsubscribe = useUserStore.subscribe((state, previous) => {
+      if (
+        state.relays !== previous.relays ||
+        state.relayConfigs !== previous.relayConfigs
+      ) {
+        controller.abort()
+      }
+    })
+    try {
+      const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
+      controller.signal.throwIfAborted()
+      const graph = await loadGraphBootstrap({
+        root: DEFAULT_SOCIAL_GRAPH_ROOT,
+        signal: controller.signal,
+      })
+      await graph.setRoot(publicKey)
+      controller.signal.throwIfAborted()
+      return graph
+    } catch (err) {
+      log("Public graph bootstrap unavailable; using bundled graph", err)
+    } finally {
+      unsubscribe()
+    }
   }
   try {
     const response = await fetch(bundledGraphUrl)
@@ -205,10 +244,7 @@ async function startGraphCatchup(generation: number, relays: string[]) {
   stopGraphCatchup = startGraphSync({
     getGraph: () => instance,
     relays:
-      !import.meta.env.VITE_USE_LOCAL_RELAY &&
-      !import.meta.env.VITE_USE_TEST_RELAY &&
-      relays.length === DEFAULT_RELAYS.length &&
-      relays.every((url) => DEFAULT_RELAYS.includes(url))
+      usesDefaultGraphRelays(relays) && allowsPublicGraphBootstrap()
         ? ["wss://graph-relay.iris.to", ...relays]
         : relays,
     maxAuthors: 500,

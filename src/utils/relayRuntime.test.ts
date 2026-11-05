@@ -3,6 +3,41 @@ import {describe, expect, it} from "vitest"
 import {buildWorkerRelayUrls, resolveRelayRuntimeConfig} from "./relayRuntime"
 
 describe("relay runtime selection", () => {
+  it("keeps an intentionally empty relay scope offline", () => {
+    const config = resolveRelayRuntimeConfig({
+      enabledRelayUrls: [],
+      forceLocalRelayEnv: false,
+      storeNdkOutboxModel: true,
+      storeAutoConnectUserRelays: true,
+    })
+    expect(config.relayUrls).toEqual([])
+    expect(config.enableOutboxModel).toBe(false)
+    expect(config.autoConnectUserRelays).toBe(false)
+    expect(config.disableExtraRelayUrls).toBe(true)
+    expect(
+      buildWorkerRelayUrls({
+        relayUrls: config.relayUrls,
+        defaultRelayUrls: ["wss://default.test"],
+        extraRelayUrls: ["wss://discovery.test"],
+        disableExtraRelayUrls: config.disableExtraRelayUrls,
+      })
+    ).toEqual([])
+  })
+
+  it("uses worker defaults only when no relay scope was supplied", () => {
+    expect(
+      buildWorkerRelayUrls({
+        defaultRelayUrls: ["wss://default.test"],
+      })
+    ).toEqual(["wss://default.test"])
+    expect(
+      buildWorkerRelayUrls({
+        relayUrls: [],
+        defaultRelayUrls: ["wss://default.test"],
+      })
+    ).toEqual([])
+  })
+
   it("pins Iris shell runtimes to the injected local relay", () => {
     const config = resolveRelayRuntimeConfig({
       enabledRelayUrls: ["wss://relay.damus.io/", "wss://relay.snort.social/"],

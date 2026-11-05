@@ -18,10 +18,11 @@ const userStoreMock = vi.hoisted(() => {
     publicKey: string
     relays?: string[]
     relayConfigs?: {url: string; disabled?: boolean}[]
+    awaitHydration: () => Promise<void>
   }
   type Listener = (state: UserState, previousState: UserState) => void
 
-  let state: UserState = {publicKey: ""}
+  let state: UserState = {publicKey: "", awaitHydration: async () => {}}
   const listeners = new Set<Listener>()
 
   const useUserStore = Object.assign(
@@ -43,7 +44,7 @@ const userStoreMock = vi.hoisted(() => {
   return {
     useUserStore,
     reset(publicKey: string) {
-      state = {publicKey}
+      state = {publicKey, awaitHydration: async () => {}}
       listeners.clear()
     },
   }
@@ -331,15 +332,21 @@ const opinionSubscriptionsFor = (publicKey: string) =>
   })
 
 describe("social graph auth-switch readiness", () => {
-  it.each(["production", "custom", "local", "test"])(
+  it.each(["production", "custom", "local", "test", "disabled"])(
     "keeps graph catch-up within the %s relay scope",
     async (scope) => {
       vi.stubEnv("VITE_USE_LOCAL_RELAY", scope === "local" ? "true" : "")
       vi.stubEnv("VITE_USE_TEST_RELAY", scope === "test" ? "true" : "")
       const {DEFAULT_RELAYS} = await import("@/shared/constants/relays")
-      const relays = scope === "custom" ? ["wss://custom.test"] : DEFAULT_RELAYS
+      let relays = DEFAULT_RELAYS
+      if (scope === "custom") relays = ["wss://custom.test"]
+      if (scope === "disabled") relays = []
       ndkMock.setRelays(relays)
       userStoreMock.reset(ACCOUNT_B)
+      userStoreMock.useUserStore.setState({
+        relays,
+        relayConfigs: relays.map((url) => ({url})),
+      })
       const {setupSocialGraphSubscriptions, socialGraphLoaded} =
         await import("./socialGraph")
       const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
