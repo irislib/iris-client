@@ -3,6 +3,9 @@ import {readFile} from "node:fs/promises"
 import {SocialGraph} from "nostr-social-graph"
 import {WebSocketServer} from "ws"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
+import {useBundledGraphFallback} from "./utils/graph-bootstrap"
+
+test.use({serviceWorkers: "block"})
 
 const oldRoot = "4523be58d395b1b196a9b8c82b038b6895cb02b683d0c253a955068dba1facd0"
 const account = "a".repeat(64)
@@ -13,6 +16,7 @@ for (const cached of [false, true]) {
   test(`${cached ? "legacy cached" : "cold anonymous"} discovery uses the real company bundle and preserves personal lists`, async ({
     page,
   }, testInfo) => {
+    await useBundledGraphFallback(page)
     const bundled = await SocialGraph.fromBinary(
       manifest.root,
       await readFile(new URL("../src/assets/socialGraph.bin", import.meta.url))

@@ -9,6 +9,7 @@ import {
 } from "nostr-tools"
 import {SocialGraph} from "nostr-social-graph"
 import {WebSocketServer} from "ws"
+import {freshGraphBootstrap} from "./utils/graph-bootstrap"
 
 test.use({serviceWorkers: "block"})
 const seed = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
@@ -117,11 +118,28 @@ for (const mode of [
     }
     await graph.recalculateFollowDistances()
     const binary = Buffer.from(await graph.toBinary())
-    await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) =>
-      route.request().resourceType() === "script"
-        ? route.continue()
-        : route.fulfill({contentType: "application/octet-stream", body: binary})
-    )
+    let freshRequests = 0,
+      bundledRequests = 0
+    await page.route(freshGraphBootstrap, (route) => {
+      freshRequests += 1
+      // Cover both the new fresh projection and the pinned offline fallback.
+      return mode === "zero-follow"
+        ? route.fulfill({
+            contentType: "application/octet-stream",
+            headers: {
+              "x-graph-root": seed,
+              "access-control-allow-origin": "*",
+              "access-control-expose-headers": "x-graph-root",
+            },
+            body: binary,
+          })
+        : route.fulfill({status: 503, body: "Use fixture bundle"})
+    })
+    await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) => {
+      if (route.request().resourceType() === "script") return route.continue()
+      bundledRequests += 1
+      return route.fulfill({contentType: "application/octet-stream", body: binary})
+    })
     const server = new WebSocketServer({host: "127.0.0.1", port: 0})
     await new Promise<void>((resolve) => server.once("listening", resolve))
     const address = server.address()
@@ -261,6 +279,14 @@ for (const mode of [
       released = true
       pending.splice(0).forEach((send) => send())
       await expect.poll(() => items.count()).toBeGreaterThanOrEqual(10)
+      if (mode === "zero-follow") {
+        expect(freshRequests).toBe(1)
+        expect(bundledRequests).toBe(0)
+      }
+      if (mode === "anonymous") {
+        expect(freshRequests).toBe(1)
+        expect(bundledRequests).toBe(1)
+      }
       const after = await items.evaluateAll((nodes) =>
         nodes.map((n) => n.getAttribute("data-event-id"))
       )

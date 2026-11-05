@@ -1,5 +1,6 @@
 import {expect, test, type Page} from "@playwright/test"
 import {SocialGraph} from "nostr-social-graph"
+import {useBundledGraphFallback} from "./utils/graph-bootstrap"
 
 const root = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
 const key = (id: number) => id.toString(16).padStart(64, "0")
@@ -41,6 +42,7 @@ test.use({serviceWorkers: "block"})
 test("Load & merge preserves people and newer follow and mute lists after export", async ({
   page,
 }) => {
+  await useBundledGraphFallback(page)
   const destination = new SocialGraph(root)
   list(destination, root, 3, [decoy, author], 40)
   list(destination, author, 3, [oldTarget], 20)

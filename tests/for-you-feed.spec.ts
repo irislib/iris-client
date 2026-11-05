@@ -11,6 +11,7 @@ import {Relay} from "nostr-tools/relay"
 import {SocialGraph} from "nostr-social-graph"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {useBundledGraphFallback} from "./utils/graph-bootstrap"
 
 const usingTestRelay =
   process.env.VITE_USE_TEST_RELAY === "true" || process.env.VITE_USE_TEST_RELAY === "1"
@@ -59,6 +60,7 @@ test("For You uses the default network until the viewer follows someone", async 
   page,
 }, testInfo) => {
   test.skip(usingBuiltDist, "requires source-module access for controlled feed state")
+  await useBundledGraphFallback(page)
   const viewer = createUser()
   const starter = createUser()
   const recommended = createUser()

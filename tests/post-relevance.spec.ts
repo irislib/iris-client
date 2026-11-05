@@ -768,6 +768,8 @@ test("late browser scores preserve the reading position until Update results is 
 test("returning to bare search shows progress and recent notes without rerunning the saved query", async ({
   page,
 }, testInfo) => {
+  const {useBundledGraphFallback} = await import("./utils/graph-bootstrap")
+  await useBundledGraphFallback(page)
   const author = generateSecretKey()
   const root = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
   const {SocialGraph} = await import("nostr-social-graph")

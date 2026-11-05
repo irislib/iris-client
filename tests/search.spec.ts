@@ -6,6 +6,7 @@ import {SocialGraph} from "nostr-social-graph"
 import {usingBuiltDist} from "./utils/built-dist"
 import {WebSocketServer} from "ws"
 import {once} from "node:events"
+import {useBundledGraphFallback} from "./utils/graph-bootstrap"
 
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 
@@ -150,6 +151,7 @@ test("search uses the starter network and does not skip between recent and old m
   historyRelay,
 }, testInfo) => {
   test.skip(usingBuiltDist || !!process.env.VITE_USE_TEST_RELAY, "requires local relay")
+  await useBundledGraphFallback(page)
   const viewer = generateSecretKey()
   const authors = Array.from({length: 3}, () => generateSecretKey())
   const oldAuthors = Array.from({length: 12}, () => generateSecretKey())

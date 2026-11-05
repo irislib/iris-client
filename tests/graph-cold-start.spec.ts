@@ -2,6 +2,7 @@ import {expect, test} from "@playwright/test"
 import {finalizeEvent, generateSecretKey, getPublicKey, matchFilters} from "nostr-tools"
 import {SocialGraph} from "nostr-social-graph"
 import {WebSocketServer, type WebSocket} from "ws"
+import {useBundledGraphFallback} from "./utils/graph-bootstrap"
 
 // Asset routing must reach this fixture, not a precached production graph.
 test.use({serviceWorkers: "block"})
@@ -14,6 +15,7 @@ for (const scenario of ["personal", "discovery", "late-personal"]) {
   test(`cold ${scenario} For You hydrates mutes and posts without waiting for a silent relay`, async ({
     page,
   }) => {
+    await useBundledGraphFallback(page)
     const user = () => {
       const secret = generateSecretKey()
       return {secret, pubkey: getPublicKey(secret)}
