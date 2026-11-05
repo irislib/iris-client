@@ -40,7 +40,11 @@ export function rankProfileSearchResults(
       }
 
       const followDistance = socialGraph?.getFollowDistance(item.pubKey) ?? 999
-      const friendsFollowing = socialGraph?.followedByFriends(item.pubKey).size ?? 0
+      // Social evidence disambiguates names; it must not overwhelm the query.
+      const friendsFollowing = Math.min(
+        100,
+        socialGraph?.followedByFriends(item.pubKey).size ?? 0
+      )
       const prefixMatch = hasProfileSearchPrefixMatch(item, normalizedQuery)
       if (normalizedQuery.length === 1) {
         return {
@@ -53,7 +57,11 @@ export function rankProfileSearchResults(
 
       const textScore =
         result.source === "local" ? 1 - (result.score ?? 1) : (result.score ?? 0)
-      const distancePenalty = 0.01 * (followDistance === 0 ? 100 : followDistance - 1)
+      // Unknown profiles have distance 1000. Treating that as ten lost points
+      // hid even exact names beneath weak matches from the known network. Keep
+      // up to one point of familiarity, less than the three-point exact bonus.
+      const distancePenalty =
+        0.01 * (followDistance === 0 ? 100 : Math.min(followDistance - 1, 100))
       return {
         ...result,
         adjustedScore:

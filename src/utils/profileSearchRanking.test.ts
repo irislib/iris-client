@@ -65,4 +65,52 @@ describe("profile search ranking shared by search and mentions", () => {
       ).map((item) => item.name)
     ).toEqual(["Ben Friend", "Ben Stranger"])
   })
+
+  it("keeps an exact name outside the graph above a familiar partial match", () => {
+    const graph = {
+      getFollowDistance: (key: string) => (key === "Ben Arc" ? 1 : 1000),
+      followedByFriends: () => new Set<string>(),
+    }
+    expect(
+      rankProfileSearchResults([local("Ben Arc"), local("Ben")], "ben", graph)[0].name
+    ).toBe("Ben")
+  })
+
+  it("keeps exact alias matches above very popular partial matches", () => {
+    const graph = {
+      getFollowDistance: () => 2,
+      followedByFriends: (key: string) =>
+        new Set(key === "Ben News" ? Array.from({length: 1000}, (_, i) => `${i}`) : []),
+    }
+    const exact = {
+      ...local("Benjamin"),
+      item: {pubKey: "Benjamin", name: "Benjamin", aliases: ["Ben"]},
+    }
+    expect(
+      rankProfileSearchResults([local("Ben News"), exact], "ben", graph)[0].name
+    ).toBe("Benjamin")
+  })
+
+  it("keeps a direct follow ahead of popular distant people for one character", () => {
+    const graph = {
+      getFollowDistance: (key: string) => (key === "Ben Friend" ? 1 : 2),
+      followedByFriends: (key: string) =>
+        new Set(key === "Ben News" ? Array.from({length: 1000}, (_, i) => `${i}`) : []),
+    }
+    expect(
+      rankProfileSearchResults([local("Ben News"), local("Ben Friend")], "b", graph)[0]
+        .name
+    ).toBe("Ben Friend")
+  })
+
+  it("uses friends' follows to disambiguate otherwise equal matches", () => {
+    const graph = {
+      getFollowDistance: () => 2,
+      followedByFriends: (key: string) => new Set(key === "Ben Known" ? ["friend"] : []),
+    }
+    expect(
+      rankProfileSearchResults([local("Ben Other"), local("Ben Known")], "ben", graph)[0]
+        .name
+    ).toBe("Ben Known")
+  })
 })
