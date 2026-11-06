@@ -1,9 +1,11 @@
 import {expect} from "@playwright/test"
 
-async function openLoginDialog(page) {
+type LoginOptions = {preserveRelayPolicy?: boolean}
+
+async function openLoginDialog(page, options: LoginOptions = {}) {
   // Previewing a built artifact cannot change its compile-time relay defaults.
   // Pin local runs before any navigation, while preserving a test's custom relay.
-  if (process.env.IRIS_E2E_LOCAL_RELAY === "true") {
+  if (process.env.IRIS_E2E_LOCAL_RELAY === "true" && !options.preserveRelayPolicy) {
     await page.addInitScript(() => {
       window.__HTREE_SERVER_URL__ ??= "http://127.0.0.1:7777"
     })
@@ -54,8 +56,8 @@ async function ensureSignInDialog(page) {
   await expect(signInHeading).toBeVisible({timeout: 10000})
 }
 
-async function signUp(page, username = "Test User") {
-  await openLoginDialog(page)
+async function signUp(page, username = "Test User", options: LoginOptions = {}) {
+  await openLoginDialog(page, options)
   await ensureSignUpDialog(page)
 
   // Enter a name/key (supports npub, nsec, or name)

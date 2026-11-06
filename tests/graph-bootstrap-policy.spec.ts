@@ -349,7 +349,9 @@ test("fresh shipped defaults route reading, graph sync and signed public posts t
 
   // The independent proxy denies external traffic; worker sockets use loopback.
   // Exercise the production signing/worker path with an ephemeral identity.
-  await signUp(page, nip19.nsecEncode(new Uint8Array(32).fill(23)))
+  await signUp(page, nip19.nsecEncode(new Uint8Array(32).fill(23)), {
+    preserveRelayPolicy: true,
+  })
   await page.goto("/new")
   const content = "Synthetic default-relay routing check"
   await page.getByPlaceholder("What's on your mind?").fill(content)
