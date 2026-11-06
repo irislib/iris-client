@@ -21,7 +21,7 @@
     "dev:local": "VITE_USE_LOCAL_RELAY=true vite",
     "dev:test": "VITE_USE_TEST_RELAY=true vite",
     "dev:relay": "pnpm relay:start -- --seed 80000 --port 7777",
-    "relay:start": "tsx dev-relay/node-relay.ts",
+    "relay:start": "node --import tsx dev-relay/node-relay.ts",
     "start": "vite",
     "verify:dependency-lock": "node ./scripts/verify-dependency-lock.mjs",
     "build": "pnpm verify:social-graph && pnpm verify:dependency-lock && tsc && vite build --mode production",
