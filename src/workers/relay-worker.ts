@@ -44,7 +44,7 @@ import {
   updateSearchIndex,
 } from "./profile-search"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
-import {buildWorkerRelayUrls} from "../utils/relayRuntime"
+import {buildWorkerRelayUrls, resolveActiveRelayScopes} from "../utils/relayRuntime"
 import EventCache, {db} from "@/lib/nostr/cache"
 import type {CID} from "@hashtree/core"
 import {HASHTREE_ROOT_KINDS, parseHashtreeRootEvent} from "@hashtree/nostr"
@@ -351,6 +351,7 @@ async function initialize(
 
     // Connect to relays (non-blocking - don't wait for all relays)
     log("[Relay Worker] Starting relay connections...")
+    applyRelayState()
     nostr
       .connect()
       .then(() => {
@@ -593,41 +594,54 @@ function broadcastRelayStatus() {
 
 function handleAddRelay(url: string) {
   if (!nostr?.pool) return
-  const relay = new Relay(url, undefined, nostr)
+  // Update configuration first; pool.addRelay would activate the runtime before
+  // the offline/paused policy can be applied.
+  const relay = nostr.pool.getRelay(url, false)
   attachRelayListeners(relay)
-  nostr.pool.addRelay(relay) // This will connect automatically
-  broadcastRelayStatus()
+  applyRelayState()
 }
 
 function handleRemoveRelay(url: string) {
-  nostr?.pool.removeRelay(url)
-  broadcastRelayStatus()
+  for (const configured of nostr?.pool.relays.keys() ?? []) {
+    if (configured.replace(/\/$/, "") === url.replace(/\/$/, ""))
+      nostr?.pool.relays.delete(configured)
+  }
+  applyRelayState()
 }
 const pausedRelays = new Set<string>()
 function applyRelayState() {
-  nostr
-    ?.getRuntime()
-    .setRelays([...nostr.pool.relays.keys()].filter((url) => !pausedRelays.has(url)))
+  if (!nostr) return
+  const active = resolveActiveRelayScopes({
+    relayUrls: [...nostr.pool.relays.keys()],
+    privateRelayUrls: nostr.privateRelayUrls,
+    pausedRelayUrls: pausedRelays,
+    offline: wasOffline,
+  })
+  const runtime = nostr.getRuntime()
+  runtime.setRelays(active.relayUrls)
+  if (active.privateRelayUrls !== undefined)
+    runtime.setPrivateRelays(active.privateRelayUrls)
   broadcastRelayStatus()
 }
 function handleConnectRelay(url: string) {
-  pausedRelays.delete(url)
+  pausedRelays.delete(url.replace(/\/$/, ""))
   nostr?.pool.getRelay(url)
   applyRelayState()
 }
 function handleDisconnectRelay(url: string) {
-  pausedRelays.add(url)
+  pausedRelays.add(url.replace(/\/$/, ""))
   applyRelayState()
 }
 function handleReconnectDisconnected(_reason: string) {
   applyRelayState()
-  void nostr?.getRuntime().retryPending()
+  if (!wasOffline) void nostr?.getRuntime().retryPending()
 }
 function handleBrowserOffline() {
-  nostr?.getRuntime().setRelays([])
-  broadcastRelayStatus()
+  wasOffline = true
+  applyRelayState()
 }
 function handleBrowserOnline() {
+  wasOffline = false
   handleReconnectDisconnected("Browser online")
 }
 
@@ -702,18 +716,17 @@ function handleUpdateSettings(newSettings: SettingsState) {
 }
 
 // Listen for network status changes in worker
-let wasOffline = false
+let wasOffline = !self.navigator.onLine
 
 self.addEventListener("online", () => {
   if (wasOffline) {
     log("[Relay Worker] Network connection restored")
-    wasOffline = false
-    handleReconnectDisconnected("Network connection restored")
+    handleBrowserOnline()
   }
 })
 
 self.addEventListener("offline", () => {
-  wasOffline = true
+  handleBrowserOffline()
   log("[Relay Worker] Network connection lost")
 })
 
@@ -795,7 +808,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         break
 
       case "setPrivateRelays":
-        if (data.privateRelays) nostr?.setPrivateRelays(data.privateRelays)
+        if (data.privateRelays) {
+          // Do not activate configured private URLs before temporary connection
+          // policy has selected the effective scope.
+          if (nostr) nostr.privateRelayUrls = data.privateRelays
+          applyRelayState()
+        }
         break
 
       case "connectRelay":

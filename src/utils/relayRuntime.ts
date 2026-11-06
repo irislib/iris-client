@@ -67,3 +67,25 @@ export function buildWorkerRelayUrls(options: BuildWorkerRelayUrlsOptions): stri
 
   return uniqueRelayUrls([...relayUrls, ...extraRelayUrls])
 }
+
+/** Temporary disconnection never rewrites the user's configured relay scopes. */
+export function resolveActiveRelayScopes(options: {
+  relayUrls: string[]
+  privateRelayUrls?: string[]
+  pausedRelayUrls: Iterable<string>
+  offline: boolean
+}) {
+  const paused = new Set(
+    Array.from(options.pausedRelayUrls, (url) => url.replace(/\/$/, ""))
+  )
+  const active = (urls: string[]) =>
+    options.offline ? [] : urls.filter((url) => !paused.has(url.replace(/\/$/, "")))
+  return {
+    relayUrls: active(options.relayUrls),
+    // Undefined retains the runtime's legacy coupling to the public scope.
+    privateRelayUrls:
+      options.privateRelayUrls === undefined
+        ? undefined
+        : active(options.privateRelayUrls),
+  }
+}

@@ -57,39 +57,42 @@ test("saved account and queued post survive an offline reload and publish on rec
   browser,
 }) => {
   test.setTimeout(60000)
-  await signUp(page, "Offline session")
-  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true))
-  await page.reload()
-  const before = await page.evaluate(
-    () => JSON.parse(localStorage.getItem("user-storage")!).state.publicKey
-  )
-  await context.setOffline(true)
-  const content = `Offline retained post ${Date.now()}`
-  await post(page, content)
-  const path = new URL(page.url()).pathname
-  await page.reload({waitUntil: "domcontentloaded"})
-  await expect(page.getByText(content, {exact: true}).first()).toBeVisible({
-    timeout: 15000,
-  })
-  expect(
-    await page.evaluate(
+  const relay = await startNostrRelay({port: 0})
+  const readerContext = await browser.newContext()
+  for (const target of [context, readerContext]) {
+    await target.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    }, relay.port)
+  }
+  try {
+    await signUp(page, "Offline session")
+    await page.evaluate(() => navigator.serviceWorker.ready.then(() => true))
+    await page.reload()
+    const before = await page.evaluate(
       () => JSON.parse(localStorage.getItem("user-storage")!).state.publicKey
     )
-  ).toBe(before)
-  await context.setOffline(false)
-  const readerContext = await browser.newContext()
-  if (process.env.IRIS_E2E_LOCAL_RELAY === "true") {
-    await readerContext.addInitScript(() => {
-      window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
+    await context.setOffline(true)
+    const content = `Offline retained post ${Date.now()}`
+    await post(page, content)
+    const path = new URL(page.url()).pathname
+    await page.reload({waitUntil: "domcontentloaded"})
+    await expect(page.getByText(content, {exact: true}).first()).toBeVisible({
+      timeout: 15000,
     })
-  }
-  const reader = await readerContext.newPage()
-  try {
+    expect(
+      await page.evaluate(
+        () => JSON.parse(localStorage.getItem("user-storage")!).state.publicKey
+      )
+    ).toBe(before)
+    await context.setOffline(false)
+    const reader = await readerContext.newPage()
     await reader.goto(path)
     await expect(reader.getByText(content, {exact: true}).first()).toBeVisible({
       timeout: 15000,
     })
   } finally {
     await readerContext.close()
+    await page.close()
+    await relay.close()
   }
 })

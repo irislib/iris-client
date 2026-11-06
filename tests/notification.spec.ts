@@ -1,13 +1,20 @@
 import {test, expect} from "@playwright/test"
 import {nip19} from "nostr-tools"
 import {signUp} from "./auth.setup"
+import {startNostrRelay} from "../dev-relay/nostr-relay"
 
 test("user sees a highlighted notification when a followed user likes their post", async ({
   browser,
 }) => {
   test.setTimeout(90000)
+  const relay = await startNostrRelay({port: 0})
   const contextA = await browser.newContext()
   const contextB = await browser.newContext()
+  for (const context of [contextA, contextB]) {
+    await context.addInitScript((port) => {
+      window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+    }, relay.port)
+  }
   const pageA = await contextA.newPage()
   const pageB = await contextB.newPage()
 
@@ -63,5 +70,6 @@ test("user sees a highlighted notification when a followed user likes their post
     await expect(notification.getByText(postContent, {exact: true})).toBeVisible()
   } finally {
     await Promise.all([contextA.close(), contextB.close()])
+    await relay.close()
   }
 })

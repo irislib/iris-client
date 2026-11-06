@@ -1,6 +1,65 @@
 import {describe, expect, it} from "vitest"
 
-import {buildWorkerRelayUrls, resolveRelayRuntimeConfig} from "./relayRuntime"
+import {
+  buildWorkerRelayUrls,
+  resolveRelayRuntimeConfig,
+  resolveActiveRelayScopes,
+} from "./relayRuntime"
+
+describe("temporary relay connectivity", () => {
+  it("pauses both scopes offline and restores the configured private scope on reconnect", () => {
+    const configured = {
+      relayUrls: ["wss://old.test/", "wss://new-public.test/"],
+      privateRelayUrls: ["wss://old.test/"],
+      pausedRelayUrls: [],
+    }
+    expect(resolveActiveRelayScopes({...configured, offline: true})).toEqual({
+      relayUrls: [],
+      privateRelayUrls: [],
+    })
+    expect(resolveActiveRelayScopes({...configured, offline: false})).toEqual({
+      relayUrls: configured.relayUrls,
+      privateRelayUrls: configured.privateRelayUrls,
+    })
+    expect(configured.privateRelayUrls).toEqual(["wss://old.test/"])
+  })
+
+  it("filters paused relays from both scopes and retains explicit empty private choices", () => {
+    const configured = {
+      relayUrls: ["wss://old.test/", "wss://new-public.test/"],
+      privateRelayUrls: ["wss://old.test/"],
+      pausedRelayUrls: ["wss://old.test"],
+      offline: false,
+    }
+    expect(resolveActiveRelayScopes(configured)).toEqual({
+      relayUrls: ["wss://new-public.test/"],
+      privateRelayUrls: [],
+    })
+    expect(
+      resolveActiveRelayScopes({...configured, pausedRelayUrls: [], privateRelayUrls: []})
+    ).toEqual({relayUrls: configured.relayUrls, privateRelayUrls: []})
+  })
+
+  it("keeps changed settings and reconnect requests paused until online, preserving legacy coupling", () => {
+    const updated = {
+      relayUrls: ["wss://added.test/"],
+      privateRelayUrls: ["wss://private.test/"],
+      pausedRelayUrls: [],
+      offline: true,
+    }
+    expect(resolveActiveRelayScopes(updated)).toEqual({
+      relayUrls: [],
+      privateRelayUrls: [],
+    })
+    expect(resolveActiveRelayScopes({...updated, privateRelayUrls: undefined})).toEqual({
+      relayUrls: [],
+      privateRelayUrls: undefined,
+    })
+    expect(
+      resolveActiveRelayScopes({...updated, offline: false, privateRelayUrls: undefined})
+    ).toEqual({relayUrls: updated.relayUrls, privateRelayUrls: undefined})
+  })
+})
 
 describe("relay runtime selection", () => {
   it("keeps fresh private defaults separate, including explicit empty private choices", () => {

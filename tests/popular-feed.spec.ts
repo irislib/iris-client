@@ -1,38 +1,132 @@
-import {test, expect} from "@playwright/test"
+import {test, expect} from "./fixtures/isolatedBrowser"
+import {SocialGraph} from "nostr-social-graph"
+import {finalizeEvent, getPublicKey, type Filter} from "nostr-tools"
+import {matchFilters} from "nostr-tools/filter"
+import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 import {usingBuiltDist} from "./utils/built-dist"
+import {freshGraphBootstrap} from "./utils/graph-bootstrap"
+import {loopbackWorkerRelays, type FixtureSocket} from "./utils/worker-relay-loopback"
 
-test("anonymous Popular loads posts from the default social graph", async ({page}) => {
-  test.skip(!usingBuiltDist, "requires the bundled graph and production relays")
-  test.setTimeout(60000)
-
-  await page.goto("/")
-  await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
-
-  const popularWidget = page.getByRole("heading", {name: "Popular"}).locator("..")
-
-  await expect
-    .poll(
-      async () => {
-        const text = await popularWidget.innerText()
-        if (text.includes("No popular posts found")) {
-          return "empty"
-        }
-        if (text.includes("Loading popular posts")) {
-          return "loading"
-        }
-
-        const visibleLines = text
-          .split("\n")
-          .map((line) => line.trim())
-          .filter(Boolean)
-          .filter((line) => line.toLowerCase() !== "popular")
-
-        return visibleLines.length > 0 ? "ready" : "loading"
-      },
+test("anonymous Popular loads posts from the default social graph", async ({
+  page,
+}, testInfo) => {
+  test.skip(!usingBuiltDist, "requires the production graph bootstrap and worker bundle")
+  const authorKey = new Uint8Array(32).fill(31)
+  const reactorKey = new Uint8Array(32).fill(32)
+  const author = getPublicKey(authorKey)
+  const reactor = getPublicKey(reactorKey)
+  const created_at = Math.floor(Date.now() / 1000) - 10
+  const post = finalizeEvent(
+    {
+      kind: 1,
+      created_at,
+      tags: [],
+      content: "A local popular post selected by the default graph.",
+    },
+    authorKey
+  )
+  const reaction = finalizeEvent(
+    {
+      kind: 7,
+      created_at: created_at + 1,
+      content: "+",
+      tags: [
+        ["e", post.id],
+        ["p", author],
+      ],
+    },
+    reactorKey
+  )
+  const events = [
+    post,
+    reaction,
+    finalizeEvent(
       {
-        timeout: 45000,
-        intervals: [1000, 2000, 3000],
+        kind: 0,
+        created_at,
+        tags: [],
+        content: JSON.stringify({name: "Popular fixture author"}),
+      },
+      authorKey
+    ),
+  ]
+  const graph = new SocialGraph(manifest.root)
+  graph.handleEvent(
+    {
+      kind: 3,
+      pubkey: manifest.root,
+      created_at,
+      tags: [
+        ["p", author],
+        ["p", reactor],
+      ],
+      content: "",
+      id: "",
+      sig: "",
+    },
+    true,
+    Infinity
+  )
+  const body = Buffer.from(await graph.toBinary())
+  let bootstrapRequests = 0
+  await page.route(freshGraphBootstrap, (route) => {
+    bootstrapRequests++
+    return route.fulfill({
+      body,
+      contentType: "application/octet-stream",
+      headers: {
+        "x-graph-root": manifest.root,
+        "access-control-expose-headers": "x-graph-root",
+      },
+    })
+  })
+  const workerRequests: Filter[] = []
+  const serve = (socket: FixtureSocket) => {
+    socket.onMessage((raw) => {
+      const frame = raw.toString()
+      if (!frame.startsWith("[")) return
+      const [type, id, ...filters] = JSON.parse(frame)
+      if (type === "REQ") {
+        if (socket.worker) workerRequests.push(...filters)
+        for (const event of events)
+          if (matchFilters(filters, event))
+            socket.send(JSON.stringify(["EVENT", id, event]))
+        socket.send(JSON.stringify(["EOSE", id]))
+      } else if (type === "NEG-OPEN") {
+        socket.send(
+          JSON.stringify(["NEG-ERR", id, "unsupported: fixture uses ordinary reads"])
+        )
+      } else if (type === "EVENT") {
+        socket.send(JSON.stringify(["OK", id.id, true, ""]))
       }
+    })
+  }
+  await page.context().routeWebSocket(/^(?:wss?:\/\/)/, serve)
+  const close = await loopbackWorkerRelays(page, serve)
+  try {
+    await page.goto("/")
+    await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
+    const popularWidget = page.getByRole("heading", {name: "Popular"}).locator("..")
+    await expect(popularWidget.getByText(post.content, {exact: true})).toBeVisible({
+      timeout: 15000,
+    })
+    await expect(
+      popularWidget.getByText("No popular posts found", {exact: true})
+    ).toHaveCount(0)
+    expect(bootstrapRequests).toBe(1)
+    expect(
+      workerRequests.some(
+        (filter) => filter.kinds?.includes(7) && filter.authors?.includes(reactor)
+      )
+    ).toBe(true)
+    expect(workerRequests.some((filter) => filter.ids?.includes(post.id))).toBe(true)
+    const publicKey = await page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("user-storage") || "{}").state?.publicKey || ""
     )
-    .toBe("ready")
+    expect(publicKey).toBe("")
+    await page.screenshot({path: testInfo.outputPath("anonymous-popular.png")})
+  } finally {
+    await close()
+  }
 })
