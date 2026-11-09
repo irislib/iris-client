@@ -89,6 +89,8 @@ async function download(page: Page, nhash: string) {
 test("cached encrypted attachment is served across real browser peers without file servers", async ({
   browser,
 }) => {
+  // Two added recovery phases retain the existing 30-second connection limit.
+  test.setTimeout(210000)
   const first = await client(browser)
   const second = await client(browser)
   try {
@@ -103,6 +105,12 @@ test("cached encrypted attachment is served across real browser peers without fi
         instance.page.getByTestId("connectivity-indicator").first()
       ).toHaveAttribute("data-connection-state", "peers", {timeout: 30000})
     }
+    const initialPeerIds = await Promise.all([first, second].map(({page}) =>
+      page.evaluate(async () =>
+        (await (await import("/src/lib/peerRuntime.ts")).getPeerRuntime())!.provider.localPeerId
+      )
+    ))
+    expect(initialPeerIds[0]).not.toBe(initialPeerIds[1])
     const bytes = Array.from(randomBytes(32000))
     const nhash = await first.page.evaluate(async (bytes) => {
       const {uploadFile} = await import("/src/lib/hashtree.ts")
@@ -159,6 +167,62 @@ test("cached encrypted attachment is served across real browser peers without fi
     // Cached encrypted chunks survive app/worker restart.
     await second.page.reload()
     expect(await download(second.page, nhash)).toEqual(bytes)
+    // Exercise each real browser after reload. The new block is created only
+    // after recovery, is absent at the receiver, and bypasses HTTP/cache reads.
+    for (const senderIndex of [1, 0]) {
+      const instances = [first, second]
+      const sender = instances[senderIndex], receiver = instances[1 - senderIndex]
+      if (senderIndex === 0) await sender.page.reload()
+      await Promise.all(instances.map(({page}, index) => expect.poll(() =>
+        page.evaluate(async (otherPeerId) => {
+          const runtime = await (await import("/src/lib/peerRuntime.ts")).getPeerRuntime()
+          return {
+            localPeerId: runtime?.provider.localPeerId ?? "",
+            connected: runtime?.provider.listConnectedPeerIds().includes(otherPeerId) ?? false,
+          }
+        }, initialPeerIds[1 - index]), {timeout: 30000}
+      ).toEqual({localPeerId: initialPeerIds[index], connected: true})))
+      const block = await sender.page.evaluate(async () => {
+        const {localBlocks} = await import("/src/lib/fileStore.ts")
+        const data = crypto.getRandomValues(new Uint8Array(32000))
+        const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
+        await localBlocks.put(hash, data)
+        if (!await localBlocks.has(hash)) throw new Error("Fresh source block was not stored")
+        return {
+          hashHex: Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join(""),
+          bytes: data.length,
+        }
+      })
+      const received = await receiver.page.evaluate(async ({block, sourcePeerId}) => {
+        const {localBlocks} = await import("/src/lib/fileStore.ts")
+        const runtime = await (await import("/src/lib/peerRuntime.ts")).getPeerRuntime()
+        if (!runtime) throw new Error("Peer runtime unavailable after reload")
+        const hash = Uint8Array.from(block.hashHex.match(/../g)!, byte => parseInt(byte, 16))
+        const wasCached = await localBlocks.has(hash)
+        const receivedBytes = () => runtime.provider.getNetworkStats().peers
+          .filter(peer => peer.peerId === sourcePeerId && peer.transport === "webrtc")
+          .reduce((total, peer) => total + peer.bytesReceived, 0)
+        const before = receivedBytes()
+        const data = await runtime.provider.fetch(block.hashHex, sourcePeerId, 0)
+        return {
+          wasCached,
+          bytes: data?.length ?? 0,
+          hashHex: data ? Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data))),
+            byte => byte.toString(16).padStart(2, "0")).join("") : null,
+          webrtcBytesReceived: receivedBytes() - before,
+        }
+      }, {block, sourcePeerId: initialPeerIds[senderIndex]})
+      expect(received.wasCached).toBe(false)
+      expect(received.bytes).toBe(block.bytes)
+      expect(received.hashHex).toBe(block.hashHex)
+      expect(received.webrtcBytesReceived).toBeGreaterThanOrEqual(block.bytes)
+      console.log("PEER_RELOAD_RECOVERY", JSON.stringify({
+        app: "iris-client", endpoint: senderIndex, reloaded: true,
+        identityPreserved: true, peerRecovered: true, receiverCacheMiss: true,
+        freshHash: block.hashHex, bytes: received.bytes,
+        webrtcBytesReceived: received.webrtcBytesReceived,
+      }))
+    }
     await first.context.close()
     // A fresh browser must now obtain the downloaded copy from the second client.
     const third = await client(browser)
