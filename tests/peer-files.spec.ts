@@ -185,12 +185,13 @@ test("cached encrypted attachment is served across real browser peers without fi
       const block = await sender.page.evaluate(async () => {
         const {localBlocks} = await import("/src/lib/fileStore.ts")
         const data = crypto.getRandomValues(new Uint8Array(32000))
+        const bytes = data.length
         const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data))
         await localBlocks.put(hash, data)
         if (!await localBlocks.has(hash)) throw new Error("Fresh source block was not stored")
         return {
           hashHex: Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join(""),
-          bytes: data.length,
+          bytes,
         }
       })
       const received = await receiver.page.evaluate(async ({block, sourcePeerId}) => {
