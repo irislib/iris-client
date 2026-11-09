@@ -50,6 +50,7 @@ export const releaseProfile = {
       "src/shared/services/runtimeSubscribe.test.ts",
       "src/shared/services/PrivateChats.runtime.test.ts",
       "src/lib/peerRuntime.test.ts",
+      "src/lib/peerDiscovery.test.ts",
       "src/lib/post-search/scorer.test.ts",
       "src/lib/nostr/cache.test.ts",
       "src/shared/utils/linkInvites.test.ts",

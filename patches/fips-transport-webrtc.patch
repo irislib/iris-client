@@ -1,0 +1,82 @@
+diff --git a/src/NostrPeerDiscovery.ts b/src/NostrPeerDiscovery.ts
+--- a/src/NostrPeerDiscovery.ts
++++ b/src/NostrPeerDiscovery.ts
+@@ -91,6 +91,15 @@
+     extraFilter: { authors?: string[] } = {},
+   ): Promise<() => void> {
+     if (this.stopped) throw new Error("Peer discovery is stopped");
++    // Discovery needs a small, current candidate set, not every historical device.
++    // Nostr's limit applies only to the initial snapshot; live updates stay open.
++    const filter: NostrFilter = {
++      kinds: [FIPS_ADVERT_KIND],
++      "#d": [this.discoveryApp],
++      ...extraFilter,
++      since: Math.floor((Date.now() - this.advertTtlMs) / 1_000),
++      limit: 64,
++    };
+     const deliver = (event: NostrEvent, source: string): void => {
+       if (this.stopped || !verifyEvent(event) || event.kind !== FIPS_ADVERT_KIND ||
+           tagValue(event, "d") !== this.discoveryApp ||
+@@ -110,7 +119,7 @@
+     };
+     if (this.provider) {
+       const close = await this.provider.subscribe(
+-        { kinds: [FIPS_ADVERT_KIND], "#d": [this.discoveryApp], ...extraFilter }, deliver);
++        filter, deliver);
+       if (this.stopped) { close(); return () => {}; }
+       this.cleanups.push(close);
+       return () => {
+@@ -123,11 +132,7 @@
+     const operations = this.relays.map(async (relay) => {
+       try {
+         const cleanup = await relay.subscribe(
+-          {
+-            kinds: [FIPS_ADVERT_KIND],
+-            "#d": [this.discoveryApp],
+-            ...extraFilter,
+-          },
++          filter,
+           {
+             onEvent: (event) => deliver(event, normalizeRelayUrl(relay.url)),
+           },
+diff --git a/dist/NostrPeerDiscovery.js b/dist/NostrPeerDiscovery.js
+--- a/dist/NostrPeerDiscovery.js
++++ b/dist/NostrPeerDiscovery.js
+@@ -65,6 +65,15 @@
+     async subscribeAdverts(cb, extraFilter = {}) {
+         if (this.stopped)
+             throw new Error("Peer discovery is stopped");
++        // Discovery needs a small, current candidate set, not every historical device.
++        // Nostr's limit applies only to the initial snapshot; live updates stay open.
++        const filter = {
++            kinds: [FIPS_ADVERT_KIND],
++            "#d": [this.discoveryApp],
++            ...extraFilter,
++            since: Math.floor((Date.now() - this.advertTtlMs) / 1_000),
++            limit: 64,
++        };
+         const deliver = (event, source) => {
+             if (this.stopped || !verifyEvent(event) || event.kind !== FIPS_ADVERT_KIND ||
+                 tagValue(event, "d") !== this.discoveryApp ||
+@@ -88,7 +97,7 @@
+             catch { /* Malformed announcement. */ }
+         };
+         if (this.provider) {
+-            const close = await this.provider.subscribe({ kinds: [FIPS_ADVERT_KIND], "#d": [this.discoveryApp], ...extraFilter }, deliver);
++            const close = await this.provider.subscribe(filter, deliver);
+             if (this.stopped) {
+                 close();
+                 return () => { };
+@@ -104,11 +113,7 @@
+         const localCleanups = [];
+         const operations = this.relays.map(async (relay) => {
+             try {
+-                const cleanup = await relay.subscribe({
+-                    kinds: [FIPS_ADVERT_KIND],
+-                    "#d": [this.discoveryApp],
+-                    ...extraFilter,
+-                }, {
++                const cleanup = await relay.subscribe(filter, {
+                     onEvent: (event) => deliver(event, normalizeRelayUrl(relay.url)),
+                 });
+                 if (this.stopped) {

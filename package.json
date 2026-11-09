@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.62",
+  "version": "2.5.63",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -184,6 +184,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
+      "@fips/transport-webrtc@0.0.60": "patches/fips-transport-webrtc.patch",
       "@hashtree/fips-transport@0.4.24": "patches/hashtree-fips-transport.patch",
       "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch",
       "nostr-pubsub@0.5.24": "patches/nostr-pubsub.patch"
