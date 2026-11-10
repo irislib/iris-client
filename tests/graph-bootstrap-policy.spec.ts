@@ -27,6 +27,8 @@ test.use({
 })
 const closeLoopbacks = new WeakMap<Page, () => Promise<void>>()
 test.afterEach(async ({page}) => {
+  // A settings reload can still be fetching the worker when the UI assertions finish.
+  await page.context().unrouteAll({behavior: "wait"})
   await closeLoopbacks.get(page)?.()
 })
 test.skip(
