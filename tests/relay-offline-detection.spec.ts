@@ -8,6 +8,11 @@ test("relay status updates when going offline and back online", async ({
   context,
 }) => {
   const relay = await startNostrRelay({port: 0})
+  // This scenario measures one relay. A live seed peer legitimately keeps
+  // the combined network indicator connected when the relay goes offline.
+  await context.routeWebSocket(/^wss?:\/\/(?!127\.0\.0\.1[:/])/, (socket) =>
+    socket.close()
+  )
   await page.addInitScript((port) => {
     window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
   }, relay.port)
