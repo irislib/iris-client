@@ -16,7 +16,10 @@ import Fuse from "fuse.js"
 import {db} from "@/lib/nostr/cache"
 import {buildProfileSearchResult, type SearchResult} from "../utils/profileSearchData"
 
-const FUSE_KEYS = ["name", "aliases", "nip05", "pubKey"]
+// Public keys are matched exactly below. Fuzzy-matching 64 hex characters per
+// profile dominated search time and let key contents reorder name matches.
+const FUSE_KEYS = ["name", "aliases", "nip05"]
+const PUBKEY_PREFIX_QUERY = /^[0-9a-f]{8,64}$/
 const PROFILE_SEARCH_PREFIX = "p:"
 const REMOTE_SEARCH_SHORT_QUERY_LIMIT = 8
 const REMOTE_SEARCH_MEDIUM_QUERY_LIMIT = 16
@@ -232,8 +235,11 @@ export function updateSearchIndex(profile: SearchResult) {
   const lastSeen = latestProfileTimestamps.get(profile.pubKey) || 0
   if (profile.created_at && profile.created_at <= lastSeen) return
 
+  // Removal scans the whole index. Most arriving profiles are new to it.
+  if (cachedProfiles.has(profile.pubKey)) {
+    searchIndex.remove((existingProfile) => existingProfile.pubKey === profile.pubKey)
+  }
   rememberProfile(profile)
-  searchIndex.remove((existingProfile) => existingProfile.pubKey === profile.pubKey)
   searchIndex.add({...profile, name: String(profile.name)})
 }
 
@@ -252,11 +258,21 @@ export function initSearchIndex(profiles: SearchResult[]) {
 }
 
 export function searchLocalProfiles(query: string): SearchHit[] {
-  return searchIndex.search(query).map((result) => ({
+  const hits: SearchHit[] = searchIndex.search(query).map((result) => ({
     item: result.item,
     score: result.score,
     source: "local" as const,
   }))
+  const prefix = query.trim().toLowerCase()
+  if (!PUBKEY_PREFIX_QUERY.test(prefix)) return hits
+
+  const found = new Set(hits.map((hit) => hit.item.pubKey))
+  for (const item of cachedProfiles.values()) {
+    if (item.pubKey.startsWith(prefix) && !found.has(item.pubKey)) {
+      hits.push({item, score: 0, source: "local"})
+    }
+  }
+  return hits
 }
 
 function queryShape(query: string): {compactLength: number; keywordCount: number} {

@@ -44,9 +44,19 @@ let loaded: ReturnType<typeof load>
 let index: Int8Array | undefined
 let evidence:
   {query: string; selection: Awaited<ReturnType<typeof prepareSemanticQuery>>} | undefined
+// Embedding is the slow step. Keep the posts still being ranked or searched
+// again: refining a query reuses them, and new arrivals must not evict them.
 const vectors = new Map<string, Float32Array>()
+function remembered(text: string) {
+  const vector = vectors.get(text)
+  if (vector) {
+    vectors.delete(text)
+    vectors.set(text, vector)
+  }
+  return vector
+}
 async function vectorsFor(texts: string[]) {
-  const found = new Map(texts.map((text) => [text, vectors.get(text)]))
+  const found = new Map(texts.map((text) => [text, remembered(text)]))
   const missing = [...found.keys()].filter((text) => !found.get(text))
   if (missing.length) {
     const state = await loaded
@@ -55,7 +65,7 @@ async function vectorsFor(texts: string[]) {
       const batch = missing.slice(start, start + batchSize)
       const result = await embedBatch(model, state.tokenizer, batch, Tensor)
       batch.forEach((text, i) => {
-        if (vectors.size >= 256) vectors.delete(vectors.keys().next().value!)
+        if (vectors.size >= 1024) vectors.delete(vectors.keys().next().value!)
         vectors.set(text, result[i])
         found.set(text, result[i])
       })

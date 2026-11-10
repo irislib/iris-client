@@ -157,6 +157,54 @@ describe("profile search index", () => {
     expect(await searchProfiles("martti")).toHaveLength(0)
   })
 
+  it("replaces a cached profile with a newer event and indexes unseen profiles", async () => {
+    const {initSearchIndex, searchLocalProfiles, updateSearchIndex} =
+      await loadProfileSearchModule()
+
+    initSearchIndex([{pubKey: "pubkey-1", name: "sirius", created_at: 100}])
+    updateSearchIndex({pubKey: "pubkey-1", name: "Martti Malmi", created_at: 200})
+    updateSearchIndex({pubKey: "pubkey-2", name: "Satoshi", created_at: 50})
+
+    expect(searchLocalProfiles("sirius")).toHaveLength(0)
+    expect(searchLocalProfiles("martti").map((hit) => hit.item.pubKey)).toEqual([
+      "pubkey-1",
+    ])
+    expect(searchLocalProfiles("satoshi").map((hit) => hit.item.pubKey)).toEqual([
+      "pubkey-2",
+    ])
+  })
+
+  it("ranks names without regard to the letters in a public key", async () => {
+    const {initSearchIndex, searchLocalProfiles} = await loadProfileSearchModule()
+    const plainKey = "7".repeat(64)
+    const lookalikeKey = "da0e" + "7".repeat(60)
+
+    initSearchIndex([
+      {pubKey: plainKey, name: "dave"},
+      {pubKey: lookalikeKey, name: "dave"},
+      {pubKey: "dafe" + "1".repeat(60), name: "zzzz qqqq"},
+    ])
+
+    const hits = searchLocalProfiles("dave")
+    expect(hits.map((hit) => hit.item.pubKey).sort()).toEqual([plainKey, lookalikeKey])
+    expect(hits[0].score).toBe(hits[1].score)
+  })
+
+  it("finds a profile by the start of its hex public key", async () => {
+    const {initSearchIndex, searchLocalProfiles} = await loadProfileSearchModule()
+    const pubKey = "deadbeef" + "12".repeat(28)
+
+    initSearchIndex([
+      {pubKey, name: "Carol"},
+      {pubKey: "12" + pubKey.slice(2), name: "Mallory"},
+    ])
+
+    expect(searchLocalProfiles("DEADBEEF12").map((hit) => hit.item.pubKey)).toEqual([
+      pubKey,
+    ])
+    expect(searchLocalProfiles("deadbee")).toHaveLength(0)
+  })
+
   it("uses all supported profile name fields while keeping the best display name", () => {
     const searchProfile = buildProfileSearchResult(
       "pubkey-1",
