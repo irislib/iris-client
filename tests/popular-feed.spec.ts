@@ -1,6 +1,6 @@
 import {test, expect} from "./fixtures/isolatedBrowser"
 import {SocialGraph} from "nostr-social-graph"
-import {finalizeEvent, getPublicKey, type Filter} from "nostr-tools"
+import {finalizeEvent, getPublicKey, nip19, type Filter} from "nostr-tools"
 import {matchFilters} from "nostr-tools/filter"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 import {usingBuiltDist} from "./utils/built-dist"
@@ -104,6 +104,15 @@ test("anonymous Popular loads posts from the default social graph", async ({
   await page.context().routeWebSocket(/^(?:wss?:\/\/)/, serve)
   const close = await loopbackWorkerRelays(page, serve)
   try {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", {
+        value: sessionStorage.getItem("copyOnly")
+          ? undefined
+          : async ({url}: ShareData) => {
+              document.body.dataset.shared = url
+            },
+      })
+    })
     await page.goto("/")
     await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
     const popularWidget = page.getByRole("heading", {name: "Popular"}).locator("..")
@@ -126,6 +135,26 @@ test("anonymous Popular loads posts from the default social graph", async ({
     )
     expect(publicKey).toBe("")
     await page.screenshot({path: testInfo.outputPath("anonymous-popular.png")})
+    const share = page.getByRole("button", {name: "Share", exact: true}).first()
+    const url = "https://iris.to/" + nip19.noteEncode(post.id)
+    await share.click()
+    const choices = page.getByRole("group", {name: "Share post"})
+    await expect(choices.getByRole("button", {name: "Copy link"})).toBeFocused()
+    await expect(page.locator("body")).not.toHaveAttribute("data-shared", url)
+    await page.screenshot({path: testInfo.outputPath("post-share.png")})
+    await choices.getByRole("button", {name: "Share via…"}).click()
+    await expect(page.locator("body")).toHaveAttribute("data-shared", url)
+    await page.evaluate(() => sessionStorage.setItem("copyOnly", "1"))
+    await page.reload()
+    await expect(page.getByText(post.content, {exact: true}).first()).toBeVisible()
+    await page
+      .context()
+      .grantPermissions(["local-network-access", "clipboard-read", "clipboard-write"], {
+        origin: new URL(page.url()).origin,
+      })
+    await share.click()
+    await expect(page.getByText("Link copied", {exact: true}).first()).toBeVisible()
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(url)
   } finally {
     await close()
   }
