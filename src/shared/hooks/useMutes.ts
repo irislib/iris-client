@@ -36,7 +36,6 @@ const useMutes = (pubKey?: string) => {
 
         sub?.on("event", (event: AppEvent) => {
           event.nostr = nostr()
-          socialGraph.handleEvent(event as NostrEvent)
           if (event && event.created_at && event.created_at > latestTimestamp) {
             log(`Mute event received: ${event.kind} ${event.pubkey} ${event.created_at}`)
             latestTimestamp = event.created_at
