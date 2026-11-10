@@ -1,3 +1,4 @@
+import {createRemoteSigner} from "@/utils/remoteSigner"
 import {relayHints} from "@/lib/nostr/relayPolicy"
 import NostrClient, {
   ClientOptions,
@@ -176,6 +177,10 @@ async function performInit(relayRuntime: RelayRuntimeConfig) {
     nostr.signer = nip07Signer
   }
 
+  if (store.remoteSigner && store.remoteSigner.pubkey === store.publicKey) {
+    nostr.signer = createRemoteSigner(store.remoteSigner)
+  }
+
   // Set initial activeUser from store (important for cache queries after refresh)
   if (store.publicKey) {
     nostr.activeUser = new User({hexpubkey: store.publicKey})
@@ -283,14 +288,23 @@ function watchLocalSettings(instance: NostrClient, relayRuntime: RelayRuntimeCon
       }
     }
 
-    if (state.nip07Login) {
+    if (state.remoteSigner && state.remoteSigner.pubkey === state.publicKey) {
+      if (
+        state.remoteSigner !== prevState.remoteSigner ||
+        state.publicKey !== prevState.publicKey
+      ) {
+        instance.signer = createRemoteSigner(state.remoteSigner)
+      }
+      nip07Signer = undefined
+    } else if (state.nip07Login) {
       if (!nip07Signer) {
         nip07Signer = new ExtensionSigner()
         instance.signer = nip07Signer
         nip07Signer
           .user()
           .then((user) => {
-            useUserStore.getState().setPublicKey(user.pubkey)
+            if (useUserStore.getState().nip07Login)
+              useUserStore.getState().setPublicKey(user.pubkey)
           })
           .catch((e) => {
             error("Error getting NIP-07 user:", e)

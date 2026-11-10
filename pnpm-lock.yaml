@@ -86,6 +86,9 @@ importers:
       '@huggingface/tokenizers':
         specifier: 0.2.0
         version: 0.2.0
+      '@iris/identity':
+        specifier: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz
+        version: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.1.0/nostr-social-graph-4.1.0.tgz(typescript@5.9.3))(typescript@5.9.3)
       '@noble/curves':
         specifier: ^2.2.0
         version: 2.2.0
@@ -1348,6 +1351,12 @@ packages:
     engines: {node: ^18.17.0 || ^20.3.0 || >=21.0.0}
     cpu: [x64]
     os: [win32]
+
+  '@iris/identity@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz':
+    resolution: {integrity: sha512-ZZ7qRjOXl+7fLqsSrWEn9eOysrsbXDsHQz6uxZZw+4wnw3qZXi3xHVdWAia7ykTmFm3euDjNHA+raG33xjacWg==, tarball: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz}
+    version: 0.4.0
+    peerDependencies:
+      nostr-social-graph: '*'
 
   '@iris/release-tools@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.6/iris-release-tools-0.1.1.tgz':
     resolution: {integrity: sha512-bBFZ0hyyf+6uAmYE8IKpo5vV8BH2zLy9mQEq/LY9wmv6Aa7CvKn+4fHI21TyO2jTV2rjkV0/mF8vW0dtVs7HNA==, tarball: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.6/iris-release-tools-0.1.1.tgz}
@@ -3166,6 +3175,14 @@ packages:
   nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.1.0/nostr-social-graph-4.1.0.tgz:
     resolution: {integrity: sha512-9jHMueBoZOsgsI80XWh4oirJTxoOsvTEs1JvlyIQkrw78ykOi3725fXOmSCKmULyS5vHioitAToOkBru5u1Jcw==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.1.0/nostr-social-graph-4.1.0.tgz}
     version: 4.1.0
+
+  nostr-tools@2.23.5:
+    resolution: {integrity: sha512-Fa7ZlUdjfUW1P4E7H3yBexhOHYi18XNyvd2n7eNHkYR085xADX6Y8V8Vm7nT/XQajaFOBrptXmVIGkJ2E4vfVw==}
+    peerDependencies:
+      typescript: '>=5.0.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   nostr-tools@2.24.1:
     resolution: {integrity: sha512-KdrKjC74n/rr6J3eCSfZj8dcbZFvolHYe4S22SefNZ5YWbhHiB0KL/mmJjEZ0u6B9mZK0YcQtl+WQ46KzwapeQ==}
@@ -5290,6 +5307,13 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
+  '@iris/identity@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.1.0/nostr-social-graph-4.1.0.tgz(typescript@5.9.3))(typescript@5.9.3)':
+    dependencies:
+      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.1.0/nostr-social-graph-4.1.0.tgz(typescript@5.9.3)
+      nostr-tools: 2.23.5(typescript@5.9.3)
+    transitivePeerDependencies:
+      - typescript
+
   '@iris/release-tools@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.6/iris-release-tools-0.1.1.tgz': {}
 
   '@isaacs/cliui@9.0.0': {}
@@ -7201,6 +7225,18 @@ snapshots:
       nostr-tools: 2.24.1(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
+
+  nostr-tools@2.23.5(typescript@5.9.3):
+    dependencies:
+      '@noble/ciphers': 2.1.1
+      '@noble/curves': 2.0.1
+      '@noble/hashes': 2.0.1
+      '@scure/base': 2.0.0
+      '@scure/bip32': 2.0.1
+      '@scure/bip39': 2.0.1
+      nostr-wasm: 0.1.0
+    optionalDependencies:
+      typescript: 5.9.3
 
   nostr-tools@2.24.1(typescript@5.9.3):
     dependencies:

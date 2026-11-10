@@ -1,6 +1,6 @@
 import {hexToBytes, bytesToHex} from "@noble/hashes/utils.js"
 import {SecretKeySigner} from "@/lib/nostr"
-import {ChangeEvent, useEffect, useState} from "react"
+import {ChangeEvent, useEffect, useRef, useState} from "react"
 import {getPublicKey, nip19} from "nostr-tools"
 import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
@@ -18,6 +18,45 @@ export default function SignIn({onClose, onLink}: SignInProps) {
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
+  const [signerPending, setSignerPending] = useState(false)
+  const [signerError, setSignerError] = useState("")
+
+  const pairing = useRef<AbortController | null>(null)
+  useEffect(() => () => pairing.current?.abort(), [])
+
+  async function remoteLogin() {
+    if (pairing.current) return
+    const controller = new AbortController()
+    pairing.current = controller
+    setSignerPending(true)
+    setSignerError("")
+    try {
+      const {requestBrowserSigner} = await import("@iris/identity/browserSigner")
+      const session = await requestBrowserSigner({
+        name: CONFIG.appName,
+        signal: controller.signal,
+        permissions: "sign_event,nip44_encrypt,nip44_decrypt",
+      })
+      if (!session || controller.signal.aborted) return
+      localStorage.removeItem("cashu.ndk.privateKeySignerPrivateKey")
+      localStorage.setItem("cashu.ndk.pubkey", session.pubkey)
+      useUserStore.setState({
+        publicKey: session.pubkey,
+        privateKey: "",
+        remoteSigner: session,
+        nip07Login: false,
+        linkedDevice: false,
+      })
+      setShowLoginDialog(false)
+      onClose()
+    } catch {
+      setSignerError("Could not connect to your signer. Please try again.")
+    } finally {
+      pairing.current = null
+      setSignerPending(false)
+    }
+  }
+
   useEffect(() => {
     if (
       inputPrivateKey &&
@@ -31,6 +70,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           useUserStore.setState({
             publicKey,
             privateKey: "",
+            remoteSigner: null,
             nip07Login: false,
             linkedDevice: false,
           })
@@ -48,6 +88,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           useUserStore.setState({
             privateKey: hex,
             publicKey,
+            remoteSigner: null,
             nip07Login: false,
             linkedDevice: false,
           })
@@ -67,6 +108,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           useUserStore.setState({
             privateKey: hex,
             publicKey,
+            remoteSigner: null,
             nip07Login: false,
             linkedDevice: false,
           })
@@ -86,6 +128,7 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         useUserStore.setState({
           publicKey,
           privateKey: "",
+          remoteSigner: null,
           nip07Login: true,
           linkedDevice: false,
         })
@@ -108,6 +151,15 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         onSubmit={(e) => e.preventDefault()}
       >
         <h1 className="text-2xl font-bold">Sign in</h1>
+        <button
+          type="button"
+          className="btn btn-neutral"
+          disabled={signerPending}
+          onClick={remoteLogin}
+        >
+          Sign in with remote signer
+        </button>
+        {signerError && <div role="alert">{signerError}</div>}
         {window.nostr && (
           <>
             <button className="btn btn-primary" onClick={() => extensionLogin()}>

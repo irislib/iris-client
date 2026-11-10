@@ -2,6 +2,7 @@ import {useUserStore} from "@/stores/user"
 import {nostr} from "@/utils/nostrClient"
 
 type WriteAccessState = {
+  remoteSigner?: {pubkey: string} | null
   privateKey?: string
   nip07Login?: boolean
   linkedDevice?: boolean
@@ -9,7 +10,12 @@ type WriteAccessState = {
 }
 
 export function hasWriteAccessForState(state: WriteAccessState): boolean {
-  return !!(state.privateKey || state.nip07Login || state.linkedDevice)
+  return !!(
+    state.privateKey ||
+    state.nip07Login ||
+    state.linkedDevice ||
+    (state.remoteSigner && state.remoteSigner.pubkey === state.publicKey)
+  )
 }
 
 /**

@@ -56,6 +56,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
               useUserStore.setState({
                 publicKey: ownerPubkey,
                 privateKey: "",
+                remoteSigner: null,
                 nip07Login: false,
                 linkedDevice: true,
               })

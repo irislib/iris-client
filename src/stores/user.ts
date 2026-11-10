@@ -1,3 +1,4 @@
+import type {BrowserSignerSession} from "@iris/identity/browserSigner"
 import {
   LEGACY_IRIS_BLOSSOM_URL,
   getDefaultServers,
@@ -22,6 +23,7 @@ interface UserState {
   publicKey: string
   privateKey: string
 
+  remoteSigner: BrowserSignerSession | null
   nip07Login: boolean
   linkedDevice: boolean
 
@@ -95,6 +97,7 @@ export const useUserStore = create<UserState>()(
         publicKey: "",
         privateKey: "",
         nip07Login: false,
+        remoteSigner: null,
         linkedDevice: false,
         DHTPublicKey: "",
         DHTPrivateKey: "",

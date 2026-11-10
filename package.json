@@ -99,6 +99,7 @@
     "@hashtree/nostr-pubsub": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-nostr-pubsub-0.1.9.tgz",
     "@hashtree/worker": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz",
     "@huggingface/tokenizers": "0.2.0",
+    "@iris/identity": "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "@remixicon/react": "^4.9.0",
