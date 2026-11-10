@@ -63,8 +63,12 @@ test("an existing account can pair once and sign a post after refresh", async ({
   await page.addInitScript(() => {
     window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
   })
-  await page.goto("/")
-  await page.getByRole("button", {name: "Sign up", exact: true}).first().click()
+  const groups = process.env.NODE_CONFIG_ENV === "groups"
+  await page.goto(groups ? "/groups" : "/")
+  await page
+    .getByRole("button", {name: groups ? "Create group" : "Sign up", exact: true})
+    .first()
+    .click()
   await page.getByRole("button", {name: "Sign in", exact: true}).click()
   await page.getByRole("button", {name: "Sign in with remote signer"}).click()
   await page
@@ -84,6 +88,26 @@ test("an existing account can pair once and sign a post after refresh", async ({
     "pair-once"
   )
   await page.reload()
+  if (groups) {
+    await page.getByRole("button", {name: "Create group", exact: true}).first().click()
+    const create = page.getByRole("form", {name: "Create group"})
+    await create.getByLabel("Name", {exact: true}).fill("Signer test group")
+    await create.getByLabel("About & membership").fill("A local fixture group")
+    await create.getByRole("button", {name: "Create group", exact: true}).click()
+    await expect(page).toHaveURL(new RegExp(`/groups/${pubkey}/`))
+    const composer = page.getByPlaceholder("Post to Signer test group")
+    await composer.fill("Remote signer test post")
+    await composer.press("Meta+Enter")
+    await expect
+      .poll(() =>
+        signed.some(
+          (event) =>
+            event.pubkey === pubkey && event.content === "Remote signer test post"
+        )
+      )
+      .toBe(true)
+    return
+  }
   await page.locator("#main-content").getByTestId("new-post-button").click()
   const dialog = page.getByRole("dialog")
   await dialog.getByPlaceholder("What's on your mind?").fill("Remote signer test post")

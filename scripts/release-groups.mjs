@@ -30,6 +30,7 @@ export const releaseSteps = [
       "playwright",
       "test",
       "tests/groups.spec.ts",
+      "tests/remote-signer.spec.ts",
       "--reporter=list",
     ],
     env: {
@@ -38,7 +39,7 @@ export const releaseSteps = [
       IRIS_E2E_LOCAL_RELAY: "true",
     },
   },
-  {command: ["pnpm", "dlx", "wrangler@4", "deploy", "--config", "wrangler.groups.jsonc"]},
+  {command: ["pnpm", "exec", "wrangler", "deploy", "--config", "wrangler.groups.jsonc"]},
 ]
 
 export function runRelease({dryRun = false} = {}, runner = spawnSync) {
