@@ -1,6 +1,9 @@
 import type {EventFilter, EventSubscription, NostrClient} from "./index"
 import {normalizedRelayUrls, relayHints, relayHintsFromUrls} from "./relayPolicy"
 
+/** Head start for a caller's own request before its authors' relay lists are looked up. */
+export const AUTHOR_ROUTE_DELAY_MS = 100
+
 /** Keep discovery on the shared transport, and release every route with its caller. */
 export function attachLookupRoutes(client: NostrClient, parent: EventSubscription) {
   if (
@@ -49,8 +52,25 @@ export function attachLookupRoutes(client: NostrClient, parent: EventSubscriptio
   if (!authors.length) return
   // Act on each relay-list event as it arrives; an unavailable unrelated relay
   // must not delay author routing or turn a later relay list into a permanent miss.
-  const lists = client.subscribe({kinds: [10002], authors})
-  parent.waitForHistory(lists)
-  lists.on("event", (event) => attach(parent.filters, relayHints([event], "write")))
-  parent.once("close", () => lists.stop())
+  // Every author lookup opens its own relay connections, and browsers queue and
+  // throttle bursts of new sockets. Let the caller's own request reach its relays
+  // first; its history still waits for these routes.
+  let finish: (() => void) | undefined
+  const pending = {
+    completion: undefined as EventSubscription["completion"],
+    once: (_event: "eose", done: () => void) => {
+      finish = done
+    },
+  }
+  parent.waitForHistory(pending as unknown as EventSubscription)
+  const routeTimer = setTimeout(() => {
+    const lists = client.subscribe({kinds: [10002], authors})
+    lists.once("eose", () => {
+      pending.completion = lists.completion
+      finish?.()
+    })
+    lists.on("event", (event) => attach(parent.filters, relayHints([event], "write")))
+    parent.once("close", () => lists.stop())
+  }, AUTHOR_ROUTE_DELAY_MS)
+  parent.once("close", () => clearTimeout(routeTimer))
 }
