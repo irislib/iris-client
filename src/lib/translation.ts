@@ -133,6 +133,7 @@ async function inspect(
   const plan: Part[] = [],
     languages = new Set<string>()
   const pairs = new Map<string, Availability>()
+  let certain = true
   for (const fields of groups) {
     signal.throwIfAborted()
     const sample = fields
@@ -142,9 +143,29 @@ async function inspect(
     if (!sample) continue
     const [best] = await recognizer.detect(sample.slice(0, 4000))
     const source = language(best?.detectedLanguage)
-    if (!source || !(best.confidence >= 0.8)) continue
+    if (!source || !(best.confidence >= 0.8)) {
+      certain = false
+      continue
+    }
     languages.add(source)
     if ([prefs.target, ...prefs.read].some((code) => sameLanguage(code, source))) continue
+    // A bilingual quotation can share a paragraph with the author's words.
+    if (prefs.auto && certain && languages.size === 1) {
+      const sentences = Array.from(
+        new Intl.Segmenter(source, {granularity: "sentence"}).segment(sample)
+      )
+      if (sentences.length > 1) {
+        for (const {segment} of sentences) {
+          signal.throwIfAborted()
+          const [match] = await recognizer.detect(segment.slice(0, 4000))
+          const code = language(match?.detectedLanguage)
+          if (!code || !(match.confidence >= 0.8) || !sameLanguage(code, source)) {
+            certain = false
+            break
+          }
+        }
+      }
+    }
     const pair = {sourceLanguage: source, targetLanguage: prefs.target}
     const readiness = pairs.get(source) ?? (await models.Translator!.availability(pair))
     pairs.set(source, readiness)
@@ -153,7 +174,9 @@ async function inspect(
   return {
     plan,
     automatic:
-      languages.size === 1 && plan.every((part) => part.readiness === "available"),
+      certain &&
+      languages.size === 1 &&
+      plan.every((part) => part.readiness === "available"),
   }
 }
 
@@ -209,6 +232,7 @@ export function attachTranslation(
     showing = false
   let plan: Part[] = [],
     result: Translations | undefined
+  let preferencesChanged = false
   let mode: "check" | "translate" | "toggle" = "check"
   function label(text = "", disabled = false) {
     button.style.visibility = text ? "visible" : "hidden"
@@ -218,6 +242,11 @@ export function attachTranslation(
   function show(value: boolean) {
     showing = value
     present(value ? result : undefined)
+    if (!value && preferencesChanged) {
+      preferencesChanged = false
+      reset()
+      return
+    }
     mode = "toggle"
     label(value ? "Show original" : action)
   }
@@ -303,7 +332,10 @@ export function attachTranslation(
     run.abort()
     run = new AbortController()
     // Readers keep the displayed version until they explicitly switch it.
-    if (showing) return
+    if (showing) {
+      preferencesChanged = true
+      return
+    }
     result = undefined
     plan = []
     mode = "check"
