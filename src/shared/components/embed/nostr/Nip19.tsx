@@ -8,7 +8,7 @@ import FeedItem from "@/shared/components/event/FeedItem/FeedItem.tsx"
 
 import {AppEvent} from "@/lib/nostr"
 import type {Rumor} from "nostr-double-ratchet"
-import {nostr} from "@/utils/nostrClient"
+import {watchLatestEvent} from "@/utils/watchLatestEvent"
 
 type EmbedEvent = AppEvent | Rumor
 
@@ -27,18 +27,15 @@ type Embed = {
 
 function Naddr({naddr, data}: {naddr: string; data: nip19.AddressPointer}) {
   const [event, setEvent] = useState<AppEvent | null>(null)
-  useEffect(() => {
-    nostr()
-      .fetchEvent(
-        {
-          authors: [data.pubkey],
-          kinds: [data.kind],
-          "#d": [data.identifier],
-        },
+  useEffect(
+    () =>
+      watchLatestEvent(
+        {authors: [data.pubkey], kinds: [data.kind], "#d": [data.identifier]},
+        setEvent,
         {relayHints: data.relays}
-      )
-      .then((e) => e && e.id && setEvent(e))
-  }, [data.pubkey, data.kind, data.identifier])
+      ),
+    [data.pubkey, data.kind, data.identifier]
+  )
 
   if (!event) {
     return (

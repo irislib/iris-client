@@ -1,6 +1,8 @@
 import {updateChannelSearchIndex, getCachedChannel} from "./channelSearch"
 import {shouldHideUser} from "@/utils/visibility"
-import {fetchEventsReliable, fetchEventReliable} from "@/utils/fetchEventsReliable"
+import {fetchEventReliable} from "@/utils/fetchEventsReliable"
+import {nostr} from "@/utils/nostrClient"
+import type {AppEvent} from "@/lib/nostr"
 
 // NIP-28 event kinds
 export const CHANNEL_CREATE = 40
@@ -15,59 +17,29 @@ export type ChannelMetadata = {
   createdAt: number
 }
 
-// Cache for channels by followed users
-let channelsByFollowed: ChannelMetadata[] | null = null
+let channelIndexStarted = false
 
 /**
- * Fetches and caches channels created by followed users
- * @returns A promise that resolves to the filtered channel metadata
+ * Index recent channel creations for search as each one arrives, so matches show up
+ * without any relay having to finish answering first.
  */
-export const getChannelsByFollowed = async (): Promise<ChannelMetadata[]> => {
-  // Return cached result if available
-  if (channelsByFollowed) {
-    return channelsByFollowed
-  }
-
-  try {
-    // Fetch latest 100 channel creation events
-    const {promise} = fetchEventsReliable(
-      {kinds: [CHANNEL_CREATE], limit: 100},
-      {timeout: 5000}
-    )
-    const eventsArray = await promise
-    const events = new Set(eventsArray)
-
-    // Process and filter events
-    const channels: ChannelMetadata[] = []
-    for (const event of Array.from(events)) {
-      try {
-        // Skip if author should be hidden
-        if (shouldHideUser(event.pubkey)) {
-          continue
-        }
-
-        const metadata = JSON.parse(event.content)
-        const channelMetadata = {
-          id: event.id,
-          ...metadata,
-          founderPubkey: event.pubkey,
-          createdAt: event.created_at,
-        }
-        channels.push(channelMetadata)
-        // Update search index
-        updateChannelSearchIndex(event.id, channelMetadata)
-      } catch (e) {
-        console.error("Failed to parse channel creation content:", e)
-      }
+export const indexRecentChannels = () => {
+  if (channelIndexStarted) return
+  channelIndexStarted = true
+  const sub = nostr().subscribe({kinds: [CHANNEL_CREATE], limit: 100})
+  sub.on("event", (event: AppEvent) => {
+    if (shouldHideUser(event.pubkey)) return
+    try {
+      updateChannelSearchIndex(event.id, {
+        id: event.id,
+        ...JSON.parse(event.content),
+        founderPubkey: event.pubkey,
+        createdAt: event.created_at,
+      })
+    } catch (e) {
+      console.error("Failed to parse channel creation content:", e)
     }
-
-    // Cache the result
-    channelsByFollowed = channels
-    return channels
-  } catch (err) {
-    console.error("Error fetching channels by followed users:", err)
-    return []
-  }
+  })
 }
 
 /**

@@ -8,10 +8,11 @@ import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile, {updateProfileFromEvent} from "@/shared/hooks/useProfile"
 import {useEffect, useId, useMemo, useState} from "react"
 import {nip19} from "nostr-tools"
-import {AppEvent, CacheMode} from "@/lib/nostr"
+import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useNavigate} from "@/navigation"
 import {nostr} from "@/utils/nostrClient"
+import {watchLatestEvent} from "@/utils/watchLatestEvent"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {
   profileEditorValues,
@@ -76,24 +77,25 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
       accept(cached)
       return
     }
-    // A UI/cache projection is not a complete metadata document. Fetch the source
-    // event before allowing edits to replace it, and fail closed if unavailable.
-    void nostr()
-      .fetchEvent({kinds: [0], authors: [myPubKey]}, {cacheUsage: CacheMode.ONLY_RELAY})
-      .then((event) => {
-        const data = readProfileMetadata(
-          event ? JSON.stringify(event.rawEvent()) : undefined,
-          myPubKey
-        )
-        if (!data) throw new Error("Profile source unavailable")
-        accept(data)
-      })
-      .catch(() => {
-        if (!cancelled)
-          setLoadError("Couldn't load your full profile. Retry before saving.")
-      })
+    // A UI/cache projection is not a complete metadata document, so edits build on
+    // the source event from whichever source has it first. Only a fully read, empty
+    // history proves there is nothing to preserve; silence still fails closed.
+    const stop = watchLatestEvent(
+      {kinds: [0], authors: [myPubKey]},
+      (event) => {
+        const data = readProfileMetadata(JSON.stringify(event.rawEvent()), myPubKey)
+        if (data) accept(data)
+      },
+      {},
+      ({found, complete}) => {
+        if (found || cancelled) return
+        if (complete) accept({metadata: {}, createdAt: 0})
+        else setLoadError("Couldn't load your full profile. Retry before saving.")
+      }
+    )
     return () => {
       cancelled = true
+      stop()
     }
   }, [myPubKey, existingProfile?.profileEvent, loadAttempt])
 

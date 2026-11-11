@@ -42,12 +42,17 @@ const MultiUserSelector = ({
   }, [isOpen])
 
   useEffect(() => {
-    if (searchQuery.trim()) {
-      search(searchQuery).then((results) => {
-        setSearchResults(results.slice(0, 10).map((result) => result.item))
-      })
-    } else {
+    if (!searchQuery.trim()) {
       setSearchResults([])
+      return
+    }
+    let current = true
+    const show = (results: Awaited<ReturnType<typeof search>>) => {
+      if (current) setSearchResults(results.slice(0, 10).map((result) => result.item))
+    }
+    void search(searchQuery, show).then(show)
+    return () => {
+      current = false
     }
   }, [searchQuery])
 

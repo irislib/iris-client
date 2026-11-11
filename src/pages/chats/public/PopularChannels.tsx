@@ -3,17 +3,18 @@ import {KIND_CHANNEL_MESSAGE, DEBUG_NAMESPACES} from "@/utils/constants"
 import {useSocialGraph} from "@/utils/socialGraph"
 import {useState, useEffect} from "react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
-import {fetchEventsReliable} from "@/utils/fetchEventsReliable"
+import {nostr} from "@/utils/nostrClient"
+import type {AppEvent} from "@/lib/nostr"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.UI_CHAT)
 
 type PopularChannel = {
   id: string
-  name: string
-  about: string
-  picture: string
   authorCount: number
 }
+
+/** Coalesce bursts of arriving messages into one list update. */
+const POPULAR_CHANNELS_RENDER_MS = 100
 
 type PopularChannelsProps = {
   publicKey: string
@@ -22,76 +23,39 @@ type PopularChannelsProps = {
 const PopularChannels = ({publicKey}: PopularChannelsProps) => {
   const socialGraph = useSocialGraph()
   const [popularChannels, setPopularChannels] = useState<PopularChannel[]>([])
-  // Remove error state
-  // const [error, setError] = useState<string | null>(null)
-
-  // Fetch popular channels from followed users
+  // Rank channels by how many followed users post in them, updating as messages arrive.
   useEffect(() => {
     if (!publicKey) return
-
-    const fetchPopularChannels = async () => {
-      // Remove setError(null)
-      log("Fetching popular channels for publicKey:", publicKey)
-      // Get followed users using social graph
-      const followedUsers = await socialGraph.getUsersByFollowDistance(1)
-      log("Followed users count:", followedUsers.size)
-      if (followedUsers.size === 0) {
-        log("No followed users found")
-        return
-      }
-
-      // Fetch channel messages from followed users
-      log("Fetching channel messages from followed users")
-      const {promise} = fetchEventsReliable(
-        {kinds: [KIND_CHANNEL_MESSAGE], authors: Array.from(followedUsers), limit: 200},
-        {timeout: 5000}
+    const followedUsers = socialGraph.getUsersByFollowDistance(1)
+    log("Followed users count:", followedUsers.size)
+    if (followedUsers.size === 0) return
+    let renderTimer: ReturnType<typeof setTimeout> | undefined
+    const authorsByChannel = new Map<string, Set<string>>()
+    const render = () => {
+      renderTimer = undefined
+      setPopularChannels(
+        [...authorsByChannel]
+          .map(([id, authors]) => ({id, authorCount: authors.size}))
+          .sort((a, b) => b.authorCount - a.authorCount)
       )
-      const messagesArray = await promise
-      const channelMessages = new Set(messagesArray)
-      log("Channel messages count:", channelMessages.size)
-
-      // Process messages to identify channels and count unique authors
-      const channelMap = new Map<string, {authors: Set<string>}>()
-
-      for (const event of Array.from(channelMessages)) {
-        // Extract channel ID from the 'e' tag
-        const channelIdTag = event.tags.find((tag) => tag[0] === "e")
-        if (!channelIdTag) continue
-
-        const channelId = channelIdTag[1]
-
-        if (!channelMap.has(channelId)) {
-          channelMap.set(channelId, {authors: new Set()})
-        }
-
-        const channelData = channelMap.get(channelId)!
-        channelData.authors.add(event.pubkey)
-      }
-
-      log("Unique channels found:", channelMap.size)
-
-      // Convert to array and sort by author count
-      const channels: PopularChannel[] = []
-
-      for (const [id, data] of channelMap.entries()) {
-        channels.push({
-          id,
-          name: "", // Will be fetched by PopularChannelItem
-          about: "", // Will be fetched by PopularChannelItem
-          picture: "", // Will be fetched by PopularChannelItem
-          authorCount: data.authors.size,
-        })
-      }
-
-      // Sort by author count (descending)
-      channels.sort((a, b) => b.authorCount - a.authorCount)
-
-      log("Channels to display:", channels.length)
-      // Create a new array to ensure React detects the state change
-      setPopularChannels([...channels])
     }
+    const sub = nostr().subscribe({
+      kinds: [KIND_CHANNEL_MESSAGE],
+      authors: Array.from(followedUsers),
+      limit: 200,
+    })
+    sub.on("event", (event: AppEvent) => {
+      const channelId = event.tags.find((tag) => tag[0] === "e")?.[1]
+      if (!channelId) return
+      const authors = authorsByChannel.get(channelId) ?? new Set<string>()
+      authorsByChannel.set(channelId, authors.add(event.pubkey))
+      renderTimer ??= setTimeout(render, POPULAR_CHANNELS_RENDER_MS)
+    })
 
-    fetchPopularChannels()
+    return () => {
+      clearTimeout(renderTimer)
+      sub.stop()
+    }
   }, [publicKey])
 
   if (popularChannels.length === 0) {

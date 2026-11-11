@@ -369,7 +369,7 @@ function GroupContent({
                     feedConfig={feedConfig}
                     eventSource={feed}
                     selectEvents={diversifyGroupFeed}
-                    enabled={!access.loading}
+                    enabled={feed.ready}
                     showDisplayAsSelector={false}
                     emptyPlaceholder={
                       <div className="p-10 text-center text-base-content/55">

@@ -1,6 +1,5 @@
 import {UserProfile} from "@/lib/nostr"
 import {getMainThreadDb} from "@/lib/nostr/db"
-import {handleProfile} from "@/utils/profileSearch"
 import {nostr} from "@/utils/nostrClient"
 import debounce from "lodash/debounce"
 import Fuse from "fuse.js"
@@ -8,7 +7,7 @@ import {KIND_METADATA, DEBUG_NAMESPACES} from "@/utils/constants"
 import {shouldHideUser} from "@/utils/visibility"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 
-const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UI_CHAT)
+const {log} = createDebugLogger(DEBUG_NAMESPACES.UI_CHAT)
 
 export interface DoubleRatchetUser {
   pubkey: string
@@ -107,6 +106,9 @@ const recreateSearchIndex = () => {
 // Track if we're currently fetching profiles to prevent infinite loops
 let isFetchingProfiles = false
 
+/** Coalesce bursts of arriving profiles into one index rebuild. */
+const PROFILE_INDEX_REFRESH_MS = 300
+
 // Update user data map from Dexie cache
 const updateUserDataFromCache = async () => {
   const db = getMainThreadDb()
@@ -148,23 +150,16 @@ const updateDoubleRatchetSearchIndexImmediate = async () => {
       {closeOnEose: true}
     )
 
-    sub.on("event", (event) => {
-      if (event.kind === KIND_METADATA) {
-        try {
-          const profile = JSON.parse(event.content)
-          profile.created_at = event.created_at
-          handleProfile(event.pubkey, profile)
-        } catch (e) {
-          warn("Failed to parse profile for", event.pubkey, e)
-        }
-      }
-    })
-
-    // Update index once when subscription ends, without triggering new lookups
-    sub.on("eose", async () => {
-      isFetchingProfiles = false
+    // Rebuild from the profile store as profiles arrive, without triggering new
+    // lookups; a relay that never finishes must not keep found users unsearchable.
+    const refresh = debounce(async () => {
       await updateUserDataFromCache()
       notifySubscribers()
+    }, PROFILE_INDEX_REFRESH_MS)
+    sub.on("event", refresh)
+    sub.on("eose", () => {
+      isFetchingProfiles = false
+      refresh()
     })
   }
 

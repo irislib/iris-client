@@ -10,7 +10,7 @@ export {
 export {
   getZappingUser,
   getZapAmount,
-  fetchZappedAmount,
+  watchZappedAmount,
   createZapInvoice,
   createAndPublishZapInvoice,
   parseZapReceipt,

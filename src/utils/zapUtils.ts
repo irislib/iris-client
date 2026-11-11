@@ -43,38 +43,17 @@ export async function getZapAmount(event: AppEvent) {
   return 0
 }
 
-export const fetchZappedAmount = async (event: AppEvent): Promise<number> => {
-  return new Promise((resolve) => {
-    let zappedAmount = 0
-    const filter = {
-      kinds: [KIND_ZAP_RECEIPT],
-      ["#e"]: [event.id],
-    }
-    try {
-      const sub = nostr().subscribe(filter)
-
-      sub?.on("event", async (event) => {
-        const invoice = event.tagValue("bolt11")
-        if (invoice) {
-          const decodedInvoice = decode(invoice)
-          const amountSection = decodedInvoice.sections.find(
-            (section: {name: string}) => section.name === "amount"
-          )
-          if (amountSection && "value" in amountSection) {
-            // Convert millisatoshis to bits
-            zappedAmount =
-              zappedAmount + Math.floor(parseInt(String(amountSection.value)) / 1000)
-          }
-        }
-      })
-      sub?.on("eose", () => {
-        sub?.stop()
-        resolve(zappedAmount)
-      })
-    } catch (error) {
-      console.warn(error)
-    }
+/** Report the running zap total for an event as receipts arrive. Returns a stop function. */
+export function watchZappedAmount(event: AppEvent, onAmount: (amount: number) => void) {
+  let zappedAmount = 0
+  const sub = nostr().subscribe({kinds: [KIND_ZAP_RECEIPT], ["#e"]: [event.id]})
+  sub.on("event", async (receipt: AppEvent) => {
+    const amount = await getZapAmount(receipt).catch(() => 0)
+    if (!amount) return
+    zappedAmount += amount
+    onAmount(zappedAmount)
   })
+  return () => sub.stop()
 }
 
 /**

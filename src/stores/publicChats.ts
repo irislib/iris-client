@@ -77,21 +77,22 @@ const store = create<PublicChatStore>()(
       },
 
       addOrRefreshChatById: async (chatId: string) => {
-        const metadata = await fetchChannelMetadata(chatId)
-        const chat: PublicChat = {
-          id: chatId,
-          name: metadata?.name || `Channel ${chatId.slice(0, 8)}...`,
-          about: metadata?.about || "",
-          picture: metadata?.picture || "",
-          ...(metadata ? {metadata} : {}),
-        }
-
-        set((state) => ({
-          publicChats: {
-            ...state.publicChats,
-            [chatId]: chat,
-          },
-        }))
+        const put = (metadata: ChannelMetadata | null) =>
+          set((state) => {
+            const known = state.publicChats[chatId]
+            if (!metadata && known) return state
+            const chat: PublicChat = {
+              id: chatId,
+              name: metadata?.name || `Channel ${chatId.slice(0, 8)}...`,
+              about: metadata?.about || "",
+              picture: metadata?.picture || "",
+              ...(metadata ? {metadata} : {}),
+            }
+            return {publicChats: {...state.publicChats, [chatId]: chat}}
+          })
+        // The chat is listed before any relay answers; metadata fills in later.
+        put(null)
+        put(await fetchChannelMetadata(chatId))
       },
 
       removePublicChat: (chatId: string) => {

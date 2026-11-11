@@ -1,4 +1,4 @@
-import {ChannelMetadata, getChannelsByFollowed} from "../utils/channelMetadata"
+import {ChannelMetadata, indexRecentChannels} from "../utils/channelMetadata"
 import MinidenticonImg from "@/shared/components/user/MinidenticonImg"
 import {searchChannels} from "../utils/channelSearch"
 import {useState, useEffect} from "react"
@@ -18,9 +18,7 @@ const PublicChatCreation = () => {
   const [searchInput, setSearchInput] = useState("")
   const [matchingChannels, setMatchingChannels] = useState<ChannelMetadata[]>([])
 
-  useEffect(() => {
-    getChannelsByFollowed().catch(console.error)
-  }, [])
+  useEffect(indexRecentChannels, [])
 
   const onSearchChange = async (value: string) => {
     setSearchInput(value)

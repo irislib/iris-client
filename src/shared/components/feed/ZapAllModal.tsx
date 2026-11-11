@@ -7,6 +7,7 @@ import {useWalletProviderStore} from "@/stores/walletProvider"
 import {createAndPublishZapInvoice} from "@/utils/zapUtils"
 import {savePaymentMetadata} from "@/stores/paymentMetadata"
 import {nostr} from "@/utils/nostrClient"
+import {getMainThreadDb} from "@/lib/nostr/db"
 import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {getCachedName} from "@/utils/nostr"
 import FeedItem from "../event/FeedItem/FeedItem"
@@ -233,10 +234,11 @@ function ZapAllModal({events, onClose}: ZapAllModalProps) {
 
       try {
         // Get author profile to get lightning address
-        const author = nostr().getUser({pubkey: event.pubkey})
-        await author.fetchProfile()
-
-        const lud16 = author.profile?.lud16
+        // The stored profile answers at once; relays are asked only without one.
+        const stored = await getMainThreadDb().profiles.get(event.pubkey)
+        const lud16 =
+          stored?.lud16 ??
+          (await nostr().getUser({pubkey: event.pubkey}).fetchProfile())?.lud16
         if (!lud16) {
           addLog("error", "No lightning address", event.id, authorName)
           continue

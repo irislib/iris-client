@@ -12,16 +12,6 @@ import {
   type SessionUserRecordsLike,
 } from "@/utils/sessionRouting"
 
-export const computeTimeoutFallbackHasAppKeys = (
-  current: boolean | null,
-  hasExistingSession: boolean
-): boolean => {
-  if (current !== null) {
-    return current
-  }
-  return hasExistingSession
-}
-
 export const applySessionFallbackHasAppKeys = (
   current: boolean | null,
   hasExistingSession: boolean
@@ -34,7 +24,7 @@ export const applySessionFallbackHasAppKeys = (
 
 /**
  * Hook to check if a recipient has set up encrypted messaging (has AppKeys).
- * Returns null while checking, true if they have app keys, false if not.
+ * Returns null while unknown, true if they have app keys, false once they publish none.
  */
 export const useRecipientHasAppKeys = (
   recipientPubkey: string | undefined
@@ -87,7 +77,7 @@ export const useRecipientHasAppKeys = (
           applySessionFallbackHasAppKeys(current, hasExistingSession)
         )
       } catch {
-        // Ignore async init errors and rely on AppKeys subscription / timeout fallback.
+        // Ignore async init errors and rely on the AppKeys subscription.
       }
     })()
 
@@ -100,17 +90,11 @@ export const useRecipientHasAppKeys = (
       }
     )
 
-    // Set to false after timeout if no response
-    const timeout = setTimeout(() => {
-      setHasAppKeys((current) =>
-        computeTimeoutFallbackHasAppKeys(current, hasExistingSession)
-      )
-    }, 3000)
-
+    // Relay silence is not an answer: only an AppKeys event listing no devices
+    // says the recipient cannot be reached, so the composer stays usable meanwhile.
     return () => {
       disposed = true
       unsubscribe()
-      clearTimeout(timeout)
     }
   }, [recipientPubkey, myPubkey, hasLocalAppKeys, isCurrentDeviceRegistered])
 

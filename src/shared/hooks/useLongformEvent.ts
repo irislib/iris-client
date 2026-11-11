@@ -1,7 +1,7 @@
 import {AppEvent} from "@/lib/nostr"
 import {useState, useEffect} from "react"
 import {nip19} from "nostr-tools"
-import {nostr} from "@/utils/nostrClient"
+import {watchLatestEvent} from "@/utils/watchLatestEvent"
 
 /**
  * Custom hook for fetching longform events with memcaching
@@ -23,31 +23,24 @@ export function useLongformEvent(naddrData: nip19.AddressPointer | null) {
     setLoading(true)
     setError(null)
 
-    nostr()
-      .fetchEvent(
-        {
-          authors: [naddrData.pubkey],
-          kinds: [naddrData.kind],
-          "#d": [naddrData.identifier],
-        },
-        {relayHints: naddrData.relays}
-      )
-      .then((fetchedEvent) => {
-        if (fetchedEvent) {
-          setEvent(fetchedEvent)
-          setError(null)
-        } else {
-          setError("Event not found")
-          setEvent(null)
-        }
+    return watchLatestEvent(
+      {
+        authors: [naddrData.pubkey],
+        kinds: [naddrData.kind],
+        "#d": [naddrData.identifier],
+      },
+      (latest) => {
+        setEvent(latest)
+        setError(null)
         setLoading(false)
-      })
-      .catch((err) => {
-        console.warn("Error fetching longform event:", err)
-        setError("Failed to fetch event")
-        setEvent(null)
+      },
+      {relayHints: naddrData.relays},
+      ({found}) => {
+        if (found) return
+        setError("Event not found")
         setLoading(false)
-      })
+      }
+    )
   }, [naddrData])
 
   return {event, loading, error}

@@ -2,6 +2,7 @@ import {nip19} from "nostr-tools"
 import {nostr} from "@/utils/nostrClient"
 import {NOSTR_REGEX, HEX_REGEX, NIP05_REGEX} from "@/utils/validation"
 import {AppEvent} from "@/lib/nostr"
+import {getEventSync} from "@/utils/eventCache"
 
 export type IdentifierResult =
   | {type: "npub"; data: string}
@@ -39,6 +40,9 @@ export async function parseNostrIdentifier(input: string): Promise<IdentifierRes
 
   // Check for hex pubkey/event id (64 chars)
   if (trimmed.match(HEX_REGEX) && trimmed.length === 64) {
+    // A post already held locally settles what the hex names without asking relays.
+    if (getEventSync(trimmed)) return {type: "note", data: trimmed}
+
     // Try to fetch as both user and event
     const ndkInstance = nostr()
 

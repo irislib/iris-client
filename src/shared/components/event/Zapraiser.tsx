@@ -1,4 +1,4 @@
-import {fetchZappedAmount} from "@/utils/nostr"
+import {watchZappedAmount} from "@/utils/nostr"
 import {AppEvent} from "@/lib/nostr"
 import {useEffect, useState} from "react"
 import HyperText from "../HyperText"
@@ -12,21 +12,12 @@ function Zapraiser({event, truncate}: ZapraiserProps) {
   const [zapProgress, setZapProgress] = useState(0)
 
   useEffect(() => {
-    fetchZappedAmount(event).then((amount: number) => {
-      if (amount > 0) {
-        try {
-          const targetAmount = Number(event.tagValue("zapraiser"))
-          const percent = Math.round((amount / targetAmount) * 100)
-          if (percent > 100) {
-            setZapProgress(100)
-          } else {
-            setZapProgress(percent)
-          }
-        } catch (error) {
-          // ignore, event is probably malformed
-        }
-      }
-    })
+    setZapProgress(0)
+    const targetAmount = Number(event.tagValue("zapraiser"))
+    if (!(targetAmount > 0)) return
+    return watchZappedAmount(event, (amount) =>
+      setZapProgress(Math.min(100, Math.round((amount / targetAmount) * 100)))
+    )
   }, [event])
 
   return (
