@@ -7,9 +7,9 @@ const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
   "nostr-pubsub-reconcile": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.1/nostr-pubsub-reconcile-0.1.1.tgz",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.2/nostr-pubsub-reconcile-0.1.2.tgz",
     integrity:
-      "sha512-hrwY11Np7ufQaqMBQyHJvOjN+fjCfFQ0kTQDzVgALay0ogmP7RLAvDtQmx7U3KOGrGKGoZKLnbeKfsNLCykB+Q==",
+      "sha512-w2N8AE2bL5h7H0tOuTONOTprHS4/SVCP93lyipA/mekk+RogF3fZFh+s2lxLEDvW5tSjIJcBdX1lguX7wD5+2g==",
   },
   "@fips/core": {
     url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-core-0.0.56.tgz",
@@ -27,9 +27,9 @@ const releases = {
       "sha512-B+CUOBXuMwfDzLCnr+QfLf/MuA4wcV+36mqwH+RS0DNRYFcoGgM60MZiwcjFVCb6xzl0ZTUYe9Sla+VJ2MJBnQ==",
   },
   "nostr-pubsub": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.27/nostr-pubsub-0.5.27.tgz",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.28/nostr-pubsub-0.5.28.tgz",
     integrity:
-      "sha512-y04tAgKcwbz/IneFVgvmXCQ8SY9vMcIS2QeiTgmzRBn3YOJfUUB43LBl+IZ+AFQfWaNPhgp+5ncmzO9W8vU7RQ==",
+      "sha512-gEiYZyhVP1AKJjVS78+4EZihffGcyMu/jZUYaymsBmVOWtw2+Mk5g4QiUSwZnxUjh/5wuVI096yy/fXDJoEwXw==",
   },
   "@hashtree/nostr": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.40/hashtree-nostr-0.2.7.tgz",
