@@ -82,6 +82,9 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
     storeAutoConnectUserRelays: store.autoConnectUserRelays,
   })
 
+  const extraRelaysAllowed =
+    !relayRuntime.disableExtraRelayUrls && !import.meta.env.VITE_USE_TEST_RELAY
+
   // Create instance immediately so nostr() returns it synchronously
   clientInstance = new NostrClient({
     ...irisClientTagOptions,
@@ -90,10 +93,8 @@ export async function initNostr(opts?: ClientOptions): Promise<NostrClient> {
     privateRelayUrls: relayRuntime.privateRelayUrls,
     enableOutboxModel: relayRuntime.enableOutboxModel,
     autoConnectUserRelays: relayRuntime.autoConnectUserRelays,
-    discoveryRelayUrls:
-      relayRuntime.disableExtraRelayUrls || import.meta.env.VITE_USE_TEST_RELAY
-        ? []
-        : PROFILE_RELAYS,
+    discoveryRelayUrls: extraRelaysAllowed ? PROFILE_RELAYS : [],
+    fallbackRelayUrls: extraRelaysAllowed ? DEFAULT_RELAYS : [],
     enableRelayHints: !relayRuntime.disableExtraRelayUrls && store.followRelayHints,
   })
 

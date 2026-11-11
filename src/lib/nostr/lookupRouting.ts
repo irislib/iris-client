@@ -4,6 +4,9 @@ import {normalizedRelayUrls, relayHints, relayHintsFromUrls} from "./relayPolicy
 /** Head start for a caller's own request before its authors' relay lists are looked up. */
 export const AUTHOR_ROUTE_DELAY_MS = 100
 
+/** How long saved relays get to answer an id lookup before the fallbacks are asked. */
+export const ID_FALLBACK_DELAY_MS = 1000
+
 /** Keep discovery on the shared transport, and release every route with its caller. */
 export function attachLookupRoutes(client: NostrClient, parent: EventSubscription) {
   if (
@@ -46,6 +49,18 @@ export function attachLookupRoutes(client: NostrClient, parent: EventSubscriptio
 
   if (!client.enableOutboxModel || parent.filters.some((f) => f.kinds?.includes(10002)))
     return
+
+  // A bare event id names neither author nor relay, so nothing above can route it.
+  // One unreachable saved relay must not be the only path to the post.
+  const missing = new Set(parent.filters.flatMap((f) => f.ids ?? []))
+  if (missing.size && client.fallbackRelayUrls.length) {
+    parent.on("event", (event) => missing.delete(event.id))
+    const timer = setTimeout(() => {
+      if (missing.size) attach([{ids: [...missing]}], client.fallbackRelayUrls)
+    }, ID_FALLBACK_DELAY_MS)
+    parent.once("close", () => clearTimeout(timer))
+  }
+
   const authors = [...new Set(parent.filters.flatMap((f) => f.authors ?? []))]
     .filter((key) => /^[0-9a-f]{64}$/.test(key))
     .slice(0, 64)

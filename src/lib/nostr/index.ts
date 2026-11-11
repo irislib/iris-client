@@ -655,6 +655,7 @@ export interface ClientOptions {
   enableOutboxModel?: boolean
   autoConnectUserRelays?: boolean
   discoveryRelayUrls?: string[]
+  fallbackRelayUrls?: string[]
   enableRelayHints?: boolean
   [key: string]: unknown
 }
@@ -670,6 +671,7 @@ export class NostrClient extends Emitter {
   cacheAdapter?: ClientOptions["cacheAdapter"]
   enableOutboxModel = false
   discoveryRelayUrls: string[]
+  fallbackRelayUrls: string[]
   enableRelayHints: boolean
   devWriteRelaySet?: RelaySet
   private verifyEvent?: NostrRuntimeOptions["verifyEvent"]
@@ -708,6 +710,7 @@ export class NostrClient extends Emitter {
     this.signAuthEvent = opts.signAuthEvent
     this.enableOutboxModel = opts.enableOutboxModel ?? false
     this.discoveryRelayUrls = normalizedRelayUrls(opts.discoveryRelayUrls ?? [], 6)
+    this.fallbackRelayUrls = normalizedRelayUrls(opts.fallbackRelayUrls ?? [], 8)
     this.enableRelayHints = opts.enableRelayHints ?? false
     this.signer = opts.signer
     this.cacheAdapter = opts.cacheAdapter
