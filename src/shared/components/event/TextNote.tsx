@@ -1,6 +1,6 @@
+import {TranslatableText} from "@/shared/components/Translation"
 import {AppEvent} from "@/lib/nostr"
 
-import HyperText from "@/shared/components/HyperText.tsx"
 import ErrorBoundary from "../ui/ErrorBoundary"
 
 type TextNoteProps = {
@@ -11,9 +11,9 @@ type TextNoteProps = {
 function TextNote({event, truncate}: TextNoteProps) {
   return (
     <ErrorBoundary>
-      <HyperText event={event} truncate={truncate}>
+      <TranslatableText event={event} truncate={truncate}>
         {event?.content || ""}
-      </HyperText>
+      </TranslatableText>
     </ErrorBoundary>
   )
 }

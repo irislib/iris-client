@@ -1,3 +1,4 @@
+import {TranslatableText} from "@/shared/components/Translation"
 import {getMillisecondTimestamp, Rumor, type ReceiptType} from "nostr-double-ratchet"
 import MessageActionButtons from "../reaction/MessageActionButtons"
 import MessageReactions from "../reaction/MessageReactions"
@@ -107,6 +108,7 @@ const Message = ({
     [message.content]
   )
 
+  const MessageText = isUser || isShortEmoji ? HyperText : TranslatableText
   const sessionReactions = events.get(sessionId)?.get(message.id)?.reactions || {}
 
   // Set up reaction subscription
@@ -299,9 +301,9 @@ const Message = ({
                     "whitespace-pre-wrap break-words [overflow-wrap:anywhere] min-w-0"
                   )}
                 >
-                  <HyperText small={true} truncate={500} event={message}>
+                  <MessageText small={true} truncate={500} event={message}>
                     {message.content}
-                  </HyperText>
+                  </MessageText>
                 </div>
               </div>
               {isLast && (

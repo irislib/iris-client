@@ -1,3 +1,4 @@
+import {TranslationSettings} from "./TranslationSettings"
 import {UserRow} from "@/shared/components/user/UserRow"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
@@ -95,6 +96,8 @@ function Content({focusSearchModel}: {focusSearchModel: boolean}) {
               isLast
             />
           </SettingsGroup>
+
+          <TranslationSettings />
 
           <SettingsGroup title="Post search">
             <SettingsGroupItem isLast>

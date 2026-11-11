@@ -1,3 +1,4 @@
+import {TranslatableText} from "@/shared/components/Translation"
 import {RiErrorWarningLine, RiGithubFill} from "@remixicon/react"
 import {ElementType, ReactNode, useEffect, useMemo, useRef, useState} from "react"
 import {UserProfile} from "@/lib/nostr"
@@ -5,7 +6,6 @@ import {useLocation, useNavigate} from "@/navigation"
 import {useIsTopOfStack} from "@/navigation/useIsTopOfStack"
 import {nip05, nip19} from "nostr-tools"
 
-import HyperText from "@/shared/components/HyperText.tsx"
 import MutedBy from "@/shared/components/user/MutedBy"
 import Icon from "@/shared/components/Icons/Icon"
 import {unmuteUser} from "@/shared/services/Mute"
@@ -145,9 +145,9 @@ function ProfileDetails({
         )}
       {displayProfile?.about && (
         <article className="prose">
-          <HyperText small={true} truncate={100}>
+          <TranslatableText small={true} truncate={100}>
             {displayProfile.about}
-          </HyperText>
+          </TranslatableText>
         </article>
       )}
     </div>

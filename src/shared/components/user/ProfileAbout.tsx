@@ -1,5 +1,5 @@
+import {TranslatableText} from "@/shared/components/Translation"
 import useProfile from "@/shared/hooks/useProfile.ts"
-import HyperText from "../HyperText"
 
 export function ProfileAbout({pubKey, className}: {pubKey: string; className?: string}) {
   const profile = useProfile(pubKey)
@@ -7,9 +7,9 @@ export function ProfileAbout({pubKey, className}: {pubKey: string; className?: s
   if (profile?.about) {
     return (
       <div className={className}>
-        <HyperText small={true} expandable={false} truncate={100}>
+        <TranslatableText small={true} expandable={false} truncate={100}>
           {profile.about}
-        </HyperText>
+        </TranslatableText>
       </div>
     )
   }

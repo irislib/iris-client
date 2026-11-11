@@ -1,5 +1,8 @@
 import {AppEvent} from "@/lib/nostr"
-import Markdown from "markdown-to-jsx/react"
+import {astToJSX, parser, RuleType} from "markdown-to-jsx/react"
+import {useMemo} from "react"
+import {Translation} from "../Translation"
+import {articleParagraphs} from "./articleParagraphs"
 import ProxyImg from "../ProxyImg"
 import {useNavigate} from "@/navigation"
 import {nip19} from "nostr-tools"
@@ -28,6 +31,13 @@ function LongForm({event, standalone}: LongFormProps) {
 
     return `${textBody.substring(0, 250)}...`
   }
+
+  const markdown = getDisplayContent()
+  const ast = useMemo(
+    () => parser(markdown, {forceBlock: true, disableParsingRawHTML: true}),
+    [markdown]
+  )
+  const groups = useMemo(() => [[title], ...articleParagraphs(ast)], [title, ast])
 
   const titleSize = standalone ? "text-3xl my-4" : "text-xl my-2"
 
@@ -76,28 +86,38 @@ function LongForm({event, standalone}: LongFormProps) {
             )}
           </div>
         )}
-        <h1 className={`flex items-center gap-2 ${titleSize}`}>{title}</h1>
-        <Markdown
-          className="prose leading-relaxed tracking-wide text-gray-450 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-          options={{
-            disableParsingRawHTML: true,
-            forceBlock: true,
-            overrides: {
-              img: {
-                component: ProxyImg,
-                props: {
-                  className: standalone
-                    ? "w-full object-cover rounded"
-                    : "h-48 w-full object-cover rounded",
-                  width: 600,
-                  loading: "lazy",
-                },
-              },
-            },
-          }}
-        >
-          {getDisplayContent()}
-        </Markdown>
+        <Translation groups={groups} action="Translate article">
+          {(result) => (
+            <>
+              <h1 className={`flex items-center gap-2 ${titleSize}`}>
+                {result?.get(title) ?? title}
+              </h1>
+              <div className="prose leading-relaxed tracking-wide text-gray-450 whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                {astToJSX(ast, {
+                  wrapper: null,
+                  disableParsingRawHTML: true,
+                  renderRule(next, node) {
+                    return node.type === RuleType.text
+                      ? (result?.get(node.text) ?? next())
+                      : next()
+                  },
+                  overrides: {
+                    img: {
+                      component: ProxyImg,
+                      props: {
+                        className: standalone
+                          ? "w-full object-cover rounded"
+                          : "h-48 w-full object-cover rounded",
+                        width: 600,
+                        loading: "lazy",
+                      },
+                    },
+                  },
+                })}
+              </div>
+            </>
+          )}
+        </Translation>
         {topics && <small className="text-custom-accent">#{topics}</small>}
       </div>
     </>
