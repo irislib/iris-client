@@ -5,6 +5,8 @@ import PublicChat from "./public/PublicChat"
 import ChatList from "./list/ChatList"
 import {Helmet} from "react-helmet"
 import classNames from "classnames"
+import DevicesTab from "./devices"
+import {useUserStore} from "@/stores/user"
 import NewChat from "./NewChat"
 import GroupGroupRoutes from "./group"
 import ChatRegistrationGate from "./components/ChatRegistrationGate"
@@ -71,6 +73,9 @@ function Messages() {
 }
 
 export default function Chats() {
+  const {pathname} = useLocation()
+  const publicKey = useUserStore((state) => state.publicKey)
+  if (!publicKey && pathname === "/chats/new/devices") return <DevicesTab allowPairing />
   return (
     <ChatRegistrationGate>
       <Messages />

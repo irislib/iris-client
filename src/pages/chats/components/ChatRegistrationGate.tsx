@@ -2,7 +2,7 @@ import {type ReactNode} from "react"
 import {RiLockFill} from "@remixicon/react"
 import {Helmet} from "react-helmet"
 import {nip19} from "nostr-tools"
-import {useLocation} from "@/navigation"
+import {Link, useLocation} from "@/navigation"
 import Header from "@/shared/components/header/Header"
 import {useDevicesStore} from "@/stores/devices"
 import {useUserStore} from "@/stores/user"
@@ -87,6 +87,11 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
           <h1 className="text-2xl font-semibold">{title}</h1>
           <p className="mt-3 mb-6 text-base-content/70">{description}</p>
           {action}
+          {!publicKey && (
+            <Link to="/chats/new/devices" className="btn btn-ghost w-full mt-2">
+              Link a chat device
+            </Link>
+          )}
         </div>
       </div>
     </section>

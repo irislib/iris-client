@@ -1,13 +1,12 @@
 import SignUp from "@/shared/components/user/SignUp"
 import SignIn from "@/shared/components/user/SignIn"
-import LinkDevice from "@/shared/components/user/LinkDevice"
 import {useState} from "react"
 import {useUIStore} from "@/stores/ui"
 import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 export default function LoginDialog() {
   const initialView = useUIStore((state) => state.loginDialogInitialView)
-  const [view, setView] = useState<"signin" | "signup" | "link">(
+  const [view, setView] = useState<"signin" | "signup">(
     initialView ?? (window.nostr ? "signin" : "signup")
   )
   const navLogoUrl = resolveAppAssetUrl(CONFIG.navLogo)
@@ -16,13 +15,8 @@ export default function LoginDialog() {
     <div className="flex flex-row items-center gap-2 justify-between card card-compact min-w-[320px] max-w-[90vw]">
       <div className="card-body items-center">
         <img src={navLogoUrl} alt={CONFIG.appName} className="w-12 h-12" />
-        {view === "signin" && (
-          <SignIn onClose={() => setView("signup")} onLink={() => setView("link")} />
-        )}
-        {view === "signup" && (
-          <SignUp onClose={() => setView("signin")} onLink={() => setView("link")} />
-        )}
-        {view === "link" && <LinkDevice onBack={() => setView("signin")} />}
+        {view === "signin" && <SignIn onClose={() => setView("signup")} />}
+        {view === "signup" && <SignUp onClose={() => setView("signin")} />}
       </div>
     </div>
   )

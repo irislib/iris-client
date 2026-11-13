@@ -4,7 +4,7 @@ import {create} from "zustand"
 interface UIState {
   newPostOpen: boolean
   showLoginDialog: boolean
-  loginDialogInitialView?: "signin" | "signup" | "link"
+  loginDialogInitialView?: "signin" | "signup"
   goToNotifications: number
   hidePWAPrompt: boolean
   isMediaModalSidebarVisible: boolean

@@ -6,14 +6,12 @@ import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {nostr} from "@/utils/nostrClient"
 import {NSEC_NPUB_REGEX} from "@/utils/validation"
-import Icon from "@/shared/components/Icons/Icon"
 
 interface SignUpProps {
   onClose: () => void
-  onLink?: () => void
 }
 
-export default function SignUp({onClose, onLink}: SignUpProps) {
+export default function SignUp({onClose}: SignUpProps) {
   const [newUserName, setNewUserName] = useState("")
   const {setShowLoginDialog} = useUIStore()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -157,20 +155,6 @@ export default function SignUp({onClose, onLink}: SignUpProps) {
         <span className="hover:underline">Already have an account?</span>
         <button className="btn btn-sm btn-neutral">Sign in</button>
       </div>
-      {onLink && (
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost w-full flex items-center justify-center gap-2"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onLink()
-          }}
-        >
-          <Icon name="qr" size={16} />
-          Link this device
-        </button>
-      )}
     </div>
   )
 }
