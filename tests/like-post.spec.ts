@@ -4,6 +4,7 @@ import {signUp} from "./auth.setup"
 test.describe("Post liking", () => {
   test("user can like a post", async ({page}) => {
     // First sign up
+    await page.routeWebSocket(/^wss:/, (socket) => socket.close())
     await signUp(page)
 
     // Create a post to like
@@ -17,7 +18,6 @@ test.describe("Post liking", () => {
 
     // After posting, we're navigated to the post detail page
     await page.waitForURL(/\/note/, {timeout: 10000})
-    await page.waitForLoadState("networkidle")
 
     // Wait for the post to appear - use visible selector to avoid background stack views
     const postElement = page
