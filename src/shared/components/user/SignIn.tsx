@@ -12,12 +12,21 @@ interface SignInProps {
   onClose: () => void
 }
 
+const hasExtension = () => typeof window.nostr?.getPublicKey === "function"
+
 export default function SignIn({onClose}: SignInProps) {
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
   const [signerPending, setSignerPending] = useState(false)
   const [signerError, setSignerError] = useState("")
+
+  const [extensionAvailable, setExtensionAvailable] = useState(hasExtension)
+  useEffect(() => {
+    // NIP-07 providers can be injected after the dialog opens.
+    const timer = window.setInterval(() => setExtensionAvailable(hasExtension()), 500)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const pairing = useRef<AbortController | null>(null)
   useEffect(() => () => pairing.current?.abort(), [])
@@ -121,14 +130,13 @@ export default function SignIn({onClose}: SignInProps) {
 
   async function extensionLogin() {
     setSignerError("")
-    if (!window.nostr) {
-      setSignerError(
-        "Connect a Nostr extension to this tab, then try again. In Nostr Backup, unlock your signer in Account first."
-      )
+    const provider = window.nostr
+    if (typeof provider?.getPublicKey !== "function") {
+      setExtensionAvailable(false)
       return
     }
     try {
-      const publicKey = await window.nostr.getPublicKey()
+      const publicKey = await provider.getPublicKey()
       useUserStore.setState({
         publicKey,
         privateKey: "",
@@ -165,9 +173,11 @@ export default function SignIn({onClose}: SignInProps) {
           Sign in with remote signer
         </button>
         {signerError && <div role="alert">{signerError}</div>}
-        <button type="button" className="btn btn-primary" onClick={extensionLogin}>
-          Nostr Extension Login
-        </button>
+        {extensionAvailable && (
+          <button type="button" className="btn btn-primary" onClick={extensionLogin}>
+            Nostr Extension Login
+          </button>
+        )}
         <input
           autoComplete="nsec"
           type="password"

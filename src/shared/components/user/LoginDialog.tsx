@@ -7,7 +7,8 @@ import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 export default function LoginDialog() {
   const initialView = useUIStore((state) => state.loginDialogInitialView)
   const [view, setView] = useState<"signin" | "signup">(
-    initialView ?? (window.nostr ? "signin" : "signup")
+    initialView ??
+      (typeof window.nostr?.getPublicKey === "function" ? "signin" : "signup")
   )
   const navLogoUrl = resolveAppAssetUrl(CONFIG.navLogo)
 

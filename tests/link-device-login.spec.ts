@@ -21,10 +21,9 @@ test("login offers a browser extension and keeps device pairing in Devices", asy
   if (!(await signInHeading.isVisible()))
     await page.getByRole("button", {name: "Sign in", exact: true}).click()
   const extension = page.getByRole("button", {name: "Nostr Extension Login"})
-  await expect(extension).toBeVisible()
+  await expect(extension).toHaveCount(0)
   await expect(linkButton).toHaveCount(0)
-  await extension.click()
-  await expect(page.getByRole("alert")).toContainText("Connect a Nostr extension")
+  await expect(page.getByRole("alert")).toHaveCount(0)
   // A signer can be enabled after the dialog is already open.
   await page.evaluate(() => {
     Object.defineProperty(window, "nostr", {
