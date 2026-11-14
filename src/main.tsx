@@ -15,6 +15,7 @@ import {initServiceWorkerAutoReload} from "@/swInit"
 import {startMessageExpirationCleanup} from "@/utils/messageExpirationCleanup"
 import {syncDisappearingMessagesToNdrRuntime} from "@/utils/disappearingMessages"
 import localforage from "localforage"
+import {savePushViewer} from "./utils/notificationPushContext"
 import {usePrivateMessagesStore} from "@/stores/privateMessages"
 import {useGroupsStore} from "@/stores/groups"
 import {useDraftStore} from "@/stores/draft"
@@ -177,7 +178,9 @@ initializeApp()
   })
 
 // Store subscriptions
+savePushViewer(useUserStore.getState().publicKey)
 const unsubscribeUser = useUserStore.subscribe((state, prevState) => {
+  if (state.publicKey !== prevState.publicKey) savePushViewer(state.publicKey)
   // Stop the previous account's publication retries before asynchronous setup,
   // including switches into read-only mode or logout.
   if (state.publicKey !== prevState.publicKey || !hasWriteAccess()) {

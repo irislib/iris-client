@@ -20,6 +20,7 @@ import {NavigationRoute, registerRoute} from "workbox-routing"
 import {clientsClaim, type RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
+import {shouldHideBulkPush} from "./utils/bulkNotificationCache"
 import {KIND_CHANNEL_CREATE} from "./utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
@@ -373,7 +374,7 @@ self.addEventListener("push", (event) => {
       }
 
       const data = event.data?.json() as PushData | undefined
-      if (!data?.event) return
+      if (!data?.event || (await shouldHideBulkPush(data.event))) return
 
       if (data.event.kind === MESSAGE_EVENT_KIND) {
         const result = await tryDecryptDmPushEvent(

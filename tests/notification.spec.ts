@@ -188,3 +188,82 @@ test("one daily reaction row opens every post and leaves shared activity visible
     await relay.close()
   }
 })
+
+test("bulk-addressed replies leave the inbox quiet unless followed or replying directly", async ({
+  page,
+}, testInfo) => {
+  const viewer = generateSecretKey(),
+    friend = generateSecretKey(),
+    stranger = generateSecretKey()
+  const me = getPublicKey(viewer),
+    followed = getPublicKey(friend),
+    author = getPublicKey(stranger)
+  const now = Math.floor(Date.now() / 1000) - 20
+  const sign = (key: Uint8Array, kind: number, tags: string[][], content: string) =>
+    finalizeEvent({kind, created_at: now, tags, content}, key)
+  const own = sign(viewer, 1, [], "The winter garden")
+  const another = sign(friend, 1, [], "What blooms first?")
+  const direct = sign(viewer, 1, [], "A photograph from last March")
+  const mention = sign(friend, 1, [], "Spring planting notes")
+  const many = [
+    ["p", me],
+    ...Array.from({length: 10}, (_, i) => ["p", (i + 1).toString(16).padStart(64, "0")]),
+  ]
+  const hidden = sign(
+    stranger,
+    1,
+    [["e", own.id, "", "root", me], ["e", another.id, "", "reply", followed], ...many],
+    "Unsolicited mass address"
+  )
+  const normal = sign(
+    stranger,
+    1,
+    [["e", mention.id, "", "mention"], ...many.slice(0, 10)],
+    "Ten participants"
+  )
+  const reply = sign(
+    stranger,
+    1,
+    [["e", direct.id, "", "reply", me], ...many],
+    "Direct answer to your question"
+  )
+  const trusted = sign(
+    friend,
+    1,
+    [["e", another.id, "", "mention"], ...many],
+    "An invitation from a friend"
+  )
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [
+      sign(viewer, 3, [["p", followed]], ""),
+      sign(friend, 3, [["p", author]], ""),
+      own,
+      another,
+      direct,
+      mention,
+      hidden,
+      normal,
+      reply,
+      trusted,
+    ],
+  })
+  await page.addInitScript((port) => {
+    window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+  }, relay.port)
+  try {
+    await signUp(page, nip19.nsecEncode(viewer))
+    await page.locator('li a[href="/notifications"]').click()
+    const inbox = page
+      .locator("#main-content div.cursor-pointer.border-b:visible")
+      .filter({hasText: "replied"})
+    await expect(inbox).toHaveCount(3, {timeout: 20000})
+    for (const item of [normal, reply, trusted])
+      await expect(inbox.getByText(item.content, {exact: true})).toBeVisible()
+    await expect(inbox.getByText(hidden.content, {exact: true})).toHaveCount(0)
+    await page.screenshot({path: testInfo.outputPath("bulk-notification-filter.png")})
+  } finally {
+    await page.close()
+    await relay.close()
+  }
+})

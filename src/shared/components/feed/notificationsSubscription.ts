@@ -12,7 +12,10 @@ import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useNotificationsStore} from "@/stores/notifications"
 import {useUserStore} from "@/stores/user"
 import {useSettingsStore} from "@/stores/settings"
-import {cacheEvent} from "@/utils/eventCache"
+import {allowsBulkPost, immediateReplyTag, isBulkPost} from "@/utils/bulkNotifications"
+import {watchParentAuthors} from "@/utils/bulkNotificationCache"
+import {savePushFollows} from "@/utils/notificationPushContext"
+import {cacheEvent, getEventSync} from "@/utils/eventCache"
 import debounce from "lodash/debounce"
 import {nostr} from "@/utils/nostrClient"
 import {AppEvent, EventSubscription} from "@/lib/nostr"
@@ -92,7 +95,7 @@ const cancelPendingAndActiveSubscription = () => {
 }
 
 // Clean up notifications from muted users by filtering out muted events
-const cleanupHiddenNotifications = () => {
+const cleanupHiddenNotifications = (allowsPost: (event: AppEvent) => boolean) => {
   let cleanedCount = 0
   const toRemove: string[] = []
   const toReinsert: Array<[string, IrisNotification]> = []
@@ -107,7 +110,10 @@ const cleanupHiddenNotifications = () => {
     // In particular, zap receipts are signed by a service while `user` is the
     // actual zap sender whose visibility must be checked.
     const cleanedEvents = notification.events.filter((notifEvent) => {
-      if (shouldHideUnsolicitedEvent(notifEvent.event, notifEvent.user)) {
+      if (
+        shouldHideUnsolicitedEvent(notifEvent.event, notifEvent.user) ||
+        !allowsPost(notifEvent.event)
+      ) {
         cleanedCount++
         return false
       }
@@ -208,7 +214,36 @@ const startNotificationsSubscriptionNow = async (
   disposeActiveSubscription()
   if (generation !== subscriptionGeneration || !hasReadyGraphFor(myPubKey)) return
 
-  let latest = cleanupHiddenNotifications()
+  // Keep a bounded replay window for bulk posts. Following the sender or learning
+  // the immediate parent's author can make an already received event eligible.
+  const bulkPosts = new Map<string, AppEvent>()
+  const parentAuthors = new WeakMap<AppEvent, string>()
+  function rememberBulk(event: AppEvent) {
+    bulkPosts.set(event.id, event)
+    if (bulkPosts.size > 100) bulkPosts.delete(bulkPosts.keys().next().value!)
+  }
+  const allowsPost = (event: AppEvent) => {
+    if (!isBulkPost(event)) return true
+    const parent = immediateReplyTag(event)
+    if (parent && !parentAuthors.has(event)) {
+      const cached = getEventSync(parent[1])
+      if (cached?.id === parent[1] && cached.isValid)
+        parentAuthors.set(event, cached.pubkey)
+    }
+    return allowsBulkPost(
+      event,
+      myPubKey,
+      getSocialGraph().isFollowing(myPubKey, event.pubkey),
+      parentAuthors.get(event)
+    )
+  }
+  for (const notification of notifications.values()) {
+    for (const {event} of notification.events ?? []) {
+      if (isBulkPost(event)) rememberBulk(event)
+    }
+  }
+  let latest = cleanupHiddenNotifications(allowsPost)
+  savePushFollows(myPubKey)
 
   const kinds: number[] = [
     KIND_REACTION,
@@ -231,6 +266,57 @@ const startNotificationsSubscriptionNow = async (
     return
   }
   sub = nextSub
+  const isCurrent = () =>
+    generation === subscriptionGeneration && sub === nextSub && hasReadyGraphFor(myPubKey)
+  let stopParents: (() => void) | undefined
+  let parentKey = ""
+  let scheduled = false
+  function refreshParentWatch() {
+    if (scheduled) return
+    scheduled = true
+    queueMicrotask(() => {
+      scheduled = false
+      if (!isCurrent()) return
+      const ids = [
+        ...new Set(
+          Array.from(bulkPosts.values(), (item) => immediateReplyTag(item)?.[1]).filter(
+            (id): id is string => !!id
+          )
+        ),
+      ].sort()
+      const key = ids.join(",")
+      if (key === parentKey) return
+      parentKey = key
+      stopParents?.()
+      stopParents = ids.length
+        ? watchParentAuthors(ids, (authors) => {
+            if (!isCurrent()) return
+            for (const event of bulkPosts.values()) {
+              const parent = immediateReplyTag(event)
+              const author = parent && authors.get(parent[1])
+              if (author) parentAuthors.set(event, author)
+            }
+            recheck()
+          })
+        : undefined
+    })
+  }
+  function recheck() {
+    latest = cleanupHiddenNotifications(allowsPost)
+    for (const event of bulkPosts.values()) {
+      if (!allowsPost(event)) continue
+      const key = `${getNotificationTarget(event)}-${event.kind}`
+      if (
+        !notifications
+          .get(key)
+          ?.events.some(
+            (item) => item.user === event.pubkey && item.time >= event.created_at
+          )
+      )
+        void acceptEvent(event)
+    }
+  }
+  refreshParentWatch()
 
   const graphUnsubscribe = useSocialGraphStore.subscribe((state, previousState) => {
     if (generation !== subscriptionGeneration || sub !== nextSub) return
@@ -250,7 +336,8 @@ const startNotificationsSubscriptionNow = async (
       state.version !== previousState.version ||
       state.muteListVersion !== previousState.muteListVersion
     ) {
-      latest = cleanupHiddenNotifications()
+      savePushFollows(myPubKey)
+      recheck()
     }
   })
   unsubscribeFromGraph = graphUnsubscribe
@@ -262,11 +349,12 @@ const startNotificationsSubscriptionNow = async (
     ) {
       // Tightening removes newly hidden senders immediately. Loosening does not
       // resurrect historical entries; the next graph/subscription refresh will.
-      latest = cleanupHiddenNotifications()
+      latest = cleanupHiddenNotifications(allowsPost)
     }
   })
   unsubscribeFromSettings = settingsUnsubscribe
   nextSub.on("close", () => {
+    stopParents?.()
     if (sub === nextSub) sub = undefined
     if (unsubscribeFromGraph === graphUnsubscribe) {
       unsubscribeFromGraph = undefined
@@ -278,7 +366,7 @@ const startNotificationsSubscriptionNow = async (
     }
   })
 
-  nextSub.on("event", async (event: AppEvent) => {
+  async function acceptEvent(event: AppEvent) {
     const user = event.kind === KIND_ZAP_RECEIPT ? getZappingUser(event) : event.pubkey
     if (!user) {
       warn("no user for event", event)
@@ -293,7 +381,8 @@ const startNotificationsSubscriptionNow = async (
       sub === nextSub &&
       hasReadyGraphFor(myPubKey) &&
       (event.kind === KIND_ZAP_RECEIPT || event.pubkey !== myPubKey) &&
-      !shouldHideUnsolicitedEvent(event, user)
+      !shouldHideUnsolicitedEvent(event, user) &&
+      allowsPost(event)
 
     if (!canUseEvent()) return
 
@@ -374,6 +463,13 @@ const startNotificationsSubscriptionNow = async (
         store.updateRefreshRouteSignal()
       }
     }
+  }
+  nextSub.on("event", (event: AppEvent) => {
+    if (isBulkPost(event) && !bulkPosts.has(event.id)) {
+      rememberBulk(event)
+      refreshParentWatch()
+    }
+    void acceptEvent(event)
   })
 }
 

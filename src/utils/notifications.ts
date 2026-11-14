@@ -3,6 +3,7 @@ import {useSettingsStore} from "@/stores/settings"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
 import {useNotificationsStore} from "@/stores/notifications"
+import {savePushFollows} from "./notificationPushContext"
 import {getNotificationTarget} from "./threadReferences"
 import {getNdrRuntime} from "@/shared/services/PrivateChats"
 import {EventTag, AppEvent} from "@/lib/nostr"
@@ -425,6 +426,7 @@ const syncNotifications = async (generation: number) => {
     if (!isCurrent() || !pushSubscription) {
       return
     }
+    savePushFollows(myPubKey)
 
     const store = useSettingsStore.getState()
     const api = new IrisAPI(store.notifications.server)

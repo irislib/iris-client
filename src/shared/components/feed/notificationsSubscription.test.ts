@@ -53,7 +53,7 @@ const mocks = vi.hoisted(() => {
   const settingsStore = observable({
     content: {maxFollowDistanceForReplies: 5 as number | undefined},
   })
-  const graph = {getRoot: vi.fn(() => "viewer")}
+  const graph = {getRoot: vi.fn(() => "viewer"), isFollowing: vi.fn(() => false)}
   const subscriptions: FakeSubscription[] = []
   const notifications = new Map<string, any>()
   const hiddenUsers = new Set<string>()
@@ -74,6 +74,7 @@ const mocks = vi.hoisted(() => {
   )
 
   return {
+    parentChange: undefined as ((authors: Map<string, string>) => void) | undefined,
     FakeSubscription,
     socialStore,
     userStore,
@@ -116,7 +117,15 @@ vi.mock("@/utils/nostr.ts", () => ({
   getZappingUser: (event: {zapper?: string}) => event.zapper,
   getZapAmount: mocks.getZapAmount,
 }))
-vi.mock("@/utils/eventCache", () => ({cacheEvent: vi.fn()}))
+vi.mock("@/utils/bulkNotificationCache", () => ({
+  watchParentAuthors: (_ids: string[], changed: typeof mocks.parentChange) => {
+    mocks.parentChange = changed
+    return () => {
+      mocks.parentChange = undefined
+    }
+  },
+}))
+vi.mock("@/utils/eventCache", () => ({cacheEvent: vi.fn(), getEventSync: vi.fn()}))
 vi.mock("@/utils/nostrClient", () => ({
   nostr: () => ({
     subscribe: () => {
@@ -214,6 +223,42 @@ describe("notification subscription visibility lifecycle", () => {
 
     expect(mocks.notifications.size).toBe(1)
     expect(Array.from(mocks.notifications.values())[0].users.has("followed")).toBe(true)
+  })
+
+  it("drops bulk replies before the unread badge, then rechecks local follows and parent evidence", async () => {
+    const viewer = "a".repeat(64),
+      sender = "b".repeat(64),
+      target = "c".repeat(64)
+    mocks.userStore.setState({publicKey: viewer})
+    mocks.graph.getRoot.mockReturnValue(viewer)
+    mocks.graph.isFollowing.mockReturnValue(false)
+    mocks.socialStore.setState({isReady: true})
+    startNotificationsSubscription(viewer)
+    await flush()
+    const tags = [
+      ["e", target, "", "reply"],
+      ["p", viewer],
+      ...Array.from({length: 10}, (_, i) => ["p", String(i).repeat(64)]),
+    ]
+    mocks.subscriptions[0].emit(
+      "event",
+      event({id: "bulk", kind: 1, created_at: 20, pubkey: sender, tags})
+    )
+    await flush()
+    expect(mocks.notifications.size).toBe(0)
+    expect(mocks.notificationsState.latestNotification).toBe(0)
+    mocks.graph.isFollowing.mockReturnValue(true)
+    mocks.socialStore.setState({version: 1})
+    expect(mocks.notifications.size).toBe(1)
+    expect(mocks.notificationsState.latestNotification).toBe(20)
+    mocks.graph.isFollowing.mockReturnValue(false)
+    mocks.socialStore.setState({version: 2})
+    expect(mocks.notifications.size).toBe(0)
+    expect(mocks.notificationsState.latestNotification).toBe(0)
+    mocks.parentChange?.(new Map([[target, viewer]]))
+    expect(mocks.notifications.size).toBe(1)
+    expect(mocks.notificationsState.latestNotification).toBe(20)
+    mocks.graph.getRoot.mockReturnValue("viewer")
   })
 
   it("cleans existing notifications when reply distance is tightened", async () => {

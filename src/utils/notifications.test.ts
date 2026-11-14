@@ -263,3 +263,71 @@ describe("reaction notification grouping", () => {
     ).toBe(true)
   })
 })
+
+describe("bulk post notifications in the background worker", () => {
+  it("counts distinct valid recipients and preserves direct follows, immediate replies, and non-post kinds", async () => {
+    const {shouldHideBulkPush, PUSH_VIEWER_KEY, pushFollowsKey} =
+      await import("./bulkNotificationCache")
+    const {getMainThreadDb} = await import("@/lib/nostr/db")
+    const {finalizeEvent, generateSecretKey, getPublicKey} = await import("nostr-tools")
+    const localforage = (await import("localforage")).default
+    const viewerKey = generateSecretKey(),
+      viewer = getPublicKey(viewerKey)
+    const strangerKey = generateSecretKey(),
+      stranger = getPublicKey(strangerKey)
+    const sign = (key: Uint8Array, kind: number, tags: string[][]) =>
+      finalizeEvent({kind, tags, content: "test", created_at: 123456}, key)
+    const parent = sign(viewerKey, 1, [])
+    const other = sign(strangerKey, 1, [])
+    const contact = Array.from({length: 10}, (_, i) => [
+      "p",
+      (i + 1).toString(16).padStart(64, "0"),
+    ])
+    const ten = [
+      ["p", viewer],
+      ...contact.slice(1),
+      ["p", viewer],
+      ["p", stranger.toUpperCase()],
+      ["p", "broken"],
+      ["P", stranger],
+    ]
+    const many = [...ten, contact[0]]
+    const follows: string[] = []
+    const read = vi.spyOn(localforage, "getItem").mockImplementation(async (key) => {
+      if (key === PUSH_VIEWER_KEY) return viewer
+      return key === pushFollowsKey(viewer) ? follows : null
+    })
+    const hide = (tags: string[][], kind = 1) =>
+      shouldHideBulkPush(sign(strangerKey, kind, tags))
+    try {
+      expect(await hide(ten)).toBe(false)
+      expect(read).not.toHaveBeenCalled()
+      expect(await hide(many)).toBe(true)
+      for (const kind of [7, 6, 9735, 23195]) expect(await hide(many, kind)).toBe(false)
+      for (const kind of [20, 9802]) expect(await hide(many, kind)).toBe(true)
+      follows.push(stranger)
+      expect(await hide(many)).toBe(false)
+      follows.length = 0
+      const root = ["e", parent.id, "", "root", viewer]
+      const reply = ["e", other.id, "", "reply", stranger]
+      expect(await hide([...many, root])).toBe(false)
+      expect(await hide([...many, root, reply])).toBe(true)
+      expect(await hide([...many, ["e", parent.id, "", "mention", viewer]])).toBe(true)
+      expect(await hide([...many, root, ["e", other.id]])).toBe(true)
+      const db = getMainThreadDb()
+      for (const event of [parent, other])
+        await db.events.put({
+          id: event.id,
+          pubkey: event.pubkey,
+          kind: event.kind,
+          createdAt: event.created_at,
+          event: JSON.stringify(event),
+        })
+      expect(await hide([...many, ["e", parent.id, "", "reply"]])).toBe(false)
+      expect(await hide([...many, ["e", other.id, "", "reply", viewer]])).toBe(true)
+      await db.events.bulkDelete([parent.id, other.id])
+    } finally {
+      read.mockRestore()
+    }
+  })
+})
