@@ -4,6 +4,7 @@ import {useGraphSize} from "@/utils/socialGraph"
 
 export function Statistics() {
   const socialGraphSize = useGraphSize()
+  const withoutPath = socialGraphSize.users - socialGraphSize.reachableUsers
   return (
     <>
       <SettingsGroup title="Statistics">
@@ -32,13 +33,24 @@ export function Statistics() {
       <SettingsGroup title="Follow Distances">
         {Object.entries(socialGraphSize.sizeByDistance).map(
           ([distance, size], index, array) => (
-            <SettingsGroupItem key={distance} isLast={index === array.length - 1}>
+            <SettingsGroupItem
+              key={distance}
+              isLast={withoutPath === 0 && index === array.length - 1}
+            >
               <div className="flex justify-between items-center">
                 <span>Distance {distance}</span>
                 <span className="text-base-content/70">{size}</span>
               </div>
             </SettingsGroupItem>
           )
+        )}
+        {withoutPath > 0 && (
+          <SettingsGroupItem isLast>
+            <div className="flex justify-between items-center">
+              <span>No follow path</span>
+              <span className="text-base-content/70">{withoutPath}</span>
+            </div>
+          </SettingsGroupItem>
         )}
       </SettingsGroup>
     </>

@@ -25,7 +25,7 @@ export function useSearch({
   const {recentSearches, setRecentSearches} = useSearchStore()
   // Use graph size to trigger re-search when graph updates
   const graphSize = useGraphSize()
-  const isSocialGraphLoaded = graphSize.users > 1 // Graph is loaded if more than just root user
+  const isSocialGraphLoaded = graphSize.reachableUsers > 1
 
   // Track the latest search to avoid race conditions
   const latestSearchRef = useRef(0)

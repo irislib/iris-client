@@ -58,7 +58,7 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
     const navItemClicked = useUIStore((state) => state.navItemClicked)
     // Subscribe to graph changes for re-ranking search results
     const graphSize = useGraphSize()
-    const isSocialGraphLoaded = graphSize.users > 1
+    const isSocialGraphLoaded = graphSize.reachableUsers > 1
 
     // Forward ref to the input element
     useImperativeHandle(ref, () => inputRef.current!, [])
