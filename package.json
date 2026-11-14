@@ -1,7 +1,7 @@
 {
   "name": "iris",
   "private": true,
-  "version": "2.5.63",
+  "version": "2.5.64",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
@@ -88,8 +88,8 @@
     "@cashu/cashu-ts": "^3.7.1",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
-    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-core-0.0.56.tgz",
-    "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-transport-webrtc-0.0.60.tgz",
+    "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-core-0.0.57.tgz",
+    "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-webrtc-0.0.61.tgz",
     "@gandlaf21/bc-ur": "^1.1.12",
     "@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-core-0.4.0.tgz",
     "@hashtree/dexie": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",
@@ -135,7 +135,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-transport-websocket-0.0.14.tgz",
+    "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-websocket-0.0.15.tgz",
     "@iris/release-tools": "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.6/iris-release-tools-0.1.1.tgz",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/container-queries": "^0.1.1",
@@ -185,10 +185,9 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "@fips/transport-webrtc@0.0.60": "patches/fips-transport-webrtc.patch",
+      "@fips/transport-webrtc@0.0.61": "patches/fips-transport-webrtc.patch",
       "@hashtree/fips-transport@0.4.24": "patches/hashtree-fips-transport.patch",
-      "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch",
-      "nostr-pubsub@0.5.24": "patches/nostr-pubsub.patch"
+      "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch"
     },
     "overrides": {
       "dexie": "$dexie",
@@ -199,9 +198,9 @@
       "fast-uri@>=3.0.0 <3.1.8": "3.1.8",
       "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
       "smol-toml@>=1.0.0 <1.9.0": "1.9.0",
-      "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-core-0.0.56.tgz",
-      "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-transport-webrtc-0.0.60.tgz",
-      "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.61/fips-transport-websocket-0.0.14.tgz",
+      "@fips/core": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-core-0.0.57.tgz",
+      "@fips/transport-webrtc": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-webrtc-0.0.61.tgz",
+      "@fips/transport-websocket": "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-websocket-0.0.15.tgz",
       "@hashtree/worker>@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-core-0.4.0.tgz",
       "@hashtree/worker>@hashtree/dexie": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",
       "@hashtree/worker>@hashtree/mesh": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-mesh-0.3.3.tgz",
