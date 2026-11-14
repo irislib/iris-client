@@ -259,7 +259,9 @@ export interface ZapInfo {
 /**
  * Parse a zap receipt event (kind 9735) into structured data
  */
-export function parseZapReceipt(zapEvent: AppEvent): ZapInfo | null {
+export function parseZapReceipt(
+  zapEvent: AppEvent
+): (ZapInfo & {amountMsats: string}) | null {
   const invoice = zapEvent.tagValue("bolt11")
   if (!invoice) return null
 
@@ -271,7 +273,7 @@ export function parseZapReceipt(zapEvent: AppEvent): ZapInfo | null {
 
     if (!amountSection || !("value" in amountSection)) return null
 
-    const amount = Math.floor(parseInt(String(amountSection.value)) / 1000)
+    const amountMsats = String(amountSection.value)
     const zappingUser = getZappingUser(zapEvent)
 
     // Extract comment from description tag
@@ -288,7 +290,8 @@ export function parseZapReceipt(zapEvent: AppEvent): ZapInfo | null {
 
     return {
       id: zapEvent.id,
-      amount,
+      amount: Math.floor(parseInt(amountMsats) / 1000),
+      amountMsats,
       pubkey: zappingUser,
       comment,
       event: zapEvent,
