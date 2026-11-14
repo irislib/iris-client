@@ -225,3 +225,41 @@ describe("clearNotifications", () => {
     }
   })
 })
+
+describe("reaction notification grouping", () => {
+  it("keeps popular posts together when every target has multiple reacting people", async () => {
+    const {groupNotifications} = await import("./groupNotifications")
+    const {AppEvent} = await import("@/lib/nostr")
+    const {SortedMap} = await import("./SortedMap/SortedMap")
+    const items = [1, 2, 3].map((post) => {
+      const target = post.toString().padStart(64, "0")
+      const events = Array.from({length: 6}, (_, index) => {
+        const user = (index + 10).toString(16).repeat(64)
+        const event = new AppEvent(undefined, {
+          id: (post * 10 + index).toString(16).padStart(64, "0"),
+          kind: 7,
+          pubkey: user,
+          content: "+",
+          created_at: post,
+          tags: [["e", target]],
+        })
+        return {user, event, time: post, content: "+"}
+      })
+      const notification = {
+        id: events[0].event.id,
+        originalEventId: target,
+        kind: 7,
+        time: post,
+        content: "+",
+        events,
+        users: new SortedMap<string, {time: number}>([], "time"),
+      }
+      return [target, notification] as const
+    })
+    const rows = groupNotifications(new Map(items))
+    expect(rows.map((row) => row.key)).toEqual(items.map(([key]) => key).reverse())
+    expect(
+      rows.every((row) => "notification" in row && row.notification.events.length === 6)
+    ).toBe(true)
+  })
+})

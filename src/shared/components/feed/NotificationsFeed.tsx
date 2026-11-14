@@ -3,9 +3,11 @@ import {
   isNotificationUnread,
   notifications,
 } from "@/utils/notifications"
+import {groupNotifications} from "@/utils/groupNotifications"
+import {ReactionGroup} from "@/pages/notifications/ReactionGroup"
 import NotificationsFeedItem from "@/pages/notifications/NotificationsFeedItem"
 import InfiniteScroll from "@/shared/components/ui/InfiniteScroll"
-import {useEffect, useCallback, Suspense, useState} from "react"
+import {useEffect, useCallback, Suspense, useMemo, useState} from "react"
 import useHistoryState from "@/shared/hooks/useHistoryState"
 import {useNotificationsStore} from "@/stores/notifications"
 import {useLocation} from "@/navigation/hooks"
@@ -36,7 +38,12 @@ function NotificationsFeed() {
     "displayCount"
   )
 
-  const {latestNotification: latestNotificationTime} = useNotificationsStore()
+  const {latestNotification: latestNotificationTime, refreshRouteSignal} =
+    useNotificationsStore()
+  const rows = useMemo(
+    () => groupNotifications(notifications),
+    [latestNotificationTime, refreshRouteSignal]
+  )
 
   const updateSeenAt = useCallback(() => {
     // Only update seen time if document visible AND view is top of stack
@@ -104,22 +111,34 @@ function NotificationsFeed() {
     <div className="w-full">
       <InfiniteScroll
         onLoadMore={() => {
-          if (notifications.size > displayCount) {
+          if (rows.length > displayCount) {
             setDisplayCount(displayCount + DISPLAY_INCREMENT)
           }
         }}
       >
-        {notifications.size > 0 ? (
-          Array.from(notifications.entries())
-            .reverse()
+        {rows.length > 0 ? (
+          rows
             .slice(0, displayCount)
-            .map((entry) => (
-              <NotificationsFeedItem
-                highlight={isNotificationUnread(entry[1], animationSeenAt, readEvents)}
-                key={entry[0]}
-                notification={entry[1]}
-              />
-            ))
+            .map((row) =>
+              "posts" in row ? (
+                <ReactionGroup
+                  key={row.key}
+                  row={row}
+                  seenAt={animationSeenAt}
+                  readEvents={readEvents}
+                />
+              ) : (
+                <NotificationsFeedItem
+                  key={row.key}
+                  highlight={isNotificationUnread(
+                    row.notification,
+                    animationSeenAt,
+                    readEvents
+                  )}
+                  notification={row.notification}
+                />
+              )
+            )
         ) : (
           <div className="p-8 flex flex-col gap-8 items-center justify-center text-base-content/50">
             No notifications yet

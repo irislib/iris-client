@@ -178,20 +178,26 @@ test("opening a post reads only its activity and later reactions are still unrea
   await expect(badge).toBeVisible({timeout: 20000})
 
   await page.locator('li a[href="/notifications"]').click()
-  const row = (content: string) =>
-    page
-      .locator("div.cursor-pointer.border-b")
-      .filter({hasText: "reacted"})
-      .filter({hasText: content})
+  const group = page.getByRole("article", {name: "Grouped reactions"})
+  await group.getByRole("button", {name: "reacted to 2 posts"}).click()
+  const row = (content: string) => group.getByRole("listitem").filter({hasText: content})
   await expect(row(first.content)).toBeVisible()
-  await expect(row(second.content)).toHaveClass(/bg-info\/20/)
-  await expect(row(first.content)).not.toHaveClass(/bg-info\/20/)
+  await expect(row(second.content).getByLabel("Unread")).toBeVisible()
+  await expect(row(first.content).getByLabel("Unread")).toHaveCount(0)
   await page.screenshot({path: testInfo.outputPath("selectively-read.png")})
   await expect(badge).toBeHidden()
 
-  // Reopening the app must recover the old read state and admit fresh activity.
-  await page.goto("/")
-  await publishEvents([reaction(first, Math.floor(Date.now() / 1000) + 1)])
+  // Keep the notification subscription active while leaving the inbox. A
+  // settings view cannot mark new activity on our first post read.
+  await page.locator('li a[href="/settings"]').click()
+  await expect(page).toHaveURL(/\/settings$/)
+  const seenAt = await page.evaluate(
+    () =>
+      JSON.parse(localStorage.getItem("notifications-storage")!).state
+        .notificationsSeenAt as number
+  )
+  await expect.poll(() => Math.floor(Date.now() / 1000)).toBeGreaterThan(seenAt)
+  await publishEvents([reaction(first, Math.floor(Date.now() / 1000))])
   await expect(badge).toBeVisible({timeout: 20000})
   const detail = await page.context().newPage()
   await detail.goto("/" + nip19.noteEncode(first.id))

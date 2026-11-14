@@ -3,7 +3,11 @@ import {useSocialGraphStore} from "@/stores/socialGraph"
 import {shouldHideUnsolicitedEvent} from "@/utils/visibility"
 import {getZappingUser, getZapAmount} from "@/utils/nostr.ts"
 import {getNotificationTarget} from "@/utils/threadReferences"
-import {notifications, Notification as IrisNotification} from "@/utils/notifications"
+import {
+  notifications,
+  Notification as IrisNotification,
+  type NotificationEvent,
+} from "@/utils/notifications"
 import {SortedMap} from "@/utils/SortedMap/SortedMap"
 import {useNotificationsStore} from "@/stores/notifications"
 import {useUserStore} from "@/stores/user"
@@ -22,6 +26,20 @@ import {
   DEBUG_NAMESPACES,
 } from "@/utils/constants"
 import {createDebugLogger} from "@/utils/createDebugLogger"
+
+function rememberLatestActorEvent(
+  notification: IrisNotification,
+  {user, time, content, event}: NotificationEvent
+) {
+  const previous = notification.users.get(user)
+  if (
+    !previous ||
+    time > previous.time ||
+    (time === previous.time && event.id < (previous.eventId ?? ""))
+  ) {
+    notification.users.set(user, {time, content, eventId: event.id})
+  }
+}
 
 const {log, warn} = createDebugLogger(DEBUG_NAMESPACES.UI_FEED)
 
@@ -118,13 +136,7 @@ const cleanupHiddenNotifications = () => {
 
       // Rebuild users map from cleaned events for backward compatibility
       notification.users.clear()
-      for (const notifEvent of cleanedEvents) {
-        notification.users.set(notifEvent.user, {
-          time: notifEvent.time,
-          content: notifEvent.content,
-          eventId: notifEvent.event.id,
-        })
-      }
+      for (const event of cleanedEvents) rememberLatestActorEvent(notification, event)
       toReinsert.push([key, notification])
     }
   }
@@ -317,7 +329,9 @@ const startNotificationsSubscriptionNow = async (
           tags: event.tags,
         } as IrisNotification)
       // Add event to the events array
-      const existingEventIndex = notification.events.findIndex((e) => e.user === user)
+      const existingEventIndex = notification.events.findIndex((e) =>
+        event.kind === KIND_REACTION ? e.event.id === event.id : e.user === user
+      )
       if (
         existingEventIndex === -1 ||
         notification.events[existingEventIndex].time < event.created_at
@@ -335,12 +349,7 @@ const startNotificationsSubscriptionNow = async (
           notification.events.push(notificationEvent)
         }
 
-        // Also update the old users map for backward compatibility
-        notification.users.set(user, {
-          time: event.created_at,
-          content,
-          eventId: event.id,
-        })
+        rememberLatestActorEvent(notification, notificationEvent)
       }
       if (event.created_at > notification.time) {
         notification.time = event.created_at

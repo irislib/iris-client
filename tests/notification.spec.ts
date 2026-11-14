@@ -1,5 +1,5 @@
 import {test, expect} from "@playwright/test"
-import {nip19} from "nostr-tools"
+import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
 import {signUp} from "./auth.setup"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 
@@ -70,6 +70,121 @@ test("user sees a highlighted notification when a followed user likes their post
     await expect(notification.getByText(postContent, {exact: true})).toBeVisible()
   } finally {
     await Promise.all([contextA.close(), contextB.close()])
+    await relay.close()
+  }
+})
+
+test("one daily reaction row opens every post and leaves shared activity visible", async ({
+  page,
+}, testInfo) => {
+  const viewerKey = generateSecretKey()
+  const senderKey = generateSecretKey()
+  const otherKey = generateSecretKey()
+  const viewer = getPublicKey(viewerKey)
+  const sender = getPublicKey(senderKey)
+  const day = Math.floor(Date.now() / 86400000) * 86400 - 3600
+  const titles = [
+    "Taking the long way home",
+    "Winter light",
+    "Garden notes",
+    "The ferry crossing",
+    "A new walking trail",
+    "Evening colours",
+    "Street photography",
+    "At the market",
+    "From the sketchbook",
+    "First snow",
+  ]
+  const posts = titles.map((content, i) =>
+    finalizeEvent({kind: 1, created_at: day - 50 + i, tags: [], content}, viewerKey)
+  )
+  const react = (key: Uint8Array, index: number, time: number, content: string) =>
+    finalizeEvent(
+      {
+        kind: 7,
+        content,
+        created_at: time,
+        tags: [
+          ["e", posts[index].id],
+          ["p", viewer],
+        ],
+      },
+      key
+    )
+  const relay = await startNostrRelay({
+    port: 0,
+    initialEvents: [
+      finalizeEvent(
+        {
+          kind: 3,
+          created_at: day - 100,
+          content: "",
+          tags: [
+            ["p", sender],
+            ["p", getPublicKey(otherKey)],
+          ],
+        },
+        viewerKey
+      ),
+      finalizeEvent(
+        {
+          kind: 0,
+          created_at: day - 80,
+          tags: [],
+          content: JSON.stringify({name: "Rowan"}),
+        },
+        senderKey
+      ),
+      ...posts,
+      ...posts.map((_, i) => react(senderKey, i, day + i, i % 2 ? "🌲" : "+")),
+      react(senderKey, 4, day + 10, "🔥"),
+      react(otherKey, 1, day + 15, "+"),
+      react(senderKey, 0, day - 86400, "+"),
+    ],
+  })
+  await page.addInitScript((port) => {
+    window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+  }, relay.port)
+  try {
+    await signUp(page, nip19.nsecEncode(viewerKey))
+    await page.locator('li a[href="/notifications"]').click()
+    const feed = page.locator("#main-content")
+    const group = feed.getByRole("article", {name: "Grouped reactions"})
+    const toggle = group.getByRole("button", {name: "reacted to 10 posts"})
+    await expect(toggle).toBeVisible({timeout: 20000})
+    await expect(toggle).toHaveAttribute("aria-expanded", "false")
+    const postRows = feed
+      .locator("div.cursor-pointer.border-b:visible")
+      .filter({hasText: "reacted"})
+    await expect(postRows).toHaveCount(2)
+    for (const post of posts.slice(0, 2)) {
+      await expect(postRows.getByText(post.content, {exact: true})).toBeVisible()
+    }
+    await toggle.focus()
+    await page.keyboard.press("Enter")
+    const links = group.locator("ul a")
+    await expect(links).toHaveCount(10)
+    await expect(links.first()).toHaveAttribute(
+      "href",
+      "/" + nip19.noteEncode(posts[4].id)
+    )
+    for (const post of posts) {
+      await expect(group.getByRole("link", {name: post.content})).toHaveAttribute(
+        "href",
+        "/" + nip19.noteEncode(post.id)
+      )
+    }
+    await page.screenshot({path: testInfo.outputPath("grouped-reactions.png")})
+    await group.getByRole("link", {name: posts[6].content}).click()
+    await expect(page).toHaveURL(new RegExp(nip19.noteEncode(posts[6].id) + "$"))
+    await expect(
+      page
+        .getByTestId("feed-item")
+        .filter({hasText: posts[6].content, visible: true})
+        .first()
+    ).toBeVisible()
+  } finally {
+    await page.close()
     await relay.close()
   }
 })

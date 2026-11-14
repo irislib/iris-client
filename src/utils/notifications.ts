@@ -61,6 +61,14 @@ function notificationEvents(notification: Notification) {
     : [{event: {id: notification.id}, time: notification.time}]
 }
 
+export function isEventUnread(
+  {event, time}: {event: {id: string}; time: number},
+  seenAt: number,
+  readEvents: Record<string, number> = {}
+) {
+  return time > seenAt && !(event.id in readEvents)
+}
+
 export function isNotificationUnread(
   notification: Notification,
   seenAt: number,
@@ -68,8 +76,8 @@ export function isNotificationUnread(
 ) {
   return (
     notification.time > seenAt &&
-    notificationEvents(notification).some(
-      ({event, time}) => time > seenAt && !(event.id in readEvents)
+    notificationEvents(notification).some((item) =>
+      isEventUnread(item, seenAt, readEvents)
     )
   )
 }
