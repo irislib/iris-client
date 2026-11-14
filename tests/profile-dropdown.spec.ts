@@ -49,7 +49,7 @@ test.describe("Profile dropdown functionality", () => {
     await page.waitForURL(/npub/, {timeout: 10000})
 
     // Wait for page to render
-    await page.waitForLoadState("networkidle")
+    await expect(page.getByRole("link", {name: "Edit profile"})).toBeVisible()
 
     // Check that profile-dropdown-button (mute/block menu) doesn't exist
     const dropdownButton = page.getByTestId("profile-dropdown-button")
