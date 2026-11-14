@@ -7,12 +7,7 @@ import {KIND_ZAP_RECEIPT} from "@/utils/constants"
 import {useGroupAccess} from "@/groups/GroupContext"
 import {useGroupZaps} from "@/groups/useGroupZaps"
 import {formatAmount} from "@/utils/utils"
-import {
-  addPostZap,
-  orderedZapSenders,
-  readPostZap,
-  type ZapSender,
-} from "./postZapSenders"
+import {PostZapPayments, readPostZap, type ZapSender} from "./postZapSenders"
 
 export default function Zaps({event}: {event: AppEvent}) {
   const group = useGroupAccess()
@@ -23,7 +18,7 @@ export default function Zaps({event}: {event: AppEvent}) {
   useEffect(() => {
     setPublicSenders([])
     if (inGroup) return
-    const senders = new Map<string | null, ZapSender>()
+    const payments = new PostZapPayments()
     const seen = new Set<string>()
     let frame = 0
     const sub = nostr().subscribe({kinds: [KIND_ZAP_RECEIPT], "#e": [event.id]})
@@ -32,12 +27,11 @@ export default function Zaps({event}: {event: AppEvent}) {
       seen.add(raw.id)
       const receipt = parseZapReceipt(raw)
       const zap = receipt && readPostZap(receipt, event.id)
-      if (!zap) return
-      addPostZap(senders, zap)
+      if (!zap || !payments.add(zap)) return
       if (!frame)
         frame = requestAnimationFrame(() => {
           frame = 0
-          setPublicSenders(orderedZapSenders(senders))
+          setPublicSenders(payments.orderedSenders())
         })
     })
     return () => {
@@ -54,7 +48,7 @@ export default function Zaps({event}: {event: AppEvent}) {
   )
   const groupSenders = useMemo(() => {
     if (!inGroup) return []
-    const senders = new Map<string | null, ZapSender>()
+    const payments = new PostZapPayments()
     const retained = new Set<string>()
     for (const receipt of memberZaps) {
       if (retained.has(receipt.id)) continue
@@ -62,10 +56,10 @@ export default function Zaps({event}: {event: AppEvent}) {
       if (!groupCache.has(receipt.id))
         groupCache.set(receipt.id, readPostZap(receipt, event.id))
       const zap = groupCache.get(receipt.id)
-      if (zap) addPostZap(senders, zap)
+      if (zap) payments.add(zap)
     }
     for (const id of groupCache.keys()) if (!retained.has(id)) groupCache.delete(id)
-    return orderedZapSenders(senders)
+    return payments.orderedSenders()
   }, [inGroup, memberZaps, event.id, groupCache])
 
   const senders = inGroup ? groupSenders : publicSenders

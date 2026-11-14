@@ -4,6 +4,18 @@ import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
 
+// Nonpayable fixture. Each signed request normally represents a distinct payment.
+function invoiceFor(msats: number, paymentHash?: string, timestamp = 0) {
+  const hashWords = paymentHash
+    ? [1, 1, 20, ...bech32.toWords(Buffer.from(paymentHash, "hex"))]
+    : []
+  return bech32.encode(
+    `lnbc${msats * 10}p`,
+    [...new Array(6).fill(0), timestamp, ...hashWords, ...new Array(104).fill(0)],
+    2000
+  )
+}
+
 for (const width of [390, 1280]) {
   test(`zap reactions keep names readable and comments contained at ${width}px`, async ({
     page,
@@ -18,8 +30,6 @@ for (const width of [390, 1280]) {
     )
     const comment = "Zapvertise: thanks for sharing. Campaign reward — zapvertise.iris.to"
     const longComment = `https://example.com/${"unbroken".repeat(30)}`
-    // Amount-only invoice fixture, with no payable signature or payment hash.
-    const invoice = bech32.encode("lnbc10u", new Array(111).fill(0), 2000)
     const events = [post]
     for (const [name, content] of [
       ["nostrvpn.org", comment],
@@ -52,7 +62,7 @@ for (const width of [390, 1280]) {
               ["p", post.pubkey],
               ["P", getPublicKey(sender)],
               ["description", JSON.stringify(request)],
-              ["bolt11", invoice],
+              ["bolt11", invoiceFor(1_000_000, request.id)],
             ],
             content: "",
             created_at: now + 2,
@@ -132,7 +142,7 @@ test("post zap senders keep the message from their largest public tip", async ({
     msats: number,
     content: string,
     time: number,
-    options: {anon?: string[]; tamper?: boolean; target?: string} = {}
+    options: {anon?: string[]; tamper?: boolean; target?: string; invoice?: string} = {}
   ) {
     const tags = [
       ["e", options.target ?? post.id],
@@ -143,7 +153,7 @@ test("post zap senders keep the message from their largest public tip", async ({
       {kind: 9734, tags, content, created_at: now + time},
       key
     )
-    const invoice = bech32.encode(`lnbc${msats * 10}p`, new Array(111).fill(0), 2000)
+    const invoice = options.invoice ?? invoiceFor(msats, request.id)
     const receipt = finalizeEvent(
       {
         kind: 9735,
@@ -168,10 +178,19 @@ test("post zap senders keep the message from their largest public tip", async ({
     return receipt.id
   }
   const first = sender("River")
-  add(first, 7_900, "The largest tip", 1)
+  const originalInvoice = invoiceFor(7_900, post.id)
+  add(first, 7_900, "The largest tip", 1, {invoice: originalInvoice})
+  add(first, 7_900, "Later receipt with the same invoice", 50, {invoice: originalInvoice})
+  add(first, 7_900, "Reissued invoice with the same payment hash", 51, {
+    invoice: invoiceFor(7_900, post.id, 1),
+  })
   add(first, 7_100, "A smaller tip in the same sat", 20)
   const second = sender("Willow")
-  add(second, 13_000, "   ", 3)
+  const hashlessInvoice = invoiceFor(13_000)
+  add(second, 13_000, "   ", 3, {invoice: hashlessInvoice})
+  add(second, 13_000, "Hashless invoice reissue", 55, {
+    invoice: hashlessInvoice.toUpperCase(),
+  })
   add(second, 1_000, "Smaller thank you", 4)
   const third = sender("Robin")
   const a = add(third, 3_000, "A tied message", 5)

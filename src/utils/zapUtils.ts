@@ -261,7 +261,7 @@ export interface ZapInfo {
  */
 export function parseZapReceipt(
   zapEvent: AppEvent
-): (ZapInfo & {amountMsats: string}) | null {
+): (ZapInfo & {amountMsats: string; paymentKey: string}) | null {
   const invoice = zapEvent.tagValue("bolt11")
   if (!invoice) return null
 
@@ -273,6 +273,13 @@ export function parseZapReceipt(
 
     if (!amountSection || !("value" in amountSection)) return null
 
+    const hash = decodedInvoice.sections.find(
+      (section) => section.name === "payment_hash"
+    )
+    const paymentKey =
+      hash?.name === "payment_hash" && /^[0-9a-f]{64}$/i.test(hash.value)
+        ? hash.value.toLowerCase()
+        : invoice.toLowerCase()
     const amountMsats = String(amountSection.value)
     const zappingUser = getZappingUser(zapEvent)
 
@@ -292,6 +299,7 @@ export function parseZapReceipt(
       id: zapEvent.id,
       amount: Math.floor(parseInt(amountMsats) / 1000),
       amountMsats,
+      paymentKey,
       pubkey: zappingUser,
       comment,
       event: zapEvent,

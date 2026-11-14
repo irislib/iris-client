@@ -4,6 +4,7 @@ import type {parseZapReceipt} from "@/utils/zapUtils"
 type Receipt = NonNullable<ReturnType<typeof parseZapReceipt>>
 
 type PostZap = {
+  paymentKey: string
   sender: string | null
   amountMsats: bigint
   message: string
@@ -29,6 +30,7 @@ export function readPostZap(receipt: Receipt, postId: string): PostZap | null {
       request.tags.some(([tag]) => tag === "anon") ||
       receipt.event.tags.some(([tag]) => tag === "anon")
     return {
+      paymentKey: receipt.paymentKey,
       sender: anonymous ? null : request.pubkey,
       amountMsats,
       message: !anonymous && request.content.trim() ? request.content : "",
@@ -52,7 +54,7 @@ function preferZap(candidate: PostZap, current: PostZap): boolean {
   return candidate.id < current.id
 }
 
-export function addPostZap(senders: Map<string | null, ZapSender>, zap: PostZap) {
+function addPostZap(senders: Map<string | null, ZapSender>, zap: PostZap) {
   const entry = senders.get(zap.sender)
   senders.set(zap.sender, {
     sender: zap.sender,
@@ -61,9 +63,41 @@ export function addPostZap(senders: Map<string | null, ZapSender>, zap: PostZap)
   })
 }
 
-export function orderedZapSenders(senders: Map<string | null, ZapSender>) {
-  return [...senders.values()].sort((a, b) => {
-    if (a.totalMsats !== b.totalMsats) return a.totalMsats > b.totalMsats ? -1 : 1
-    return (a.sender ?? "").localeCompare(b.sender ?? "")
-  })
+// Reissued receipts represent one payment. Prefer privacy on conflicts, then the
+// earliest receipt so a reissue cannot move a message ahead of another equal tip.
+function preferReceipt(candidate: PostZap, current: PostZap): boolean {
+  if ((candidate.sender === null) !== (current.sender === null))
+    return candidate.sender === null
+  if (candidate.createdAt !== current.createdAt)
+    return candidate.createdAt < current.createdAt
+  return candidate.id < current.id
+}
+
+export class PostZapPayments {
+  private payments = new Map<string, PostZap>()
+  private senders = new Map<string | null, ZapSender>()
+  private needsRegroup = false
+
+  add(zap: PostZap): boolean {
+    const previous = this.payments.get(zap.paymentKey)
+    if (previous && !preferReceipt(zap, previous)) return false
+    this.payments.set(zap.paymentKey, zap)
+    if (previous) this.needsRegroup = true
+    if (!this.needsRegroup) addPostZap(this.senders, zap)
+    return true
+  }
+
+  orderedSenders(): ZapSender[] {
+    // Ordinary arrivals update one sender. Coalesce conflicting replacements
+    // into one rebuild per snapshot to remove displaced amounts and messages.
+    if (this.needsRegroup) {
+      this.senders.clear()
+      for (const zap of this.payments.values()) addPostZap(this.senders, zap)
+      this.needsRegroup = false
+    }
+    return [...this.senders.values()].sort((a, b) => {
+      if (a.totalMsats !== b.totalMsats) return a.totalMsats > b.totalMsats ? -1 : 1
+      return (a.sender ?? "").localeCompare(b.sender ?? "")
+    })
+  }
 }
