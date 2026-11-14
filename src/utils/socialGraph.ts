@@ -494,10 +494,18 @@ export const useIsFollowing = (
  * Useful for debugging and showing loading progress.
  */
 export const useGraphSize = () => {
-  // Subscribe to graph version changes via Zustand store
-  useSocialGraphStore((state) => state.version)
-  useSocialGraphStore((state) => state.muteListVersion)
-  return instance.size()
+  const version = useSocialGraphStore((state) => state.version)
+  const muteVersion = useSocialGraphStore((state) => state.muteListVersion)
+  return useMemo(() => {
+    const {users: reachableUsers, follows, mutes, sizeByDistance} = instance.size()
+    return {
+      users: instance.getInternalData().ids.size,
+      reachableUsers,
+      follows,
+      mutes,
+      sizeByDistance,
+    }
+  }, [version, muteVersion])
 }
 
 const isCurrentGraphSync = (syncGeneration: number, publicKey: string) =>

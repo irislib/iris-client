@@ -33,7 +33,7 @@ export function useMentionAutocomplete(
   const dismissed = useRef<{value: string; cursor: number} | null>(null)
   const pendingSelection = useRef<{value: string; cursor: number} | null>(null)
   const socialGraph = useSocialGraph()
-  const isSocialGraphLoaded = useGraphSize().users > 1
+  const isSocialGraphLoaded = useGraphSize().reachableUsers > 1
   const selectedMentionIndex = Math.max(
     0,
     searchResults.findIndex((result) => result.pubKey === selectedPubkey)

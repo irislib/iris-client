@@ -3,12 +3,12 @@ import {SocialGraph} from "nostr-social-graph"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 
 test("social graph stats update after snapshot download", async ({page}, testInfo) => {
-  const snapshot = async (follows: number) => {
-    const graph = new SocialGraph(manifest.root)
+  const snapshot = async (root: string, follows: number) => {
+    const graph = new SocialGraph(root)
     graph.handleEvent(
       {
         kind: 3,
-        pubkey: manifest.root,
+        pubkey: root,
         created_at: 20,
         tags: Array.from({length: follows}, (_, index) => [
           "p",
@@ -23,8 +23,9 @@ test("social graph stats update after snapshot download", async ({page}, testInf
     )
     return Buffer.from(await graph.toBinary())
   }
-  const initial = await snapshot(1)
-  const downloaded = await snapshot(120)
+  const initial = await snapshot(manifest.root, 1)
+  // The downloaded network has no follow path from the active root.
+  const downloaded = await snapshot("f".repeat(64), 120)
   await page.addInitScript(() => {
     localStorage.setItem(
       "user-storage",
@@ -42,7 +43,9 @@ test("social graph stats update after snapshot download", async ({page}, testInf
     )
   })
   await page.route(/\/socialGraph(?:-[^/]+)?\.bin(?:\?.*)?$/, (route) =>
-    route.fulfill({body: initial, contentType: "application/octet-stream"})
+    route.request().resourceType() === "script"
+      ? route.continue()
+      : route.fulfill({body: initial, contentType: "application/octet-stream"})
   )
   let requested: URL | undefined
   let release!: () => void
@@ -62,15 +65,11 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   const statisticsHeading = page.getByText("Statistics", {exact: true})
   await expect(statisticsHeading).toBeVisible({timeout: 20000})
 
-  // Get follow relationships count via evaluate
-  const getFollows = async () => {
-    return page.evaluate(() => {
-      const text = document.body.innerText
-      const match = text.match(/Follow relationships\s+(\d+)/)
-      return match ? Number(match[1]) : 0
-    })
-  }
-  await expect.poll(getFollows).toBe(1)
+  const count = (label: string) =>
+    page.getByText(label, {exact: true}).locator("..").locator("span").last()
+  await expect(count("Follow relationships")).toHaveText("1")
+  await expect(count("Users")).toHaveText("2")
+  await expect(count("Distance 1")).toHaveText("1")
 
   // Scroll down to download section
   await page.getByText("Download Snapshot").scrollIntoViewIfNeeded()
@@ -93,11 +92,10 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   // Scroll back to statistics
   await statisticsHeading.scrollIntoViewIfNeeded()
 
-  // Verify stats updated - downloaded graph should have follow relationships
-  await expect(async () => {
-    const newFollows = await getFollows()
-    expect(newFollows).toBeGreaterThan(100)
-    expect(newFollows).toBe(120)
-  }).toPass({timeout: 5000})
+  await expect(count("Follow relationships")).toHaveText("120")
+  await expect(count("Users")).toHaveText("122")
+  await expect(count("Distance 0")).toHaveText("1")
+  await expect(page.getByText("Distance 1", {exact: true})).toHaveCount(0)
+  await expect(count("No follow path")).toHaveText("121")
   await page.screenshot({path: testInfo.outputPath("downloaded-graph-statistics.png")})
 })

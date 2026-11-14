@@ -1,6 +1,6 @@
-import {useState, useEffect, useMemo} from "react"
+import {useMemo} from "react"
 import {nip19} from "nostr-tools"
-import {useSocialGraph} from "@/utils/socialGraph"
+import {useGraphSize, useSocialGraph} from "@/utils/socialGraph"
 import {Link, useNavigate} from "@/navigation"
 import Widget from "@/shared/components/ui/Widget"
 import {formatAmount} from "@/utils/utils"
@@ -12,21 +12,11 @@ interface SocialGraphWidgetProps {
 
 export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = {}) {
   const socialGraph = useSocialGraph()
-  const [socialGraphSize, setSocialGraphSize] = useState(socialGraph.size())
+  const socialGraphSize = useGraphSize()
   const navigate = useNavigate()
   const recommendationPolicy = useRecommendationVisibilitySnapshot()
 
-  useEffect(() => {
-    const updateStats = () => {
-      setSocialGraphSize(socialGraph.size())
-    }
-
-    updateStats()
-    const interval = setInterval(updateStats, 2000)
-    return () => clearInterval(interval)
-  }, [socialGraph])
-
-  const distanceData = socialGraphSize.sizeByDistance || {}
+  const distanceData = socialGraphSize.sizeByDistance
   const distance1 = distanceData[1] || 0
   const distance2 = distanceData[2] || 0
   const distance3Plus = Object.entries(distanceData)
@@ -43,17 +33,20 @@ export function SocialGraphWidget({background = true}: SocialGraphWidgetProps = 
       Array.from(socialGraph.getUsersByFollowDistance(distance) || []).filter(
         (pubKey) => !snapshot.shouldHideRecommendationUser(pubKey)
       )
-    const policyDistanceData = socialGraph.size().sizeByDistance || {}
-
     return {
       visibleDistance1: visibleUsersAtDistance(1),
       visibleDistance2: visibleUsersAtDistance(2),
-      visibleDistance3Plus: Object.keys(policyDistanceData)
+      visibleDistance3Plus: Object.keys(distanceData)
         .map(Number)
         .filter((distance) => distance >= 3)
         .flatMap(visibleUsersAtDistance),
     }
-  }, [recommendationPolicy.ready, recommendationPolicy.snapshot, socialGraph])
+  }, [
+    recommendationPolicy.ready,
+    recommendationPolicy.snapshot,
+    socialGraph,
+    distanceData,
+  ])
 
   const pickRandom = (users: string[]) => {
     if (users.length === 0) return

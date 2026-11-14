@@ -20,9 +20,10 @@ export function Maintenance() {
   const crawling = useSocialGraphStore((state) => state.isRecrawling)
   const [followDegree, setFollowDegree] = useState(String(DEFAULT_CRAWL_DEGREE))
 
-  const handleRecalculateDistances = () => {
-    socialGraph.recalculateFollowDistances()
-    const removed = socialGraph.removeMutedNotFollowedUsers()
+  const handleRecalculateDistances = async () => {
+    await socialGraph.recalculateFollowDistances()
+    const removed = await socialGraph.removeMutedNotFollowedUsers()
+    useSocialGraphStore.getState().incrementVersion()
     log("Removed", removed, "muted not followed users")
   }
   return (
