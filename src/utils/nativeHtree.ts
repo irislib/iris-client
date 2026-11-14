@@ -300,9 +300,13 @@ export function resolveAppAssetUrl(assetPath: string): string {
 }
 
 export function syncInjectedHtreeHeadAssetUrls(doc: Document = document): void {
+  const isGroups = CONFIG.appVariant === "groups"
   const headAssets = [
-    ['link[rel="icon"]', "/favicon.svg"],
-    ['link[rel="apple-touch-icon"]', "/img/apple-touch-icon.png"],
+    ['link[rel="icon"]', isGroups ? CONFIG.navLogo : "/favicon.svg"],
+    [
+      'link[rel="apple-touch-icon"]',
+      isGroups ? CONFIG.icon : "/img/apple-touch-icon.png",
+    ],
     ['link[rel="manifest"]', "/manifest.json"],
   ] as const
 

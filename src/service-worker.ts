@@ -14,6 +14,7 @@ import {
   precacheAndRoute,
   PrecacheEntry,
 } from "workbox-precaching"
+import {showAppNotification} from "./utils/showAppNotification"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {NavigationRoute, registerRoute} from "workbox-routing"
@@ -324,24 +325,20 @@ const NOTIFICATION_CONFIGS: Record<
   {
     title: string | ((displayName?: string) => string)
     url: string
-    icon: string
   }
 > = {
   [MESSAGE_EVENT_KIND]: {
     title: (displayName?: string) =>
       displayName ? `New private message from ${displayName}` : "New private message",
     url: "/chats",
-    icon: "/favicon.png",
   },
   [INVITE_EVENT_KIND]: {
     title: "New message request",
     url: "/chats",
-    icon: "/favicon.png",
   },
   [INVITE_RESPONSE_KIND]: {
     title: "New private message",
     url: "/chats",
-    icon: "/favicon.png",
   },
 } as const
 
@@ -388,8 +385,7 @@ self.addEventListener("push", (event) => {
           if (result.silent) return
           if (result.kind === KIND_CHANNEL_CREATE) {
             const config = NOTIFICATION_CONFIGS[MESSAGE_EVENT_KIND]
-            await self.registration.showNotification("New group invite", {
-              icon: config.icon,
+            await showAppNotification(self.registration, "New group invite", {
               data: {
                 url: config.url,
                 event: data.event,
@@ -404,9 +400,8 @@ self.addEventListener("push", (event) => {
                 ? config.title(displayName)
                 : config.title
             if (result.groupName) title = `New message in ${result.groupName}`
-            await self.registration.showNotification(title, {
+            await showAppNotification(self.registration, title, {
               body: result.content,
-              icon: config.icon,
               data: {
                 url: result.groupId
                   ? `/chats/group/${encodeURIComponent(result.groupId)}`
@@ -422,8 +417,7 @@ self.addEventListener("push", (event) => {
       if (NOTIFICATION_CONFIGS[data.event.kind]) {
         const config = NOTIFICATION_CONFIGS[data.event.kind]
         const title = typeof config.title === "function" ? config.title() : config.title
-        await self.registration.showNotification(title, {
-          icon: config.icon,
+        await showAppNotification(self.registration, title, {
           data: {url: config.url, event: data.event},
         })
         return
@@ -444,9 +438,14 @@ self.addEventListener("push", (event) => {
           }
         : undefined
 
-      const icon = data.icon?.startsWith("http")
-        ? generateProxyUrl(data.icon, {width: 128, square: true}, proxyConfig)
-        : data.icon || "/favicon.png"
+      // The notification server supplies this fallback when the sender has no photo.
+      const senderIcon =
+        data.icon === "https://iris.to/img/android-chrome-192x192.png"
+          ? undefined
+          : data.icon
+      const icon = senderIcon?.startsWith("http")
+        ? generateProxyUrl(senderIcon, {width: 128, square: true}, proxyConfig)
+        : senderIcon
 
       // Cache the pushed event so the page renders instantly when clicked. The
       // notification server sees events on relays the client may not connect to,
@@ -458,7 +457,7 @@ self.addEventListener("push", (event) => {
         error("Failed to cache pushed event:", err)
       }
 
-      await self.registration.showNotification(data.title || "New notification", {
+      await showAppNotification(self.registration, data.title || "New notification", {
         body: data.body,
         icon,
         data,

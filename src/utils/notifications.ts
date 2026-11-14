@@ -1,5 +1,6 @@
 import {MESSAGE_EVENT_KIND, type NdrRuntime} from "nostr-double-ratchet"
 import {useSettingsStore} from "@/stores/settings"
+import {showAppNotification} from "./showAppNotification"
 import {SortedMap} from "./SortedMap/SortedMap"
 import {useUserStore} from "@/stores/user"
 import {useNotificationsStore} from "@/stores/notifications"
@@ -186,7 +187,7 @@ export const showNotification = async (
         options?.data && typeof options.data === "object"
           ? {url: clickUrl, ...options.data}
           : (options?.data ?? {url: clickUrl})
-      await serviceWorker.showNotification(title, {
+      await showAppNotification(serviceWorker, title, {
         ...options,
         data,
       })

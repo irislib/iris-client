@@ -36,6 +36,7 @@ export default defineConfig({
               `name="description" content="${aboutText}"`
             )
             .replace('href="./favicon.svg"', 'href="./groups.svg"')
+            .replace('href="./img/apple-touch-icon.png"', `href=".${config.get("icon")}"`)
             .replace('<link rel="manifest" href="./manifest.json" />', "")
         },
       },
