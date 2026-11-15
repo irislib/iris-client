@@ -57,6 +57,25 @@ async function sessionStorageFingerprints(page: Page) {
   )
 }
 
+test("read-only accounts can cancel logout before clearing the session", async ({page}) => {
+  const account = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
+  await signUp(page, account)
+  await page.goto("/settings/logout")
+  const logout = page.getByRole("button", {name: "Log out", exact: true})
+  const signedIn = () => page.evaluate(() => JSON.parse(localStorage.getItem("user-storage") || "{}").state?.publicKey)
+  const publicKey = await signedIn()
+  expect(publicKey).toBeTruthy()
+  page.once("dialog", (dialog) => dialog.dismiss())
+  await logout.click()
+  await expect(logout).toBeVisible()
+  expect(await signedIn()).toBe(publicKey)
+
+  page.once("dialog", (dialog) => dialog.accept())
+  await logout.click()
+  await expect(page).toHaveURL(/\/$/)
+  await expect.poll(signedIn).toBeFalsy()
+})
+
 test("logout without a service worker is fast and clears private data", async ({
   page,
 }, testInfo) => {

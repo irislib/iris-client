@@ -183,9 +183,12 @@ function Logout() {
     e?.stopPropagation()
     log("[Logout] Starting logout process")
 
-    const confirmed =
-      !store.privateKey ||
-      (await confirm("Make sure you have a backup of your secret key.", "Log out?"))
+    const confirmed = await confirm(
+      store.privateKey
+        ? "Make sure you have a backup of your secret key."
+        : "This will clear your session on this device.",
+      "Log out?"
+    )
 
     if (confirmed) {
       log("[Logout] User confirmed")
