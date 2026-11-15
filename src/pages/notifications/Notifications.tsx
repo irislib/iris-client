@@ -1,9 +1,8 @@
 import NotificationsFeed from "@/shared/components/feed/NotificationsFeed.tsx"
 import RightColumn from "@/shared/components/RightColumn"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import Header from "@/shared/components/header/Header"
-import Widget from "@/shared/components/ui/Widget"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {useToastStore, type Toast} from "@/stores/toast"
 import {Link} from "@/navigation"
@@ -93,20 +92,8 @@ function Notifications() {
         </ScrollablePageContainer>
       </div>
       <RightColumn>
-        {() => (
-          <>
-            <SocialGraphWidget />
-            <Widget title="Popular" className="h-96">
-              <AlgorithmicFeed
-                type="popular"
-                displayOptions={{
-                  small: true,
-                  showDisplaySelector: false,
-                }}
-              />
-            </Widget>
-          </>
-        )}
+        <SocialGraphWidget />
+        <PopularWidget />
       </RightColumn>
     </div>
   )

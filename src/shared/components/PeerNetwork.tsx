@@ -1,32 +1,8 @@
 import {usePeerNetwork} from "@/shared/hooks/usePeerNetwork"
 import type {ReactNode} from "react"
 import {formatTraffic} from "@/lib/peerNetworkStats"
-import {Link} from "@/navigation"
 import {SettingsGroup} from "./settings/SettingsGroup"
 import {PeerBandwidthChart} from "./PeerBandwidthChart"
-
-export function PeerNetworkSummary() {
-  const {peerCount, webRtcPeerCount, seedCount} = usePeerNetwork()
-  const seedColor = peerCount ? "bg-warning" : "bg-base-content/30"
-  const color = webRtcPeerCount ? "bg-[#3fb950]" : seedColor
-  return (
-    <Link
-      to="/settings/network"
-      className="flex items-center gap-2 mb-3 text-sm hover:opacity-80"
-      data-testid="network-peer-summary"
-    >
-      <span className={`h-2 w-2 rounded-full ${color}`} aria-hidden="true" />
-      <span>
-        {peerCount} {peerCount === 1 ? "peer" : "peers"}
-      </span>
-      {seedCount > 0 && (
-        <span className="text-base-content/50">
-          · {seedCount} {seedCount === 1 ? "seed" : "seeds"}
-        </span>
-      )}
-    </Link>
-  )
-}
 
 const transportLabels: Record<string, string> = {
   webrtc: "WebRTC",

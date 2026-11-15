@@ -4,8 +4,7 @@ import type {Manager} from "@/lib/cashu/core/index"
 import type {SendHistoryEntry, HistoryEntry} from "@/lib/cashu/core/models/History"
 import type {Token} from "@cashu/cashu-ts"
 import RightColumn from "@/shared/components/RightColumn"
-import Widget from "@/shared/components/ui/Widget"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import {useCashuWalletStore} from "@/stores/cashuWallet"
 import {useWalletProviderStore} from "@/stores/walletProvider"
 import {RiArrowRightUpLine, RiArrowLeftDownLine, RiRefreshLine} from "@remixicon/react"
@@ -615,19 +614,7 @@ export default function CashuWallet() {
         </div>
 
         <RightColumn>
-          {() => (
-            <>
-              <Widget title="Popular" className="h-96">
-                <AlgorithmicFeed
-                  type="popular"
-                  displayOptions={{
-                    small: true,
-                    showDisplaySelector: false,
-                  }}
-                />
-              </Widget>
-            </>
-          )}
+          <PopularWidget />
         </RightColumn>
       </div>
     </>

@@ -3,7 +3,7 @@ import classNames from "classnames"
 import {RiMenuLine} from "@remixicon/react"
 
 import RightColumn from "@/shared/components/RightColumn"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import Feed from "@/shared/components/feed/Feed.tsx"
 import Header from "@/shared/components/header/Header"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
@@ -303,27 +303,15 @@ function UserPage({pubKey}: {pubKey: string}) {
         </ScrollablePageContainer>
       </div>
       <RightColumn>
-        {() => (
+        {filteredFollows.length > 0 && (
+          <Widget title="Follows" className="h-96">
+            <FollowList follows={filteredFollows} visibility="recommendation" />
+          </Widget>
+        )}
+        {pubKeyHex === myPubKey && (
           <>
-            {filteredFollows.length > 0 && (
-              <Widget title="Follows" className="h-96">
-                <FollowList follows={filteredFollows} visibility="recommendation" />
-              </Widget>
-            )}
-            {pubKeyHex === myPubKey && (
-              <>
-                <SocialGraphWidget />
-                <Widget title="Popular" className="h-96">
-                  <AlgorithmicFeed
-                    type="popular"
-                    displayOptions={{
-                      small: true,
-                      showDisplaySelector: false,
-                    }}
-                  />
-                </Widget>
-              </>
-            )}
+            <SocialGraphWidget />
+            <PopularWidget />
           </>
         )}
       </RightColumn>

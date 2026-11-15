@@ -1,6 +1,5 @@
 import RightColumn from "@/shared/components/RightColumn"
-import Widget from "@/shared/components/ui/Widget"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import {useEffect, useState} from "react"
 
 export default function OldWallet() {
@@ -33,17 +32,7 @@ export default function OldWallet() {
         )}
       </div>
       <RightColumn>
-        {() => (
-          <Widget title="Popular">
-            <AlgorithmicFeed
-              type="popular"
-              displayOptions={{
-                small: true,
-                showDisplaySelector: false,
-              }}
-            />
-          </Widget>
-        )}
+        <PopularWidget className="h-auto" />
       </RightColumn>
     </div>
   )

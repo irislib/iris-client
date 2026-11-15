@@ -19,7 +19,6 @@ interface FeedWidgetProps {
   loadingMessage?: string
   maxItems?: number
   small?: boolean
-  scrollContainer?: HTMLDivElement | null
   forceShowZapAll?: boolean
   showZapAll?: boolean
 }
@@ -36,7 +35,6 @@ const FeedWidget = memo(function FeedWidget({
   loadingMessage = "",
   maxItems,
   small = true,
-  scrollContainer = null,
   forceShowZapAll = false,
   showZapAll = false,
 }: FeedWidgetProps) {
@@ -93,12 +91,7 @@ const FeedWidget = memo(function FeedWidget({
       )}
 
       {loadMore ? (
-        <InfiniteScroll
-          onLoadMore={loadMore}
-          loadMoreKey={loadMoreKey}
-          loading={loading}
-          scrollContainer={scrollContainer}
-        >
+        <InfiniteScroll onLoadMore={loadMore} loadMoreKey={loadMoreKey} loading={loading}>
           {renderEvents()}
         </InfiniteScroll>
       ) : (

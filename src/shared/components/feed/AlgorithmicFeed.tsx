@@ -2,7 +2,6 @@ import FeedWidget from "./FeedWidget"
 import useAlgorithmicFeed from "@/shared/hooks/useAlgorithmicFeed"
 import {useFeedStore, type FeedType} from "@/stores/feed"
 import {getOrCreateAlgorithmicFeedCache} from "@/utils/memcache"
-import {useScrollContainer} from "@/contexts/useScrollContainer"
 
 interface FeedDisplayOptions {
   small?: boolean
@@ -46,8 +45,6 @@ const AlgorithmicFeed = function AlgorithmicFeed({
   forceShowZapAll = false,
   showZapAll = false,
 }: AlgorithmicFeedProps) {
-  const scrollContainer = useScrollContainer()
-
   const {small, showDisplaySelector} = {
     ...defaultDisplayOptions,
     ...displayOptions,
@@ -78,7 +75,6 @@ const AlgorithmicFeed = function AlgorithmicFeed({
       emptyMessage={config.emptyMessage}
       loadingMessage={config.loadingMessage}
       small={small}
-      scrollContainer={scrollContainer}
       forceShowZapAll={forceShowZapAll}
       showZapAll={showZapAll}
     />

@@ -1,5 +1,5 @@
 import {RiLoginBoxLine, RiLockLine, RiBugLine} from "@remixicon/react"
-import {useRef, useMemo} from "react"
+import {useMemo} from "react"
 import NavLink from "./NavLink"
 
 import {useWalletBalance} from "../../hooks/useWalletBalance"
@@ -18,11 +18,9 @@ import {NavItem} from "./NavItem"
 import {nostr} from "@/utils/nostrClient"
 import {RelayConnectivityIndicator, OfflineIndicator} from "../RelayConnectivityIndicator"
 import {hasWriteAccess} from "@/utils/auth"
-import {ColumnLayoutToggle} from "./ColumnLayoutToggle"
 import {resolveAppAssetUrl} from "@/utils/nativeHtree"
 
 const NavSideBar = () => {
-  const ref = useRef<HTMLDivElement>(null)
   const {setShowLoginDialog} = useUIStore()
   const {balance} = useWalletBalance()
   const {showBalanceInNav} = useWalletStore()
@@ -47,13 +45,12 @@ const NavSideBar = () => {
   return (
     <ErrorBoundary>
       <div
-        ref={ref}
         data-testid="desktop-sidebar"
         className="bg-base-200 hidden md:sticky md:flex top-0 select-none md:w-20 xl:w-64 h-screen z-40 flex-col md:justify-between border-r border-custom overflow-y-scroll scrollbar-hide pt-[env(safe-area-inset-top)] flex-shrink-0"
       >
         <div className="flex flex-col items-start md:items-center xl:items-start gap-4 md:gap-2 xl:gap-4">
           <NavLink
-            className="md:mb-2 xl:mb-0 mt-4 ml-4 md:ml-0 xl:ml-5 flex flex-row gap-2 items-center md:justify-center font-bold font-bold text-3xl"
+            className="md:mb-2 xl:mb-0 mt-4 ml-4 md:ml-0 xl:ml-5 flex flex-row gap-2 items-center md:justify-center font-bold text-3xl"
             to="/"
           >
             <img className="w-8 h-8" src={logoUrl} alt={CONFIG.appName} />
@@ -116,53 +113,33 @@ const NavSideBar = () => {
           )}
         </div>
         {myPubKey && (
-          <>
-            <div className="flex flex-col p-4 gap-2">
-              <div
-                className={
-                  CONFIG.appVariant === "groups"
-                    ? "hidden"
-                    : "hidden lg:flex xl:hidden justify-center mb-2"
-                }
-              >
-                <ColumnLayoutToggle compact />
-              </div>
-              <div
-                className={
-                  CONFIG.appVariant === "groups"
-                    ? "hidden"
-                    : "hidden xl:flex justify-start mb-2"
-                }
-              >
-                <ColumnLayoutToggle />
-              </div>
-              <div className="hidden md:flex md:flex-col xl:flex-row items-center xl:items-center gap-1 mb-2">
-                {/* Offline indicator - md-lg (above), xl (after indicator) */}
-                <OfflineIndicator className="md:flex xl:hidden badge-md" />
-                {/* Relay indicator */}
-                <RelayConnectivityIndicator className="xl:flex-row" />
-                <OfflineIndicator className="hidden xl:flex badge-md" />
-              </div>
-              {!nostr().signer && (
-                <div
-                  title="Read-only mode"
-                  data-testid="sidebar-readonly-indicator"
-                  className="badge badge-error badge-sm xl:badge-md gap-1 self-center xl:self-start mb-1"
-                >
-                  <RiLockLine className="w-3.5 h-3.5 shrink-0" />
-                  <span className="hidden xl:inline">Read-only</span>
-                </div>
-              )}
-              <div className="flex-1">
-                <UserRow
-                  pubKey={myPubKey}
-                  showBadge={false}
-                  textClassName="md:hidden xl:inline font-bold"
-                  avatarWidth={45}
-                />
-              </div>
+          <div className="flex flex-col p-4 gap-2">
+            <div className="hidden md:flex md:flex-col xl:flex-row items-center gap-1 mb-2">
+              {/* Offline indicator - md-lg (above), xl (after indicator) */}
+              <OfflineIndicator className="md:flex xl:hidden badge-md" />
+              {/* Relay indicator */}
+              <RelayConnectivityIndicator className="xl:flex-row" />
+              <OfflineIndicator className="hidden xl:flex badge-md" />
             </div>
-          </>
+            {!nostr().signer && (
+              <div
+                title="Read-only mode"
+                data-testid="sidebar-readonly-indicator"
+                className="badge badge-error badge-sm xl:badge-md gap-1 self-center xl:self-start mb-1"
+              >
+                <RiLockLine className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden xl:inline">Read-only</span>
+              </div>
+            )}
+            <div className="flex-1">
+              <UserRow
+                pubKey={myPubKey}
+                showBadge={false}
+                textClassName="md:hidden xl:inline font-bold"
+                avatarWidth={45}
+              />
+            </div>
+          </div>
         )}
       </div>
     </ErrorBoundary>

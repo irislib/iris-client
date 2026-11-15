@@ -20,7 +20,6 @@ function findNearestScrollingParent(element: HTMLElement): HTMLElement | null {
 type Props = {
   onLoadMore: () => void
   children: ReactNode
-  scrollContainer?: HTMLElement | null
   loadMoreKey?: string | number
   loading?: boolean
 }
@@ -28,7 +27,6 @@ type Props = {
 const InfiniteScroll = ({
   onLoadMore,
   children,
-  scrollContainer,
   loadMoreKey = 0,
   loading = false,
 }: Props) => {
@@ -56,14 +54,11 @@ const InfiniteScroll = ({
   }, [loadMoreKey, loading])
 
   useEffect(() => {
-    // Find scroll container automatically if not provided
-    let actualScrollContainer = scrollContainer
-    if (!actualScrollContainer && observerRef.current) {
-      actualScrollContainer = findNearestScrollingParent(observerRef.current)
-    }
+    const target = observerRef.current
+    if (!target) return
 
     const observerOptions = {
-      root: actualScrollContainer,
+      root: findNearestScrollingParent(target),
       rootMargin: "400px 0px",
       threshold: 0,
     }
@@ -74,17 +69,14 @@ const InfiniteScroll = ({
       if (!target.isIntersecting) attemptedKeyRef.current = null
       onLoadMoreRef.current()
     }, observerOptions)
-    const target = observerRef.current
-    if (target) {
-      observer.observe(target)
-    }
+    observer.observe(target)
 
     return () => {
       observer.disconnect()
       wasIntersectingRef.current = false
       attemptedKeyRef.current = null
     }
-  }, [scrollContainer])
+  }, [])
 
   return (
     <>

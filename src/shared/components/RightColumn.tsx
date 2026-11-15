@@ -5,21 +5,12 @@ import {useSettingsStore} from "@/stores/settings"
 import ErrorBoundary from "./ui/ErrorBoundary"
 import {useIsLargeScreen} from "@/shared/hooks/useIsLargeScreen"
 
-interface RightColumnProps {
-  children: () => ReactNode
-}
-
-function RightColumn({children}: RightColumnProps) {
+function RightColumn({children}: {children: ReactNode}) {
   const isLargeScreen = useIsLargeScreen()
   const {appearance, updateAppearance} = useSettingsStore()
   const isExpanded = appearance.showRightColumn
 
   const isTestEnvironment = import.meta.env.VITE_E2E === "true"
-
-  // Don't show right column when two-column layout is enabled (singleColumnLayout is false)
-  if (!appearance.singleColumnLayout) {
-    return null
-  }
 
   if (!isLargeScreen && !isTestEnvironment) {
     return null
@@ -55,7 +46,7 @@ function RightColumn({children}: RightColumnProps) {
             <RiArrowRightSLine className="w-5 h-5" />
           </button>
         </div>
-        {children()}
+        {children}
       </div>
     </ErrorBoundary>
   )

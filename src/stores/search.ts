@@ -30,12 +30,10 @@ interface SearchState {
   recentSearches: CustomSearchResult[]
   searchQuery: string
   showEventsByUnknownUsers: boolean
-  selectedRelayUrl: string
 
   setRecentSearches: (searches: CustomSearchResult[]) => void
   setSearchQuery: (query: string) => void
   setShowEventsByUnknownUsers: (show: boolean) => void
-  setSelectedRelayUrl: (url: string) => void
 }
 
 export const useSearchStore = create<SearchState>()(
@@ -51,7 +49,6 @@ export const useSearchStore = create<SearchState>()(
         searchModel: "auto" as SearchModel,
         ollamaModel: "gemma3:1b",
         showEventsByUnknownUsers: false,
-        selectedRelayUrl: "",
       }
 
       const actions = {
@@ -66,7 +63,6 @@ export const useSearchStore = create<SearchState>()(
         setSearchQuery: (searchQuery: string) => set({searchQuery}),
         setShowEventsByUnknownUsers: (showEventsByUnknownUsers: boolean) =>
           set({showEventsByUnknownUsers}),
-        setSelectedRelayUrl: (selectedRelayUrl: string) => set({selectedRelayUrl}),
       }
 
       return {

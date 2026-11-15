@@ -8,7 +8,6 @@ export interface SettingsState {
   appearance: {
     theme: string
     showRightColumn: boolean
-    singleColumnLayout: boolean
     limitedMaxWidth: boolean
   }
   // Content settings
@@ -85,7 +84,6 @@ export const useSettingsStore = create<SettingsState>()(
       appearance: {
         theme: CONFIG.defaultTheme,
         showRightColumn: true,
-        singleColumnLayout: true,
         limitedMaxWidth: false,
       },
       content: {

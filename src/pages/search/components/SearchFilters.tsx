@@ -14,17 +14,9 @@ import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
 import {getFeedCacheKey} from "@/stores/feed"
 import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
 
-interface SearchFiltersProps {
-  encodedQuery?: string
-  showTabSelector?: boolean
-}
-
-const SearchFilters = memo(function SearchFilters({
-  encodedQuery,
-  showTabSelector = true,
-}: SearchFiltersProps = {}) {
+const SearchFilters = memo(function SearchFilters() {
   const {query} = useParams()
-  const decodedQuery = decodeURIComponent(encodedQuery ?? query ?? "")
+  const decodedQuery = query ? decodeURIComponent(query) : ""
   const navigate = useNavigate()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -136,7 +128,7 @@ const SearchFilters = memo(function SearchFilters({
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      {showTabSelector && <SearchTabSelector activeTab="posts" />}
+      <SearchTabSelector activeTab="posts" />
 
       <div className="w-full p-2">
         <form onSubmit={handleSubmit} className="w-full flex items-center gap-2">

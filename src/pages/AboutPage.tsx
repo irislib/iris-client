@@ -13,10 +13,9 @@ import {
   RiArrowUpSLine,
 } from "@remixicon/react"
 import RightColumn from "@/shared/components/RightColumn"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import Feed from "@/shared/components/feed/Feed"
 import Header from "@/shared/components/header/Header"
-import Widget from "@/shared/components/ui/Widget"
 import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
 import {useState, useEffect} from "react"
 import {Link} from "@/navigation"
@@ -250,19 +249,7 @@ export const AboutPage = () => {
         </ScrollablePageContainer>
       </div>
       <RightColumn>
-        {() => (
-          <>
-            <Widget title="Popular" className="h-96">
-              <AlgorithmicFeed
-                type="popular"
-                displayOptions={{
-                  small: true,
-                  showDisplaySelector: false,
-                }}
-              />
-            </Widget>
-          </>
-        )}
+        <PopularWidget />
       </RightColumn>
     </div>
   )

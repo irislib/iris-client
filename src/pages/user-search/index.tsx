@@ -12,8 +12,6 @@ import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePage
 import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
 import {Helmet} from "react-helmet"
-import {useIsTwoColumnLayout} from "@/shared/hooks/useIsTwoColumnLayout"
-import {HomeRightColumn} from "@/pages/home/components/HomeRightColumn"
 import {handleNostrIdentifier} from "@/utils/handleNostrIdentifier"
 import {useSearchInputAutofocus} from "@/shared/hooks/useSearchInputAutofocus"
 import classNames from "classnames"
@@ -25,7 +23,6 @@ export default function UserSearchPage() {
   const {query} = useParams()
   const decodedQuery = query ? decodeURIComponent(query) : ""
   const navigate = useNavigate()
-  const isInTwoColumnLayout = useIsTwoColumnLayout()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [displayCount, setDisplayCount] = useState(20)
   const [searchValue, setSearchValue] = useState(decodedQuery)
@@ -120,11 +117,6 @@ export default function UserSearchPage() {
     if (displayCount < displayUsers.length) {
       setDisplayCount((prev) => Math.min(prev + 20, displayUsers.length))
     }
-  }
-
-  // If in two-column layout, show the home-style right column
-  if (isInTwoColumnLayout) {
-    return <HomeRightColumn />
   }
 
   return (

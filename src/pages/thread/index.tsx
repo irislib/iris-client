@@ -1,6 +1,6 @@
 import FeedItem from "@/shared/components/event/FeedItem/FeedItem"
 import RightColumn from "@/shared/components/RightColumn.tsx"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import AuthorArticlesFeed from "@/shared/components/feed/AuthorArticlesFeed"
 import FollowList from "@/pages/user/components/FollowList"
 import Header from "@/shared/components/header/Header"
@@ -14,6 +14,57 @@ import {nip19} from "nostr-tools"
 import {KIND_LONG_FORM_CONTENT} from "@/utils/constants"
 import {useLongformEvent} from "@/shared/hooks/useLongformEvent"
 import useRecommendationVisibilitySnapshot from "@/shared/hooks/useRecommendationVisibilitySnapshot"
+
+function ThreadContextWidget({
+  articleAuthor,
+  articleId,
+  relevantPeople,
+}: {
+  articleAuthor: string | null
+  articleId: string
+  relevantPeople: Map<string, boolean>
+}) {
+  const recommendationPolicy = useRecommendationVisibilitySnapshot()
+
+  if (articleAuthor) {
+    if (!recommendationPolicy.ready) {
+      return (
+        <Widget title="More from this author" className="h-96">
+          <div className="px-4 py-2 text-base-content/50 text-sm">
+            Loading recommendations...
+          </div>
+        </Widget>
+      )
+    }
+
+    if (recommendationPolicy.snapshot?.shouldHideRecommendationUser(articleAuthor)) {
+      return null
+    }
+
+    return (
+      <Widget title="More from this author" className="h-96">
+        <AuthorArticlesFeed
+          authorPubkey={articleAuthor}
+          currentArticleId={articleId}
+          maxItems={5}
+          visibilitySnapshot={recommendationPolicy.snapshot}
+        />
+      </Widget>
+    )
+  }
+
+  if (relevantPeople.size === 0) return null
+
+  return (
+    <Widget title="Relevant people" className="h-96">
+      <FollowList
+        follows={Array.from(relevantPeople.keys())}
+        showAbout={true}
+        visibility="recommendation"
+      />
+    </Widget>
+  )
+}
 
 export default function ThreadPage({
   id,
@@ -34,7 +85,6 @@ export default function ThreadPage({
   )
   const [event, setEvent] = useState<AppEvent | null>(null)
   const [loading, setLoading] = useState(false)
-  const recommendationPolicy = useRecommendationVisibilitySnapshot()
 
   const addRelevantPerson = useCallback((person: string) => {
     setRelevantPeople((prev) => new Map(prev).set(person, true))
@@ -78,47 +128,6 @@ export default function ThreadPage({
     },
     [threadAuthor, addRelevantPerson]
   )
-
-  const renderSidebarContextWidget = () => {
-    if (isArticle && threadAuthor) {
-      if (!recommendationPolicy.ready) {
-        return (
-          <Widget title="More from this author" className="h-96">
-            <div className="px-4 py-2 text-base-content/50 text-sm">
-              Loading recommendations...
-            </div>
-          </Widget>
-        )
-      }
-
-      if (recommendationPolicy.snapshot?.shouldHideRecommendationUser(threadAuthor)) {
-        return null
-      }
-
-      return (
-        <Widget title="More from this author" className="h-96">
-          <AuthorArticlesFeed
-            authorPubkey={threadAuthor}
-            currentArticleId={event?.id || id}
-            maxItems={5}
-            visibilitySnapshot={recommendationPolicy.snapshot}
-          />
-        </Widget>
-      )
-    }
-
-    if (relevantPeople.size === 0) return null
-
-    return (
-      <Widget title="Relevant people" className="h-96">
-        <FollowList
-          follows={Array.from(relevantPeople.keys())}
-          showAbout={true}
-          visibility="recommendation"
-        />
-      </Widget>
-    )
-  }
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -169,20 +178,12 @@ export default function ThreadPage({
         </ScrollablePageContainer>
       </div>
       <RightColumn>
-        {() => (
-          <>
-            {renderSidebarContextWidget()}
-            <Widget title="Popular" className="h-96">
-              <AlgorithmicFeed
-                type="popular"
-                displayOptions={{
-                  small: true,
-                  showDisplaySelector: false,
-                }}
-              />
-            </Widget>
-          </>
-        )}
+        <ThreadContextWidget
+          articleAuthor={isArticle ? threadAuthor : null}
+          articleId={event?.id || id}
+          relevantPeople={relevantPeople}
+        />
+        <PopularWidget />
       </RightColumn>
     </div>
   )

@@ -1,178 +1,105 @@
-import {test, expect} from "@playwright/test"
+import {expect, test as base, type Locator} from "@playwright/test"
+import {finalizeEvent, generateSecretKey, getPublicKey, nip19} from "nostr-tools"
+import {startNostrRelay} from "../dev-relay/nostr-relay"
 import {signUp} from "./auth.setup"
 
-test.describe("Home Feed Scroll Behavior", () => {
-  test("Mobile: scroll works and header is outside pull-to-refresh", async ({page}) => {
-    // Set mobile viewport before signup
-    await page.setViewportSize({width: 375, height: 667})
-    await page.goto("/")
-
-    // Wait for page to load
-    // Avoid networkidle (app uses persistent connections); wait for DOM instead.
-    await page.waitForLoadState("domcontentloaded")
-
-    // Check if scrollable element exists
-    const scrollable = await page.locator("[data-scrollable]").first()
-    const scrollableCount = await scrollable.count()
-
-    // If no scrollable element, test passes (UI may vary)
-    if (scrollableCount === 0) {
-      console.log("No scrollable element found - UI may not require scrolling")
-      expect(true).toBe(true)
-      return
-    }
-
-    // Check if header is NOT inside scrollable (pull-to-refresh area)
-    const headerInsideScrollable = await page.evaluate(() => {
-      const header = document.querySelector("header")
-      const scrollable = document.querySelector("[data-scrollable]")
-      if (!header || !scrollable) return null
-      return scrollable.contains(header)
+const test = base.extend<{homeFeed: Locator}>({
+  homeFeed: async ({page}, use) => {
+    const viewer = generateSecretKey()
+    const author = generateSecretKey()
+    const now = Math.floor(Date.now() / 1000) - 60
+    const relay = await startNostrRelay({
+      port: 0,
+      initialEvents: [
+        finalizeEvent(
+          {kind: 3, tags: [["p", getPublicKey(author)]], content: "", created_at: now},
+          viewer
+        ),
+        ...Array.from({length: 16}, (_, i) =>
+          finalizeEvent(
+            {kind: 1, tags: [], content: `Home feed post ${i}`, created_at: now - i},
+            author
+          )
+        ),
+      ],
     })
-    expect(headerInsideScrollable).toBe(false)
-
-    console.log("✓ Header correctly outside scrollable area")
-  })
-
-  test("Mobile: header hides on scroll down and shows on scroll up", async ({page}) => {
-    // Set mobile viewport
-    await page.setViewportSize({width: 375, height: 667})
-    await page.goto("/")
-
-    // Wait for page to load
-    // Avoid networkidle (app uses persistent connections); wait for DOM instead.
-    await page.waitForLoadState("domcontentloaded")
-
-    const header = await page.locator("header").first()
-    const scrollable = await page.locator("[data-scrollable]").first()
-
-    // If no scrollable, skip test
-    if ((await scrollable.count()) === 0) {
-      console.log("No scrollable element - skipping header hide test")
-      expect(true).toBe(true)
-      return
+    try {
+      await page.addInitScript((port) => {
+        window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
+        localStorage.setItem(
+          "settings-storage",
+          JSON.stringify({
+            version: 0,
+            state: {appearance: {singleColumnLayout: false, showRightColumn: true}},
+          })
+        )
+      }, relay.port)
+      await signUp(page, nip19.npubEncode(getPublicKey(viewer)))
+      const firstPost = page.getByText(/^Home feed post \d+$/).first()
+      await expect(firstPost).toBeVisible()
+      await use(firstPost.locator("xpath=ancestor::*[@data-header-scroll-target][1]"))
+    } finally {
+      await relay.close()
     }
+  },
+})
 
-    // Just verify header exists
-    const headerExists = await header.count()
-    expect(headerExists).toBeGreaterThan(0)
+test.describe("Desktop", () => {
+  test.use({viewport: {width: 1440, height: 900}})
 
-    console.log("✓ Header behavior test passed")
+  test("a saved two-column preference opens the regular home feed", async ({
+    page,
+    homeFeed,
+  }, testInfo) => {
+    const sidebar = page.getByTestId("desktop-sidebar")
+    const layoutToggle = page.getByTitle(/^(Single|Two)-column layout$/)
+    await expect(sidebar.getByTestId("sidebar-readonly-indicator")).toBeVisible()
+    await expect(layoutToggle).toHaveCount(0)
+    await expect(page.getByRole("button", {name: "Hide right column"})).toBeVisible()
+    await homeFeed.evaluate((el) => el.scrollTo(0, 400))
+    await expect.poll(() => homeFeed.evaluate((el) => el.scrollTop)).toBeGreaterThan(0)
+    const header = page.locator("header").first()
+    await expect(header).toBeInViewport()
+    await header.click()
+    await expect.poll(() => homeFeed.evaluate((el) => el.scrollTop)).toBe(0)
+    await page.screenshot({path: testInfo.outputPath("desktop-home.png")})
 
-    // Scroll back to top
-    await scrollable.evaluate((el) => {
-      el.scrollTop = 0
-      el.dispatchEvent(new Event("scroll"))
-    })
-    await page.waitForTimeout(300)
-
-    // Header should be visible again
-    const visibleTransform = await header.evaluate(
-      (el) => window.getComputedStyle(el).transform
-    )
-    expect(visibleTransform).toMatch(/none|matrix\(1, 0, 0, 1, 0, 0\)/)
+    await page.goto("/settings/appearance")
+    await expect(page.getByText("Limited maximum width", {exact: true})).toBeVisible()
+    await expect(page.getByText("Column layout", {exact: true})).toHaveCount(0)
+    await expect(layoutToggle).toHaveCount(0)
   })
+})
 
-  test("Desktop two-column: middle column scrolls properly", async ({page}) => {
-    // Set desktop viewport
-    await page.setViewportSize({width: 1400, height: 900})
+test.describe("Mobile", () => {
+  test.use({viewport: {width: 390, height: 844}})
 
-    // Navigate to home
-    await page.goto("/")
+  test("the home header hides on scroll and stays fixed during a pull", async ({
+    page,
+    homeFeed,
+  }, testInfo) => {
+    const header = page.locator("header").first()
+    await expect(header).toBeInViewport()
+    await homeFeed.evaluate((el) => el.scrollTo(0, 400))
+    await expect(header).not.toBeInViewport()
+    await homeFeed.evaluate((el) => el.scrollTo(0, 0))
+    await expect(header).toBeInViewport({ratio: 1})
 
-    // Wait for content to load
-    await page.waitForTimeout(2000)
-
-    // Toggle to two-column layout if needed
-    const toggleButton = await page.locator('header button[title*="column"]').first()
-    if ((await toggleButton.count()) > 0) {
-      const buttonTitle = await toggleButton.getAttribute("title")
-      if (buttonTitle?.includes("Expand")) {
-        await toggleButton.click()
-        await page.waitForTimeout(500)
+    const initialPosition = await header.boundingBox()
+    await homeFeed.evaluate((el) => {
+      for (const [type, clientY] of [
+        ["touchstart", 100],
+        ["touchmove", 200],
+      ] as const) {
+        const touch = new Touch({identifier: 1, target: el, clientY})
+        el.dispatchEvent(new TouchEvent(type, {bubbles: true, touches: [touch]}))
       }
-    }
-
-    // Check if middle column exists
-    const middleColumn = await page.locator(
-      '[data-main-scroll-container="middle-column"]'
-    )
-    const hasMiddleColumn = (await middleColumn.count()) > 0
-
-    if (hasMiddleColumn) {
-      // Verify middle column can scroll
-      const scrollInfo = await middleColumn.evaluate((el) => ({
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight,
-        canScroll: el.scrollHeight > el.clientHeight,
-      }))
-
-      expect(scrollInfo.canScroll).toBe(true)
-
-      // Test actual scrolling
-      await middleColumn.evaluate((el) => {
-        el.scrollTop = 200
-      })
-      await page.waitForTimeout(100)
-      const scrollTop = await middleColumn.evaluate((el) => el.scrollTop)
-      expect(scrollTop).toBe(200)
-    }
-  })
-
-  test("Desktop single-column: scroll works with header visible", async ({page}) => {
-    // Set desktop viewport
-    await page.setViewportSize({width: 1400, height: 900})
-
-    // Sign up to see content
-    await signUp(page)
-
-    // Check header is visible
-    const header = await page.locator("header").first()
-    expect(await header.isVisible()).toBe(true)
-
-    console.log("✓ Desktop header visible")
-  })
-
-  test("Desktop: clicking header scrolls to top", async ({page}) => {
-    // Set desktop viewport
-    await page.setViewportSize({width: 1400, height: 900})
-
-    // Sign up to see content
-    await signUp(page)
-
-    // Verify header is clickable
-    const header = await page.locator("header").first()
-    await expect(header).toBeVisible()
-
-    console.log("✓ Desktop header clickable")
-  })
-
-  test("Pull-to-refresh: header remains fixed during pull", async ({page}) => {
-    // Set mobile viewport
-    await page.setViewportSize({width: 375, height: 667})
-
-    // Navigate to home
-    await page.goto("/")
-
-    // Wait for content to load
-    await page.waitForTimeout(2000)
-
-    const header = await page.locator("header").first()
-    const initialHeaderPosition = await header.boundingBox()
-
-    // Simulate pull-to-refresh gesture (this is simplified, real touch would be more complex)
-    const scrollable = await page.locator("[data-scrollable]").first()
-
-    // Get initial header position
-    const headerTop = initialHeaderPosition?.y || 0
-
-    // Scroll to top first
-    await scrollable.evaluate((el) => {
-      el.scrollTop = 0
     })
-
-    // After any simulated pull, header should remain in same position
-    const finalHeaderPosition = await header.boundingBox()
-    expect(finalHeaderPosition?.y).toBe(headerTop)
+    const indicator = page.getByAltText("Loading...", {exact: true})
+    await expect(indicator).toBeVisible()
+    expect(await header.boundingBox()).toEqual(initialPosition)
+    await homeFeed.dispatchEvent("touchend")
+    await expect(indicator).toBeHidden()
+    await page.screenshot({path: testInfo.outputPath("mobile-home.png")})
   })
 })

@@ -1,19 +1,9 @@
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
 import {SettingsGroupItem} from "@/shared/components/settings/SettingsGroupItem"
 import {useSettingsStore} from "@/stores/settings"
-import {ChangeEvent} from "react"
-import {ColumnLayoutToggle} from "@/shared/components/nav/ColumnLayoutToggle"
 
 function AppearanceSettings() {
   const {appearance, updateAppearance} = useSettingsStore()
-
-  function handleThemeChange(e: ChangeEvent<HTMLSelectElement>) {
-    updateAppearance({theme: e.target.value})
-  }
-
-  function handleLimitedMaxWidthChange(e: ChangeEvent<HTMLInputElement>) {
-    updateAppearance({limitedMaxWidth: e.target.checked})
-  }
 
   return (
     <div className="bg-base-200 min-h-full">
@@ -26,7 +16,7 @@ function AppearanceSettings() {
                 <select
                   className="select select-sm bg-base-200 border-base-content/20"
                   value={appearance.theme}
-                  onChange={handleThemeChange}
+                  onChange={(e) => updateAppearance({theme: e.target.value})}
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
@@ -38,18 +28,6 @@ function AppearanceSettings() {
           </SettingsGroup>
 
           <SettingsGroup title="Layout">
-            <SettingsGroupItem>
-              <div className="flex justify-between items-center">
-                <div className="flex flex-col">
-                  <span>Column layout</span>
-                  <span className="text-sm text-base-content/60">
-                    Choose single or two-column layout
-                  </span>
-                </div>
-                <ColumnLayoutToggle />
-              </div>
-            </SettingsGroupItem>
-
             <SettingsGroupItem isLast>
               <div className="flex justify-between items-center">
                 <div className="flex flex-col">
@@ -62,7 +40,7 @@ function AppearanceSettings() {
                   type="checkbox"
                   className="toggle toggle-primary"
                   checked={appearance.limitedMaxWidth}
-                  onChange={handleLimitedMaxWidthChange}
+                  onChange={(e) => updateAppearance({limitedMaxWidth: e.target.checked})}
                 />
               </div>
             </SettingsGroupItem>

@@ -2,7 +2,7 @@ import {test, expect} from "@playwright/test"
 import {finalizeEvent, generateSecretKey} from "nostr-tools"
 import {startNostrRelay} from "../dev-relay/nostr-relay"
 
-for (const layout of ["mobile", "desktop", "two columns"]) {
+for (const layout of ["mobile", "desktop"]) {
   test(`Back restores post search results and the reading position on ${layout}`, async ({
     page,
   }, testInfo) => {
@@ -33,15 +33,8 @@ for (const layout of ["mobile", "desktop", "two columns"]) {
     })
     try {
       await page.addInitScript(
-        ({port, singleColumnLayout, pauseScoring}) => {
+        ({port, pauseScoring}) => {
           window.__HTREE_SERVER_URL__ = `http://127.0.0.1:${port}`
-          localStorage.setItem(
-            "settings-storage",
-            JSON.stringify({
-              version: 0,
-              state: {appearance: {singleColumnLayout}},
-            })
-          )
           localStorage.setItem(
             "search-storage",
             JSON.stringify({
@@ -88,7 +81,6 @@ for (const layout of ["mobile", "desktop", "two columns"]) {
         },
         {
           port: relay.port,
-          singleColumnLayout: layout !== "two columns",
           pauseScoring: layout === "mobile",
         }
       )

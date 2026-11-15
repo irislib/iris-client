@@ -1,118 +1,27 @@
-import {useMemo, useState, useEffect, useRef} from "react"
+import {useState, useRef} from "react"
 import RightColumn from "@/shared/components/RightColumn.tsx"
 import Header from "@/shared/components/header/Header"
-import AlgorithmicFeed from "@/shared/components/feed/AlgorithmicFeed"
+import PopularWidget from "@/shared/components/feed/PopularWidget"
 import {SocialGraphWidget} from "@/shared/components/SocialGraphWidget"
-import {RelayStats} from "@/shared/components/RelayStats"
-import {EventFilter} from "@/lib/nostr"
 import Feed from "@/shared/components/feed/Feed.tsx"
 import {useParams, useNavigate} from "@/navigation"
-import Widget from "@/shared/components/ui/Widget"
 import {Helmet} from "react-helmet"
+import SearchTabSelector from "@/shared/components/search/SearchTabSelector"
 import RelaySelector from "@/shared/components/ui/RelaySelector"
 import RelayDetails from "@/shared/components/relay/RelayDetails"
 import {KIND_TEXT_NOTE} from "@/utils/constants"
-import {useIsTwoColumnLayout} from "@/shared/hooks/useIsTwoColumnLayout"
-import {ScrollablePageContainer} from "@/shared/components/layout/ScrollablePageContainer"
-import {useSearchStore} from "@/stores/search"
+
+const relayFilter = {kinds: [KIND_TEXT_NOTE], limit: 100}
 
 function RelayPage() {
   const {url} = useParams()
   const navigate = useNavigate()
-  const isInTwoColumnLayout = useIsTwoColumnLayout()
-  const decodedRelay = url ? decodeURIComponent(url) : ""
-  const urlRelayUrl = decodedRelay ? `wss://${decodedRelay}` : ""
+  const relayName = url ? decodeURIComponent(url).replace(/\/$/, "") : ""
+  const selectedRelayUrl = relayName ? `wss://${relayName}` : ""
+  const title = relayName ? `Relay: ${relayName}` : "Relay Feed"
   const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const [showEventsByUnknownUsers, setShowEventsByUnknownUsers] = useState(true)
 
-  // Use persisted state in two-column layout
-  const storedRelayUrl = useSearchStore((state) => state.selectedRelayUrl)
-  const setStoredRelayUrl = useSearchStore((state) => state.setSelectedRelayUrl)
-  const [localRelayUrl, setLocalRelayUrl] = useState(urlRelayUrl)
-
-  // Use URL if provided, otherwise use stored value in two-column layout
-  const selectedRelayUrl = isInTwoColumnLayout
-    ? urlRelayUrl || storedRelayUrl
-    : urlRelayUrl || localRelayUrl
-  const setSelectedRelayUrl = isInTwoColumnLayout ? setStoredRelayUrl : setLocalRelayUrl
-
-  const relayDisplayName = selectedRelayUrl
-    ? selectedRelayUrl.replace(/^(https?:\/\/)?(wss?:\/\/)?/, "").replace(/\/$/, "")
-    : ""
-
-  // Update stored relay when URL changes in two-column layout
-  useEffect(() => {
-    if (urlRelayUrl) {
-      if (isInTwoColumnLayout) {
-        setStoredRelayUrl(urlRelayUrl)
-      } else {
-        setLocalRelayUrl(urlRelayUrl)
-      }
-    }
-  }, [urlRelayUrl, isInTwoColumnLayout, setStoredRelayUrl])
-
-  // Use shared state from store for two-column layout consistency
-  const storeShowEventsByUnknownUsers = useSearchStore(
-    (state) => state.showEventsByUnknownUsers
-  )
-  const storeSetShowEventsByUnknownUsers = useSearchStore(
-    (state) => state.setShowEventsByUnknownUsers
-  )
-  const [localShowEventsByUnknownUsers, setLocalShowEventsByUnknownUsers] = useState(true)
-
-  const showEventsByUnknownUsers = isInTwoColumnLayout
-    ? storeShowEventsByUnknownUsers
-    : localShowEventsByUnknownUsers
-  const setShowEventsByUnknownUsers = isInTwoColumnLayout
-    ? storeSetShowEventsByUnknownUsers
-    : setLocalShowEventsByUnknownUsers
-
-  const filters: EventFilter = useMemo(
-    () => ({
-      kinds: [KIND_TEXT_NOTE],
-      limit: 100,
-    }),
-    []
-  )
-
-  // In two-column layout, only show the feed (selector is in middle column)
-  if (isInTwoColumnLayout) {
-    return (
-      <div className="flex flex-1 flex-row relative h-full">
-        <div className="flex flex-col flex-1 h-full relative">
-          <Header title={decodedRelay ? `Relay: ${relayDisplayName}` : "Relay Feed"} />
-          <ScrollablePageContainer className="flex flex-col items-center">
-            <div className="flex-1 w-full flex flex-col gap-2 md:pt-2">
-              {selectedRelayUrl ? (
-                <Feed
-                  key={selectedRelayUrl}
-                  feedConfig={{
-                    name: "Relay Feed",
-                    id: `relay-${selectedRelayUrl}`,
-                    showRepliedTo: true,
-                    followDistance: showEventsByUnknownUsers ? undefined : 5,
-                    sortType: "chronological",
-                    relayUrls: [selectedRelayUrl],
-                    filter: filters,
-                  }}
-                />
-              ) : (
-                <div className="p-4">
-                  <RelayStats />
-                </div>
-              )}
-            </div>
-            <Helmet>
-              <title>
-                {decodedRelay ? `Relay: ${relayDisplayName}` : "Relay Feed"} / Iris
-              </title>
-            </Helmet>
-          </ScrollablePageContainer>
-        </div>
-      </div>
-    )
-  }
-
-  // Single column layout - show full interface
   return (
     <div className="flex flex-row h-screen">
       <div className="flex flex-col items-center flex-1 h-full relative">
@@ -122,27 +31,28 @@ function RelayPage() {
             scrollContainerRef.current?.scrollTo({top: 0, behavior: "instant"})
           }
         >
-          <Header title={decodedRelay ? `Relay: ${relayDisplayName}` : "Relay Feed"} />
+          <Header title={title} />
         </div>
         <div
           ref={scrollContainerRef}
           className="p-2 flex-1 w-full max-w-screen-lg flex flex-col gap-4 pt-[calc(4rem+env(safe-area-inset-top))] pb-[calc(4rem+env(safe-area-inset-bottom))] md:pt-16 lg:pt-2 md:pb-0 overflow-y-auto"
         >
+          <SearchTabSelector activeTab="relay" />
           <RelaySelector
             selectedRelay={selectedRelayUrl}
             onRelaySelect={(newRelay) => {
-              setSelectedRelayUrl(newRelay)
               const cleanUrl = newRelay
                 .replace(/^(https?:\/\/)?(wss?:\/\/)?/, "")
-                .replace(/\/$/, "") // Remove trailing slash
-              navigate(`/relay/${encodeURIComponent(cleanUrl)}`, {replace: true})
+                .replace(/\/$/, "")
+              navigate(cleanUrl ? `/relay/${encodeURIComponent(cleanUrl)}` : "/relay", {
+                replace: true,
+              })
             }}
-            placeholder="Select a relay"
           />
 
           <RelayDetails relayUrl={selectedRelayUrl} />
 
-          {selectedRelayUrl && (
+          {selectedRelayUrl ? (
             <>
               <div className="flex items-center gap-2 p-2">
                 <input
@@ -163,39 +73,23 @@ function RelayPage() {
                   followDistance: showEventsByUnknownUsers ? undefined : 5,
                   sortType: "chronological",
                   relayUrls: [selectedRelayUrl],
-                  filter: filters,
+                  filter: relayFilter,
                 }}
               />
             </>
-          )}
-
-          {!selectedRelayUrl && (
+          ) : (
             <div className="text-center py-8 text-base-content/50">
               Select a relay to view its feed
             </div>
           )}
         </div>
         <Helmet>
-          <title>
-            {decodedRelay ? `Relay: ${relayDisplayName}` : "Relay Feed"} / Iris
-          </title>
+          <title>{title} / Iris</title>
         </Helmet>
       </div>
       <RightColumn>
-        {() => (
-          <>
-            <SocialGraphWidget />
-            <Widget title="Popular" className="h-96">
-              <AlgorithmicFeed
-                type="popular"
-                displayOptions={{
-                  small: true,
-                  showDisplaySelector: false,
-                }}
-              />
-            </Widget>
-          </>
-        )}
+        <SocialGraphWidget />
+        <PopularWidget />
       </RightColumn>
     </div>
   )
