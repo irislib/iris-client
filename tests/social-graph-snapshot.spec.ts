@@ -3,27 +3,23 @@ import {createHash} from "node:crypto"
 import {readFile} from "node:fs/promises"
 import {signedGraphFixture, snapshotPointer} from "./utils/graph-bootstrap"
 import {SocialGraph} from "nostr-social-graph"
+import {getEventHash} from "nostr-tools"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 
 test("social graph stats update after snapshot download", async ({page}, testInfo) => {
   const snapshot = async (root: string, follows: number) => {
     const graph = new SocialGraph(root)
-    graph.handleEvent(
-      {
-        kind: 3,
-        pubkey: root,
-        created_at: 20,
-        tags: Array.from({length: follows}, (_, index) => [
-          "p",
-          (index + 1).toString(16).padStart(64, "0"),
-        ]),
-        content: "",
-        id: "",
-        sig: "",
-      },
-      true,
-      Infinity
-    )
+    const event = {
+      kind: 3,
+      pubkey: root,
+      created_at: 20,
+      tags: Array.from({length: follows}, (_, index) => [
+        "p",
+        (index + 1).toString(16).padStart(64, "0"),
+      ]),
+      content: "",
+    }
+    graph.handleEvent({...event, id: getEventHash(event), sig: ""}, true, Infinity)
     return Buffer.from(await graph.toBinary())
   }
   const initial = await snapshot(manifest.root, 1)
@@ -84,12 +80,16 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   await page.getByText("Download Snapshot").scrollIntoViewIfNeeded()
 
   // Set small maxNodes for fast download
-  const maxNodesInput = page.locator('input[type="number"]').first()
+  const maxNodesInput = page.getByLabel("Max nodes")
   await maxNodesInput.fill("6")
+  await expect(page.getByLabel("Import mode")).toHaveValue("merge")
   await page.getByLabel("Import mode").selectOption("replace")
 
   // Click download button
-  const downloadButton = page.locator("button", {hasText: "Download graph"})
+  await page.getByRole("button", {name: "Check download sizes"}).click()
+  const downloadButton = page.getByRole("button", {name: /^Download graph \(/})
+  await expect(downloadButton).toContainText(/KB| MB| B/)
+  expect(fixture.reads).not.toContain(fixture.fullHash)
   await downloadButton.click()
 
   // Wait for download to complete
@@ -105,7 +105,30 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   await expect(count("Users")).toHaveText("6")
   await expect(count("Distance 1")).toHaveText("5")
 
-  await page.getByRole("button", {name: "Check full snapshot size"}).click()
+  const afterInitialImport = fixture.mobileReads
+  await maxNodesInput.fill("30000")
+  await page.getByLabel("Import size (KiB)").fill("1")
+  await page.getByLabel("Import mode").selectOption("save")
+  const sliceDownload = page.waitForEvent("download")
+  await downloadButton.click()
+  const slice = await sliceDownload
+  expect(slice.suggestedFilename()).toBe("iris-discovery-graph.bin")
+  expect(fixture.mobileReads).toBe(afterInitialImport)
+  const bounded = await readFile((await slice.path())!)
+  expect(bounded.length).toBeLessThanOrEqual(1024)
+  const partial = await SocialGraph.fromBinary(manifest.root, bounded)
+  expect(partial.getFollowedByUser(manifest.root).size).toBeGreaterThan(0)
+  expect(partial.getFollowedByUser(manifest.root).size).toBeLessThan(120)
+  const fullRevision = (
+    await SocialGraph.fromBinary(manifest.root, downloaded)
+  ).getListRevision(manifest.root, 3)
+  expect(fullRevision?.complete).toBe(true)
+  expect(partial.getListRevision(manifest.root, 3)).toEqual({
+    ...fullRevision,
+    complete: false,
+  })
+  await expect(count("Users")).toHaveText("6")
+
   const save = page.getByRole("button", {name: /^Save full snapshot/})
   await expect(save).toBeVisible()
   expect(fixture.reads).not.toContain(fixture.fullHash)
@@ -116,6 +139,21 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   const bytes = await readFile((await download.path())!)
   expect(bytes.length).toBe(fixture.full.size)
   expect(createHash("sha256").update(bytes).digest("hex")).toBe(fixture.full.sha256)
+  await expect(count("Users")).toHaveText("6")
+  await page.getByLabel("Snapshot source").selectOption("local")
+  await page.getByLabel("Max nodes").fill("3")
+  await expect(page.getByText(/No download is needed/)).toBeVisible()
+  const previousReads = fixture.reads.length
+  const localSaved = page.waitForEvent("download")
+  await page.getByRole("button", {name: "Save my graph"}).click()
+  const local = await localSaved
+  expect(local.suggestedFilename()).toBe("personal-social-graph.bin")
+  const selectedLocal = await SocialGraph.fromBinary(
+    manifest.root,
+    await readFile((await local.path())!)
+  )
+  expect(selectedLocal.getFollowedByUser(manifest.root).size).toBe(2)
+  expect(fixture.reads.length).toBe(previousReads)
   await expect(count("Users")).toHaveText("6")
   await page.screenshot({path: testInfo.outputPath("downloaded-graph-statistics.png")})
 })

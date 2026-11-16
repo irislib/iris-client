@@ -7,7 +7,8 @@
 import {createHash} from "node:crypto"
 import {readFileSync} from "node:fs"
 import Fuse from "fuse.js"
-import {SocialGraph} from "nostr-social-graph"
+import type {SocialGraph} from "nostr-social-graph"
+import {verifyMobileGraphSnapshot} from "nostr-social-graph/mobileGraphSnapshot"
 import {calculateRanking, createRankingSnapshot} from "nostr-social-graph/ranking"
 import {
   hasProfileSearchExactMatch,
@@ -27,14 +28,13 @@ const graphBytes = readFileSync(new URL("../src/assets/socialGraph.bin", import.
 const metadata = JSON.parse(
   readFileSync(new URL("../src/assets/socialGraph.json", import.meta.url), "utf8")
 )
-if (hash(graphBytes) !== metadata.sha256) throw new Error("Graph snapshot hash mismatch")
 const profileBytes = readFileSync(
   new URL(import.meta.resolve("nostr-social-graph/data/profileData.json"))
 )
 const profiles: SearchResult[] = JSON.parse(profileBytes.toString()).map(
   ([pubKey, name, nip05]: string[]) => ({pubKey, name, nip05})
 )
-const graph = await SocialGraph.fromBinary(metadata.root, graphBytes)
+const graph = await verifyMobileGraphSnapshot(graphBytes, metadata)
 const roots = [metadata.root, ...graph.getFollowedByUser(metadata.root)]
 const orderedProfiles = profiles
   .filter((p) => p.name.trim().length >= 3)

@@ -29,7 +29,7 @@ export async function signedGraphFixture(
   const fixture = await createNamedGraphFixture(discovery.root, mobile)
   pointers.set(page, fixture.event)
   await page.route(
-    /\/(?:assets\/vendor-[^/]+\.js|node_modules\/\.vite\/deps\/nostr-social-graph[^/]*\.js)(?:\?.*)?$/,
+    /\/(?:assets\/vendor-[^/]+\.js|node_modules\/\.vite\/deps\/(?:nostr-social-graph[^/]*|chunk-[^/]+)\.js)(?:\?.*)?$/,
     async (route) => {
       const response = await route.fetch()
       const source = await response.text()

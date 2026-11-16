@@ -62,22 +62,21 @@ and evaluation commands are in `scripts/search-notes`.
 
 Anonymous discovery and accounts with no follows start from Sirius Business Ltd's
 public network. Personal accounts keep their own graph root, follows and mutes.
-The bundled `src/assets/socialGraph.bin` is a 1.6 MB projection of the pinned public
-snapshot recorded in `src/assets/socialGraph.json`: complete follow and mute lists
-from owners within two hops, including their third-hop targets. It contains
-31,187 identities and 4,149 mute relationships. Duplicate internal identities are
-normalized by public key before traversal. Newest lists win; equally recent
-conflicting mutes are combined conservatively, and conflicting latest follows
-reject the update. This dated aggregate is a discovery starting point, not a
-collection of individually verified signed events.
+The bundled `src/assets/socialGraph.bin` contains the reviewed Iris mobile member
+of the signed Hashtree `social-graph` snapshot. The publisher, name event, immutable
+directory, member, crawl time and checksum are recorded in `src/assets/socialGraph.json`.
+The mobile projection retains follow and mute revisions, including incomplete lists.
 
-Builds verify the committed asset and never download changing graph data.
-`pnpm update:social-graph` restores the same bytes from the checksum-pinned
-[shared snapshot release](https://github.com/mmalmi/nostr-social-graph/releases/tag/v3.0.1).
-To regenerate it from the original 50 MB input recorded in the manifest, use
-`pnpm update:social-graph /path/to/source.bin` with the locked dependency. Both
-source and projected hashes must match before the asset is replaced. The shared
-data does not require upgrading the Client's graph SDK. Intentional updates require
-reviewing the manifest, projection, and cold-start coverage together.
+`pnpm verify:social-graph` checks the committed bytes and topology offline on each
+build. To refresh the bundled asset and its receipt, run `pnpm update:social-graph`
+and review both files together. It reads the root-specific mobile file directly
+from the signed generation. The update command leaves the existing asset in place
+if the selected generation has no Iris projection.
+
+In Settings, check the download sizes to see the complete mobile and full file sizes.
+The import size, user, edge and distance limits trim the mobile file locally. Users
+can merge, replace or save the selected slice. Select **My current graph** to save a
+size-limited copy of an imported or personal graph from its own root. Saving the
+full published file is a separate action.
 After building, run `IRIS_E2E_BUILT_DIST=true pnpm test:graph-bootstrap` to check
 the real bundle, legacy-cache migration, personal mutes, and graph import/export.

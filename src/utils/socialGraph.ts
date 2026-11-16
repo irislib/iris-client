@@ -1,5 +1,6 @@
 import {DEFAULT_RELAYS, LEGACY_PRODUCTION_RELAYS} from "@/shared/constants/relays"
 import {SocialGraph, type NostrEvent} from "nostr-social-graph"
+import type {DiscoveryLimits} from "./discoverySnapshot"
 import {EventSubscription, CacheMode, type EventFilter} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
 import {useSocialGraphStore} from "@/stores/socialGraph"
@@ -831,58 +832,92 @@ export const loadFromFile = (merge = false) => {
   input.click()
 }
 
-export interface DownloadGraphOptions {
-  maxNodes?: number
-  maxEdges?: number
-  maxDistance?: number
-  maxEdgesPerNode?: number
-  replace?: boolean
+export type GraphImportMode = "merge" | "replace" | "save"
+
+function activeGraphOperation() {
+  const graph = instance
+  const root = graph.getRoot()
+  const account = useUserStore.getState().publicKey
+  const generation = graphSyncGeneration
+  function ensureCurrent() {
+    if (
+      instance !== graph ||
+      graph.getRoot() !== root ||
+      useUserStore.getState().publicKey !== account ||
+      generation !== graphSyncGeneration
+    ) {
+      throw new Error("The active graph changed. Please try again.")
+    }
+  }
+  return {graph, root, ensureCurrent}
 }
 
-export async function importDiscoverySnapshot(options: DownloadGraphOptions = {}) {
-  const current = instance
-  const account = useUserStore.getState().publicKey
-  const root = current.getRoot()
-  const generation = graphSyncGeneration
-  const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
-  const discovery = await loadGraphBootstrap({root: DEFAULT_SOCIAL_GRAPH_ROOT})
-  const bytes = await discovery.toBinary(
-    options.maxNodes,
-    options.maxEdges,
-    options.maxDistance,
-    options.maxEdgesPerNode
-  )
-  const selected = await SocialGraph.fromBinary(root, bytes)
-  if (
-    instance !== current ||
-    current.getRoot() !== root ||
-    useUserStore.getState().publicKey !== account ||
-    generation !== graphSyncGeneration
-  )
-    throw new Error("The active graph changed during download. Please try again.")
-
-  if (options.replace) {
-    instance = selected
-    readyGraphRoot = undefined
-    setupSubscription(root)
-    if (root !== DEFAULT_SOCIAL_GRAPH_ROOT) getFollowListsInternal(root, false, 1)
-  } else {
-    await current.merge(selected)
-  }
-  notifyGraphChange()
-  await saveToLocalForage()
+export async function saveSizedLocalGraph(limits: DiscoveryLimits) {
+  const active = activeGraphOperation()
+  const {selectGraphBytes} = await import("./discoverySnapshot")
+  const bytes = await selectGraphBytes(active.graph, limits)
+  active.ensureCurrent()
+  saveGraphBytes(bytes, "personal-social-graph.bin")
   return bytes.byteLength
 }
 
-export async function prepareFullGraphDownload() {
+export async function prepareGraphDownloads() {
   const {openGraphSnapshot} = await import("nostr-social-graph/hashtreeSnapshot")
   const snapshot = await openGraphSnapshot()
-  const name = "social-graph-v4.bin"
-  const bytes = snapshot.manifest.files[name].size
+  const root = DEFAULT_SOCIAL_GRAPH_ROOT
+  const mobile =
+    snapshot.manifest.root === root
+      ? snapshot.manifest.files["mobile.bin"]
+      : snapshot.manifest.mobile_roots?.[root]
+  let cachedMobile: Uint8Array | undefined
+  async function readMobile() {
+    if (cachedMobile) {
+      return {
+        bytes: cachedMobile,
+        graph: await SocialGraph.fromBinary(root, cachedMobile),
+      }
+    }
+    const {readMobileGraphSnapshot} =
+      await import("nostr-social-graph/mobileGraphSnapshot")
+    const verified = await readMobileGraphSnapshot(root, {snapshot})
+    cachedMobile = verified.bytes
+    return verified
+  }
+  const fullName = "social-graph-v4.bin"
+  const fullBytes = snapshot.manifest.files[fullName].size
   return {
-    bytes,
-    async save() {
-      saveGraphBytes(await snapshot.readFile(name, {maxBytes: bytes}), name)
+    mobileBytes: mobile?.size,
+    fullBytes,
+    async saveFull() {
+      saveGraphBytes(await snapshot.readFile(fullName, {maxBytes: fullBytes}), fullName)
+    },
+    async importMobile(limits: DiscoveryLimits, mode: GraphImportMode) {
+      if (!mobile) throw new Error("This snapshot has no Iris discovery graph")
+      const active = activeGraphOperation()
+      const {selectGraphBytes} = await import("./discoverySnapshot")
+      const verified = await readMobile()
+      const bytes = await selectGraphBytes(verified.graph, limits, verified.bytes)
+      if (mode === "save") {
+        saveGraphBytes(bytes, "iris-discovery-graph.bin")
+        return bytes.byteLength
+      }
+      const selected =
+        bytes === verified.bytes && verified.graph.getRoot() === active.root
+          ? verified.graph
+          : await SocialGraph.fromBinary(active.root, bytes)
+      active.ensureCurrent()
+      if (mode === "replace") {
+        instance = selected
+        readyGraphRoot = undefined
+        setupSubscription(active.root)
+        if (active.root !== DEFAULT_SOCIAL_GRAPH_ROOT)
+          getFollowListsInternal(active.root, false, 1)
+      } else {
+        await active.graph.merge(selected)
+      }
+      notifyGraphChange()
+      await saveToLocalForage()
+      return bytes.byteLength
     },
   }
 }
