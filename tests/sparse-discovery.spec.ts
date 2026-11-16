@@ -9,7 +9,7 @@ import {
 } from "nostr-tools"
 import {SocialGraph} from "nostr-social-graph"
 import {WebSocketServer} from "ws"
-import {freshGraphBootstrap} from "./utils/graph-bootstrap"
+import {isSnapshotRequest} from "./utils/graph-bootstrap"
 
 test.use({serviceWorkers: "block"})
 const seed = "336f319763657d6b0e65a5b5876719e8c8dcdcf9396852be71ee26b73368b29b"
@@ -120,12 +120,19 @@ for (const mode of [
     const binary = Buffer.from(await graph.toBinary())
     let freshRequests = 0,
       bundledRequests = 0
-    await page.route(freshGraphBootstrap, (route) => {
-      freshRequests += 1
-      // This fixture explicitly uses a custom relay. The production-default
-      // HTTP import is covered separately by graph-bootstrap-policy.spec.ts.
-      return route.fulfill({status: 503, body: "Unexpected public bootstrap"})
-    })
+    await page.routeWebSocket(
+      /^wss:\/\/(?:temp\.iris\.to|relay\.primal\.net)\/?$/,
+      (socket) => {
+        socket.onMessage((raw) => {
+          if (typeof raw !== "string" || !raw.startsWith('["REQ"')) return
+          const [type, id, ...filters] = JSON.parse(raw)
+          if (type === "REQ") {
+            freshRequests += filters.filter(isSnapshotRequest).length
+            socket.send(JSON.stringify(["EOSE", id]))
+          }
+        })
+      }
+    )
     await page.route(/socialGraph[^/]*\.bin(?:\?.*)?$/, (route) => {
       if (route.request().resourceType() === "script") return route.continue()
       bundledRequests += 1
@@ -146,6 +153,7 @@ for (const mode of [
       socket.on("message", (raw) => {
         const [type, id, ...filters] = JSON.parse(raw.toString())
         if (type !== "REQ") return
+        freshRequests += filters.filter(isSnapshotRequest).length
         const discovery = filters.some(
           (filter: Filter) =>
             filter.kinds?.includes(1) &&

@@ -11,11 +11,14 @@ interface DownloadParametersProps {
   setMaxDistance: (value: number | undefined) => void
   maxEdgesPerNode: number | undefined
   setMaxEdgesPerNode: (value: number | undefined) => void
-  format: string
-  setFormat: (value: string) => void
   isDownloading: boolean
   downloadedBytes: number | null
   downloadError: string | null
+  replace: boolean
+  setReplace: (value: boolean) => void
+  fullBytes?: number
+  loadingFull: boolean
+  onFullDownload: () => void
   onDownload: () => void
 }
 
@@ -28,15 +31,24 @@ export function DownloadParameters({
   setMaxDistance,
   maxEdgesPerNode,
   setMaxEdgesPerNode,
-  format,
-  setFormat,
   isDownloading,
   downloadedBytes,
   downloadError,
+  replace,
+  setReplace,
+  fullBytes,
+  loadingFull,
+  onFullDownload,
   onDownload,
 }: DownloadParametersProps) {
   return (
     <SettingsGroup title="Download Snapshot">
+      <SettingsGroupItem>
+        <p className="text-sm text-base-content/70">
+          Import a Hashtree discovery snapshot of up to 30,000 users, 180,000
+          relationships and four follow hops. Use the limits below to import less.
+        </p>
+      </SettingsGroupItem>
       <SettingsGroupItem>
         <div className="flex justify-between items-center">
           <span>Max nodes</span>
@@ -99,55 +111,49 @@ export function DownloadParameters({
       </SettingsGroupItem>
 
       <SettingsGroupItem>
-        <div className="flex justify-between items-center">
-          <span>Format</span>
+        <label className="flex justify-between items-center">
+          Import mode
           <select
-            value={format}
-            onChange={(e) => setFormat(e.target.value)}
-            className="select select-sm bg-base-200 border-base-content/20"
+            value={replace ? "replace" : "merge"}
+            onChange={(event) => setReplace(event.target.value === "replace")}
+            className="select select-sm select-ghost"
           >
-            <option value="binary">Binary</option>
-            <option value="json">JSON</option>
+            <option value="merge">Merge into my graph</option>
+            <option value="replace">Replace my graph</option>
           </select>
-        </div>
+        </label>
       </SettingsGroupItem>
-
-      <SettingsGroupItem isLast>
+      <SettingsGroupItem>
         <div className="flex flex-col space-y-1">
           <button
             onClick={onDownload}
-            disabled={isDownloading}
+            disabled={isDownloading || loadingFull}
             className="text-info text-left"
           >
             {isDownloading ? "Downloading..." : "Download graph"}
           </button>
-          <span className="text-xs text-base-content/60">
-            Download from{" "}
-            <a
-              href="https://graph-api.iris.to"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link"
-            >
-              graph-api.iris.to
-            </a>
-          </span>
           {downloadedBytes !== null && !isDownloading && !downloadError && (
             <span className="text-xs text-success">
-              Downloaded: {formatSize(downloadedBytes)}
+              Imported {formatSize(downloadedBytes)}
             </span>
           )}
           {downloadError && (
             <span className="text-xs text-error">Error: {downloadError}</span>
           )}
-          {isDownloading && (
-            <span className="text-xs text-info">
-              {downloadedBytes && downloadedBytes >= 1024
-                ? `Downloading... ${formatSize(downloadedBytes)}`
-                : "Starting download..."}
-            </span>
-          )}
         </div>
+      </SettingsGroupItem>
+      <SettingsGroupItem isLast>
+        <button
+          disabled={isDownloading || loadingFull}
+          onClick={onFullDownload}
+          className="text-info"
+        >
+          {loadingFull
+            ? "Loading…"
+            : fullBytes === undefined
+              ? "Check full snapshot size"
+              : `Save full snapshot (${formatSize(fullBytes)})`}
+        </button>
       </SettingsGroupItem>
     </SettingsGroup>
   )

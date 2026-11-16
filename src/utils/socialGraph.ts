@@ -786,17 +786,19 @@ async function setupSubscription(publicKey: string) {
   await saveToLocalForage()
 }
 
-export const saveToFile = async () => {
-  const data = await instance.toBinary()
+function saveGraphBytes(data: Uint8Array, filename: string) {
   const url = URL.createObjectURL(
-    new File([data.slice()], "social_graph.bin", {
-      type: "application/octet-stream",
-    })
+    new Blob([data.slice()], {type: "application/octet-stream"})
   )
   const a = document.createElement("a")
   a.href = url
-  a.download = "social_graph.bin"
+  a.download = filename
   a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+export const saveToFile = async () => {
+  saveGraphBytes(await instance.toBinary(), "social_graph.bin")
 }
 
 export const loadFromFile = (merge = false) => {
@@ -834,91 +836,55 @@ export interface DownloadGraphOptions {
   maxEdges?: number
   maxDistance?: number
   maxEdgesPerNode?: number
-  format?: string
-  onDownloaded?: (bytes: number) => void
+  replace?: boolean
 }
 
-export const downloadLargeGraph = (options: DownloadGraphOptions = {}) => {
-  const {
-    maxNodes = 50000,
-    maxEdges,
-    maxDistance,
-    maxEdgesPerNode,
-    format = "binary",
-    onDownloaded,
-  } = options
+export async function importDiscoverySnapshot(options: DownloadGraphOptions = {}) {
+  const current = instance
+  const account = useUserStore.getState().publicKey
+  const root = current.getRoot()
+  const generation = graphSyncGeneration
+  const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
+  const discovery = await loadGraphBootstrap({root: DEFAULT_SOCIAL_GRAPH_ROOT})
+  const bytes = await discovery.toBinary(
+    options.maxNodes,
+    options.maxEdges,
+    options.maxDistance,
+    options.maxEdgesPerNode
+  )
+  const selected = await SocialGraph.fromBinary(root, bytes)
+  if (
+    instance !== current ||
+    current.getRoot() !== root ||
+    useUserStore.getState().publicKey !== account ||
+    generation !== graphSyncGeneration
+  )
+    throw new Error("The active graph changed during download. Please try again.")
 
-  const params = new URLSearchParams()
-  if (maxNodes) params.append("maxNodes", String(maxNodes))
-  if (maxEdges) params.append("maxEdges", String(maxEdges))
-  if (maxDistance) params.append("maxDistance", String(maxDistance))
-  if (maxEdgesPerNode) params.append("maxEdgesPerNode", String(maxEdgesPerNode))
-  if (format) params.append("format", format)
+  if (options.replace) {
+    instance = selected
+    readyGraphRoot = undefined
+    setupSubscription(root)
+    if (root !== DEFAULT_SOCIAL_GRAPH_ROOT) getFollowListsInternal(root, false, 1)
+  } else {
+    await current.merge(selected)
+  }
+  notifyGraphChange()
+  await saveToLocalForage()
+  return bytes.byteLength
+}
 
-  const url = `https://graph-api.iris.to/social-graph?${params.toString()}`
-
-  fetch(url)
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      if (!response.body) {
-        throw new Error("Response body is null")
-      }
-
-      const reader = response.body.getReader()
-      const chunks: Uint8Array[] = []
-      let totalBytes = 0
-
-      return new Promise<ArrayBuffer>((resolve, reject) => {
-        function readChunk() {
-          reader
-            .read()
-            .then(({done, value}) => {
-              if (done) {
-                // Combine all chunks into a single ArrayBuffer
-                const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0)
-                const result = new Uint8Array(totalLength)
-                let offset = 0
-                for (const chunk of chunks) {
-                  result.set(chunk, offset)
-                  offset += chunk.length
-                }
-                resolve(result.buffer)
-                return
-              }
-
-              chunks.push(value)
-              totalBytes += value.length
-              if (onDownloaded) onDownloaded(totalBytes)
-              readChunk()
-            })
-            .catch(reject)
-        }
-
-        readChunk()
-      })
-    })
-    .then((data) => {
-      return SocialGraph.fromBinary(instance.getRoot(), new Uint8Array(data))
-    })
-    .then(async (newInstance) => {
-      instance = newInstance
-      readyGraphRoot = undefined
-      await instance.recalculateFollowDistances()
-      notifyGraphChange()
-      throttledSave()
-
-      setupSubscription(instance.getRoot())
-      const root = instance.getRoot()
-      if (root && root !== DEFAULT_SOCIAL_GRAPH_ROOT) {
-        getFollowListsInternal(root, false, 1)
-      }
-    })
-    .catch((err) => {
-      error("failed to load large social graph:", err)
-    })
+export async function prepareFullGraphDownload() {
+  const {openGraphSnapshot} = await import("nostr-social-graph/hashtreeSnapshot")
+  const snapshot = await openGraphSnapshot()
+  const name = "social-graph-v4.bin"
+  const bytes = snapshot.manifest.files[name].size
+  return {
+    bytes,
+    async save() {
+      saveGraphBytes(await snapshot.readFile(name, {maxBytes: bytes}), name)
+    },
+  }
 }
 
 export const loadAndMerge = () => loadFromFile(true)

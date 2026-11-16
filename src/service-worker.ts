@@ -6,7 +6,7 @@ import {
   MESSAGE_EVENT_KIND,
 } from "nostr-double-ratchet"
 import {PROFILE_AVATAR_WIDTH, EVENT_AVATAR_WIDTH} from "./shared/components/user/const"
-import {CacheFirst, StaleWhileRevalidate, NetworkOnly} from "workbox-strategies"
+import {CacheFirst, StaleWhileRevalidate} from "workbox-strategies"
 import {CacheableResponsePlugin} from "workbox-cacheable-response"
 import {
   cleanupOutdatedCaches,
@@ -57,12 +57,6 @@ registerRoute(
   )
 )
 clientsClaim()
-
-// Prevent caching of graph-api.iris.to requests
-registerRoute(
-  ({url}: RouteMatchCallbackOptions) => url.origin === "https://graph-api.iris.to",
-  new NetworkOnly()
-)
 
 // Cache icons.svg for faster loading on mobile
 registerRoute(

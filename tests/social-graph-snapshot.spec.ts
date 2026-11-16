@@ -1,4 +1,7 @@
 import {test, expect} from "./fixtures/isolatedBrowser"
+import {createHash} from "node:crypto"
+import {readFile} from "node:fs/promises"
+import {signedGraphFixture, snapshotPointer} from "./utils/graph-bootstrap"
 import {SocialGraph} from "nostr-social-graph"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 
@@ -24,8 +27,7 @@ test("social graph stats update after snapshot download", async ({page}, testInf
     return Buffer.from(await graph.toBinary())
   }
   const initial = await snapshot(manifest.root, 1)
-  // The downloaded network has no follow path from the active root.
-  const downloaded = await snapshot("f".repeat(64), 120)
+  const downloaded = await snapshot(manifest.root, 120)
   await page.addInitScript(() => {
     localStorage.setItem(
       "user-storage",
@@ -47,16 +49,23 @@ test("social graph stats update after snapshot download", async ({page}, testInf
       ? route.continue()
       : route.fulfill({body: initial, contentType: "application/octet-stream"})
   )
-  let requested: URL | undefined
   let release!: () => void
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
-  await page.route("https://graph-api.iris.to/social-graph?**", async (route) => {
-    requested = new URL(route.request().url())
-    await held
-    await route.fulfill({body: downloaded, contentType: "application/octet-stream"})
-  })
+  const fixture = await signedGraphFixture(page, downloaded, {holdMobile: held})
+  await page.routeWebSocket(
+    /^wss:\/\/(?:temp\.iris\.to|relay\.primal\.net|nos\.lol)\/?$/,
+    (socket) => {
+      socket.onMessage((data) => {
+        const [kind, id, ...filters] = JSON.parse(data.toString())
+        if (kind !== "REQ") return
+        const event = snapshotPointer(page, filters)
+        if (event) socket.send(JSON.stringify(["EVENT", id, event]))
+        socket.send(JSON.stringify(["EOSE", id]))
+      })
+    }
+  )
 
   // Navigate to social graph settings
   await page.goto("/settings/social-graph")
@@ -76,7 +85,8 @@ test("social graph stats update after snapshot download", async ({page}, testInf
 
   // Set small maxNodes for fast download
   const maxNodesInput = page.locator('input[type="number"]').first()
-  await maxNodesInput.fill("1000")
+  await maxNodesInput.fill("6")
+  await page.getByLabel("Import mode").selectOption("replace")
 
   // Click download button
   const downloadButton = page.locator("button", {hasText: "Download graph"})
@@ -84,18 +94,28 @@ test("social graph stats update after snapshot download", async ({page}, testInf
 
   // Wait for download to complete
   await expect(page.getByText(/Downloading/)).toBeVisible({timeout: 5000})
-  await expect.poll(() => requested?.searchParams.get("maxNodes")).toBe("1000")
-  expect(requested?.searchParams.get("format")).toBe("binary")
+  await expect.poll(() => fixture.mobileReads).toBeGreaterThan(0)
   release()
-  await expect(page.getByText(/Downloaded:/)).toBeVisible({timeout: 30000})
+  await expect(page.getByText(/^Imported /)).toBeVisible({timeout: 30000})
 
   // Scroll back to statistics
   await statisticsHeading.scrollIntoViewIfNeeded()
 
-  await expect(count("Follow relationships")).toHaveText("120")
-  await expect(count("Users")).toHaveText("122")
-  await expect(count("Distance 0")).toHaveText("1")
-  await expect(page.getByText("Distance 1", {exact: true})).toHaveCount(0)
-  await expect(count("No follow path")).toHaveText("121")
+  await expect(count("Follow relationships")).toHaveText("5")
+  await expect(count("Users")).toHaveText("6")
+  await expect(count("Distance 1")).toHaveText("5")
+
+  await page.getByRole("button", {name: "Check full snapshot size"}).click()
+  const save = page.getByRole("button", {name: /^Save full snapshot/})
+  await expect(save).toBeVisible()
+  expect(fixture.reads).not.toContain(fixture.fullHash)
+  const saved = page.waitForEvent("download")
+  await save.click()
+  const download = await saved
+  expect(download.suggestedFilename()).toBe("social-graph-v4.bin")
+  const bytes = await readFile((await download.path())!)
+  expect(bytes.length).toBe(fixture.full.size)
+  expect(createHash("sha256").update(bytes).digest("hex")).toBe(fixture.full.sha256)
+  await expect(count("Users")).toHaveText("6")
   await page.screenshot({path: testInfo.outputPath("downloaded-graph-statistics.png")})
 })

@@ -17,7 +17,11 @@ import {
   NegentropyStorageVector,
 } from "../node_modules/nostr-social-graph/src/vendor/negentropy.js"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
-import {freshGraphBootstrap} from "./utils/graph-bootstrap"
+import {
+  signedGraphFixture,
+  isSnapshotRequest,
+  snapshotPointer,
+} from "./utils/graph-bootstrap"
 import {signUp} from "./auth.setup"
 import {loopbackWorkerRelays, type FixtureSocket} from "./utils/worker-relay-loopback"
 
@@ -192,6 +196,8 @@ async function configure(
       } else if (type === "REQ") {
         const filters: Filter[] = JSON.parse(raw).slice(2)
         trace.requests.push(...filters)
+        const pointer = snapshotPointer(page, filters)
+        if (pointer) socket.send(JSON.stringify(["EVENT", id, pointer]))
         if (trace.catchup) {
           // Model relays that return at most 100 events before EOSE, even when
           // an exact-ID request asks for more.
@@ -267,16 +273,7 @@ test("fresh shipped defaults route reading, graph sync and signed public posts t
   await assertWorkerNetworkBlocked(page, networkBoundary)
   const {connections, catchupRequests} = await configure(page, "fresh")
   const body = await fixtureGraph()
-  await page.route(freshGraphBootstrap, (route) =>
-    route.fulfill({
-      body,
-      contentType: "application/octet-stream",
-      headers: {
-        "x-graph-root": manifest.root,
-        "access-control-expose-headers": "x-graph-root",
-      },
-    })
-  )
+  await signedGraphFixture(page, body)
   await page.goto("/settings/social-graph")
   await expect.poll(() => catchupRequests.length).toBe(3)
   expect(catchupRequests).toEqual([
@@ -540,14 +537,9 @@ for (const version of [0, 1, 2, 3]) {
     test(`saved version ${version} ${choice.name} relay choices survive hydration and reload`, async ({
       page,
     }) => {
-      const {sockets} = await configure(page, "saved", "unsupported", [], {
+      const {sockets, connections} = await configure(page, "saved", "unsupported", [], {
         version,
         state: choice.state,
-      })
-      let publicBootstraps = 0
-      await page.route(freshGraphBootstrap, (route) => {
-        publicBootstraps++
-        return route.fulfill({status: 503, body: "Unexpected bootstrap"})
       })
       const configs: {url: string; disabled?: boolean}[] =
         choice.state.relayConfigs ?? choice.state.relays.map((url) => ({url}))
@@ -591,7 +583,11 @@ for (const version of [0, 1, 2, 3]) {
           )
         ).toBe(false)
         expect(sockets).not.toContain("wss://disabled.test/")
-        expect(publicBootstraps).toBe(0)
+        expect(
+          connections
+            .flatMap((connection) => connection.requests)
+            .filter(isSnapshotRequest)
+        ).toHaveLength(0)
       }
     })
   }
@@ -608,18 +604,7 @@ test("previous shipped relay choices retain graph bootstrap without adding Ditto
     },
   })
   const body = await fixtureGraph()
-  let requests = 0
-  await page.route(freshGraphBootstrap, (route) => {
-    requests++
-    return route.fulfill({
-      body,
-      contentType: "application/octet-stream",
-      headers: {
-        "x-graph-root": manifest.root,
-        "access-control-expose-headers": "x-graph-root",
-      },
-    })
-  })
+  const fixture = await signedGraphFixture(page, body)
   await page.goto("/settings/social-graph")
   await expect.poll(() => catchupRequests.length).toBe(3)
   expect(catchupRequests).toEqual([
@@ -627,7 +612,7 @@ test("previous shipped relay choices retain graph bootstrap without adding Ditto
     "wss://temp.iris.to/",
     "wss://vault.iris.to/",
   ])
-  expect(requests).toBe(1)
+  expect(fixture.mobileReads).toBe(1)
   expect(sockets).not.toContain("wss://relay.ditto.pub/")
   const graph = await exportedGraph(page)
   expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([discovered]))
@@ -638,23 +623,12 @@ test("previous shipped relay choices retain graph bootstrap without adding Ditto
 })
 
 for (const retained of [false, true]) {
-  test(`default HTTP bootstrap imports real binary in ${retained ? "retained" : "empty"} graph`, async ({
+  test(`signed Hashtree bootstrap imports real binary in ${retained ? "retained" : "empty"} graph`, async ({
     page,
   }, testInfo) => {
     const {sockets, catchupRequests} = await configure(page)
     const body = await fixtureGraph()
-    let requests = 0
-    await page.route(freshGraphBootstrap, (route) => {
-      requests++
-      return route.fulfill({
-        body,
-        contentType: "application/octet-stream",
-        headers: {
-          "x-graph-root": manifest.root,
-          "access-control-expose-headers": "x-graph-root",
-        },
-      })
-    })
+    const fixture = await signedGraphFixture(page, body)
     if (retained) {
       const personal = new SocialGraph(account)
       setList(personal, account, 3, [friend])
@@ -666,7 +640,7 @@ for (const retained of [false, true]) {
       page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
     ).toHaveText("1")
     const graph = await exportedGraph(page)
-    expect(requests).toBe(1)
+    expect(fixture.mobileReads).toBe(1)
     expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([discovered]))
     await expect
       .poll(() => sockets.some((url) => url.startsWith("wss://graph-relay.iris.to")))
@@ -678,13 +652,13 @@ for (const retained of [false, true]) {
       expect(graph.getFollowListCreatedAt(account)).toBe(20)
       expect(graph.getMuteListCreatedAt(account)).toBe(20)
     }
-    // A retained snapshot must remain the authority on reload, without another HTTP bootstrap.
+    // A retained snapshot must remain the authority on reload, without another public bootstrap.
     await seedGraph(page, graph)
     await page.goto("/settings/social-graph")
     await expect(
       page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
     ).toHaveText("1")
-    expect(requests).toBe(1)
+    expect(fixture.mobileReads).toBe(1)
     await page.screenshot({path: testInfo.outputPath("fresh-graph-bootstrap.png")})
   })
 }
@@ -693,19 +667,16 @@ for (const scope of ["custom", "disabled", "empty", "native"]) {
   test(`${scope} relay scope uses bundled graph without default graph traffic`, async ({
     page,
   }) => {
-    const {sockets} = await configure(page, scope)
-    let requests = 0
-    await page.route(freshGraphBootstrap, (route) => {
-      requests++
-      return route.fulfill({status: 503, body: "Unexpected public bootstrap"})
-    })
+    const {sockets, connections} = await configure(page, scope)
     await page.goto("/settings/social-graph")
     await expect(
       page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
     ).toHaveText(String(manifest.directFollows))
     const graph = await exportedGraph(page)
     expect(graph.getFollowedByUser(manifest.root).size).toBe(manifest.directFollows)
-    expect(requests).toBe(0)
+    expect(
+      connections.flatMap((connection) => connection.requests).filter(isSnapshotRequest)
+    ).toHaveLength(0)
     expect(sockets.some((url) => url.startsWith("wss://graph-relay.iris.to"))).toBe(false)
     expect(sockets.filter((url) => publicRelays.includes(url))).toEqual([])
     if (scope === "custom")
@@ -722,33 +693,18 @@ test("changing relay settings aborts a pending public bootstrap and preserves pe
   setList(personal, account, 10000, [muted])
   await seedGraph(page, personal)
   const body = await fixtureGraph()
-  let requested = false
   let aborted = false
   let release!: () => void
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
+  const fixture = await signedGraphFixture(page, body, {holdMobile: held})
   page.on("requestfailed", (request) => {
-    if (request.url().startsWith("https://graph-api.iris.to/social-graph/mobile"))
-      aborted = true
-  })
-  await page.route(freshGraphBootstrap, async (route) => {
-    requested = true
-    await held
-    await route
-      .fulfill({
-        body,
-        contentType: "application/octet-stream",
-        headers: {
-          "x-graph-root": manifest.root,
-          "access-control-expose-headers": "x-graph-root",
-        },
-      })
-      .catch(() => {})
+    if (request.url().endsWith(fixture.mobileHash + ".bin")) aborted = true
   })
   try {
     await page.goto("/settings/network")
-    await expect.poll(() => requested).toBe(true)
+    await expect.poll(() => fixture.mobileReads).toBeGreaterThan(0)
     await page.getByTitle("Disconnect from relay", {exact: true}).first().uncheck()
     await expect.poll(() => aborted).toBe(true)
     release()
@@ -774,16 +730,7 @@ for (const negotiation of ["unsupported", "malformed", "disconnect", "silent"] a
     test.setTimeout(40000)
     const {connections} = await configure(page, "default", negotiation)
     const body = await fixtureGraph()
-    await page.route(freshGraphBootstrap, (route) =>
-      route.fulfill({
-        body,
-        contentType: "application/octet-stream",
-        headers: {
-          "x-graph-root": manifest.root,
-          "access-control-expose-headers": "x-graph-root",
-        },
-      })
-    )
+    await signedGraphFixture(page, body)
     await page.goto("/settings/social-graph")
     // Wait for a terminal state, not an arbitrary quiet period. In the silent
     // case this observes the real production reconciliation deadline.
@@ -822,16 +769,7 @@ test("graph reconciliation retrieves 130 exact IDs across relay response caps an
   const discovery = new SocialGraph(manifest.root)
   setList(discovery, manifest.root, 3, authors)
   const body = Buffer.from(await discovery.toBinary())
-  await page.route(freshGraphBootstrap, (route) =>
-    route.fulfill({
-      body,
-      contentType: "application/octet-stream",
-      headers: {
-        "x-graph-root": manifest.root,
-        "access-control-expose-headers": "x-graph-root",
-      },
-    })
-  )
+  await signedGraphFixture(page, body)
   await page.goto("/settings/social-graph")
   await expect
     .poll(

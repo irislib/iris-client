@@ -4,7 +4,7 @@ import {finalizeEvent, getPublicKey, nip19, type Filter} from "nostr-tools"
 import {matchFilters} from "nostr-tools/filter"
 import manifest from "../src/assets/socialGraph.json" with {type: "json"}
 import {usingBuiltDist} from "./utils/built-dist"
-import {freshGraphBootstrap} from "./utils/graph-bootstrap"
+import {signedGraphFixture, snapshotPointer} from "./utils/graph-bootstrap"
 import {loopbackWorkerRelays, type FixtureSocket} from "./utils/worker-relay-loopback"
 
 test("anonymous Popular loads posts from the default social graph", async ({
@@ -68,18 +68,7 @@ test("anonymous Popular loads posts from the default social graph", async ({
     Infinity
   )
   const body = Buffer.from(await graph.toBinary())
-  let bootstrapRequests = 0
-  await page.route(freshGraphBootstrap, (route) => {
-    bootstrapRequests++
-    return route.fulfill({
-      body,
-      contentType: "application/octet-stream",
-      headers: {
-        "x-graph-root": manifest.root,
-        "access-control-expose-headers": "x-graph-root",
-      },
-    })
-  })
+  const snapshot = await signedGraphFixture(page, body)
   const workerRequests: Filter[] = []
   const serve = (socket: FixtureSocket) => {
     socket.onMessage((raw) => {
@@ -87,6 +76,8 @@ test("anonymous Popular loads posts from the default social graph", async ({
       if (!frame.startsWith("[")) return
       const [type, id, ...filters] = JSON.parse(frame)
       if (type === "REQ") {
+        const pointer = snapshotPointer(page, filters)
+        if (pointer) socket.send(JSON.stringify(["EVENT", id, pointer]))
         if (socket.worker) workerRequests.push(...filters)
         for (const event of events)
           if (matchFilters(filters, event))
@@ -122,7 +113,7 @@ test("anonymous Popular loads posts from the default social graph", async ({
     await expect(
       popularWidget.getByText("No popular posts found", {exact: true})
     ).toHaveCount(0)
-    expect(bootstrapRequests).toBe(1)
+    expect(snapshot.mobileReads).toBe(1)
     expect(
       workerRequests.some(
         (filter) => filter.kinds?.includes(7) && filter.authors?.includes(reactor)
