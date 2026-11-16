@@ -55,7 +55,7 @@ test("social graph stats update after snapshot download", async ({page}, testInf
   })
   const fixture = await signedGraphFixture(page, downloaded, {holdMobile: held})
   await page.routeWebSocket(
-    /^wss:\/\/(?:temp\.iris\.to|relay\.primal\.net|nos\.lol)\/?$/,
+    /^wss:\/\/(?:temp\.iris\.to|relay\.primal\.net)\/?$/,
     (socket) => {
       socket.onMessage((data) => {
         const [kind, id, ...filters] = JSON.parse(data.toString())

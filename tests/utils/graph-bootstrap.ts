@@ -1,5 +1,4 @@
 import type {Page} from "@playwright/test"
-import {toHex} from "@hashtree/core"
 import {createNamedGraphFixture} from "nostr-social-graph/testing/namedGraph"
 import type {Event, Filter} from "nostr-tools"
 import discovery from "../../src/assets/socialGraph.json" with {type: "json"}
@@ -41,7 +40,7 @@ export async function signedGraphFixture(
     }
   )
   const fileHash = (name: string) =>
-    toHex(fixture.uploaded.find((entry) => entry.name === name)!.cid.hash)
+    fixture.uploaded.find((entry) => entry.name === name)!.hash
   const mobileHash = fileHash(fixture.manifest.mobile_roots[discovery.root].file)
   const fullHash = fileHash("social-graph-v4.bin")
   const reads: string[] = []
