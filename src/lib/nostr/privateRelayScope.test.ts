@@ -28,6 +28,14 @@ const fixtures = vi.hoisted(() => {
   }
 })
 
+vi.mock("./anonymousRelayDiscovery", () => ({
+  createAnonymousRelayDiscovery: () => {
+    const discovery = fixtures.make()
+    fixtures.discoveries.push(discovery)
+    return discovery
+  },
+}))
+
 vi.mock("nostr-pubsub", async (original) => ({
   ...(await original<typeof import("nostr-pubsub")>()),
   createNostrRuntime: (options: NostrRuntimeOptions) => {
@@ -35,11 +43,6 @@ vi.mock("nostr-pubsub", async (original) => ({
     fixtures.receivers.push({...receiver})
     fixtures.receiverOptions.push(options)
     return receiver
-  },
-  createAnonymousRelayDiscovery: () => {
-    const discovery = fixtures.make()
-    fixtures.discoveries.push(discovery)
-    return discovery
   },
   createPrivateRelayPublisher: () => {
     const sender = fixtures.make()

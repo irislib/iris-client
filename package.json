@@ -120,7 +120,7 @@
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.183.tgz",
-    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.28/nostr-pubsub-0.5.28.tgz",
+    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.32/nostr-pubsub-0.5.32.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.1/nostr-social-graph-4.2.1.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",

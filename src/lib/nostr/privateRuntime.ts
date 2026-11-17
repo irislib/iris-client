@@ -1,5 +1,5 @@
+import { createAnonymousRelayDiscovery } from './anonymousRelayDiscovery';
 import {
-  createAnonymousRelayDiscovery,
   createNostrRuntime,
   createPrivateRelayPublisher,
   isPrivateRelayEvent,
