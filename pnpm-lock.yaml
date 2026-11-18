@@ -3178,7 +3178,7 @@ packages:
 
   nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz:
     resolution: {integrity: sha512-SbIf1758zSgdkOWWuxNrHmphzfEn5Y4kbD2LPkBI/sl4CrEifpzfXjNt621YD9FRElk+HTt7+HBk7Ht2HU1iyA==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz}
-    version: 4.2.3
+    version: 4.2.5
 
   nostr-tools@2.23.5:
     resolution: {integrity: sha512-Fa7ZlUdjfUW1P4E7H3yBexhOHYi18XNyvd2n7eNHkYR085xADX6Y8V8Vm7nT/XQajaFOBrptXmVIGkJ2E4vfVw==}
