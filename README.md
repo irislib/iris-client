@@ -66,12 +66,22 @@ The bundled `src/assets/socialGraph.bin` contains the reviewed Iris mobile membe
 of the signed Hashtree `social-graph` snapshot. The publisher, name event, immutable
 directory, member, crawl time and checksum are recorded in `src/assets/socialGraph.json`.
 The mobile projection retains follow and mute revisions, including incomplete lists.
+The public app shell in Iris and Groups shows this bundle immediately, then checks
+for a fresh signed mobile snapshot in the background when using the default relays.
+Public updates must contain at least 10,000 users and half the bundled coverage,
+within the SDK's mobile byte, node and edge limits. Malformed, undersized or
+unavailable snapshots leave the bundle usable in memory. An untouched bundle is
+not saved as a personal cache, so a later visit retries. Retained personal graphs
+and actual follow/mute events received during loading stay authoritative; fresh
+public partial rows can replace packaged rows without overwriting personal lists.
+Custom relay choices disable the public bootstrap. Groups membership and trust
+still use their explicit signed group facts.
 
 `pnpm verify:social-graph` checks the committed bytes and topology offline on each
 build. To refresh the bundled asset and its receipt, run `pnpm update:social-graph`
 and review both files together. It reads the root-specific mobile file directly
 from the signed generation. The update command leaves the existing asset in place
-if the selected generation has no Iris projection.
+if the selected generation has no valid Iris projection or fails the same coverage checks.
 
 In Settings, check the download sizes to see the complete mobile and full file sizes.
 The import size, user, edge and distance limits trim the mobile file locally. Users

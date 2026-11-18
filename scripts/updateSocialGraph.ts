@@ -16,9 +16,12 @@ async function main() {
   const [mode = "--verify", ...extra] = process.argv.slice(2)
   if (extra.length || !["--verify", "--refresh"].includes(mode))
     throw new Error("Expected --verify or --refresh")
+  const priorReceipt = JSON.parse(await readFile(metadata, "utf8"))
+  await verifyMobileGraphSnapshot(await readFile(binary), priorReceipt)
   if (mode === "--refresh") {
     const {bytes, receipt} = await readMobileGraphSnapshot(root, {
       signal: AbortSignal.timeout(60000),
+      minUsers: Math.max(10_000, Math.ceil(priorReceipt.users / 2)),
     })
     const stage = await mkdtemp(join(assetDir, ".social-graph-"))
     try {
