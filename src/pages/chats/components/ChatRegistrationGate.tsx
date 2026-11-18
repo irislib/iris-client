@@ -7,6 +7,7 @@ import Header from "@/shared/components/header/Header"
 import {useDevicesStore} from "@/stores/devices"
 import {useUserStore} from "@/stores/user"
 import {hasWriteAccessForState} from "@/utils/auth"
+import RegisterDevice from "../devices/RegisterDevice"
 
 export default function ChatRegistrationGate({children}: {children: ReactNode}) {
   const {pathname, state} = useLocation()
@@ -22,7 +23,7 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
     isCurrentDeviceRegistered,
   } = useDevicesStore()
 
-  // Existing registered devices retain their chats and device management.
+  // Registration is opt-in; mounting Chats alone must not start message sessions.
   if (publicKey && hasWriteAccess && canSendPrivateMessages && !privateMessagingBlocked) {
     return children
   }
@@ -70,6 +71,18 @@ export default function ChatRegistrationGate({children}: {children: ReactNode}) 
     title = "Finish linking this device"
     description = "Approve this device from your other device to use chats here."
     action = reloadButton
+  } else if (!needsSignIn) {
+    title = "Chat here"
+    description =
+      "Register this browser as a connected app to send and receive encrypted messages and join group conversations."
+    action = (
+      <div className="space-y-3">
+        <RegisterDevice />
+        <a className="btn btn-ghost w-full" href={chatUrl}>
+          Open Iris Chat
+        </a>
+      </div>
+    )
   }
 
   return (

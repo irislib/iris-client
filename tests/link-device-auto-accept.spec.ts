@@ -1,10 +1,14 @@
-import {test, expect} from "@playwright/test"
+import {test, expect} from "./fixtures/isolatedBrowser"
 import {generateSecretKey, getPublicKey} from "nostr-tools"
+import {METADATA_PRIVACY_VERSION} from "nostr-double-ratchet"
 import {bytesToHex} from "@noble/hashes/utils.js"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
 
-test.skip(usingBuiltDist, "requires local-relay private messaging device setup")
+test.skip(
+  usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true",
+  "requires local-relay private messaging device setup"
+)
 
 test("link device invite auto-accepts on paste", async ({page}) => {
   const {publicKey} = await signUp(page)
@@ -24,6 +28,7 @@ test("link device invite auto-accepts on paste", async ({page}) => {
   const ephemeralKey = getPublicKey(generateSecretKey())
   const sharedSecret = bytesToHex(generateSecretKey())
   const invitePayload = {
+    version: METADATA_PRIVACY_VERSION,
     inviter: inviterPubkey,
     ephemeralKey,
     sharedSecret,

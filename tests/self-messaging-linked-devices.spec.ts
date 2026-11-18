@@ -1,14 +1,17 @@
-import {test, expect, type Page} from "@playwright/test"
+import type {Page} from "@playwright/test"
+import {test, expect} from "./fixtures/isolatedBrowser"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
-import {waitForConnectedRelays} from "./utils/relay-status"
 import {nip19} from "nostr-tools"
 import {
   expectDmMessageInputEnabled,
   ensureCurrentDeviceRegistered,
 } from "./private-messaging-helpers"
 
-test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
+test.skip(
+  usingBuiltDist && process.env.IRIS_E2E_LOCAL_RELAY !== "true",
+  "requires local-relay linked-device private messaging"
+)
 
 async function openChat(page: Page, targetPubkey?: string) {
   if (targetPubkey) {
@@ -48,12 +51,32 @@ function pageWait(ms: number): Promise<void> {
 test.describe("Self-messaging between linked devices", () => {
   test("syncs self and peer DMs, then logs out a revoked linked sibling", async ({
     browser,
+    proxy,
   }) => {
     test.setTimeout(180000)
 
-    const ownerContext = await browser.newContext()
-    const linkedContext = await browser.newContext()
-    const peerContext = await browser.newContext()
+    const ownerContext = await browser.newContext({proxy, serviceWorkers: "block"})
+    const linkedContext = await browser.newContext({proxy, serviceWorkers: "block"})
+    const peerContext = await browser.newContext({proxy, serviceWorkers: "block"})
+
+    for (const context of [ownerContext, linkedContext]) {
+      await context.addInitScript(() => {
+        const stored = JSON.parse(localStorage.getItem("ui-storage") || "{}")
+        localStorage.setItem(
+          "ui-storage",
+          JSON.stringify({
+            ...stored,
+            state: {...stored.state, showRelayIndicator: true},
+          })
+        )
+      })
+    }
+    // This browser pairs without signUp, which normally pins the local relay.
+    if (process.env.IRIS_E2E_LOCAL_RELAY === "true") {
+      await linkedContext.addInitScript(() => {
+        window.__HTREE_SERVER_URL__ = "http://127.0.0.1:7777"
+      })
+    }
 
     const ownerPage = await ownerContext.newPage()
     const linkedPage = await linkedContext.newPage()
@@ -116,8 +139,13 @@ test.describe("Self-messaging between linked devices", () => {
         .poll(async () => ownerPage.locator("span.font-mono").count(), {timeout: 30000})
         .toBeGreaterThanOrEqual(2)
 
-      await waitForConnectedRelays(ownerPage)
-      await waitForConnectedRelays(linkedPage)
+      for (const page of [ownerPage, linkedPage]) {
+        await expect(page.getByTestId("connectivity-indicator").first()).toHaveAttribute(
+          "aria-label",
+          /, [1-9]\d* relays? connected/,
+          {timeout: 10000}
+        )
+      }
 
       await openChat(ownerPage)
       await openChat(linkedPage)

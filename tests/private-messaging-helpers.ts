@@ -8,8 +8,7 @@ async function waitForNextCreatedAtSecond() {
 }
 
 export async function ensureCurrentDeviceRegistered(page: Page): Promise<void> {
-  // Set up an existing registered device through account settings. New chat
-  // visitors are now directed to Iris Chat instead of registration.
+  // Settings and the chat entry screen share the same opt-in registration flow.
   await page.goto("/settings/devices")
   await expect(page).toHaveURL(/\/settings\/devices/)
   await expect(page.getByRole("button", {name: "Link another device"})).toBeVisible({

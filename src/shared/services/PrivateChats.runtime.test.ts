@@ -37,6 +37,8 @@ const mocks = vi.hoisted(() => {
     updateMessage: vi.fn(),
     awaitHydration: vi.fn(),
     connect: vi.fn(),
+    getSessionUserRecords: vi.fn(() => new Map()),
+    setupUser: vi.fn(async () => {}),
     connectedRelays: vi.fn(),
     attachSession: vi.fn(),
     cleanupSession: vi.fn(),
@@ -77,8 +79,10 @@ vi.mock("nostr-double-ratchet", async (importOriginal) => {
     }
 
     getSessionUserRecords() {
-      return new Map()
+      return mocks.getSessionUserRecords()
     }
+
+    setupUser = mocks.setupUser
 
     async initForOwner(ownerPubkey: string) {
       mocks.order.push("runtime:init")
@@ -230,6 +234,9 @@ describe("PrivateChats runtime startup", () => {
     mocks.order.length = 0
     mocks.runtimeOptions = undefined
     mocks.writeAccess = true
+    mocks.runtimeState.sessionManagerReady = false
+    mocks.getSessionUserRecords.mockClear()
+    mocks.setupUser.mockClear()
     mocks.publisherStart.mockReset()
     mocks.eventGateRelease.mockReset().mockImplementation(() => {
       mocks.order.push("messages:release")
@@ -327,6 +334,20 @@ describe("PrivateChats runtime startup", () => {
       "group:cleanup",
       "runtime:close",
     ])
+  })
+
+  it("leaves idle session discovery to runtime events instead of polling every contact", async () => {
+    mocks.runtimeState.sessionManagerReady = true
+    const {initPrivateMessaging, closePrivateMessaging} = await import("./PrivateChats")
+    await initPrivateMessaging(mocks.ownerPubkey)
+    mocks.getSessionUserRecords.mockClear()
+    mocks.setupUser.mockClear()
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(mocks.getSessionUserRecords).not.toHaveBeenCalled()
+    expect(mocks.setupUser).not.toHaveBeenCalled()
+    closePrivateMessaging()
   })
 
   it("does not retry or enqueue from read-only sessions and restarts after write access returns", async () => {

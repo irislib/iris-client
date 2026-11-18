@@ -55,7 +55,7 @@
     "format": "prettier --write \"**/*.+(js|jsx|ts|tsx|json|yml|yaml|css|md)\"",
     "format:check": "prettier --check \"**/*.+(js|jsx|ts|tsx|json|yml|yaml|css|md)\"",
     "typecheck": "tsc --noEmit",
-    "test:release:chat": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/chat-registration.spec.ts tests/group-admin-edit.spec.ts tests/multi-device-groups.spec.ts --workers=2 --reporter=list",
+    "test:release:chat": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/chat-registration.spec.ts tests/group-admin-edit.spec.ts tests/multi-device-groups.spec.ts tests/link-device-auto-accept.spec.ts tests/self-messaging-linked-devices.spec.ts tests/chat-idle.spec.ts --workers=1 --reporter=list",
     "verify:social-graph": "tsx ./scripts/updateSocialGraph.ts --verify",
     "update:social-graph": "tsx ./scripts/updateSocialGraph.ts --refresh",
     "test:release:search": "IRIS_E2E_BUILT_DIST=true IRIS_E2E_LOCAL_RELAY=true playwright test tests/post-relevance.spec.ts --workers=1 --reporter=list",

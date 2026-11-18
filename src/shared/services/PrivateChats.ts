@@ -45,7 +45,6 @@ const {log} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
 const APP_KEYS_FETCH_TIMEOUT_MS = 10000
 const APP_KEYS_FAST_TIMEOUT_MS = 2000
-const RUNTIME_USER_SETUP_SYNC_MS = 500
 
 let runtime: NdrRuntime | null = null
 let runtimeInitialization: Promise<void> | null = null
@@ -55,15 +54,7 @@ let runtimeOwnerIdentityKeyHex: string | null = null
 let runtimeOwnerPubkey: string | null = null
 let runtimeWriteAccess = false
 let runtimePublisher: ReturnType<typeof createRuntimePublish> | null = null
-let runtimeUserSetupPoller: ReturnType<typeof setInterval> | null = null
 let privateMessagingAvailable = true
-const runtimeUserSetupInFlight = new Set<string>()
-
-type RuntimeUserRecord =
-  ReturnType<NdrRuntime["getSessionUserRecords"]> extends Map<string, infer Record>
-    ? Record
-    : never
-
 const syncDeviceStoreFromRuntime = (state: NdrRuntimeState): void => {
   const store = useDevicesStore.getState()
   if (state.currentDevicePubkey) {
@@ -147,11 +138,6 @@ const closeRuntime = (): void => {
   runtimeEventGate?.close()
   runtimeEventGate = null
   runtimeInitialization = null
-  if (runtimeUserSetupPoller) {
-    clearInterval(runtimeUserSetupPoller)
-    runtimeUserSetupPoller = null
-  }
-  runtimeUserSetupInFlight.clear()
   runtimeCleanup?.()
   runtimeCleanup = null
   runtimePublisher?.close()
@@ -270,65 +256,6 @@ const getRuntime = (): NdrRuntime => {
   return runtime
 }
 
-const needsRuntimeUserSetup = (record: RuntimeUserRecord): boolean => {
-  const devicesMap = record.devices ?? new Map()
-  const knownDeviceCount = devicesMap.size
-  const appKeysDeviceCount = record.appKeys?.getAllDevices?.().length ?? 0
-
-  if (appKeysDeviceCount > knownDeviceCount) {
-    return true
-  }
-
-  return Array.from(devicesMap.values()).some(
-    (device) => !device.activeSession && (device.inactiveSessions?.length ?? 0) === 0
-  )
-}
-
-const queueRuntimeUserSetup = (currentRuntime: NdrRuntime, pubkey: string): void => {
-  if (!pubkey || runtimeUserSetupInFlight.has(pubkey)) return
-
-  runtimeUserSetupInFlight.add(pubkey)
-  void currentRuntime
-    .setupUser(pubkey)
-    .catch((error) => {
-      log("Failed to reconcile runtime user:", pubkey, error)
-    })
-    .finally(() => {
-      runtimeUserSetupInFlight.delete(pubkey)
-    })
-}
-
-const syncRuntimeUsers = (currentRuntime: NdrRuntime): void => {
-  const state = currentRuntime.getState()
-  if (!state.sessionManagerReady) return
-
-  const records = currentRuntime.getSessionUserRecords()
-  const ownerPubkey = state.ownerPubkey || useUserStore.getState().publicKey
-  const ownerRecord = ownerPubkey ? records.get(ownerPubkey) : undefined
-  if (ownerPubkey && (!ownerRecord || needsRuntimeUserSetup(ownerRecord))) {
-    queueRuntimeUserSetup(currentRuntime, ownerPubkey)
-  }
-
-  for (const [pubkey, record] of records) {
-    if (pubkey === ownerPubkey) continue
-    if (needsRuntimeUserSetup(record)) {
-      queueRuntimeUserSetup(currentRuntime, pubkey)
-    }
-  }
-}
-
-const startRuntimeUserSetupSync = (currentRuntime: NdrRuntime): void => {
-  syncRuntimeUsers(currentRuntime)
-  if (runtimeUserSetupPoller) return
-
-  runtimeUserSetupPoller = setInterval(() => {
-    const activeRuntime = runtime
-    if (activeRuntime) {
-      syncRuntimeUsers(activeRuntime)
-    }
-  }, RUNTIME_USER_SETUP_SYNC_MS)
-}
-
 export const getNdrRuntime = (): NdrRuntime => {
   return getRuntime()
 }
@@ -428,7 +355,8 @@ export const initPrivateMessaging = async (ownerPubkey: string): Promise<NdrRunt
     throw error
   }
 
-  startRuntimeUserSetupSync(currentRuntime)
+  // NdrRuntime restores known users and follows roster/invite changes itself.
+  // Repeated setupUser calls re-fetch AppKeys even for our session-less local device.
 
   await currentRuntime.republishInvite().catch((error) => {
     log("Failed to publish invite after private messaging init:", error)
