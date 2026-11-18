@@ -1,5 +1,6 @@
 import {createServer} from "node:http"
 import {expect, test, type BrowserContext, type Page} from "@playwright/test"
+import clientWorker from "../scripts/well-known-proxy-worker.mjs"
 
 const usingBuiltDist = ["1", "true"].includes(
   process.env.IRIS_E2E_BUILT_DIST || process.env.IRIS_E2E_BUILT || ""
@@ -30,7 +31,7 @@ async function checkLegacyWalletRecovery(
   test.skip(!usingBuiltDist, "requires the production build")
   test.setTimeout(60000)
   let helperRequested = false
-  let apexCutover = false
+  let rootWorker: "previous" | "client" | "transition" = "previous"
   let releaseHelper: (() => void) | undefined
   const helperHeld = new Promise<void>((resolve) => {
     releaseHelper = resolve
@@ -39,7 +40,7 @@ async function checkLegacyWalletRecovery(
   // Reproduce the earlier worker's browser-visible defect using a real redirect,
   // real Cache storage and a real installed worker, with the current wallet bytes.
   const server = createServer(async (request, response) => {
-    const url = new URL(request.url!, "http://fixture.invalid")
+    const url = new URL(request.url!, `http://${request.headers.host}`)
     response.setHeader("Cache-Control", "no-store")
     if (url.pathname === "/cashu/index.html") {
       response.writeHead(302, {Location: `/cashu/${url.search}`})
@@ -56,13 +57,13 @@ async function checkLegacyWalletRecovery(
         });
       `)
     }
-    if (mount && !apexCutover && url.pathname === "/service-worker.js") {
+    if (mount && rootWorker === "previous" && url.pathname === "/service-worker.js") {
       response.setHeader("Content-Type", "application/javascript")
       return response.end(`
         self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
         self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
         self.addEventListener('fetch', e => {
-          if (e.request.mode === 'navigate' && new URL(e.request.url).pathname === '/fixture') {
+          if (e.request.mode === 'navigate' && ['/fixture', '/old'].includes(new URL(e.request.url).pathname)) {
             e.respondWith(new Response('<title>Previous root worker</title>', {headers: {'Content-Type': 'text/html'}}));
           }
         });
@@ -77,17 +78,37 @@ async function checkLegacyWalletRecovery(
       await helperHeld
     }
     try {
-      let upstreamPath = url.pathname
-      if (mount && upstreamPath.startsWith(`${mount}/`)) {
-        upstreamPath = upstreamPath.slice(mount.length)
-      } else if (apexCutover && upstreamPath === "/service-worker.js") {
-        upstreamPath = "/legacy-apex-service-worker.js"
+      const fetchAsset = (assetRequest: Request) => {
+        const asset = new URL(assetRequest.url)
+        // Simulate Assets canonicalizing a request for index.html outside the mount.
+        if (
+          url.pathname === `${mount}/index.html` &&
+          mount &&
+          asset.pathname === "/index.html"
+        ) {
+          return Response.redirect(new URL("/", url), 308)
+        }
+        return fetch(new URL(asset.pathname + asset.search, baseURL), {
+          method: assetRequest.method,
+        })
       }
-      const upstream = await fetch(new URL(upstreamPath + url.search, baseURL))
-      response.writeHead(upstream.status, {
+      if (rootWorker === "transition" && url.pathname === "/service-worker.js") {
+        url.pathname = "/legacy-apex-service-worker.js"
+      }
+      const workerRequest = new Request(url, {
+        method: request.method,
+        headers: {"x-forwarded-proto": "https"},
+      })
+      const upstream = mount
+        ? await clientWorker.fetch(workerRequest, {ASSETS: {fetch: fetchAsset}})
+        : await fetchAsset(workerRequest)
+      const headers: Record<string, string> = {
         "Content-Type":
           upstream.headers.get("Content-Type") || "application/octet-stream",
-      })
+      }
+      const location = upstream.headers.get("Location")
+      if (location) headers.Location = location
+      response.writeHead(upstream.status, headers)
       response.end(Buffer.from(await upstream.arrayBuffer()))
     } catch {
       response.writeHead(502)
@@ -137,6 +158,13 @@ async function checkLegacyWalletRecovery(
 
     // No cache clearing, unregistering or forced worker activation: the actual
     // parent view installs the repair before creating the wallet frame.
+    if (mount) {
+      const redirect = await context.request.get(`${origin}${mount}?ref=cold`, {
+        maxRedirects: 0,
+      })
+      expect(redirect.status()).toBe(308)
+      expect(redirect.headers().location).toBe(`${origin}${mount}/?ref=cold`)
+    }
     const recoveryUrl = `${origin}${mount}/old-wallet`
     await page.goto(recoveryUrl, {waitUntil: "domcontentloaded"})
     await expect.poll(() => helperRequested).toBe(true)
@@ -230,13 +258,36 @@ async function checkLegacyWalletRecovery(
       const landing = await context.newPage()
       await landing.goto(`${origin}/fixture`)
       await expect(landing).toHaveTitle("Previous root worker")
-      apexCutover = true
+      const mountUrl = `${origin}${mount}?ref=returning`
+      await landing.goto(mountUrl)
+      await expect(landing).toHaveTitle("Previous root worker")
+      rootWorker = "client"
+      await landing.evaluate(async () => {
+        const registration = await navigator.serviceWorker.getRegistration("/")
+        if (!registration) throw new Error("Missing warmed root worker")
+        await registration.update()
+        const activate = () => registration.waiting?.postMessage({type: "SKIP_WAITING"})
+        registration.installing?.addEventListener("statechange", activate)
+        activate()
+      })
+      await expect
+        .poll(async () => {
+          await landing.goto(mountUrl, {waitUntil: "domcontentloaded"})
+          return landing.url()
+        })
+        .toBe(`${origin}${mount}/?ref=returning`)
+      await expect(landing.locator("#main-content")).toBeVisible()
+      await expect(landing.locator('link[rel="manifest"]')).toHaveCount(0)
+      await landing.goto(`${origin}/`)
+      await expect(landing.locator('link[rel="manifest"]')).toHaveCount(1)
+
+      rootWorker = "transition"
       await landing.evaluate(async () => {
         await (await navigator.serviceWorker.getRegistration("/"))?.update()
       })
       await expect
         .poll(async () => {
-          await landing.reload({waitUntil: "domcontentloaded"})
+          await landing.goto(`${origin}/fixture`, {waitUntil: "domcontentloaded"})
           return landing.title()
         })
         .toBe("Wallet redirect fixture")

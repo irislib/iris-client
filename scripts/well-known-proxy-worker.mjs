@@ -34,6 +34,19 @@ export default {
       return fetch(new Request(upstreamUrl, request))
     }
 
+    if (request.method === "GET" || request.method === "HEAD") {
+      if (url.pathname === "/old") {
+        url.pathname = "/old/"
+        return Response.redirect(url.toString(), 308)
+      }
+      if (url.pathname.startsWith("/old/")) {
+        const assetPath = url.pathname.slice("/old".length)
+        // Keep the scoped app's offline shell on /old/ when Assets canonicalizes index.html.
+        url.pathname = assetPath === "/index.html" ? "/" : assetPath
+        return env.ASSETS.fetch(new Request(url, request))
+      }
+    }
+
     // Cloudflare Assets already handles index canonicalization and SPA fallbacks.
     return env.ASSETS.fetch(request)
   },

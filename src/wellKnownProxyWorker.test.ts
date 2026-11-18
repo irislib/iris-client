@@ -45,6 +45,37 @@ describe("static assets worker", () => {
     expect(request!.url).toBe("https://api.iris.to/.well-known/nostr.json?name=_")
   })
 
+  it("canonicalizes the recovery mount while retaining its search", async () => {
+    const assetsFetch = vi.fn()
+    const response = await worker.fetch(new Request("https://iris.to/old?ref=wallet"), {
+      ASSETS: {fetch: assetsFetch},
+    })
+    expect(response.status).toBe(308)
+    expect(response.headers.get("location")).toBe("https://iris.to/old/?ref=wallet")
+    expect(assetsFetch).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["/old/", "/"],
+    ["/old/index.html", "/"],
+    ["/old/wallet", "/wallet"],
+    ["/old/assets/chunk.js", "/assets/chunk.js"],
+    ["/old-wallet", "/old-wallet"],
+    ["/cashu/", "/cashu/"],
+    ["/manifest.json", "/manifest.json"],
+  ])("serves %s through the expected Assets path", async (path, assetPath) => {
+    const assetFetch = vi.fn(async (_request: Request) => new Response(null))
+    await worker.fetch(
+      new Request(`https://iris.to${path}?ref=wallet`, {method: "HEAD"}),
+      {
+        ASSETS: {fetch: assetFetch},
+      }
+    )
+    const request = assetFetch.mock.calls[0]?.[0]
+    expect(request?.method).toBe("HEAD")
+    expect(request?.url).toBe(`https://iris.to${assetPath}?ref=wallet`)
+  })
+
   it("passes root requests through to Cloudflare Assets", async () => {
     Object.defineProperty(globalThis, "HTMLRewriter", {
       configurable: true,

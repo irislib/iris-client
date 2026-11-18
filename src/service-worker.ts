@@ -51,11 +51,16 @@ cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 // Saved notes and chats must reopen while offline, including a direct deep link.
 // Resolve against the worker scope so portable deployments retain their base path.
+const scope = new URL(self.registration.scope)
+const navigationDenylist = [/\/cashu(?:\/|$)/, /\/(?:api|\.well-known)(?:\/|$)/]
+if (scope.pathname === "/" && CONFIG.appVariant !== "groups") {
+  // A root installation must leave recovery redirects and cold loads to the Worker.
+  navigationDenylist.push(/^\/old(?:\/|\?|$)/)
+}
 registerRoute(
-  new NavigationRoute(
-    createHandlerBoundToURL(new URL("index.html", self.registration.scope).href),
-    {denylist: [/\/cashu(?:\/|$)/, /\/(?:api|\.well-known)(?:\/|$)/]}
-  )
+  new NavigationRoute(createHandlerBoundToURL(new URL("index.html", scope).href), {
+    denylist: navigationDenylist,
+  })
 )
 clientsClaim()
 
@@ -214,7 +219,7 @@ function getNotificationFallbackPath(notificationData: unknown): string {
   return NOTIFICATION_CONFIGS[kind]?.url || "/notifications"
 }
 
-const recoveryRoot = getRecoveryMountRoot(new URL(self.registration.scope).pathname)
+const recoveryRoot = getRecoveryMountRoot(scope.pathname)
 
 function notificationAppClient(client: WindowClient): boolean {
   try {
