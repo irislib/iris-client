@@ -67,6 +67,24 @@ test("anonymous Popular loads posts from the default social graph", async ({
     true,
     Infinity
   )
+  // Public discovery fixtures meet the real mobile coverage policy; the two
+  // direct follows still decide the Popular requests asserted below.
+  graph.handleEvent(
+    {
+      kind: 3,
+      pubkey: author,
+      created_at,
+      tags: Array.from({length: 13_000}, (_, i) => [
+        "p",
+        (i + 1).toString(16).padStart(64, "0"),
+      ]),
+      content: "",
+      id: "",
+      sig: "",
+    },
+    true,
+    Infinity
+  )
   const body = Buffer.from(await graph.toBinary())
   const snapshot = await signedGraphFixture(page, body)
   const workerRequests: Filter[] = []
