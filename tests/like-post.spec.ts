@@ -4,6 +4,7 @@ import {signUp} from "./auth.setup"
 test.describe("Post liking", () => {
   test("user can like a post", async ({page}) => {
     // First sign up
+    await page.routeWebSocket(/^wss:/, (socket) => socket.close())
     await signUp(page)
 
     // Create a post to like

@@ -593,25 +593,6 @@ export const createLinkInvite = async (): Promise<Invite> => {
   return getRuntime().createLinkInvite(publicKey || undefined)
 }
 
-export const buildLinkInviteUrl = (
-  invite: Invite,
-  root: string,
-  ownerPubkey?: string
-): string => {
-  const data: Record<string, string> = {
-    inviter: invite.inviter,
-    ephemeralKey: invite.inviterEphemeralPublicKey,
-    sharedSecret: invite.sharedSecret,
-    purpose: "link",
-  }
-  if (ownerPubkey) {
-    data.owner = ownerPubkey
-  }
-  const url = new URL(root)
-  url.hash = encodeURIComponent(JSON.stringify(data))
-  return url.toString()
-}
-
 export const listenForLinkInviteAcceptance = (
   invite: Invite,
   onAccepted: (ownerPubkey: string) => void

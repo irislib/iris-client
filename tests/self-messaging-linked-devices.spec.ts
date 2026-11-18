@@ -10,26 +10,6 @@ import {
 
 test.skip(usingBuiltDist, "requires local-relay linked-device private messaging")
 
-async function openLoginDialog(page: Page) {
-  await page.goto("/")
-  await page.waitForLoadState("domcontentloaded")
-  await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
-
-  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
-  const signInHeading = page.getByRole("heading", {name: "Sign in"})
-
-  if (
-    (await signUpHeading.isVisible().catch(() => false)) ||
-    (await signInHeading.isVisible().catch(() => false))
-  ) {
-    return
-  }
-
-  const signUpButton = page.locator("button:visible", {hasText: "Sign up"}).first()
-  await expect(signUpButton).toBeVisible({timeout: 10000})
-  await signUpButton.click()
-}
-
 async function openChat(page: Page, targetPubkey?: string) {
   if (targetPubkey) {
     await page.goto(`/${nip19.npubEncode(targetPubkey)}`)
@@ -87,7 +67,7 @@ test.describe("Self-messaging between linked devices", () => {
       if (!peer.publicKey) throw new Error("Expected peer public key")
       await ensureCurrentDeviceRegistered(peerPage)
 
-      await openLoginDialog(linkedPage)
+      await linkedPage.goto("/chats/new/devices")
       await linkedPage.getByRole("button", {name: "Link this device"}).click()
 
       const inviteButton = linkedPage.getByTestId("link-invite-copy")

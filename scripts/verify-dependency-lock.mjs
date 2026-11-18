@@ -52,9 +52,9 @@ const releases = {
       "sha512-viUPl2JUtrfJENEWZPvaTtT5x73Pvj5EmHn7qjsTP5T01uOg0tDm7xJww3cf6x23LILi6drOh97ss0WWYq/KVA==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-fips-transport-0.4.24.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.49/hashtree-fips-transport-0.5.2.tgz",
     integrity:
-      "sha512-86f/HNa0R/0yLPXUKynlmAZqdAk9bxrgLVnAygNDOAQflsraWjYjltbmAXpQF2f6RMRvp4pKqVFyhjmle50Gbg==",
+      "sha512-6rwv1WJVZ5gLYJs9mT/aejag6DCtKAfE5wIFaVGksk09XPSKHJGKdw/nejtYsZVWH9ik/0XBkmND6rOdQwKwXQ==",
   },
   "@hashtree/dexie": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",
@@ -83,9 +83,9 @@ const releases = {
       "sha512-CPvJzniY+nItLVEQpH4jaRnmU7AMkD3kAN5yByXMgmm4MNChAk8X8HY8oJIw1riX/gW3/WKD8c+eUtSgu98DDA==",
   },
   "nostr-social-graph": {
-    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.1/nostr-social-graph-4.2.1.tgz",
+    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz",
     integrity:
-      "sha512-kXlUkf9It7K4mFs02lc5kmzhAu6ymjyCCbolqJsdtekddohch/h0OgtDaonttrmt4pBcxKCJvJlqcuLTybJZ1g==",
+      "sha512-ph2wNSfjqeDvp0WrjqhJ4LET1O/FuGR0EbfosswjyGpd052xk020+PybXOWauZfx/92NG7O/cY/ZkHhM+9mCvw==",
   },
 }
 

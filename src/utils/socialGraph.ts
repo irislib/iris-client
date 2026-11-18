@@ -26,6 +26,7 @@ export const DEFAULT_CRAWL_DEGREE = 3
 const currentPublicKey = useUserStore.getState().publicKey
 let instance = new SocialGraph(currentPublicKey || DEFAULT_SOCIAL_GRAPH_ROOT)
 let isInitialized = false
+let canPersistGraph = true
 interface SavedSocialGraph {
   data: Uint8Array
   readyRoot?: string
@@ -56,47 +57,151 @@ function allowsPublicGraphBootstrap(): boolean {
   )
 }
 
-async function loadPreCrawledGraph(publicKey: string): Promise<SocialGraph> {
-  await useUserStore.getState().awaitHydration()
-  if (allowsPublicGraphBootstrap()) {
-    const controller = new AbortController()
-    // Install this before importing the loader: settings may change before the
-    // main graph subscription watcher starts or while the response is parsing.
-    const unsubscribe = useUserStore.subscribe((state, previous) => {
+// A packaged fallback is useful immediately, but is not a personal crawl. Do
+// not save it untouched: the next visit must be able to retry public discovery.
+const packagedFallbacks = new WeakSet<SocialGraph>()
+const retainedGraphs = new WeakSet<SocialGraph>()
+let personalMutationVersion = 0
+const pendingBootstrapGraphs = new WeakMap<SocialGraph, PublicBootstrap>()
+interface PublicBootstrap {
+  controller: AbortController
+  updates: SocialGraph
+  revision: number
+  personal?: Promise<SocialGraph>
+  unsubscribe: () => void
+}
+let publicBootstrap: PublicBootstrap | undefined
+let installingPublicGraph = false
+let catchupRequest: {generation: number; relays: string[]} | undefined
+
+function cancelPublicBootstrap() {
+  publicBootstrap?.controller.abort()
+  publicBootstrap?.unsubscribe()
+  publicBootstrap = undefined
+}
+
+function recordPersonalUpdates(events: NostrEvent | NostrEvent[]) {
+  personalMutationVersion++
+  packagedFallbacks.delete(instance)
+  if (publicBootstrap?.updates.handleEvent(events, true, Infinity))
+    publicBootstrap.revision++
+}
+
+function preparePublicBootstrap(publicKey: string, personal?: SocialGraph) {
+  cancelPublicBootstrap()
+  if (!canPersistGraph || !allowsPublicGraphBootstrap()) return
+  const controller = new AbortController()
+  const context: PublicBootstrap = {
+    controller,
+    updates: new SocialGraph(publicKey),
+    revision: 0,
+    unsubscribe: useUserStore.subscribe((state, previous) => {
       if (
+        state.publicKey !== previous.publicKey ||
         state.relays !== previous.relays ||
         state.relayConfigs !== previous.relayConfigs
-      ) {
+      )
         controller.abort()
-      }
-    })
+    }),
+  }
+  publicBootstrap = context
+  if (personal && !packagedFallbacks.has(personal)) {
+    // Capture only retained/personal state before adding the packaged rows.
+    context.personal = personal
+      .toBinary()
+      .then((bytes) => SocialGraph.fromBinary(publicKey, bytes))
+  }
+  return context
+}
+
+function refreshPublicGraph(
+  bundled: SocialGraph,
+  target: SocialGraph,
+  isCurrent: () => boolean = () => true
+) {
+  const context = pendingBootstrapGraphs.get(bundled)
+  pendingBootstrapGraphs.delete(bundled)
+  if (!context) return
+  const {controller} = context
+  const current = () =>
+    publicBootstrap === context &&
+    !controller.signal.aborted &&
+    instance === target &&
+    isCurrent() &&
+    allowsPublicGraphBootstrap()
+  void (async () => {
+    let ownsInstallation = false
     try {
+      if (!current()) return
       const {loadGraphBootstrap} = await import("nostr-social-graph/publicGraphSync")
-      controller.signal.throwIfAborted()
-      const graph = await loadGraphBootstrap({
+      const fresh = await loadGraphBootstrap({
         root: DEFAULT_SOCIAL_GRAPH_ROOT,
+        minUsers: Math.max(10_000, Math.ceil(defaultGraph.users / 2)),
         signal: controller.signal,
       })
-      await graph.setRoot(publicKey)
-      controller.signal.throwIfAborted()
-      return graph
+      if (!current()) return
+      installingPublicGraph = true
+      ownsInstallation = true
+      stopGraphCatchup?.()
+      stopGraphCatchup = undefined
+      // Public partial rows replace packaged rows. Actual personal lists remain
+      // authoritative, including events received while the download was pending.
+      const personal = await context.personal
+      for (let attempt = 0; attempt < 3 && current(); attempt++) {
+        const revision = context.revision
+        const replacement = await SocialGraph.fromBinary(
+          target.getRoot(),
+          await context.updates.toBinary()
+        )
+        if (personal) await replacement.merge(personal)
+        await replacement.merge(fresh)
+        if (!current()) return
+        if (revision !== context.revision) continue
+        instance = replacement
+        notifyGraphChange()
+        useSocialGraphStore.getState().incrementMuteListVersion()
+        await saveToLocalForage()
+        return
+      }
     } catch (err) {
-      log("Public graph bootstrap unavailable; using bundled graph", err)
+      log("Public graph bootstrap unavailable; retaining current graph", err)
     } finally {
-      unsubscribe()
+      context.unsubscribe()
+      const owned = publicBootstrap === context
+      if (owned) publicBootstrap = undefined
+      if (ownsInstallation) installingPublicGraph = false
+      if (owned || ownsInstallation) {
+        if (catchupRequest)
+          void startGraphCatchup(catchupRequest.generation, catchupRequest.relays).catch(
+            error
+          )
+      }
     }
-  }
+  })()
+}
+
+async function loadPreCrawledGraph(
+  publicKey: string,
+  personal?: SocialGraph
+): Promise<SocialGraph> {
+  await useUserStore.getState().awaitHydration()
+  const bootstrap = preparePublicBootstrap(publicKey, personal)
+  let graph: SocialGraph
   try {
     const response = await fetch(bundledGraphUrl)
-    const binaryData = new Uint8Array(await response.arrayBuffer())
-    const graph = await SocialGraph.fromBinary(publicKey, binaryData)
+    if (!response.ok) throw new Error("Bundled social graph unavailable")
+    graph = await SocialGraph.fromBinary(
+      publicKey,
+      new Uint8Array(await response.arrayBuffer())
+    )
     log("loaded default binary social graph of size", graph.size())
-    return graph
   } catch (err) {
-    // In tests and some environments this asset URL isn't fetchable; fall back to an empty graph.
     error("Failed to load default social graph, using empty graph instead:", err)
-    return new SocialGraph(publicKey)
+    graph = new SocialGraph(publicKey)
   }
+  packagedFallbacks.add(graph)
+  if (bootstrap) pendingBootstrapGraphs.set(graph, bootstrap)
+  return graph
 }
 
 // A signed-in user's own contacts and mutes are the startup authority. The
@@ -134,11 +239,26 @@ function ensureDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
 
 async function loadDefaultNetwork(publicKey: string, isCurrent: () => boolean) {
   useSocialGraphStore.getState().setReady(false)
-  const bundled = await loadPreCrawledGraph(publicKey)
-  if (!isCurrent()) return
+  const target = instance
+  const beforeMutations = personalMutationVersion
+  const wasPackaged = packagedFallbacks.has(target)
+  const hadPersonalData =
+    target.size().follows > 0 ||
+    target.size().mutes > 0 ||
+    target.getListRevision(publicKey, 3) !== undefined ||
+    target.getListRevision(publicKey, 10000) !== undefined
+  const bundled = await loadPreCrawledGraph(publicKey, target)
+  if (!isCurrent() || instance !== target) return
   // Merge into the retained graph: complete newer bootstrap lists may refresh
   // it, while partial projections cannot replace a locally crawled list.
-  await instance.merge(bundled)
+  await target.merge(bundled)
+  if (
+    beforeMutations === personalMutationVersion &&
+    (wasPackaged || (!hadPersonalData && !retainedGraphs.has(target)))
+  ) {
+    packagedFallbacks.add(target)
+  }
+  refreshPublicGraph(bundled, target, isCurrent)
 }
 
 async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
@@ -156,11 +276,13 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
       try {
         const snapshot = saved instanceof Uint8Array ? {data: saved} : saved
         instance = await SocialGraph.fromBinary(publicKey, snapshot.data)
+        retainedGraphs.add(instance)
         readyGraphRoot = snapshot.readyRoot
         log("loaded local social graph of size", instance.size())
       } catch (err) {
         error("error deserializing", err)
-        await localForage.removeItem("socialGraph")
+        // Keep unreadable personal data recoverable and avoid replacing it.
+        canPersistGraph = false
         instance = await loadInitialGraph(publicKey)
       }
     } else {
@@ -170,14 +292,16 @@ async function initializeInstance(publicKey = DEFAULT_SOCIAL_GRAPH_ROOT) {
     }
   } catch (err) {
     error("Failed to load persisted social graph, using initial network instead:", err)
+    canPersistGraph = false
     instance = await loadInitialGraph(publicKey)
   } finally {
+    refreshPublicGraph(instance, instance)
     notifyGraphChange()
   }
 }
 
 const saveToLocalForage = async () => {
-  if (!isInitialized) {
+  if (!isInitialized || !canPersistGraph || packagedFallbacks.has(instance)) {
     return
   }
 
@@ -218,6 +342,7 @@ export const handleSocialGraphEvent = (evs: NostrEvent | Array<NostrEvent>) => {
   // Relays and overlapping subscriptions often repeat the same contact list.
   // An ignored event must not trigger another graph render, save, or traversal.
   if (!instance.handleEvent(evs)) return false
+  recordPersonalUpdates(evs)
   throttledSave()
 
   if (hasMuteListUpdate) {
@@ -241,6 +366,8 @@ let stopGraphCatchup: (() => void) | undefined
 let graphCatchupRelaySettingsChanged = false
 
 async function startGraphCatchup(generation: number, relays: string[]) {
+  catchupRequest = {generation, relays}
+  if (publicBootstrap || installingPublicGraph) return
   const {startGraphSync} = await import("nostr-social-graph/publicGraphSync")
   if (generation !== graphSyncGeneration || graphCatchupRelaySettingsChanged) return
   stopGraphCatchup?.()
@@ -252,6 +379,7 @@ async function startGraphCatchup(generation: number, relays: string[]) {
         : relays,
     maxAuthors: 500,
     maxBytes: 2 * 1024 * 1024,
+    onEvent: recordPersonalUpdates,
     onChange: () => {
       if (generation !== graphSyncGeneration) return
       notifyGraphChange()
@@ -814,6 +942,9 @@ export const loadFromFile = (merge = false) => {
         try {
           const data = new Uint8Array(buffer)
           SocialGraph.fromBinary(instance.getRoot(), data).then(async (newInstance) => {
+            cancelPublicBootstrap()
+            canPersistGraph = true
+            packagedFallbacks.delete(instance)
             if (merge) {
               await instance.merge(newInstance)
             } else {
@@ -906,6 +1037,9 @@ export async function prepareGraphDownloads() {
           ? verified.graph
           : await SocialGraph.fromBinary(active.root, bytes)
       active.ensureCurrent()
+      cancelPublicBootstrap()
+      canPersistGraph = true
+      packagedFallbacks.delete(instance)
       if (mode === "replace") {
         instance = selected
         readyGraphRoot = undefined
@@ -925,6 +1059,8 @@ export async function prepareGraphDownloads() {
 export const loadAndMerge = () => loadFromFile(true)
 
 export const clearGraph = async () => {
+  cancelPublicBootstrap()
+  canPersistGraph = true
   readyGraphRoot = undefined
   instance = new SocialGraph(instance.getRoot())
   notifyGraphChange()
@@ -933,9 +1069,11 @@ export const clearGraph = async () => {
 }
 
 export const resetGraph = async () => {
+  canPersistGraph = true
   readyGraphRoot = undefined
   const root = instance.getRoot()
   instance = await loadPreCrawledGraph(root)
+  refreshPublicGraph(instance, instance)
   notifyGraphChange()
   await saveToLocalForage()
   log("Reset social graph to default")

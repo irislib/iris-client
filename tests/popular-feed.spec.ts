@@ -67,6 +67,24 @@ test("anonymous Popular loads posts from the default social graph", async ({
     true,
     Infinity
   )
+  // Public discovery fixtures meet the real mobile coverage policy; the two
+  // direct follows still decide the Popular requests asserted below.
+  graph.handleEvent(
+    {
+      kind: 3,
+      pubkey: author,
+      created_at,
+      tags: Array.from({length: 13_000}, (_, i) => [
+        "p",
+        (i + 1).toString(16).padStart(64, "0"),
+      ]),
+      content: "",
+      id: "",
+      sig: "",
+    },
+    true,
+    Infinity
+  )
   const body = Buffer.from(await graph.toBinary())
   const snapshot = await signedGraphFixture(page, body)
   const workerRequests: Filter[] = []
@@ -126,6 +144,9 @@ test("anonymous Popular loads posts from the default social graph", async ({
     )
     expect(publicKey).toBe("")
     await page.screenshot({path: testInfo.outputPath("anonymous-popular.png")})
+    // Popular adopts the new graph immediately; a mounted For You feed keeps
+    // its reading snapshot. Open the actual compact Popular post for sharing.
+    await popularWidget.getByText(post.content, {exact: true}).click()
     const share = page.getByRole("button", {name: "Share", exact: true}).first()
     const url = "https://iris.to/" + nip19.noteEncode(post.id)
     await share.click()

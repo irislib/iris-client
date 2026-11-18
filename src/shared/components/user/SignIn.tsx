@@ -7,19 +7,26 @@ import {useUIStore} from "@/stores/ui"
 import classNames from "classnames"
 import {nostr} from "@/utils/nostrClient"
 import {NSEC_NPUB_REGEX, HEX_REGEX} from "@/utils/validation"
-import Icon from "@/shared/components/Icons/Icon"
 
 interface SignInProps {
   onClose: () => void
-  onLink?: () => void
 }
 
-export default function SignIn({onClose, onLink}: SignInProps) {
+const hasExtension = () => typeof window.nostr?.getPublicKey === "function"
+
+export default function SignIn({onClose}: SignInProps) {
   const setShowLoginDialog = useUIStore((state) => state.setShowLoginDialog)
   const [inputPrivateKey, setInputPrivateKey] = useState("")
 
   const [signerPending, setSignerPending] = useState(false)
   const [signerError, setSignerError] = useState("")
+
+  const [extensionAvailable, setExtensionAvailable] = useState(hasExtension)
+  useEffect(() => {
+    // NIP-07 providers can be injected after the dialog opens.
+    const timer = window.setInterval(() => setExtensionAvailable(hasExtension()), 500)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const pairing = useRef<AbortController | null>(null)
   useEffect(() => () => pairing.current?.abort(), [])
@@ -122,21 +129,27 @@ export default function SignIn({onClose, onLink}: SignInProps) {
   }, [inputPrivateKey, onClose, setShowLoginDialog])
 
   async function extensionLogin() {
-    if (window.nostr) {
-      try {
-        const publicKey = await window.nostr.getPublicKey()
-        useUserStore.setState({
-          publicKey,
-          privateKey: "",
-          remoteSigner: null,
-          nip07Login: true,
-          linkedDevice: false,
-        })
-        setShowLoginDialog(false)
-        onClose()
-      } catch (error) {
-        console.error("Error getting public key from NIP-07 extension:", error)
-      }
+    setSignerError("")
+    const provider = window.nostr
+    if (typeof provider?.getPublicKey !== "function") {
+      setExtensionAvailable(false)
+      return
+    }
+    try {
+      const publicKey = await provider.getPublicKey()
+      useUserStore.setState({
+        publicKey,
+        privateKey: "",
+        remoteSigner: null,
+        nip07Login: true,
+        linkedDevice: false,
+      })
+      setShowLoginDialog(false)
+      onClose()
+    } catch (error) {
+      setSignerError(
+        error instanceof Error ? error.message : "Extension login was declined."
+      )
     }
   }
 
@@ -160,13 +173,10 @@ export default function SignIn({onClose, onLink}: SignInProps) {
           Sign in with remote signer
         </button>
         {signerError && <div role="alert">{signerError}</div>}
-        {window.nostr && (
-          <>
-            <button className="btn btn-primary" onClick={() => extensionLogin()}>
-              Nostr Extension Login
-            </button>
-            or
-          </>
+        {extensionAvailable && (
+          <button type="button" className="btn btn-primary" onClick={extensionLogin}>
+            Nostr Extension Login
+          </button>
         )}
         <input
           autoComplete="nsec"
@@ -188,20 +198,6 @@ export default function SignIn({onClose, onLink}: SignInProps) {
         <span className="hover:underline">Don&apos;t have an account?</span>
         <button className="btn btn-sm btn-neutral">Sign up</button>
       </div>
-      {onLink && (
-        <button
-          type="button"
-          className="btn btn-sm btn-ghost w-full flex items-center justify-center gap-2"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onLink()
-          }}
-        >
-          <Icon name="qr" size={16} />
-          Link this device
-        </button>
-      )}
     </div>
   )
 }

@@ -23,7 +23,7 @@ test("social graph stats update after snapshot download", async ({page}, testInf
     return Buffer.from(await graph.toBinary())
   }
   const initial = await snapshot(manifest.root, 1)
-  const downloaded = await snapshot(manifest.root, 120)
+  const downloaded = await snapshot(manifest.root, 13_000)
   await page.addInitScript(() => {
     localStorage.setItem(
       "user-storage",

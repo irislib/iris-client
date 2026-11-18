@@ -6,6 +6,7 @@ import {
   finalizeEvent,
   generateSecretKey,
   getPublicKey,
+  getEventHash,
   nip19,
   verifyEvent,
   type Event,
@@ -21,6 +22,7 @@ import {
   signedGraphFixture,
   isSnapshotRequest,
   snapshotPointer,
+  duplicateGraphIdentity,
 } from "./utils/graph-bootstrap"
 import {signUp} from "./auth.setup"
 import {loopbackWorkerRelays, type FixtureSocket} from "./utils/worker-relay-loopback"
@@ -60,29 +62,36 @@ const friend = "b".repeat(64)
 const muted = "c".repeat(64)
 const discovered = "d".repeat(64)
 
-function setList(graph: SocialGraph, pubkey: string, kind: 3 | 10000, targets: string[]) {
-  graph.handleEvent(
-    {
-      pubkey,
-      kind,
-      tags: targets.map((key) => ["p", key]),
-      created_at: 20,
-      content: "",
-      id: "",
-      sig: "",
-    },
-    true,
-    Infinity
-  )
+function setList(
+  graph: SocialGraph,
+  pubkey: string,
+  kind: 3 | 10000,
+  targets: string[],
+  created_at = 20
+) {
+  const event = {
+    pubkey,
+    kind,
+    tags: targets.map((key) => ["p", key]),
+    created_at,
+    content: "",
+  }
+  graph.handleEvent({...event, id: getEventHash(event), sig: ""}, true, Infinity)
 }
 
 async function fixtureGraph(discovery = discovered) {
   const graph = new SocialGraph(manifest.root)
   setList(graph, manifest.root, 3, [discovery])
+  setList(
+    graph,
+    discovery,
+    3,
+    Array.from({length: 13_000}, (_, i) => (i + 1).toString(16).padStart(64, "0"))
+  )
   return Buffer.from(await graph.toBinary())
 }
 
-async function seedGraph(page: Page, graph: SocialGraph) {
+async function seedGraph(page: Page, graph: SocialGraph | Uint8Array) {
   await page.route("**/__graph-seed", (route) =>
     route.fulfill({contentType: "text/html", body: "<!doctype html>"})
   )
@@ -104,7 +113,7 @@ async function seedGraph(page: Page, graph: SocialGraph) {
           tx.onerror = () => reject(tx.error)
         }
       }),
-    Array.from(await graph.toBinary())
+    Array.from(graph instanceof Uint8Array ? graph : await graph.toBinary())
   )
 }
 
@@ -138,8 +147,10 @@ async function configure(
   const sockets: string[] = []
   const catchupRequests: string[] = []
   const connections: RelayTrace[] = []
+  const subscriptions = new Map<FixtureSocket, Map<string, Filter[]>>()
   const onSocket = (socket: FixtureSocket) => {
     sockets.push(socket.url())
+    subscriptions.set(socket, new Map())
     const trace: RelayTrace = {
       url: socket.url(),
       worker: socket.worker ?? false,
@@ -152,6 +163,7 @@ async function configure(
     let server: Negentropy | undefined
     socket.onClose(() => {
       trace.closed = true
+      subscriptions.delete(socket)
     })
     socket.onMessage(async (raw) => {
       if (typeof raw !== "string" || !raw.startsWith("[")) return
@@ -195,6 +207,7 @@ async function configure(
         socket.send(JSON.stringify(["OK", id.id, true, ""]))
       } else if (type === "REQ") {
         const filters: Filter[] = JSON.parse(raw).slice(2)
+        subscriptions.get(socket)?.set(id, filters)
         trace.requests.push(...filters)
         const pointer = snapshotPointer(page, filters)
         if (pointer) socket.send(JSON.stringify(["EVENT", id, pointer]))
@@ -209,6 +222,8 @@ async function configure(
           }
         }
         socket.send(JSON.stringify(["EOSE", id]))
+      } else if (type === "CLOSE") {
+        subscriptions.get(socket)?.delete(id)
       }
     })
   }
@@ -253,7 +268,24 @@ async function configure(
     },
     {scope, publicRelays, savedSettings}
   )
-  return {sockets, catchupRequests, connections}
+  const publishIncoming = (event: Event) => {
+    let sent = 0
+    for (const [socket, requests] of subscriptions) {
+      for (const [id, filters] of requests) {
+        if (
+          filters.some(
+            (filter) =>
+              filter.authors?.includes(event.pubkey) && filter.kinds?.includes(event.kind)
+          )
+        ) {
+          socket.send(JSON.stringify(["EVENT", id, event]))
+          sent++
+        }
+      }
+    }
+    return sent
+  }
+  return {sockets, catchupRequests, connections, publishIncoming}
 }
 
 test("worker network boundary rejects unmodified worker connections", async ({
@@ -622,6 +654,222 @@ test("previous shipped relay choices retain graph bootstrap without adding Ditto
   expect(saved.relayConfigs).toEqual(previousPublicRelays.map((url) => ({url})))
 })
 
+test("bundled discovery is ready before a pending signed mobile snapshot", async ({
+  page,
+}) => {
+  await configure(page)
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const fixture = await signedGraphFixture(page, await fixtureGraph(), {holdMobile: held})
+  try {
+    await page.goto("/settings/social-graph")
+    await expect.poll(() => fixture.mobileReads).toBe(1)
+    await expect(
+      page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
+    ).toHaveText(String(manifest.directFollows), {timeout: 2000})
+    release()
+    await expect(
+      page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
+    ).toHaveText("1")
+  } finally {
+    release()
+  }
+})
+
+for (const failure of [
+  "valid-small",
+  "below-embedded-floor",
+  "truncated",
+  "duplicate-identity",
+  "integrity",
+  "unavailable",
+] as const) {
+  test(`invalid public discovery ${failure} keeps bundled graph temporary and retries next visit`, async ({
+    page,
+  }) => {
+    await configure(page)
+    const large = await fixtureGraph()
+    const small = new SocialGraph(manifest.root)
+    setList(
+      small,
+      manifest.root,
+      3,
+      Array.from({length: failure === "below-embedded-floor" ? 10_999 : 999}, (_, i) =>
+        (i + 1).toString(16).padStart(64, "0")
+      )
+    )
+    const bytes =
+      failure === "valid-small" || failure === "below-embedded-floor"
+        ? Buffer.from(await small.toBinary())
+        : failure === "truncated"
+          ? large.subarray(0, -1)
+          : failure === "duplicate-identity"
+            ? duplicateGraphIdentity(large)
+            : large
+    const fixture = await signedGraphFixture(page, bytes, {
+      failure:
+        failure === "truncated" || failure === "duplicate-identity"
+          ? "malformed"
+          : failure === "valid-small" || failure === "below-embedded-floor"
+            ? undefined
+            : failure,
+    })
+    await page.goto("/settings/social-graph")
+    await expect.poll(() => fixture.mobileReads).toBeGreaterThan(0)
+    await page.waitForTimeout(8500)
+    const graph = await exportedGraph(page)
+    expect(graph.size().users).toBe(manifest.users)
+    expect(graph.getFollowedByUser(manifest.root).size).toBe(manifest.directFollows)
+    const reads = fixture.mobileReads
+    await page.reload()
+    await expect.poll(() => fixture.mobileReads).toBeGreaterThan(reads)
+  })
+}
+
+test("small personal discovery cache remains authoritative", async ({page}) => {
+  await configure(page)
+  const personal = new SocialGraph(manifest.root)
+  setList(personal, manifest.root, 3, [friend])
+  setList(personal, manifest.root, 10000, [muted])
+  await seedGraph(page, personal)
+  const fixture = await signedGraphFixture(page, await fixtureGraph())
+  for (let visit = 0; visit < 2; visit++) {
+    await page.goto("/settings/social-graph")
+    const graph = await exportedGraph(page)
+    expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([friend]))
+    expect(graph.getMutedByUser(manifest.root)).toEqual(new Set([muted]))
+    expect(fixture.mobileReads).toBe(0)
+  }
+})
+
+test("unreadable personal cache stays recoverable without public replacement", async ({
+  page,
+}) => {
+  await configure(page)
+  await seedGraph(page, new Uint8Array([0, 1, 2]))
+  const fixture = await signedGraphFixture(page, await fixtureGraph())
+  await page.goto("/settings/social-graph")
+  const graph = await exportedGraph(page)
+  expect(graph.size().users).toBe(manifest.users)
+  await page.waitForTimeout(8500)
+  expect(fixture.mobileReads).toBe(0)
+  const saved = await page.evaluate(
+    () =>
+      new Promise<number[]>((resolve, reject) => {
+        const opening = indexedDB.open("localforage", 2)
+        opening.onerror = () => reject(opening.error)
+        opening.onsuccess = () => {
+          const db = opening.result,
+            request = db
+              .transaction("keyvaluepairs")
+              .objectStore("keyvaluepairs")
+              .get("socialGraph")
+          request.onsuccess = () => {
+            db.close()
+            resolve(Array.from(request.result))
+          }
+          request.onerror = () => {
+            db.close()
+            reject(request.error)
+          }
+        }
+      })
+  )
+  expect(saved).toEqual([0, 1, 2])
+})
+
+test("fresh projected lists replace overlapping packaged rows", async ({page}) => {
+  await configure(page)
+  const fresh = await SocialGraph.fromBinary(manifest.root, await fixtureGraph())
+  setList(fresh, manifest.root, 3, [discovered], Math.floor(Date.now() / 1000))
+  fresh.markListIncomplete(manifest.root, 3)
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const fixture = await signedGraphFixture(page, Buffer.from(await fresh.toBinary()), {
+    holdMobile: held,
+  })
+  try {
+    await page.goto("/settings/social-graph")
+    await expect.poll(() => fixture.mobileReads).toBe(1)
+    await expect(
+      page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
+    ).toHaveText(String(manifest.directFollows))
+    release()
+    await expect(
+      page.getByText("Distance 1", {exact: true}).locator("..").locator("span").last()
+    ).toHaveText("1")
+    const graph = await exportedGraph(page)
+    expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([discovered]))
+    expect(graph.getListRevision(manifest.root, 3)?.complete).toBe(false)
+  } finally {
+    release()
+  }
+})
+
+test("personal follow and mute events received during public loading survive replacement", async ({
+  page,
+}) => {
+  const secret = generateSecretKey(),
+    pubkey = getPublicKey(secret),
+    at = Math.floor(Date.now() / 1000)
+  const {publishIncoming} = await configure(page, "saved", "unsupported", [], {
+    version: 3,
+    state: {
+      publicKey: pubkey,
+      privateKey: Buffer.from(secret).toString("hex"),
+      relays: publicRelays,
+      relayConfigs: publicRelays.map((url) => ({url})),
+    },
+  })
+  const fresh = await SocialGraph.fromBinary(manifest.root, await fixtureGraph())
+  setList(fresh, pubkey, 3, [discovered], at)
+  fresh.markListIncomplete(pubkey, 3)
+  setList(fresh, pubkey, 10000, [discovered], at - 2)
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const fixture = await signedGraphFixture(page, Buffer.from(await fresh.toBinary()), {
+    holdMobile: held,
+  })
+  const events = [
+    finalizeEvent(
+      {kind: 3, created_at: at - 1, tags: [["p", friend]], content: ""},
+      secret
+    ),
+    finalizeEvent(
+      {kind: 10000, created_at: at - 1, tags: [["p", muted]], content: ""},
+      secret
+    ),
+  ]
+  try {
+    await page.goto("/settings/social-graph")
+    await expect.poll(() => fixture.mobileReads, {timeout: 15000}).toBe(1)
+    for (const event of events)
+      await expect.poll(() => publishIncoming(event)).toBeGreaterThan(0)
+    await expect(async () => {
+      const graph = await exportedGraph(page)
+      for (const event of events)
+        expect(graph.getListRevision(pubkey, event.kind)?.id).toBe(event.id)
+    }).toPass({timeout: 5000})
+    release()
+    await expect(async () => {
+      const graph = await exportedGraph(page)
+      expect(graph.getFollowedByUser(manifest.root)).toEqual(new Set([discovered]))
+      for (const event of events)
+        expect(graph.getListRevision(pubkey, event.kind)?.id).toBe(event.id)
+      expect(graph.getFollowedByUser(pubkey)).toEqual(new Set([friend]))
+      expect(graph.getMutedByUser(pubkey)).toEqual(new Set([muted]))
+    }).toPass({timeout: 5000})
+  } finally {
+    release()
+  }
+})
+
 for (const retained of [false, true]) {
   test(`signed Hashtree bootstrap imports real binary in ${retained ? "retained" : "empty"} graph`, async ({
     page,
@@ -768,6 +1016,12 @@ test("graph reconciliation retrieves 130 exact IDs across relay response caps an
   await seedGraph(page, personal)
   const discovery = new SocialGraph(manifest.root)
   setList(discovery, manifest.root, 3, authors)
+  setList(
+    discovery,
+    authors[0],
+    3,
+    Array.from({length: 13_000}, (_, i) => (i + 1).toString(16).padStart(64, "0"))
+  )
   const body = Buffer.from(await discovery.toBinary())
   await signedGraphFixture(page, body)
   await page.goto("/settings/social-graph")
