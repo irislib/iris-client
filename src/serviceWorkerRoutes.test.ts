@@ -71,4 +71,21 @@ describe("resolveNotificationClickUrl", () => {
       resolveNotificationClickUrl({event: {kind: 1}}, origin, "/notifications")
     ).toBe("https://iris.to/notifications")
   })
+
+  it("keeps notifications entering the Client recovery mount", () => {
+    expect(
+      resolveNotificationClickUrl(
+        {url: "/chats?tab=requests#latest"},
+        origin,
+        "/",
+        "/old"
+      )
+    ).toBe("https://iris.to/old/chats?tab=requests#latest")
+    expect(resolveNotificationClickUrl({url: "/old/wallet"}, origin, "/", "/old")).toBe(
+      "https://iris.to/old/wallet"
+    )
+    expect(resolveNotificationClickUrl({}, origin, "/notifications", "/old")).toBe(
+      "https://iris.to/old/notifications"
+    )
+  })
 })

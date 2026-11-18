@@ -4,6 +4,7 @@ import {useParams, Link, useLocation} from "@/navigation"
 import {sha256} from "@noble/hashes/sha2.js"
 import {useEffect, useState, useMemo} from "react"
 import {nip05, nip19} from "nostr-tools"
+import {withRecoveryMount} from "@/navigation/recoveryMount"
 import {Page404} from "@/pages/Page404"
 import ThreadPage from "@/pages/thread"
 import ProfilePage from "@/pages/user"
@@ -166,7 +167,7 @@ export default function NostrLinkHandler() {
                 </Link>
               </p>
               <button
-                onClick={() => (window.location.href = "/")}
+                onClick={() => (window.location.href = withRecoveryMount("/"))}
                 className="btn btn-primary btn-lg"
               >
                 Go back to homepage
@@ -205,7 +206,7 @@ export default function NostrLinkHandler() {
               </h1>
               <p className="text-xl mb-8">The profile link appears to be invalid.</p>
               <button
-                onClick={() => (window.location.href = "/")}
+                onClick={() => (window.location.href = withRecoveryMount("/"))}
                 className="btn btn-primary btn-lg"
               >
                 Go back to homepage

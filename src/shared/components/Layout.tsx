@@ -1,4 +1,5 @@
 import {useNavigate} from "@/navigation"
+import {stripRecoveryMount} from "@/navigation/recoveryMount"
 import NoteCreator from "@/shared/components/create/NoteCreator.tsx"
 import LoginDialog from "@/shared/components/user/LoginDialog"
 import NavSideBar from "@/shared/components/nav/NavSideBar"
@@ -49,11 +50,12 @@ const Layout = ({children}: {children: ReactNode}) => {
     const handleServiceWorkerMessage = (event: MessageEvent<ServiceWorkerMessage>) => {
       if (event.data?.type === "NAVIGATE_REACT_ROUTER") {
         const url = new URL(event.data.url)
-        if (url.pathname.match(/^\/chats\/[^/]+$/)) {
-          const chatId = url.pathname.split("/").pop()
+        const pathname = stripRecoveryMount(url.pathname)
+        if (pathname.match(/^\/chats\/[^/]+$/)) {
+          const chatId = pathname.split("/").pop()
           navigate("/chats/chat", {state: {id: chatId}})
         } else {
-          navigate(url.pathname + url.search + url.hash)
+          navigate(pathname + url.search + url.hash)
         }
       }
     }

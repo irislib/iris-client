@@ -4,6 +4,7 @@ import {getRouteParams} from "./routeMatcher"
 import {routes} from "./routes"
 import {matchPath} from "./utils"
 import {NavigationContext} from "./contexts"
+import {getRecoveryMountRoot, stripRecoveryMount} from "./recoveryMount"
 import {
   getInjectedHtreeRuntimeLocation,
   toInjectedHtreeBrowserPath,
@@ -16,22 +17,21 @@ type NavigationState = {
   currentIndex: number
 }
 
-function getBrowserPath() {
-  if (typeof window === "undefined") return "/"
-  return `${window.location.pathname}${window.location.search}`
-}
-
 function getNavigationBootstrap() {
   const htreeLocation = getInjectedHtreeRuntimeLocation()
   if (htreeLocation) {
     return htreeLocation
   }
 
-  const browserPath = getBrowserPath()
+  if (typeof window === "undefined") {
+    return {appPath: "/", browserPath: "/", historyRootPath: ""}
+  }
+  const {pathname, search, hash} = window.location
+  const historyRootPath = getRecoveryMountRoot(pathname)
   return {
-    appPath: browserPath,
-    browserPath,
-    historyRootPath: "",
+    appPath: `${stripRecoveryMount(pathname)}${search}`,
+    browserPath: `${pathname}${search}${historyRootPath ? hash : ""}`,
+    historyRootPath,
   }
 }
 
@@ -41,13 +41,13 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
     currentIndex: -1,
   })
   const stackIndexRef = useRef(0)
-  const htreeHistoryRootRef = useRef("")
+  const historyRootRef = useRef("")
 
   // Initialize with current URL
   useEffect(() => {
     const bootstrap = getNavigationBootstrap()
     const initialPath = bootstrap.appPath
-    htreeHistoryRootRef.current = bootstrap.historyRootPath
+    historyRootRef.current = bootstrap.historyRootPath
 
     // Check if we already have history state (e.g., from page refresh)
     const existingState = window.history.state
@@ -249,7 +249,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.replaceState(
           {index: newStack[currentIndex]?.index || 0, url: path, state: options.state},
           "",
-          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+          toInjectedHtreeBrowserPath(path, historyRootRef.current)
         )
         currentUrlRef.current = path
 
@@ -281,7 +281,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.pushState(
           {index: newIndex, url: path, state: options.state},
           "",
-          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+          toInjectedHtreeBrowserPath(path, historyRootRef.current)
         )
         currentUrlRef.current = path
 
@@ -304,7 +304,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.pushState(
           {index: existingItem.index, url: path},
           "",
-          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+          toInjectedHtreeBrowserPath(path, historyRootRef.current)
         )
         currentUrlRef.current = path
 
@@ -354,7 +354,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
       window.history.pushState(
         {index: newIndex, url: path},
         "",
-        toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+        toInjectedHtreeBrowserPath(path, historyRootRef.current)
       )
       currentUrlRef.current = path
 
@@ -380,7 +380,7 @@ export const NavigationProvider = ({children}: {children: ReactNode}) => {
         window.history.replaceState(
           {index: newStack[currentIndex].index, url: path},
           "",
-          toInjectedHtreeBrowserPath(path, htreeHistoryRootRef.current)
+          toInjectedHtreeBrowserPath(path, historyRootRef.current)
         )
         currentUrlRef.current = path
       }

@@ -1,4 +1,5 @@
 import type {RouteMatchCallbackOptions} from "workbox-core"
+import {withRecoveryMount} from "./navigation/recoveryMount"
 
 const HASHTREE_BLOB_ORIGINS = new Set(["https://cdn.iris.to"])
 
@@ -46,26 +47,33 @@ function getNotificationTargetUrl(data: unknown): string | undefined {
 export function resolveNotificationClickUrl(
   notificationData: unknown,
   appOrigin: string,
-  fallbackPath = "/"
+  fallbackPath = "/",
+  recoveryRoot = ""
 ): string {
   const origin = new URL(appOrigin).origin
-  const fallbackUrl = resolveSameOriginHttpUrl(fallbackPath, origin) || `${origin}/`
+  const fallbackUrl =
+    resolveSameOriginHttpUrl(fallbackPath, origin, recoveryRoot) ||
+    `${origin}${withRecoveryMount("/", recoveryRoot)}`
   const rawUrl = getNotificationTargetUrl(notificationData)
   if (!rawUrl) {
     return fallbackUrl
   }
 
-  return resolveSameOriginHttpUrl(rawUrl, origin) || fallbackUrl
+  return resolveSameOriginHttpUrl(rawUrl, origin, recoveryRoot) || fallbackUrl
 }
 
-function resolveSameOriginHttpUrl(rawUrl: string, origin: string): string | null {
+function resolveSameOriginHttpUrl(
+  rawUrl: string,
+  origin: string,
+  recoveryRoot: string
+): string | null {
   try {
     const targetUrl = new URL(rawUrl, `${origin}/`)
     if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
       return null
     }
 
-    return `${origin}${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`
+    return `${origin}${withRecoveryMount(targetUrl.pathname, recoveryRoot)}${targetUrl.search}${targetUrl.hash}`
   } catch {
     return null
   }

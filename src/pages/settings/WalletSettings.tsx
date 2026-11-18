@@ -11,6 +11,7 @@ import {ChangeEvent, useState, useEffect} from "react"
 import {createDebugLogger} from "@/utils/createDebugLogger"
 import {DEBUG_NAMESPACES} from "@/utils/constants"
 import {nip19} from "nostr-tools"
+import {withRecoveryMount} from "@/navigation/recoveryMount"
 
 const {log} = createDebugLogger(DEBUG_NAMESPACES.CASHU_WALLET)
 
@@ -611,7 +612,10 @@ const WalletSettings = () => {
                     If you have funds in the old wallet, recover them here
                   </div>
                 </div>
-                <a href="/old-wallet" className="btn btn-sm btn-outline">
+                <a
+                  href={withRecoveryMount("/old-wallet")}
+                  className="btn btn-sm btn-outline"
+                >
                   Open Legacy Wallet
                 </a>
               </div>

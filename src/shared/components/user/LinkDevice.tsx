@@ -9,13 +9,14 @@ import {
 import {nostr} from "@/utils/nostrClient"
 import Icon from "@/shared/components/Icons/Icon"
 import {getShareableAppOrigin} from "@/utils/utils"
+import {withRecoveryMount} from "@/navigation/recoveryMount"
 
 interface LinkDeviceProps {
   onBack: () => void
 }
 
 const getInviteBaseUrl = (): string => {
-  return getShareableAppOrigin()
+  return new URL(withRecoveryMount("/"), getShareableAppOrigin()).href
 }
 
 const truncateMiddle = (value: string, maxLength: number) => {

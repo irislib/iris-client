@@ -53,6 +53,7 @@ export default defineConfig({
         // even for people who never open /cashu/.
         globIgnores: [
           "cashu/**/*",
+          "legacy-apex-service-worker.js",
           "**/ort-wasm*",
           "**/search-minilm-*",
           "**/search-tokenizer-*",

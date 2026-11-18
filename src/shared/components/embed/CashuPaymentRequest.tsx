@@ -1,3 +1,4 @@
+import {withRecoveryMount} from "@/navigation/recoveryMount"
 import {useState, useEffect} from "react"
 import {RiQrCodeLine} from "@remixicon/react"
 import Embed, {type EmbedComponentProps} from "./index.ts"
@@ -35,7 +36,7 @@ function CashuPaymentRequestComponent({match, key}: EmbedComponentProps) {
   const handlePay = async () => {
     // Navigate to send with this payment request
     const url = `/wallet?paymentRequest=${encodeURIComponent(match.trim())}`
-    window.location.href = url
+    window.location.href = withRecoveryMount(url)
   }
 
   const handleCopy = () => {

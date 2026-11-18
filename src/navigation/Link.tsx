@@ -6,6 +6,7 @@ import {
   AnchorHTMLAttributes,
 } from "react"
 import {useNavigate, useNavigation} from "./hooks"
+import {withRecoveryMount} from "./recoveryMount"
 
 interface LinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   to: string
@@ -45,7 +46,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
     }
 
     return (
-      <a ref={ref} href={to} onClick={handleClick} {...rest}>
+      <a ref={ref} href={withRecoveryMount(to)} onClick={handleClick} {...rest}>
         {children}
       </a>
     )

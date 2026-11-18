@@ -1,3 +1,4 @@
+import {withRecoveryMount} from "@/navigation/recoveryMount"
 import {Fragment} from "react"
 
 import {AvatarGroup} from "@/shared/components/user/AvatarGroup"
@@ -55,7 +56,7 @@ export function DonationCheckbox({
               ))}
               {recipientNames.length > 3 && ` and ${recipientNames.length - 3} others`}
             </span>
-            <a href="/settings/wallet" className="link text-xs">
+            <a href={withRecoveryMount("/settings/wallet")} className="link text-xs">
               (configure)
             </a>
           </div>

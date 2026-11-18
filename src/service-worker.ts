@@ -29,6 +29,7 @@ import EventCache from "@/lib/nostr/cache"
 import {AppEvent} from "@/lib/nostr"
 import {createSessionStorage, tryDecryptDmPushEvent} from "@/utils/dmPushDecrypt"
 import {isHashtreeBlobRequest, resolveNotificationClickUrl} from "./serviceWorkerRoutes"
+import {getRecoveryMountRoot} from "./navigation/recoveryMount"
 
 const {log, error} = createDebugLogger(DEBUG_NAMESPACES.UTILS)
 
@@ -213,22 +214,28 @@ function getNotificationFallbackPath(notificationData: unknown): string {
   return NOTIFICATION_CONFIGS[kind]?.url || "/notifications"
 }
 
-function sameOriginClient(client: WindowClient): boolean {
+const recoveryRoot = getRecoveryMountRoot(new URL(self.registration.scope).pathname)
+
+function notificationAppClient(client: WindowClient): boolean {
   try {
-    return new URL(client.url).origin === self.location.origin
+    const {origin, pathname} = new URL(client.url)
+    return (
+      origin === self.location.origin &&
+      (!recoveryRoot || getRecoveryMountRoot(pathname) === recoveryRoot)
+    )
   } catch {
     return false
   }
 }
 
 function selectNotificationClient(clients: readonly WindowClient[], targetUrl: string) {
-  const sameOriginClients = clients.filter(sameOriginClient)
+  const appClients = clients.filter(notificationAppClient)
   const targetHref = new URL(targetUrl).href
 
   return (
-    sameOriginClients.find((client) => new URL(client.url).href === targetHref) ||
-    sameOriginClients.find((client) => client.visibilityState === "visible") ||
-    sameOriginClients[0]
+    appClients.find((client) => new URL(client.url).href === targetHref) ||
+    appClients.find((client) => client.visibilityState === "visible") ||
+    appClients[0]
   )
 }
 
@@ -280,7 +287,8 @@ self.addEventListener("notificationclick", (event) => {
       const fullUrl = resolveNotificationClickUrl(
         notificationData,
         self.location.origin,
-        getNotificationFallbackPath(notificationData)
+        getNotificationFallbackPath(notificationData),
+        recoveryRoot
       )
       log("Navigating to:", fullUrl)
 
@@ -358,7 +366,9 @@ self.addEventListener("push", (event) => {
         type: "window",
         includeUncontrolled: true,
       })
-      const isPageVisible = clients.some((client) => client.visibilityState === "visible")
+      const isPageVisible = clients.some(
+        (client) => notificationAppClient(client) && client.visibilityState === "visible"
+      )
       if (isPageVisible) {
         log("Page is visible, ignoring web push")
         return

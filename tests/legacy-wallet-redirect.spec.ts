@@ -1,5 +1,5 @@
 import {createServer} from "node:http"
-import {expect, test} from "@playwright/test"
+import {expect, test, type BrowserContext, type Page} from "@playwright/test"
 
 const usingBuiltDist = ["1", "true"].includes(
   process.env.IRIS_E2E_BUILT_DIST || process.env.IRIS_E2E_BUILT || ""
@@ -10,9 +10,27 @@ test("the wallet recovers an installed redirected cache through its parent view"
   page,
   baseURL,
 }) => {
+  await checkLegacyWalletRecovery(context, page, baseURL, "")
+})
+
+test("same-origin recovery keeps the existing wallet and isolates the Client worker scope", async ({
+  context,
+  page,
+  baseURL,
+}) => {
+  await checkLegacyWalletRecovery(context, page, baseURL, "/old")
+})
+
+async function checkLegacyWalletRecovery(
+  context: BrowserContext,
+  page: Page,
+  baseURL: string | undefined,
+  mount: string
+) {
   test.skip(!usingBuiltDist, "requires the production build")
   test.setTimeout(60000)
   let helperRequested = false
+  let apexCutover = false
   let releaseHelper: (() => void) | undefined
   const helperHeld = new Promise<void>((resolve) => {
     releaseHelper = resolve
@@ -38,6 +56,18 @@ test("the wallet recovers an installed redirected cache through its parent view"
         });
       `)
     }
+    if (mount && !apexCutover && url.pathname === "/service-worker.js") {
+      response.setHeader("Content-Type", "application/javascript")
+      return response.end(`
+        self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+        self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+        self.addEventListener('fetch', e => {
+          if (e.request.mode === 'navigate' && new URL(e.request.url).pathname === '/fixture') {
+            e.respondWith(new Response('<title>Previous root worker</title>', {headers: {'Content-Type': 'text/html'}}));
+          }
+        });
+      `)
+    }
     if (url.pathname === "/fixture") {
       response.setHeader("Content-Type", "text/html")
       return response.end("<!doctype html><title>Wallet redirect fixture</title>")
@@ -47,7 +77,13 @@ test("the wallet recovers an installed redirected cache through its parent view"
       await helperHeld
     }
     try {
-      const upstream = await fetch(new URL(url.pathname + url.search, baseURL))
+      let upstreamPath = url.pathname
+      if (mount && upstreamPath.startsWith(`${mount}/`)) {
+        upstreamPath = upstreamPath.slice(mount.length)
+      } else if (apexCutover && upstreamPath === "/service-worker.js") {
+        upstreamPath = "/legacy-apex-service-worker.js"
+      }
+      const upstream = await fetch(new URL(upstreamPath + url.search, baseURL))
       response.writeHead(upstream.status, {
         "Content-Type":
           upstream.headers.get("Content-Type") || "application/octet-stream",
@@ -101,7 +137,8 @@ test("the wallet recovers an installed redirected cache through its parent view"
 
     // No cache clearing, unregistering or forced worker activation: the actual
     // parent view installs the repair before creating the wallet frame.
-    await page.goto(`${origin}/old-wallet`, {waitUntil: "domcontentloaded"})
+    const recoveryUrl = `${origin}${mount}/old-wallet`
+    await page.goto(recoveryUrl, {waitUntil: "domcontentloaded"})
     await expect.poll(() => helperRequested).toBe(true)
     // Even a slow helper must not mount a broken old wallet before the repair.
     await page.waitForTimeout(5500)
@@ -153,10 +190,65 @@ test("the wallet recovers an installed redirected cache through its parent view"
           (await navigator.serviceWorker.getRegistration("/cashu/"))?.active?.scriptURL
       )
     ).not.toContain(oldWorker)
-    await page.evaluate(() => navigator.serviceWorker.ready.then(() => true))
+    expect(
+      await page.evaluate(() => navigator.serviceWorker.ready.then((reg) => reg.scope))
+    ).toBe(`${origin}${mount}/`)
+    if (mount) {
+      await expect(page.locator('link[rel="manifest"]')).toHaveCount(0)
+      expect(
+        await page.evaluate(async () =>
+          Boolean(await navigator.serviceWorker.getRegistration("/"))
+        )
+      ).toBe(false)
+      const home = page.locator(`a[href="${mount}/"]`).first()
+      await expect(home).toBeVisible()
+      await home.click()
+      await expect(page).toHaveURL(`${origin}${mount}/`)
+      await page.goBack()
+      await expect(page).toHaveURL(recoveryUrl)
+      await expect(wallet.locator("#q-app")).not.toBeEmpty()
+      await expect(
+        wallet.locator("#q-app").evaluate(() => location.pathname)
+      ).resolves.toMatch(/^\/cashu\//)
+    }
     await context.setOffline(true)
     await page.reload({waitUntil: "domcontentloaded"})
     await expect(wallet.locator("#q-app")).not.toBeEmpty()
+
+    if (mount) {
+      await page.screenshot({path: test.info().outputPath("legacy-recovery.png")})
+      await context.setOffline(false)
+      await page.evaluate(() => navigator.serviceWorker.register("/service-worker.js"))
+      await expect
+        .poll(() =>
+          page.evaluate(
+            async () =>
+              (await navigator.serviceWorker.getRegistration("/"))?.active?.state
+          )
+        )
+        .toBe("activated")
+      const landing = await context.newPage()
+      await landing.goto(`${origin}/fixture`)
+      await expect(landing).toHaveTitle("Previous root worker")
+      apexCutover = true
+      await landing.evaluate(async () => {
+        await (await navigator.serviceWorker.getRegistration("/"))?.update()
+      })
+      await expect
+        .poll(async () => {
+          await landing.reload({waitUntil: "domcontentloaded"})
+          return landing.title()
+        })
+        .toBe("Wallet redirect fixture")
+      await expect(wallet.locator("#q-app")).not.toBeEmpty()
+      expect(
+        await page.evaluate(
+          async () =>
+            (await navigator.serviceWorker.getRegistration("/cashu/"))?.active?.state
+        )
+      ).toBe("activated")
+      await landing.close()
+    }
     expect(errors).toEqual([])
   } finally {
     releaseHelper!()
@@ -166,4 +258,4 @@ test("the wallet recovers an installed redirected cache through its parent view"
       server.close((error) => (error ? reject(error) : resolve()))
     )
   }
-})
+}

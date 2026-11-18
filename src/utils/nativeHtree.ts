@@ -1,3 +1,5 @@
+import {getRecoveryMountRoot} from "@/navigation/recoveryMount"
+
 declare global {
   interface Window {
     __HTREE_SERVER_URL__?: string
@@ -287,7 +289,8 @@ export function resolveAppAssetUrl(assetPath: string): string {
     return assetPath
   }
 
-  const historyRootPath = getInjectedHtreeRuntimeLocation()?.historyRootPath
+  const historyRootPath =
+    getInjectedHtreeRuntimeLocation()?.historyRootPath || getRecoveryMountRoot()
   if (!historyRootPath) {
     return assetPath
   }
