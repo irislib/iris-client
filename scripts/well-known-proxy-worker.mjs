@@ -34,6 +34,20 @@ export default {
       return fetch(new Request(upstreamUrl, request))
     }
 
+    if (
+      url.hostname === "iris.to" &&
+      url.pathname === "/sw.js" &&
+      request.method === "GET" &&
+      request.headers.get("Service-Worker") === "script"
+    ) {
+      // Update the Sites root registration after its apex route is removed.
+      url.pathname = "/legacy-apex-service-worker.js"
+      const response = await env.ASSETS.fetch(new Request(url, request))
+      const headers = new Headers(response.headers)
+      headers.set("Cache-Control", "no-store")
+      return new Response(response.body, {status: response.status, headers})
+    }
+
     if (request.method === "GET" || request.method === "HEAD") {
       if (url.pathname === "/old") {
         url.pathname = "/old/"

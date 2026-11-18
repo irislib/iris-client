@@ -76,6 +76,34 @@ describe("static assets worker", () => {
     expect(request?.url).toBe(`https://iris.to${assetPath}?ref=wallet`)
   })
 
+  it("serves the non-caching Sites rollback bridge to the apex worker script request", async () => {
+    const assetFetch = vi.fn(
+      async (_request: Request) =>
+        new Response("worker script", {headers: {"Content-Type": "text/javascript"}})
+    )
+    const response = await worker.fetch(
+      new Request("https://iris.to/sw.js", {headers: {"Service-Worker": "script"}}),
+      {ASSETS: {fetch: assetFetch}}
+    )
+    expect(assetFetch.mock.calls[0]?.[0]?.url).toBe(
+      "https://iris.to/legacy-apex-service-worker.js"
+    )
+    expect(response.headers.get("Cache-Control")).toBe("no-store")
+    expect(response.headers.get("Content-Type")).toBe("text/javascript")
+    expect(await response.text()).toBe("worker script")
+  })
+
+  it.each([
+    ["https://iris.to/sw.js", {}],
+    ["https://beta.iris.to/sw.js", {"Service-Worker": "script"}],
+    ["https://iris.to/service-worker.js", {"Service-Worker": "script"}],
+    ["https://iris.to/old/service-worker.js", {"Service-Worker": "script"}],
+  ])("leaves %s outside the Sites rollback bridge", async (url, headers) => {
+    const assetFetch = vi.fn(async (_request: Request) => new Response(null))
+    await worker.fetch(new Request(url, {headers}), {ASSETS: {fetch: assetFetch}})
+    expect(assetFetch.mock.calls[0]?.[0]?.url).toBe(url.replace("/old/", "/"))
+  })
+
   it("passes root requests through to Cloudflare Assets", async () => {
     Object.defineProperty(globalThis, "HTMLRewriter", {
       configurable: true,
