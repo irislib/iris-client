@@ -65,6 +65,23 @@ function Settings() {
       ],
     },
     {
+      title: "Sign-in",
+      items: [
+        {
+          icon: "logout",
+          iconBg: "bg-red-500",
+          message: "Sign out",
+          path: "/settings/logout",
+        },
+        {
+          icon: "trash",
+          iconBg: "bg-red-600",
+          message: "Delete profile",
+          path: "/settings/delete-account",
+        },
+      ],
+    },
+    {
       title: "Application",
       items: [
         {
@@ -140,23 +157,6 @@ function Settings() {
         },
       ],
     },
-    {
-      title: "Account",
-      items: [
-        {
-          icon: "trash" as const,
-          iconBg: "bg-red-600",
-          message: "Delete account",
-          path: "/settings/delete-account",
-        },
-        {
-          icon: "key" as const,
-          iconBg: "bg-red-500",
-          message: "Log out",
-          path: "/settings/logout",
-        },
-      ],
-    },
   ]
 
   const getSettingsTitle = () => {
@@ -166,8 +166,8 @@ function Settings() {
     const titleMap: Record<string, string> = {
       "": "Settings",
       keys: "Keys",
-      logout: "Log out",
-      "delete-account": "Delete account",
+      logout: "Sign out",
+      "delete-account": "Delete profile",
       network: "Network",
       profile: "Profile",
       iris: "iris.to username",

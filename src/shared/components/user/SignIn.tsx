@@ -195,8 +195,8 @@ export default function SignIn({onClose}: SignInProps) {
         className="flex flex-col items-center justify-center gap-4 flex-wrap border-t pt-4 cursor-pointer"
         onClick={onClose}
       >
-        <span className="hover:underline">Don&apos;t have an account?</span>
-        <button className="btn btn-sm btn-neutral">Sign up</button>
+        <span className="hover:underline">Don&apos;t have a profile?</span>
+        <button className="btn btn-sm btn-neutral">Create profile</button>
       </div>
     </div>
   )

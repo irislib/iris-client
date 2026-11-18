@@ -1,4 +1,4 @@
-import {readProfileFields} from "@iris/profile-events"
+import {readProfileFields, readRawProfileFields} from "@iris/profile-events"
 import {verifyEvent, type Event} from "nostr-tools/pure"
 
 export type ProfileMetadata = Record<string, unknown>
@@ -18,6 +18,7 @@ export function readProfileMetadata(source: string | undefined, pubkey: string) 
       return null
     }
     if (!verifyEvent(event)) return null
+    readRawProfileFields(event.content)
     return {metadata: readProfileFields(event.content), event: event as Event}
   } catch {
     return null
@@ -42,7 +43,7 @@ export function profileEditorValues(metadata: ProfileMetadata) {
   }
 }
 
-export function customProfileFields(metadata: ProfileMetadata) {
+export function customProfileFields<T>(metadata: Record<string, T>) {
   const known = profileEditorValues({})
   return Object.fromEntries(
     Object.entries(metadata).filter(([key]) => !Object.hasOwn(known, key))

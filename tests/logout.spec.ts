@@ -57,12 +57,21 @@ async function sessionStorageFingerprints(page: Page) {
   )
 }
 
-test("read-only accounts can cancel logout before clearing the session", async ({page}) => {
+test("read-only accounts can cancel logout before clearing the session", async ({
+  page,
+}) => {
   const account = "npub1g53mukxnjkcmr94fhryzkqutdz2ukq4ks0gvy5af25rgmwsl4ngq43drvk"
   await signUp(page, account)
-  await page.goto("/settings/logout")
-  const logout = page.getByRole("button", {name: "Log out", exact: true})
-  const signedIn = () => page.evaluate(() => JSON.parse(localStorage.getItem("user-storage") || "{}").state?.publicKey)
+  await page.goto("/settings/profile")
+  await expect(page.getByRole("button", {name: "Back up secret key"})).toHaveCount(0)
+  await page.goto("/settings")
+  await page.getByRole("link", {name: "Sign out", exact: true}).click()
+  await expect(page).toHaveURL(/\/settings\/logout$/)
+  const logout = page.getByRole("button", {name: "Sign out", exact: true})
+  const signedIn = () =>
+    page.evaluate(
+      () => JSON.parse(localStorage.getItem("user-storage") || "{}").state?.publicKey
+    )
   const publicKey = await signedIn()
   expect(publicKey).toBeTruthy()
   page.once("dialog", (dialog) => dialog.dismiss())
@@ -88,11 +97,16 @@ test("logout without a service worker is fast and clears private data", async ({
   await page.keyboard.press("Escape")
   await expectPersistedDraft(page, draft)
 
-  await page.goto("/settings/logout")
+  await page.goto("/settings/profile")
+  await page.getByRole("button", {name: "Back up secret key", exact: true}).click()
+  await expect(page.getByRole("button", {name: "Copy secret key (nsec)"})).toBeVisible()
+  await page.goto("/settings")
+  await page.getByRole("link", {name: "Sign out", exact: true}).click()
+  await expect(page).toHaveURL(/\/settings\/logout$/)
   expect(
     await page.evaluate(() => navigator.serviceWorker.getRegistration())
   ).toBeUndefined()
-  const logout = page.getByRole("button", {name: "Log out", exact: true})
+  const logout = page.getByRole("button", {name: "Sign out", exact: true})
   await expect(logout).toBeVisible()
   const previousSessions = await sessionStorageFingerprints(page)
   await page.screenshot({path: testInfo.outputPath("before-logout.png")})
@@ -108,7 +122,7 @@ test("logout without a service worker is fast and clears private data", async ({
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByTestId("sidebar-user-row")).toBeHidden()
   await expect(
-    page.getByRole("button", {name: "Sign up", exact: true}).first()
+    page.getByRole("button", {name: "Create profile", exact: true}).first()
   ).toBeVisible()
   expect(
     await page.evaluate(() => {
@@ -141,7 +155,7 @@ test("logout still removes browser push when the notification server fails", asy
 }) => {
   await signUp(page, "Push Logout Test")
   await page.goto("/settings/logout")
-  const logout = page.getByRole("button", {name: "Log out", exact: true})
+  const logout = page.getByRole("button", {name: "Sign out", exact: true})
   await expect(logout).toBeVisible()
 
   let subscriptionRequests = 0
@@ -177,7 +191,7 @@ test("logout still removes browser push when the notification server fails", asy
   await logout.click()
   await expect(page).toHaveURL(/\/$/)
   await expect(
-    page.getByRole("button", {name: "Sign up", exact: true}).first()
+    page.getByRole("button", {name: "Create profile", exact: true}).first()
   ).toBeVisible()
   expect(subscriptionRequests).toBeGreaterThan(0)
   expect(

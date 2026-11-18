@@ -7,9 +7,9 @@ const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
   "@iris/profile-events": {
-    url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz",
+    url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz",
     integrity:
-      "sha512-f61CH/ygvxssR12uvIgWJGcFkYCr4gXoxR/FR2nglqDmHCLtvuR4RPsM47d5ppL8eP64iUK06RjO055ZhwN3Rw==",
+      "sha512-B6groCtJFzoSCQ66ovQhDkAHcSWtN/JBNyojYmxUOGm6wgi3p1oLZ5btbGby/qzMsBFLOh9uIJ4kJBVVuxHKeQ==",
   },
   "nostr-pubsub-reconcile": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.2/nostr-pubsub-reconcile-0.1.2.tgz",
@@ -83,9 +83,9 @@ const releases = {
       "sha512-CPvJzniY+nItLVEQpH4jaRnmU7AMkD3kAN5yByXMgmm4MNChAk8X8HY8oJIw1riX/gW3/WKD8c+eUtSgu98DDA==",
   },
   "nostr-social-graph": {
-    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz",
+    url: "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz",
     integrity:
-      "sha512-ph2wNSfjqeDvp0WrjqhJ4LET1O/FuGR0EbfosswjyGpd052xk020+PybXOWauZfx/92NG7O/cY/ZkHhM+9mCvw==",
+      "sha512-SbIf1758zSgdkOWWuxNrHmphzfEn5Y4kbD2LPkBI/sl4CrEifpzfXjNt621YD9FRElk+HTt7+HBk7Ht2HU1iyA==",
   },
 }
 

@@ -14,7 +14,7 @@ export default function GroupPoll({event}: {event: AppEvent}) {
       group={access?.ref}
       canVote={access ? access.canParticipate : !!publicKey}
       isEligible={access?.isEligible ?? allAccounts}
-      policyLabel={access?.policyLabel ?? "All accounts"}
+      policyLabel={access?.policyLabel ?? "All profiles"}
     />
   )
 }

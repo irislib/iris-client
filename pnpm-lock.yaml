@@ -79,16 +79,16 @@ importers:
         version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-nostr-pubsub-0.1.9.tgz(nostr-tools@2.24.1(typescript@5.9.3))(typescript@5.9.3)
       '@hashtree/worker':
         specifier: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz
-        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3))(typescript@5.9.3)
+        version: https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3))(typescript@5.9.3)
       '@huggingface/tokenizers':
         specifier: 0.2.0
         version: 0.2.0
       '@iris/identity':
         specifier: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz
-        version: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3))(typescript@5.9.3)
+        version: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3))(typescript@5.9.3)
       '@iris/profile-events':
-        specifier: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz
-        version: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz
+        specifier: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz
+        version: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz
       '@noble/curves':
         specifier: ^2.2.0
         version: 2.2.0
@@ -153,8 +153,8 @@ importers:
         specifier: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.32/nostr-pubsub-0.5.32.tgz
         version: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.32/nostr-pubsub-0.5.32.tgz(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-social-graph:
-        specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz
-        version: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3)
+        specifier: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz
+        version: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3)
       nostr-tools:
         specifier: ^2.24.1
         version: 2.24.1(typescript@5.9.3)
@@ -1358,9 +1358,9 @@ packages:
     peerDependencies:
       nostr-social-graph: '*'
 
-  '@iris/profile-events@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz':
-    resolution: {integrity: sha512-f61CH/ygvxssR12uvIgWJGcFkYCr4gXoxR/FR2nglqDmHCLtvuR4RPsM47d5ppL8eP64iUK06RjO055ZhwN3Rw==, tarball: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz}
-    version: 0.1.0
+  '@iris/profile-events@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz':
+    resolution: {integrity: sha512-B6groCtJFzoSCQ66ovQhDkAHcSWtN/JBNyojYmxUOGm6wgi3p1oLZ5btbGby/qzMsBFLOh9uIJ4kJBVVuxHKeQ==, tarball: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz}
+    version: 0.2.0
 
   '@iris/release-tools@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.12/iris-release-tools-0.1.2.tgz':
     resolution: {integrity: sha512-ZytyQLbDUYz/IcQ2rvUZZeFvT7FqwhRB3brZtuMwH7ILP/Jvui+ldDnKR8dNxxmIr02+PPyuv+VWKlRyaXCMbg==, tarball: https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.12/iris-release-tools-0.1.2.tgz}
@@ -3176,9 +3176,9 @@ packages:
     peerDependencies:
       nostr-tools: '>=2.23.3 <3'
 
-  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz:
-    resolution: {integrity: sha512-ph2wNSfjqeDvp0WrjqhJ4LET1O/FuGR0EbfosswjyGpd052xk020+PybXOWauZfx/92NG7O/cY/ZkHhM+9mCvw==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz}
-    version: 4.2.3
+  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz:
+    resolution: {integrity: sha512-SbIf1758zSgdkOWWuxNrHmphzfEn5Y4kbD2LPkBI/sl4CrEifpzfXjNt621YD9FRElk+HTt7+HBk7Ht2HU1iyA==, tarball: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz}
+    version: 4.2.5
 
   nostr-tools@2.23.5:
     resolution: {integrity: sha512-Fa7ZlUdjfUW1P4E7H3yBexhOHYi18XNyvd2n7eNHkYR085xADX6Y8V8Vm7nT/XQajaFOBrptXmVIGkJ2E4vfVw==}
@@ -5185,7 +5185,7 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@hashtree/worker@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3))(typescript@5.9.3)':
+  '@hashtree/worker@https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.41/hashtree-worker-0.4.25.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
       '@hashtree/core': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-core-0.4.0.tgz
       '@hashtree/dexie': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz
@@ -5197,7 +5197,7 @@ snapshots:
       nostr-pubsub: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.20/nostr-pubsub-0.5.20.tgz(patch_hash=jiyfmet6zewdwpvnxmt32xuwde)(nostr-tools@2.24.1(typescript@5.9.3))
       nostr-tools: 2.24.1(typescript@5.9.3)
     optionalDependencies:
-      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3)
+      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
@@ -5311,14 +5311,14 @@ snapshots:
   '@img/sharp-win32-x64@0.34.5':
     optional: true
 
-  '@iris/identity@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3))(typescript@5.9.3)':
+  '@iris/identity@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.9/iris-identity-0.4.0.tgz(nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
-      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3)
+      nostr-social-graph: https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3)
       nostr-tools: 2.23.5(typescript@5.9.3)
     transitivePeerDependencies:
       - typescript
 
-  '@iris/profile-events@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz': {}
+  '@iris/profile-events@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.15/iris-profile-events-0.2.0.tgz': {}
 
   '@iris/release-tools@https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.12/iris-release-tools-0.1.2.tgz': {}
 
@@ -7222,7 +7222,7 @@ snapshots:
       nostr-pubsub-reconcile: https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.2/nostr-pubsub-reconcile-0.1.2.tgz
       nostr-tools: 2.24.1(typescript@5.9.3)
 
-  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.3/nostr-social-graph-4.2.3.tgz(typescript@5.9.3):
+  nostr-social-graph@https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz(typescript@5.9.3):
     dependencies:
       '@msgpack/msgpack': 3.1.3
       '@noble/hashes': 2.2.0

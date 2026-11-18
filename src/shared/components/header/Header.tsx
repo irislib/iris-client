@@ -130,7 +130,7 @@ const Header = ({
               className="md:hidden btn btn-sm btn-primary whitespace-nowrap"
               onClick={() => setShowLoginDialog(true)}
             >
-              Sign up
+              Create profile
             </button>
           )}
         </div>

@@ -187,7 +187,7 @@ function Logout() {
       store.privateKey
         ? "Make sure you have a backup of your secret key."
         : "This will clear your session on this device.",
-      "Log out?"
+      "Sign out?"
     )
 
     if (confirmed) {
@@ -245,12 +245,14 @@ function Logout() {
             </SettingsGroup>
           )}
 
-          <SettingsGroup title="Log out">
+          <SettingsGroup title="Sign out">
             <SettingsGroupItem>
               <div className="flex flex-col gap-3">
-                <div className="text-sm text-base-content/70">
-                  Make sure you have a backup of your secret key before logging out.
-                </div>
+                {store.privateKey && (
+                  <div className="text-sm text-base-content/70">
+                    Make sure you have a backup of your secret key before signing out.
+                  </div>
+                )}
                 <div className="text-sm text-base-content/70">
                   Your <span className="font-medium">Iris chats</span> and{" "}
                   <span className="font-medium">Cashu wallet</span> on this device will be
@@ -265,7 +267,7 @@ function Logout() {
             </SettingsGroupItem>
 
             <SettingsButton
-              label={isLoggingOut ? "Logging out..." : "Log out"}
+              label={isLoggingOut ? "Signing out…" : "Sign out"}
               onClick={handleLogout}
               variant="destructive"
               isLast
