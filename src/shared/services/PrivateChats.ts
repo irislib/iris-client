@@ -661,7 +661,7 @@ export const acceptLinkInvite = async (invite: Invite): Promise<void> => {
     throw new Error("Linked devices cannot accept link invites")
   }
   if (invite.ownerPubkey && invite.ownerPubkey !== publicKey) {
-    throw new Error("Link invite is for a different account")
+    throw new Error("Link invite is for a different profile")
   }
 
   await acceptInviteViaNdrRuntime(invite, publicKey)

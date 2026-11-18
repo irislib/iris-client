@@ -6,11 +6,13 @@ test("login offers a browser extension and keeps device pairing in Devices", asy
 }) => {
   await page.goto("/", {waitUntil: "domcontentloaded"})
 
-  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  const signUpHeading = page.getByRole("heading", {name: "Create profile", exact: true})
   const signInHeading = page.getByRole("heading", {name: "Sign in"})
 
   if (!(await signUpHeading.isVisible()) && !(await signInHeading.isVisible())) {
-    const signUpButton = page.locator("button:visible", {hasText: "Sign up"}).first()
+    const signUpButton = page
+      .getByRole("button", {name: "Create profile", exact: true})
+      .first()
     await expect(signUpButton).toBeVisible({timeout: 10000})
     await signUpButton.click()
     await expect(page.locator("dialog.modal")).toBeVisible({timeout: 10000})

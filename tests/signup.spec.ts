@@ -1,23 +1,16 @@
 import {test, expect} from "@playwright/test"
 
-test("user can sign up without a name", async ({page}) => {
-  // Start from the home page
+test("user can create a profile without a name", async ({page}) => {
   await page.goto("/")
 
-  // Wait for any signup button to be visible and click it
-  const signUpButtons = page.locator(".signup-btn")
-  const visibleButton = signUpButtons.filter({hasText: "Sign up"}).first()
-  await visibleButton.waitFor({state: "visible", timeout: 10000})
-  await visibleButton.click()
+  await page.getByRole("button", {name: "Create profile", exact: true}).first().click()
 
-  // Wait for the signup dialog to appear
-  await expect(page.getByRole("heading", {name: "Sign up"})).toBeVisible()
+  const dialog = page.getByRole("dialog")
+  await expect(
+    dialog.getByRole("heading", {name: "Create profile", exact: true})
+  ).toBeVisible()
+  await dialog.getByRole("button", {name: "Create profile", exact: true}).click()
 
-  // Don't enter a name, just click Go
-  const goButton = page.getByRole("button", {name: "Go"})
-  await goButton.click()
-
-  // Wait for signup to complete
-  await expect(page.getByRole("heading", {name: "Sign up"})).not.toBeVisible()
+  await expect(dialog).not.toBeVisible()
   await expect(page.locator("#main-content").getByTestId("new-post-button")).toBeVisible()
 })

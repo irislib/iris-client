@@ -20,7 +20,7 @@ async function signInOrder(event: AppEvent, window: SigningWindow) {
         if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
       }
       if (!author || author !== useUserStore.getState().publicKey) {
-        throw new Error("Your account changed. Please try again.")
+        throw new Error("Your profile changed. Please try again.")
       }
       event.created_at = Math.floor(Date.now() / 1000)
       if (
@@ -53,7 +53,7 @@ export async function publishGroupEvent(
   event.nostr = instance
   if (!event.sig) await signInOrder(event, window)
   if (event.pubkey !== useUserStore.getState().publicKey)
-    throw new Error("Your account changed. Please try again.")
+    throw new Error("Your profile changed. Please try again.")
   if (
     window.beforeTimestamp !== undefined &&
     Math.floor(Date.now() / 1000) > window.beforeTimestamp

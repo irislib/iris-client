@@ -11,7 +11,7 @@ export function createRemoteSigner(session: BrowserSignerSession): Signer {
   return {
     user: async () => new User({pubkey: session.pubkey}),
     sign: async (event: Event) => {
-      if (event.pubkey !== session.pubkey) throw new Error("Signer account changed")
+      if (event.pubkey !== session.pubkey) throw new Error("Signer profile changed")
       return (await (await signer()).signEvent(event)).sig
     },
     encrypt: async (recipient, value, scheme = "nip44") => {

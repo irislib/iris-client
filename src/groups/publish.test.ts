@@ -107,7 +107,7 @@ describe("offline-first group publishing", () => {
   it("does not send when the active account changes during signing", async () => {
     const signing = pauseSigning(signer)
     const publishing = publishGroupEvent(draft())
-    const rejected = expect(publishing).rejects.toThrow("Your account changed")
+    const rejected = expect(publishing).rejects.toThrow("Your profile changed")
     await signing.started
     runtime.publicKey = SecretKeySigner.generate().pubkey
     signing.release()

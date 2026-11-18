@@ -133,7 +133,7 @@ export default function SignUp({onClose}: SignUpProps) {
         }}
         onKeyDown={handleKeyDown}
       >
-        <h1 className="text-2xl font-bold">Sign up</h1>
+        <h1 className="text-2xl font-bold">Create profile</h1>
         <input
           ref={inputRef}
           autoComplete="name"
@@ -145,14 +145,14 @@ export default function SignUp({onClose}: SignUpProps) {
           onChange={(e) => onNameChange(e)}
         />
         <button className="btn btn-primary" type="submit">
-          Go
+          Create profile
         </button>
       </form>
       <div
         className="flex flex-col items-center justify-center gap-4 flex-wrap border-t pt-4 cursor-pointer"
         onClick={onClose}
       >
-        <span className="hover:underline">Already have an account?</span>
+        <span className="hover:underline">Already have a profile?</span>
         <button className="btn btn-sm btn-neutral">Sign in</button>
       </div>
     </div>

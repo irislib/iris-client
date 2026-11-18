@@ -141,6 +141,6 @@ describe("DeviceList", () => {
       container.querySelector('[title="Remove this device from messaging"]')
     ).toBeNull()
     expect(container.querySelector('[title="Revoke device"]')).toBeNull()
-    expect(container.textContent).toContain("Manage devices from the main account")
+    expect(container.textContent).toContain("Manage linked devices from your main device")
   })
 })
