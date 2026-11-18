@@ -8,10 +8,12 @@ import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile, {updateProfileFromEvent} from "@/shared/hooks/useProfile"
 import {useEffect, useId, useMemo, useRef, useState} from "react"
 import {
-  buildProfileDraft,
-  conflictingProfileFields,
-  diffProfileFields,
+  buildRawProfileDraft,
+  conflictingRawProfileFields,
+  diffRawProfileFields,
+  readRawProfileFields,
   readProfileFields,
+  formatRawProfileFields,
 } from "@iris/profile-events"
 import type {Event} from "nostr-tools/pure"
 import {nip19} from "nostr-tools"
@@ -69,16 +71,16 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const npubCashAddress = `${nip19.npubEncode(myPubKey)}@npub.cash`
 
   const initialCustom = useMemo(
-    () => customProfileFields(currentSource?.metadata ?? {}),
+    () => customProfileFields(readRawProfileFields(currentSource?.event?.content ?? "{}")),
     [currentSource]
   )
-  let customPatch: Record<string, unknown> = {}
+  let customPatch: Record<string, string | undefined> = {}
   let customError = ""
   if (customText !== null) {
     try {
-      const object = readProfileFields(customText)
+      const object = readRawProfileFields(customText)
       if (Object.keys(object).some((key) => Object.hasOwn(baseValues, key))) throw Error()
-      customPatch = diffProfileFields(initialCustom, object)
+      customPatch = diffRawProfileFields(initialCustom, object)
     } catch {
       customError = "Enter a JSON object using keys outside the main form."
     }
@@ -151,23 +153,26 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     if (!currentSource || !myPubKey) return
     setSaveState("saving")
     setSaveError("")
-    const savedEdits = {...edits, ...customPatch}
+    const savedEdits = {
+      ...Object.fromEntries(Object.entries(edits).map(([key, value]) => [key, JSON.stringify(value)])),
+      ...customPatch,
+    }
     const head = latest.current
     if (!head || customError || loadError) {
       setSaveState("idle")
       return
     }
     try {
-      const conflicts = conflictingProfileFields(
-        currentSource.metadata,
-        head.metadata,
+      const conflicts = conflictingRawProfileFields(
+        readRawProfileFields(currentSource.event?.content ?? "{}"),
+        readRawProfileFields(head.event?.content ?? "{}"),
         savedEdits
       )
       if (conflicts.length)
         throw Error(
           `Changed elsewhere: ${conflicts.join(", ")}. Load the latest profile to review these changes.`
         )
-      const event = new AppEvent(nostr(), buildProfileDraft(head.event, savedEdits))
+      const event = new AppEvent(nostr(), buildRawProfileDraft(head.event, savedEdits))
       const signer = nostr().signer
       if (!signer || (await signer.user()).pubkey !== myPubKey) {
         throw new Error("Profile signer changed")
@@ -415,7 +420,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                   className="textarea w-full font-mono"
                   rows={5}
                   spellCheck={false}
-                  value={customText ?? JSON.stringify(initialCustom, null, 2)}
+                  value={customText ?? formatRawProfileFields(initialCustom)}
                   onChange={(event) => {
                     setDraftBase(currentSource)
                     setCustomText(event.target.value)
@@ -424,6 +429,17 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                 />
               </label>
               {customError && <p role="alert">{customError}</p>}
+              {Object.keys(customPatch).length > 0 && (
+                <dl aria-label="Custom field changes" className="mt-2 grid gap-2 text-sm">
+                  {Object.entries(customPatch).map(([key, after]) => (
+                    <div key={key}>
+                      <dt className="font-medium">{key}</dt>
+                      <dd className="break-all">Before · {initialCustom[key] ?? "Absent"}</dd>
+                      <dd className="break-all">After · {after ?? "Absent"}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
               {Boolean(currentSource?.event?.tags.length) && (
                 <p className="mt-3 text-sm">Event tags</p>
               )}
