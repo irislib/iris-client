@@ -1,6 +1,6 @@
 import fs from "node:fs"
 import path from "node:path"
-import {describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 type ReleaseSiteOptions = {
   dryRun: boolean
@@ -83,6 +83,13 @@ async function withDistFixture<T>(run: () => Promise<T>): Promise<T> {
 }
 
 describe("release site config", () => {
+  beforeEach(() => {
+    vi.stubEnv("IRIS_NATIVE_RELEASE_GATE", path.resolve(__dirname, "../scripts/release-site.mjs"))
+    vi.stubEnv("HTREE_BIN", "htree")
+  })
+  afterEach(() => vi.unstubAllEnvs())
+
+
   it("uses a site tree name that does not collide with the git remote name", async () => {
     const {defaultSiteTreeName, parseArgs} = await importReleaseSiteModule()
     const parsed = parseArgs([])
@@ -99,7 +106,16 @@ describe("release site config", () => {
 
     expect(publishStep).toBeDefined()
     expect(publishStep?.cwd.endsWith("/dist")).toBe(true)
-    expect(publishStep?.command[0]).toBe("htree")
+    expect(publishStep?.command).toEqual([
+      process.execPath,
+      process.env.IRIS_NATIVE_RELEASE_GATE,
+      "--dist",
+      distDir,
+      "--tree",
+      "iris-client-site",
+      "--htree",
+      "htree",
+    ])
     expect(publishStep?.command).not.toContain("--manifest-path")
     expect(publishStep?.command).toContain("iris-client-site")
   })
@@ -138,7 +154,7 @@ describe("release site config", () => {
     expect(parsed.treeName).toBe("custom-site-tree")
   })
 
-  it("runs hashtree publish and Cloudflare deploy in parallel after tests", async () => {
+  it("runs the native publication gate before deploying to Cloudflare", async () => {
     const {runRelease} = await importReleaseSiteModule()
     let activeReleaseSteps = 0
     let maxActiveReleaseSteps = 0
@@ -191,6 +207,6 @@ describe("release site config", () => {
       "publish",
       "deploy",
     ])
-    expect(maxActiveReleaseSteps).toBe(2)
+    expect(maxActiveReleaseSteps).toBe(1)
   })
 })

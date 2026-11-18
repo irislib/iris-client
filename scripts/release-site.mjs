@@ -24,6 +24,7 @@ export const releaseProfile = {
   appName: "Iris",
   distDir: "dist",
   treeName: defaultSiteTreeName,
+  nativeReleaseGate: true,
   defaultWorkerName: "iris-client",
   defaultRoutes: [],
   defaultDomains: ["iris.to"],
@@ -187,8 +188,9 @@ export async function runRelease(options, runner = defaultRunner, hooks = {}) {
 export function usage() {
   return `Usage: node ./scripts/release-site.mjs [options]
 
-Build once, test the built output, then publish that same directory to Hashtree
-and Cloudflare in parallel.
+Build once and test the built output. The native Iris Drive gate verifies it
+before Hashtree publication and Cloudflare deployment.
+Set IRIS_NATIVE_RELEASE_GATE to the absolute path of the pinned Iris Sites gate.
 
 Options:
   --worker-name <name>    Cloudflare Worker service name

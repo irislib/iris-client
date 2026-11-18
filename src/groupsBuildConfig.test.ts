@@ -1,3 +1,4 @@
+import {fileURLToPath} from "node:url"
 import {execFileSync} from "node:child_process"
 import {describe, expect, it, vi} from "vitest"
 
@@ -48,8 +49,38 @@ describe("Groups build", () => {
     // @ts-expect-error The release entry point is a plain Node script.
     const {runRelease} = await import("../scripts/release-groups.mjs")
     const runner = vi.fn().mockReturnValueOnce({status: 0}).mockReturnValue({status: 1})
-    expect(() => runRelease({}, runner)).toThrow("failed")
+    vi.stubEnv("HTREE_BIN", "htree")
+    vi.stubEnv("IRIS_NATIVE_RELEASE_GATE", fileURLToPath(new URL("../scripts/release-groups.mjs", import.meta.url)))
+    try {
+      expect(() => runRelease({}, runner)).toThrow("failed")
+    } finally {
+      vi.unstubAllEnvs()
+    }
     expect(runner).toHaveBeenCalledTimes(2)
     expect(runner.mock.calls.some((call) => call[1].includes("deploy"))).toBe(false)
   })
+
+  it("boots and publishes Groups with the native runner before deploying its Worker", async () => {
+    // @ts-expect-error The release entry point is a plain Node script.
+    const {runRelease} = await import("../scripts/release-groups.mjs")
+    const gate = fileURLToPath(import.meta.url)
+    vi.stubEnv("IRIS_NATIVE_RELEASE_GATE", gate)
+    vi.stubEnv("HTREE_BIN", "htree")
+    const calls: string[][] = []
+    const runner = (_command: string, args: string[]) => {
+      calls.push(args)
+      return {status: args[0] === gate ? 1 : 0}
+    }
+    try {
+      expect(() => runRelease({}, runner)).toThrow("failed")
+      expect(calls.at(-1)).toEqual([
+        gate, "--dist", expect.stringMatching(/\/dist-groups$/),
+        "--tree", "iris-groups-site", "--htree", "htree",
+      ])
+      expect(calls.some((args) => args.includes("deploy"))).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
 })

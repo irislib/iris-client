@@ -1,9 +1,9 @@
+import {createNativeReleaseCommand, parseNativeReleaseOutput} from "@iris/release-tools"
 import path from "node:path"
 import {fileURLToPath} from "node:url"
 import {spawnSync} from "node:child_process"
 import {existsSync} from "node:fs"
 import {resolveHtreeCommand} from "./hashtreePaths.mjs"
-import {parsePublishOutput} from "./release-site.mjs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -64,7 +64,12 @@ export function createDevPublishPlan(options) {
   steps.push({
     id: "publish",
     label: `Publish Iris dev tree to hashtree (${options.treeName})`,
-    command: resolveHtreeCommand("add", ".", "--publish", options.treeName),
+    command: createNativeReleaseCommand({
+      distDir,
+      treeName: options.treeName,
+      resolveHtreeCommand,
+      dryRun: options.dryRun,
+    }),
     cwd: distDir,
   })
 
@@ -123,7 +128,7 @@ export function runDevPublish(options, runner = defaultRunner) {
   }
 
   return {
-    publish: parsePublishOutput(publishOutput),
+    publish: parseNativeReleaseOutput(publishOutput, options.treeName),
     treeName: options.treeName,
   }
 }
@@ -131,8 +136,9 @@ export function runDevPublish(options, runner = defaultRunner) {
 export function usage() {
   return `Usage: node ./scripts/devpublish-iris.mjs [options]
 
-Build iris-client, publish the current dist directory to hashtree, and print
-both mutable and immutable URLs for testing inside Iris.
+Build iris-client and run the native Iris Drive gate before publishing the
+current dist directory to Hashtree.
+Set IRIS_NATIVE_RELEASE_GATE to the absolute path of the pinned Iris Sites gate.
 
 Options:
   --tree <name>      hashtree mutable tree name override

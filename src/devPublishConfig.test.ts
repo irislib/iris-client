@@ -45,16 +45,18 @@ describe("dev publish config", () => {
 
   it("plans build and publish steps by default", async () => {
     const {createDevPublishPlan, parseArgs} = await importDevPublishModule()
-    const plan = createDevPublishPlan(parseArgs([]))
+    const plan = createDevPublishPlan(parseArgs(["--dry-run"]))
 
     expect(plan.steps.map((step) => step.id)).toEqual(["build", "publish"])
     expect(plan.steps[0].command).toEqual(["pnpm", "run", "build"])
+    expect(plan.steps[1].command).toContain("--dist")
+    expect(plan.steps[1].command).toContain("--tree")
     expect(plan.steps[1].command).toContain("iris-client-dev")
   })
 
   it("can skip the build step", async () => {
     const {createDevPublishPlan, parseArgs} = await importDevPublishModule()
-    const plan = createDevPublishPlan(parseArgs(["--skip-build"]))
+    const plan = createDevPublishPlan(parseArgs(["--skip-build", "--dry-run"]))
 
     expect(plan.steps.map((step) => step.id)).toEqual(["publish"])
   })

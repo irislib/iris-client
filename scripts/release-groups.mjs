@@ -1,6 +1,9 @@
+import {createNativeReleaseCommand} from "@iris/release-tools"
 import {spawnSync} from "node:child_process"
 import path from "node:path"
 import {fileURLToPath} from "node:url"
+import {sourceCommit} from "./check-release-source.mjs"
+import {resolveHtreeCommand} from "./hashtreePaths.mjs"
 
 const filename = fileURLToPath(import.meta.url)
 const appDir = path.resolve(path.dirname(filename), "..")
@@ -39,11 +42,26 @@ export const releaseSteps = [
       IRIS_E2E_LOCAL_RELAY: "true",
     },
   },
-  {command: ["pnpm", "exec", "wrangler", "deploy", "--config", "wrangler.groups.jsonc"]},
 ]
 
 export function runRelease({dryRun = false} = {}, runner = spawnSync) {
-  for (const step of releaseSteps) {
+  const publish = createNativeReleaseCommand({
+    distDir: path.join(appDir, "dist-groups"),
+    treeName: "iris-groups-site",
+    resolveHtreeCommand,
+    dryRun,
+  })
+  const checkSource = {
+    command: [process.execPath, path.join(appDir, "scripts", "check-release-source.mjs"), sourceCommit(appDir)],
+  }
+  const steps = [
+    checkSource,
+    ...releaseSteps,
+    checkSource,
+    {command: publish},
+    {command: ["pnpm", "exec", "wrangler", "deploy", "--config", "wrangler.groups.jsonc"]},
+  ]
+  for (const step of steps) {
     if (dryRun) {
       console.log(
         [
