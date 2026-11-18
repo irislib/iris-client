@@ -220,15 +220,15 @@ export default function CashuWallet() {
   useEffect(() => {
     if (!isTopOfStack) return
 
-    const params = new URLSearchParams(location.search)
-    const paymentRequest = params.get("paymentRequest")
+    const url = new URL(window.location.href)
+    const paymentRequest = url.searchParams.get("paymentRequest")
     if (paymentRequest && manager) {
       setSendDialogInitialInvoice(paymentRequest)
       setShowSendDialog(true)
-      // Clear the URL param
-      window.history.replaceState({}, "", "/wallet")
+      url.searchParams.delete("paymentRequest")
+      window.history.replaceState(window.history.state, "", url)
     }
-  }, [isTopOfStack, location.search, manager])
+  }, [isTopOfStack, location.pathname, manager])
 
   // Track online/offline status
   useEffect(() => {

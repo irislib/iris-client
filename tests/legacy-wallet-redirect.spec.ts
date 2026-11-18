@@ -248,6 +248,9 @@ async function checkLegacyWalletRecovery(
         )
       ).toBe("activated")
       await landing.close()
+
+      await page.goto(`${origin}${mount}/wallet?paymentRequest=lncanary&ref=recovery`)
+      await expect(page).toHaveURL(`${origin}${mount}/wallet?ref=recovery`)
     }
     expect(errors).toEqual([])
   } finally {
