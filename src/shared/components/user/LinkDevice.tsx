@@ -3,7 +3,6 @@ import {useUserStore} from "@/stores/user"
 import {useUIStore} from "@/stores/ui"
 import {
   createLinkInvite,
-  buildLinkInviteUrl,
   listenForLinkInviteAcceptance,
 } from "@/shared/services/PrivateChats"
 import {nostr} from "@/utils/nostrClient"
@@ -45,7 +44,7 @@ export default function LinkDevice({onBack}: LinkDeviceProps) {
         const invite = await createLinkInvite()
         if (!active) return
 
-        const url = buildLinkInviteUrl(invite, getInviteBaseUrl())
+        const url = invite.getUrl(getInviteBaseUrl())
         setInviteUrl(url)
 
         unsubscribeRef.current = listenForLinkInviteAcceptance(

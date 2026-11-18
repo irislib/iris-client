@@ -1,4 +1,5 @@
 import {test, expect} from "@playwright/test"
+import {Invite} from "nostr-double-ratchet"
 
 test("login offers a browser extension and keeps device pairing in Devices", async ({
   page,
@@ -47,4 +48,6 @@ test("login offers a browser extension and keeps device pairing in Devices", asy
   const copyButton = page.getByTestId("link-invite-copy")
   await expect(copyButton).toBeVisible({timeout: 10000})
   await expect(copyButton).toContainText("https://")
+  const inviteUrl = await copyButton.getAttribute("title")
+  expect(Invite.fromUrl(inviteUrl ?? "").purpose).toBe("link")
 })
