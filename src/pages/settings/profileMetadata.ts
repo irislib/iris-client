@@ -1,3 +1,6 @@
+import {readProfileFields} from "@iris/profile-events"
+import {verifyEvent, type Event} from "nostr-tools/pure"
+
 export type ProfileMetadata = Record<string, unknown>
 export type ProfileEditorField =
   "display_name" | "about" | "website" | "picture" | "banner" | "lud16" | "nip05"
@@ -14,12 +17,8 @@ export function readProfileMetadata(source: string | undefined, pubkey: string) 
     ) {
       return null
     }
-    const metadata: unknown = JSON.parse(event.content)
-    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null
-    return {
-      metadata: metadata as ProfileMetadata,
-      createdAt: typeof event.created_at === "number" ? event.created_at : 0,
-    }
+    if (!verifyEvent(event)) return null
+    return {metadata: readProfileFields(event.content), event: event as Event}
   } catch {
     return null
   }
@@ -41,4 +40,11 @@ export function profileEditorValues(metadata: ProfileMetadata) {
     lud16: value("lud16"),
     nip05: value("nip05"),
   }
+}
+
+export function customProfileFields(metadata: ProfileMetadata) {
+  const known = profileEditorValues({})
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => !Object.hasOwn(known, key))
+  )
 }

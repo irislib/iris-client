@@ -1,13 +1,22 @@
 import {describe, expect, it} from "vitest"
 import {profileEditorValues, readProfileMetadata} from "./profileMetadata"
 
-const pubkey = "1".repeat(64)
+import {finalizeEvent, generateSecretKey, getPublicKey} from "nostr-tools/pure"
+
+const secret = generateSecretKey()
+const pubkey = getPublicKey(secret)
 const envelope = (content: unknown, author = pubkey, kind = 0) =>
   JSON.stringify({
+    ...finalizeEvent(
+      {
+        kind,
+        created_at: 123,
+        tags: [["custom", "keep"]],
+        content: JSON.stringify(content),
+      },
+      secret
+    ),
     pubkey: author,
-    kind,
-    created_at: 123,
-    content: JSON.stringify(content),
   })
 
 describe("profile editor source metadata", () => {
@@ -21,9 +30,10 @@ describe("profile editor source metadata", () => {
       cachedAt: 9,
       profileEvent: "custom extension value",
     }
-    expect(readProfileMetadata(envelope(metadata), pubkey)).toEqual({
+    const source = envelope(metadata)
+    expect(readProfileMetadata(source, pubkey)).toMatchObject({
       metadata,
-      createdAt: 123,
+      event: JSON.parse(source),
     })
   })
 

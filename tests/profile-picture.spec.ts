@@ -38,7 +38,10 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
     {
       kind: 0,
       created_at: Math.floor(Date.now() / 1000) - 60,
-      tags: [],
+      tags: [
+        ["custom", "keep", "all parts"],
+        ["client", "old app"],
+      ],
       content: JSON.stringify(initialProfile),
     },
     secret
@@ -98,6 +101,7 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
       }
       expect(content).not.toHaveProperty("image")
       expect(event.created_at).toBeGreaterThan(previousCreatedAt)
+      expect(event.tags).toEqual(initialEvent.tags)
       previousCreatedAt = event.created_at
       await expect(page.getByRole("status")).toHaveText("Changes saved")
     }
@@ -162,7 +166,16 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
       const about = `${initialProfile.about} after reload`
       await aboutInput.fill(about)
       await expect(aboutInput).toHaveAccessibleDescription("Unsaved")
-      await saveAndCheck({...initialProfile, picture: "", about})
+      await page.getByText("Custom fields and tags", {exact: true}).click()
+      await expect(
+        page.getByText(JSON.stringify(initialEvent.tags[0]), {exact: true})
+      ).toBeVisible()
+      const custom = page.getByLabel("Custom fields (JSON)")
+      await custom.fill(
+        JSON.stringify({...JSON.parse(await custom.inputValue()), birthday: {day: 18}})
+      )
+      await page.screenshot({path: testInfo.outputPath("custom-fields.png")})
+      await saveAndCheck({...initialProfile, picture: "", about, birthday: {day: 18}})
       await expect(aboutInput).toHaveAccessibleDescription("")
     })
   } finally {

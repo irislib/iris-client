@@ -6,6 +6,11 @@ const manifest = JSON.parse(await readFile(new URL("package.json", root), "utf8"
 const lockfile = await readFile(new URL("pnpm-lock.yaml", root), "utf8")
 
 const releases = {
+  "@iris/profile-events": {
+    url: "https://github.com/mmalmi/iris-kit/releases/download/runtime-v0.2.13/iris-profile-events-0.1.0.tgz",
+    integrity:
+      "sha512-f61CH/ygvxssR12uvIgWJGcFkYCr4gXoxR/FR2nglqDmHCLtvuR4RPsM47d5ppL8eP64iUK06RjO055ZhwN3Rw==",
+  },
   "nostr-pubsub-reconcile": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-reconcile-ts-v0.1.2/nostr-pubsub-reconcile-0.1.2.tgz",
     integrity:

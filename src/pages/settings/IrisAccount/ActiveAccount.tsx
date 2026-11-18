@@ -1,3 +1,8 @@
+import {useState} from "react"
+import {buildProfileDraft} from "@iris/profile-events"
+import {AppEvent} from "@/lib/nostr"
+import {readProfileMetadata} from "../profileMetadata"
+import {updateProfileFromEvent} from "@/shared/hooks/useProfile"
 import AccountName from "./AccountName"
 import {nostr} from "@/utils/nostrClient"
 import {SettingsGroup} from "@/shared/components/settings/SettingsGroup"
@@ -14,24 +19,36 @@ export default function ActiveAccount({
   setAsPrimary = () => {},
   myPub = "",
 }: ActiveAccountProps) {
-  async function saveProfile(nip05: string) {
-    const user = nostr().getUser({pubkey: myPub})
-    user.profile = user.profile || {nip05}
-    user.publish()
-  }
-
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   const onClick = async () => {
-    const profile = nostr().getUser({pubkey: myPub}).profile
-    const newNip = name + "@iris.to"
-    const timeout = setTimeout(() => {
-      saveProfile(newNip)
-    }, 2000)
-    if (profile) {
-      clearTimeout(timeout)
-      if (profile.nip05 !== newNip) {
-        saveProfile(newNip)
-        setAsPrimary()
+    setSaving(true)
+    setError("")
+    try {
+      const client = nostr()
+      const latest = await client.fetchEvent({kinds: [0], authors: [myPub]})
+      const source = readProfileMetadata(JSON.stringify(latest?.rawEvent()), myPub)
+      if (!source)
+        throw Error(
+          "Load your public profile in Profile settings before changing its address."
+        )
+      const signer = client.signer
+      if (!signer || (await signer.user()).pubkey !== myPub)
+        throw Error("Sign in to change your address.")
+      const nip05 = name + "@iris.to"
+      if (source.metadata.nip05 !== nip05) {
+        const event = new AppEvent(client, buildProfileDraft(source.event, {nip05}))
+        await event.sign(signer, {preserveTags: true})
+        await event.publish()
+        updateProfileFromEvent(event)
       }
+      setAsPrimary()
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not change your primary address."
+      )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -44,9 +61,10 @@ export default function ActiveAccount({
       </SettingsGroupItem>
       <AccountName name={name} />
       <SettingsGroupItem>
-        <button className="btn btn-sm btn-primary" onClick={onClick}>
+        <button className="btn btn-sm btn-primary" onClick={onClick} disabled={saving}>
           Set as primary Nostr address (nip05)
         </button>
+        {error && <p role="alert">{error}</p>}
       </SettingsGroupItem>
     </SettingsGroup>
   )

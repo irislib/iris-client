@@ -6,7 +6,14 @@ import {Avatar} from "@/shared/components/user/Avatar"
 import {Name} from "@/shared/components/user/Name"
 import {useFileUpload} from "@/shared/hooks/useFileUpload"
 import useProfile, {updateProfileFromEvent} from "@/shared/hooks/useProfile"
-import {useEffect, useId, useMemo, useState} from "react"
+import {useEffect, useId, useMemo, useRef, useState} from "react"
+import {
+  buildProfileDraft,
+  conflictingProfileFields,
+  diffProfileFields,
+  readProfileFields,
+} from "@iris/profile-events"
+import type {Event} from "nostr-tools/pure"
 import {nip19} from "nostr-tools"
 import {AppEvent} from "@/lib/nostr"
 import {useUserStore} from "@/stores/user"
@@ -15,6 +22,7 @@ import {nostr} from "@/utils/nostrClient"
 import {watchLatestEvent} from "@/utils/watchLatestEvent"
 import ProxyImg from "@/shared/components/ProxyImg"
 import {
+  customProfileFields,
   profileEditorValues,
   readProfileMetadata,
   type ProfileEdits,
@@ -42,17 +50,17 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   })
 
   const existingProfile = useProfile(myPubKey)
-  const [source, setSource] = useState<{
-    pubkey: string
-    metadata: ProfileMetadata
-    createdAt: number
-  } | null>(null)
+  type Source = {metadata: ProfileMetadata; event: Event | null}
+  const [source, setSource] = useState<Source | null>(null)
+  const latest = useRef<Source | null>(null)
+  const [draftBase, setDraftBase] = useState<Source | null>(null)
+  const [customText, setCustomText] = useState<string | null>(null)
   const [edits, setEdits] = useState<ProfileEdits>({})
   const [loadError, setLoadError] = useState("")
   const [saveError, setSaveError] = useState("")
   const [loadAttempt, setLoadAttempt] = useState(0)
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
-  const currentSource = source?.pubkey === myPubKey ? source : null
+  const currentSource = draftBase ?? source
   const baseValues = useMemo(
     () => profileEditorValues(currentSource?.metadata ?? {}),
     [currentSource]
@@ -60,37 +68,59 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const newProfile = {...baseValues, ...edits}
   const npubCashAddress = `${nip19.npubEncode(myPubKey)}@npub.cash`
 
-  useEffect(() => {
-    if (!myPubKey) return
-    let cancelled = false
-    setLoadError("")
-    const accept = (data: NonNullable<ReturnType<typeof readProfileMetadata>>) => {
-      if (cancelled) return
-      setSource((current) =>
-        current?.pubkey === myPubKey && current.createdAt > data.createdAt
-          ? current
-          : {pubkey: myPubKey, ...data}
-      )
+  const initialCustom = useMemo(
+    () => customProfileFields(currentSource?.metadata ?? {}),
+    [currentSource]
+  )
+  let customPatch: Record<string, unknown> = {}
+  let customError = ""
+  if (customText !== null) {
+    try {
+      const object = readProfileFields(customText)
+      if (Object.keys(object).some((key) => Object.hasOwn(baseValues, key))) throw Error()
+      customPatch = diffProfileFields(initialCustom, object)
+    } catch {
+      customError = "Enter a JSON object using keys outside the main form."
     }
-    const cached = readProfileMetadata(existingProfile?.profileEvent, myPubKey)
-    if (cached) {
-      accept(cached)
+  }
+
+  function accept(data: Source) {
+    const previous = latest.current?.event
+    if (
+      previous &&
+      (!data.event ||
+        previous.created_at > data.event.created_at ||
+        (previous.created_at === data.event.created_at && previous.id <= data.event.id))
+    )
       return
-    }
-    // A UI/cache projection is not a complete metadata document, so edits build on
-    // the source event from whichever source has it first. Only a fully read, empty
-    // history proves there is nothing to preserve; silence still fails closed.
+    latest.current = data
+    setSource(data)
+    setLoadError("")
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    const cached = readProfileMetadata(existingProfile?.profileEvent, myPubKey)
+    if (cached) accept(cached)
     const stop = watchLatestEvent(
       {kinds: [0], authors: [myPubKey]},
       (event) => {
         const data = readProfileMetadata(JSON.stringify(event.rawEvent()), myPubKey)
+        if (cancelled) return
         if (data) accept(data)
+        else if (
+          !latest.current?.event ||
+          event.created_at >= latest.current.event.created_at
+        ) {
+          setLoadError("Your latest profile could not be read. Retry before saving.")
+        }
       },
       {},
       ({found, complete}) => {
         if (found || cancelled) return
-        if (complete) accept({metadata: {}, createdAt: 0})
-        else setLoadError("Couldn't load your full profile. Retry before saving.")
+        if (complete) accept({metadata: {}, event: null})
+        else if (!latest.current)
+          setLoadError("Couldn't load your full profile. Retry before saving.")
       }
     )
     return () => {
@@ -108,6 +138,7 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
 
   function setProfileField(field: ProfileEditorField, value: string) {
     setSaveState("idle")
+    setDraftBase(currentSource)
     setEdits((prev) => {
       const next = {...prev}
       if (value === baseValues[field]) delete next[field]
@@ -120,42 +151,58 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     if (!currentSource || !myPubKey) return
     setSaveState("saving")
     setSaveError("")
-    const savedEdits = edits
-    const metadata = {...currentSource.metadata, ...savedEdits}
+    const savedEdits = {...edits, ...customPatch}
+    const head = latest.current
+    if (!head || customError || loadError) {
+      setSaveState("idle")
+      return
+    }
     try {
-      const event = new AppEvent(nostr())
-      event.kind = 0
-      // Consecutive saves in the same second must replace the previous profile.
-      event.created_at = Math.max(event.created_at, currentSource.createdAt + 1)
-      event.content = JSON.stringify(metadata)
+      const conflicts = conflictingProfileFields(
+        currentSource.metadata,
+        head.metadata,
+        savedEdits
+      )
+      if (conflicts.length)
+        throw Error(
+          `Changed elsewhere: ${conflicts.join(", ")}. Load the latest profile to review these changes.`
+        )
+      const event = new AppEvent(nostr(), buildProfileDraft(head.event, savedEdits))
       const signer = nostr().signer
       if (!signer || (await signer.user()).pubkey !== myPubKey) {
         throw new Error("Profile signer changed")
       }
       // Metadata strings are data, not post text to rewrite into Nostr mentions.
-      await event.sign(signer, {skipContentTagging: true})
+      await event.sign(signer, {preserveTags: true})
+      if (latest.current?.event?.id !== head.event?.id)
+        throw Error(
+          "Your profile changed while signing. Review your edits and save again."
+        )
       await event.publish()
       updateProfileFromEvent(event)
-      setSource((current) =>
-        current && current.createdAt > (event.created_at ?? 0)
-          ? current
-          : {pubkey: myPubKey, metadata, createdAt: event.created_at ?? 0}
-      )
-      setEdits((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(
-            ([key, value]) => savedEdits[key as ProfileEditorField] !== value
-          )
-        )
-      )
+      accept({metadata: readProfileFields(event.content), event: event.rawEvent()})
+      setDraftBase(null)
+      setEdits({})
+      setCustomText(null)
       setSaveState("saved")
-    } catch {
+    } catch (error) {
       setSaveState("idle")
-      setSaveError("Couldn't save your profile. Your changes are still here; try again.")
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : "Couldn't save your profile. Your changes are still here; try again."
+      )
     }
   }
 
-  const isEdited = Object.keys(edits).length > 0
+  const changedKeys = [...Object.keys(edits), ...Object.keys(customPatch)]
+  const isEdited = changedKeys.length > 0
+  useEffect(() => {
+    if (!isEdited && !customError && saveState === "idle" && draftBase) {
+      setDraftBase(null)
+      setCustomText(null)
+    }
+  }, [isEdited, customError, saveState, draftBase])
 
   const getUploadButtonLabel = (upload: typeof profileUpload, defaultLabel: string) => {
     if (upload.uploading) {
@@ -360,6 +407,48 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                 isLast
               />
             </SettingsGroup>
+            <details className="rounded-box bg-base-100 p-4">
+              <summary className="cursor-pointer">Custom fields and tags</summary>
+              <label className="mt-4 grid gap-1 text-sm">
+                Custom fields (JSON)
+                <textarea
+                  className="textarea w-full font-mono"
+                  rows={5}
+                  spellCheck={false}
+                  value={customText ?? JSON.stringify(initialCustom, null, 2)}
+                  onChange={(event) => {
+                    setDraftBase(currentSource)
+                    setCustomText(event.target.value)
+                    setSaveState("idle")
+                  }}
+                />
+              </label>
+              {customError && <p role="alert">{customError}</p>}
+              {Boolean(currentSource?.event?.tags.length) && (
+                <p className="mt-3 text-sm">Event tags</p>
+              )}
+              {currentSource?.event?.tags.map((tag, index) => (
+                <code key={index} className="block break-all text-xs">
+                  {JSON.stringify(tag)}
+                </code>
+              ))}
+            </details>
+            {isEdited && (
+              <p className="text-sm break-words">Changes: {changedKeys.join(", ")}</p>
+            )}
+            {draftBase && draftBase.event?.id !== source?.event?.id && (
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  setDraftBase(null)
+                  setEdits({})
+                  setCustomText(null)
+                  setSaveError("")
+                }}
+              >
+                Discard edits and load latest
+              </button>
+            )}
           </fieldset>
         </div>
         {(isEdited || saveState !== "idle") && (
@@ -377,6 +466,8 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
               disabled={
                 !currentSource ||
                 !isEdited ||
+                !!customError ||
+                !!loadError ||
                 saveState === "saving" ||
                 profileUpload.uploading ||
                 bannerUpload.uploading

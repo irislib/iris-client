@@ -21,7 +21,12 @@ export function watchLatestEvent(
   let latest: AppEvent | undefined
   const sub = nostr().subscribe(filter, {...opts, closeOnEose: false})
   sub.on("event", (event: AppEvent) => {
-    if (latest && latest.created_at >= event.created_at) return
+    if (
+      latest &&
+      (latest.created_at > event.created_at ||
+        (latest.created_at === event.created_at && latest.id <= event.id))
+    )
+      return
     latest = event
     onEvent(event)
   })

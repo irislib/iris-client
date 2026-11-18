@@ -254,12 +254,15 @@ export class AppEvent extends Emitter implements Event {
     this.id = getEventHash(this.rawEvent())
     return this.rawEvent()
   }
-  async sign(signer = this.nostr?.signer, _options?: {skipContentTagging?: boolean}) {
+  async sign(
+    signer = this.nostr?.signer,
+    _options?: {skipContentTagging?: boolean; preserveTags?: boolean}
+  ) {
     if (!signer) throw new Error("No signer available")
     this.pubkey = (await signer.user()).pubkey
     if (!_options?.skipContentTagging && [1, 20, 1111, 30023, 30402].includes(this.kind))
       addContentTags(this.content, this.tags)
-    if (this.nostr?.clientName) {
+    if (this.nostr?.clientName && !_options?.preserveTags) {
       this.removeTag("client")
       if (!this.nostr.clientTagFilter || this.nostr.clientTagFilter(this))
         this.tags.push(["client", this.nostr.clientName])
