@@ -1,87 +1,71 @@
 diff --git a/dist/browserProvider.d.ts b/dist/browserProvider.d.ts
+index d7a6638..a8c57b0 100644
 --- a/dist/browserProvider.d.ts
 +++ b/dist/browserProvider.d.ts
-@@ -1,6 +1,8 @@
+@@ -1,3 +1,5 @@
++import { type BrowserNetworkSnapshot } from './browserStats.js';
++export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
  import { type FipsNostrPubsubClientOptions, type RuntimeSource } from 'nostr-pubsub';
  import { type Hash, type Store } from '@hashtree/core';
  import { FipsNode, type FipsIdentity, type Logger } from '@fips/core';
-+import { type BrowserNetworkSnapshot } from './browserStats.js';
-+export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
- import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
- import { WebSocketTransport } from '@fips/transport-websocket';
- import { type FipsBlobRouteSource, type HashtreeWorkerP2PProvider } from './workerProvider.js';
-@@ -41,6 +43,7 @@
+@@ -41,6 +43,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
      readonly node: FipsNode;
      readonly localPeerId: string;
      listConnectedPeerIds(): string[];
-+  getNetworkStats(): BrowserNetworkSnapshot;
++    getNetworkStats(): BrowserNetworkSnapshot;
      readonly webRtcTransport: WebRtcTransport;
-     readonly webSocketTransport: WebSocketTransport;
+     readonly webSocketTransport?: WebSocketTransport;
      stop(): Promise<void>;
-@@ -64,4 +67,3 @@
- }
- /** Files and events share one authenticated FIPS node, identity and set of links. */
- export declare function createBrowserHashtreeNostrProvider(options: BrowserHashtreeNostrProviderOptions): Promise<BrowserHashtreeNostrProvider>;
--//# sourceMappingURL=browserProvider.d.ts.map
-\ No newline at end of file
 diff --git a/dist/browserProvider.js b/dist/browserProvider.js
+index 19ecbf5..2a79d38 100644
 --- a/dist/browserProvider.js
 +++ b/dist/browserProvider.js
-@@ -1,6 +1,7 @@
- import { FipsNostrPubsubClient, FipsNostrPubsubEventSource } from 'nostr-pubsub';
+@@ -1,3 +1,4 @@
++import { BrowserNetworkStats } from './browserStats.js';
+ import { FipsNostrPubsubClient, FipsNostrPubsubEventSource, openPublicPeerFeedSource, publicPeerSource } from 'nostr-pubsub';
  import { fromHex, toHex } from '@hashtree/core';
  import { FipsNode, identityFromSecretKey, } from '@fips/core';
-+import { BrowserNetworkStats } from './browserStats.js';
- import { WebRtcTransport } from '@fips/transport-webrtc';
- import { openBrowserAnnouncements } from './browserAnnouncements.js';
- import { WebSocketTransport } from '@fips/transport-websocket';
-@@ -50,9 +51,10 @@
+@@ -59,9 +60,12 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          allowIncomingPeer: options.allowIncomingPeer,
          logger: options.logger,
      });
--    const node = new FipsNode({
 +    const networkStats = new BrowserNetworkStats();
-+  const node = new FipsNode({
+     const node = new FipsNode({
          identity,
--        transports: [webSocketTransport, webRtcTransport],
-+        transports: [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)],
+-        transports: webSocketTransport ? [webSocketTransport, webRtcTransport] : [webRtcTransport],
++        transports: webSocketTransport
++        ? [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)]
++        : [networkStats.observe(webRtcTransport)],
          forwarding: options.forwarding ?? true,
          routingMode: 'reply_learned',
          logger: options.logger,
-@@ -69,6 +71,7 @@
+@@ -78,6 +82,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          candidatePeerIds: () => [...adjacentPeers],
      });
      const removePeerListener = node.on('peer', (data) => {
-+    networkStats.peer(data);
++      networkStats.peer(data);
          const peer = data;
          if (!peer.remotePubkey)
              return;
-@@ -85,7 +88,8 @@
+@@ -94,6 +99,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          stopped = true;
          removePeerListener();
          adjacentPeers.clear();
--        provider.close();
-+        networkStats.clearPeers();
-+    provider.close();
++      networkStats.clearPeers();
+         provider.close();
          await node.stop();
      };
-     try {
-@@ -101,6 +105,7 @@
+@@ -110,6 +116,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          node,
          localPeerId: toHex(identity.publicKey),
          listConnectedPeerIds: () => [...adjacentPeers],
-+    getNetworkStats: () => networkStats.snapshot(),
++      getNetworkStats: () => networkStats.snapshot(),
          webRtcTransport,
          webSocketTransport,
          stop,
-@@ -192,4 +197,3 @@
-         },
-     };
- }
--//# sourceMappingURL=browserProvider.js.map
-\ No newline at end of file
 diff --git a/dist/browserStats.d.ts b/dist/browserStats.d.ts
 new file mode 100644
+index 0000000..fe3aedd
 --- /dev/null
 +++ b/dist/browserStats.d.ts
 @@ -0,0 +1,26 @@
@@ -113,6 +97,7 @@ new file mode 100644
 +}
 diff --git a/dist/browserStats.js b/dist/browserStats.js
 new file mode 100644
+index 0000000..cc65d58
 --- /dev/null
 +++ b/dist/browserStats.js
 @@ -0,0 +1,76 @@
@@ -193,38 +178,38 @@ new file mode 100644
 +    }
 +}
 diff --git a/src/browserProvider.ts b/src/browserProvider.ts
+index 9c0a7e9..f790b89 100644
 --- a/src/browserProvider.ts
 +++ b/src/browserProvider.ts
-@@ -6,6 +6,8 @@
-   type FipsIdentity,
-   type Logger,
- } from '@fips/core';
+@@ -1,3 +1,5 @@
 +import { BrowserNetworkStats, type BrowserNetworkSnapshot } from './browserStats.js';
 +export type { BrowserNetworkSnapshot, BrowserPeerStats, TrafficTotals } from './browserStats.js';
- import { WebRtcTransport, type WebRtcTransportConfig } from '@fips/transport-webrtc';
- import { openBrowserAnnouncements } from './browserAnnouncements.js';
- import { WebSocketTransport } from '@fips/transport-websocket';
-@@ -61,6 +63,7 @@
+ import { FipsNostrPubsubClient, FipsNostrPubsubEventSource, openPublicPeerFeedSource, publicPeerSource, type FipsNostrPubsubClientOptions, type RuntimeSource } from 'nostr-pubsub';
+ import { fromHex, toHex, type Hash, type Store } from '@hashtree/core';
+ import {
+@@ -64,6 +66,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
    readonly node: FipsNode;
    readonly localPeerId: string;
    listConnectedPeerIds(): string[];
 +  getNetworkStats(): BrowserNetworkSnapshot;
    readonly webRtcTransport: WebRtcTransport;
-   readonly webSocketTransport: WebSocketTransport;
+   readonly webSocketTransport?: WebSocketTransport;
    stop(): Promise<void>;
-@@ -110,9 +113,10 @@
+@@ -123,9 +126,12 @@ async function createBrowserProvider(
      allowIncomingPeer: options.allowIncomingPeer,
      logger: options.logger,
    });
 +  const networkStats = new BrowserNetworkStats();
    const node = new FipsNode({
      identity,
--    transports: [webSocketTransport, webRtcTransport],
-+    transports: [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)],
+-    transports: webSocketTransport ? [webSocketTransport, webRtcTransport] : [webRtcTransport],
++    transports: webSocketTransport
++      ? [networkStats.observe(webSocketTransport), networkStats.observe(webRtcTransport)]
++      : [networkStats.observe(webRtcTransport)],
      forwarding: options.forwarding ?? true,
      routingMode: 'reply_learned',
      logger: options.logger,
-@@ -129,6 +133,7 @@
+@@ -142,6 +148,7 @@ async function createBrowserProvider(
      candidatePeerIds: () => [...adjacentPeers],
    });
    const removePeerListener = node.on('peer', (data) => {
@@ -232,7 +217,7 @@ diff --git a/src/browserProvider.ts b/src/browserProvider.ts
      const peer = data as { remotePubkey?: string; state?: string };
      if (!peer.remotePubkey) return;
      if (peer.state === 'connected') adjacentPeers.add(peer.remotePubkey);
-@@ -142,6 +147,7 @@
+@@ -155,6 +162,7 @@ async function createBrowserProvider(
      stopped = true;
      removePeerListener();
      adjacentPeers.clear();
@@ -240,7 +225,7 @@ diff --git a/src/browserProvider.ts b/src/browserProvider.ts
      provider.close();
      await node.stop();
    };
-@@ -157,6 +163,7 @@
+@@ -170,6 +178,7 @@ async function createBrowserProvider(
      node,
      localPeerId: toHex(identity.publicKey),
      listConnectedPeerIds: () => [...adjacentPeers],
@@ -250,6 +235,7 @@ diff --git a/src/browserProvider.ts b/src/browserProvider.ts
      stop,
 diff --git a/src/browserStats.ts b/src/browserStats.ts
 new file mode 100644
+index 0000000..8d58ff5
 --- /dev/null
 +++ b/src/browserStats.ts
 @@ -0,0 +1,98 @@

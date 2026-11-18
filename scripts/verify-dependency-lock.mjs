@@ -52,9 +52,9 @@ const releases = {
       "sha512-viUPl2JUtrfJENEWZPvaTtT5x73Pvj5EmHn7qjsTP5T01uOg0tDm7xJww3cf6x23LILi6drOh97ss0WWYq/KVA==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-fips-transport-0.4.24.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.49/hashtree-fips-transport-0.5.2.tgz",
     integrity:
-      "sha512-86f/HNa0R/0yLPXUKynlmAZqdAk9bxrgLVnAygNDOAQflsraWjYjltbmAXpQF2f6RMRvp4pKqVFyhjmle50Gbg==",
+      "sha512-6rwv1WJVZ5gLYJs9mT/aejag6DCtKAfE5wIFaVGksk09XPSKHJGKdw/nejtYsZVWH9ik/0XBkmND6rOdQwKwXQ==",
   },
   "@hashtree/dexie": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",
