@@ -9,7 +9,6 @@ import {PROFILE_AVATAR_WIDTH, EVENT_AVATAR_WIDTH} from "./shared/components/user
 import {CacheFirst, StaleWhileRevalidate} from "workbox-strategies"
 import {CacheableResponsePlugin} from "workbox-cacheable-response"
 import {
-  cleanupOutdatedCaches,
   createHandlerBoundToURL,
   precacheAndRoute,
   PrecacheEntry,
@@ -18,7 +17,7 @@ import {showAppNotification} from "./utils/showAppNotification"
 import {generateProxyUrl} from "./shared/utils/imgproxy"
 import {ExpirationPlugin} from "workbox-expiration"
 import {NavigationRoute, registerRoute} from "workbox-routing"
-import {clientsClaim, type RouteMatchCallbackOptions} from "workbox-core"
+import {cacheNames, clientsClaim, type RouteMatchCallbackOptions} from "workbox-core"
 import {VerifiedEvent} from "nostr-tools"
 import localforage from "localforage"
 import {shouldHideBulkPush} from "./utils/bulkNotificationCache"
@@ -47,11 +46,24 @@ declare const self: ServiceWorkerGlobalScope & {
   __WB_MANIFEST: (string | PrecacheEntry)[]
 }
 
-cleanupOutdatedCaches()
+const scope = new URL(self.registration.scope)
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    (async () => {
+      // Workbox's substring scope match also matches the sibling /old/ precache.
+      const outdated = (await caches.keys()).filter(
+        (name) =>
+          name.includes("-precache-") &&
+          name.endsWith(`-${scope.href}`) &&
+          name !== cacheNames.precache
+      )
+      await Promise.all(outdated.map((name) => caches.delete(name)))
+    })()
+  )
+})
 precacheAndRoute(self.__WB_MANIFEST)
 // Saved notes and chats must reopen while offline, including a direct deep link.
 // Resolve against the worker scope so portable deployments retain their base path.
-const scope = new URL(self.registration.scope)
 const navigationDenylist = [/\/cashu(?:\/|$)/, /\/(?:api|\.well-known)(?:\/|$)/]
 if (scope.pathname === "/" && CONFIG.appVariant !== "groups") {
   // A root installation must leave recovery redirects and cold loads to the Worker.

@@ -246,6 +246,18 @@ async function checkLegacyWalletRecovery(
     if (mount) {
       await page.screenshot({path: test.info().outputPath("legacy-recovery.png")})
       await context.setOffline(false)
+      const staleRootCache = `workbox-precache-fixture-${origin}/`
+      const recoveryCache = await page.evaluate(
+        async (scope) =>
+          (await caches.keys()).find(
+            (name) => name.includes("-precache-") && name.endsWith(`-${scope}`)
+          ),
+        `${origin}${mount}/`
+      )
+      expect(recoveryCache).toBeDefined()
+      await page.evaluate(async (name) => {
+        await caches.open(name)
+      }, staleRootCache)
       await page.evaluate(() => navigator.serviceWorker.register("/service-worker.js"))
       await expect
         .poll(() =>
@@ -265,10 +277,23 @@ async function checkLegacyWalletRecovery(
       await landing.evaluate(async () => {
         const registration = await navigator.serviceWorker.getRegistration("/")
         if (!registration) throw new Error("Missing warmed root worker")
-        await registration.update()
-        const activate = () => registration.waiting?.postMessage({type: "SKIP_WAITING"})
-        registration.installing?.addEventListener("statechange", activate)
-        activate()
+        const previous = registration.active
+        await new Promise<void>((resolve, reject) => {
+          const advance = () => {
+            const installing = registration.installing
+            if (installing) installing.addEventListener("statechange", advance)
+            registration.waiting?.postMessage({type: "SKIP_WAITING"})
+            if (
+              registration.active !== previous &&
+              registration.active?.state === "activated"
+            ) {
+              resolve()
+            }
+          }
+          registration.addEventListener("updatefound", advance)
+          navigator.serviceWorker.addEventListener("controllerchange", advance)
+          void registration.update().then(advance, reject)
+        })
       })
       await expect
         .poll(async () => {
@@ -280,6 +305,9 @@ async function checkLegacyWalletRecovery(
       await expect(landing.locator('link[rel="manifest"]')).toHaveCount(0)
       await landing.goto(`${origin}/`)
       await expect(landing.locator('link[rel="manifest"]')).toHaveCount(1)
+      const cacheKeys = await landing.evaluate(() => caches.keys())
+      expect(cacheKeys).toContain(recoveryCache)
+      expect(cacheKeys).not.toContain(staleRootCache)
 
       rootWorker = "transition"
       await landing.evaluate(async () => {
