@@ -108,7 +108,7 @@ test("logout without a service worker is fast and clears private data", async ({
   await expect(page).toHaveURL(/\/$/)
   await expect(page.getByTestId("sidebar-user-row")).toBeHidden()
   await expect(
-    page.getByRole("button", {name: "Sign up", exact: true}).first()
+    page.getByRole("button", {name: "Create profile", exact: true}).first()
   ).toBeVisible()
   expect(
     await page.evaluate(() => {
@@ -177,7 +177,7 @@ test("logout still removes browser push when the notification server fails", asy
   await logout.click()
   await expect(page).toHaveURL(/\/$/)
   await expect(
-    page.getByRole("button", {name: "Sign up", exact: true}).first()
+    page.getByRole("button", {name: "Create profile", exact: true}).first()
   ).toBeVisible()
   expect(subscriptionRequests).toBeGreaterThan(0)
   expect(

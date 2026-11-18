@@ -123,8 +123,8 @@ function DeleteAccount() {
     log("[DeleteAccount] Starting delete account process")
 
     const confirmed = await confirm(
-      "This will mark your account as deleted on Nostr and log you out. This action cannot be undone.",
-      "Delete account?"
+      "This will mark your profile as deleted on Nostr and log you out. This action cannot be undone.",
+      "Delete profile?"
     )
 
     if (confirmed) {
@@ -135,7 +135,7 @@ function DeleteAccount() {
         // Publish deleted profile
         const user = nostr().getUser({pubkey: store.publicKey})
         if (user) {
-          user.profile = {name: "Account deleted", deleted: "true" as string}
+          user.profile = {name: "Profile deleted", deleted: "true" as string}
           await user.publish()
           log("[DeleteAccount] Published deleted profile")
         }
@@ -172,7 +172,7 @@ function DeleteAccount() {
     <div className="bg-base-200 min-h-full">
       <div className="p-4">
         <div className="space-y-6">
-          <SettingsGroup title="Delete account">
+          <SettingsGroup title="Delete profile">
             <SettingsGroupItem>
               <div className="flex flex-col gap-3">
                 <div className="text-sm text-base-content/70">
@@ -191,7 +191,7 @@ function DeleteAccount() {
             </SettingsGroupItem>
 
             <SettingsButton
-              label={isDeletingAccount ? "Deleting..." : "Delete account"}
+              label={isDeletingAccount ? "Deleting..." : "Delete profile"}
               onClick={handleDeleteAccount}
               variant="destructive"
               isLast

@@ -289,7 +289,7 @@ const DeviceList = () => {
       </dialog>
       {isLinkedDevice && (
         <p className="text-sm text-base-content/60 text-center">
-          Manage devices from the main account.
+          Manage linked devices from your main device.
         </p>
       )}
     </div>

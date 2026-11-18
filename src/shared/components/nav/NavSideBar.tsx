@@ -103,11 +103,12 @@ const NavSideBar = () => {
           {!myPubKey && (
             <div className="ml-2 md:ml-0 xl:px-2 md:mt-2 hidden md:block xl:w-full">
               <button
+                aria-label="Create profile"
                 className="btn btn-primary btn-circle xl:w-full xl:rounded-full text-lg signup-btn"
                 onClick={() => setShowLoginDialog(true)}
               >
                 <RiLoginBoxLine className="xl:hidden" />
-                <span className="hidden xl:inline">Sign up</span>
+                <span className="hidden xl:inline">Create profile</span>
               </button>
             </div>
           )}

@@ -66,7 +66,7 @@ test("an existing account can pair once and sign a post after refresh", async ({
   const groups = process.env.NODE_CONFIG_ENV === "groups"
   await page.goto(groups ? "/groups" : "/")
   await page
-    .getByRole("button", {name: groups ? "Create group" : "Sign up", exact: true})
+    .getByRole("button", {name: groups ? "Create group" : "Create profile", exact: true})
     .first()
     .click()
   await page.getByRole("button", {name: "Sign in", exact: true}).click()

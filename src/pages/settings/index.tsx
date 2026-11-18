@@ -141,12 +141,12 @@ function Settings() {
       ],
     },
     {
-      title: "Account",
+      title: "Sign-in",
       items: [
         {
           icon: "trash" as const,
           iconBg: "bg-red-600",
-          message: "Delete account",
+          message: "Delete profile",
           path: "/settings/delete-account",
         },
         {
@@ -167,7 +167,7 @@ function Settings() {
       "": "Settings",
       keys: "Keys",
       logout: "Log out",
-      "delete-account": "Delete account",
+      "delete-account": "Delete profile",
       network: "Network",
       profile: "Profile",
       iris: "iris.to username",

@@ -31,7 +31,7 @@ export default function GroupForm({
     setError("")
     try {
       if (group && publicKey !== group.creator)
-        throw new Error("Switch back to the group’s creator account to edit it.")
+        throw new Error("Sign in as the group’s creator to edit it.")
       const ref = {id: id.current, creator: publicKey}
       await publishGroupEvent(createGroupDraft({...ref, name, description, policy}))
       useSavedGroups.getState().remember(publicKey, ref)

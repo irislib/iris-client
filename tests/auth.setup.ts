@@ -14,21 +14,23 @@ async function openLoginDialog(page, options: LoginOptions = {}) {
   await page.waitForLoadState("domcontentloaded")
   await expect(page.locator("#main-content")).toBeVisible({timeout: 10000})
 
-  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  const signUpHeading = page.getByRole("heading", {name: "Create profile", exact: true})
   const signInHeading = page.getByRole("heading", {name: "Sign in"})
 
   if ((await signUpHeading.isVisible()) || (await signInHeading.isVisible())) {
     return
   }
 
-  const signUpButton = page.locator("button:visible", {hasText: "Sign up"}).first()
+  const signUpButton = page
+    .getByRole("button", {name: "Create profile", exact: true})
+    .first()
   await expect(signUpButton).toBeVisible({timeout: 10000})
   await signUpButton.click()
   await expect(page.locator("dialog.modal")).toBeVisible({timeout: 10000})
 }
 
 async function ensureSignUpDialog(page) {
-  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  const signUpHeading = page.getByRole("heading", {name: "Create profile", exact: true})
   if (await signUpHeading.isVisible()) {
     return
   }
@@ -36,7 +38,7 @@ async function ensureSignUpDialog(page) {
   const signInHeading = page.getByRole("heading", {name: "Sign in"})
   if (await signInHeading.isVisible()) {
     const dialog = page.locator("dialog.modal")
-    await dialog.getByRole("button", {name: "Sign up"}).click()
+    await dialog.getByRole("button", {name: "Create profile", exact: true}).click()
   }
 
   await expect(signUpHeading).toBeVisible({timeout: 10000})
@@ -48,9 +50,9 @@ async function ensureSignInDialog(page) {
     return
   }
 
-  const signUpHeading = page.getByRole("heading", {name: "Sign up"})
+  const signUpHeading = page.getByRole("heading", {name: "Create profile", exact: true})
   if (await signUpHeading.isVisible()) {
-    await page.getByText("Already have an account?").click()
+    await page.getByText("Already have a profile?").click()
   }
 
   await expect(signInHeading).toBeVisible({timeout: 10000})
@@ -64,19 +66,22 @@ async function signUp(page, username = "Test User", options: LoginOptions = {}) 
   const nameInput = page.getByPlaceholder("What's your name?")
   await nameInput.fill(username)
 
-  // Wait for auto-login if it's a key, otherwise click Go
+  // Wait for auto-login if it's a key, otherwise submit the form
   // If it's a key, the dialog should close automatically after some delay
   const isKey = username.startsWith("npub") || username.startsWith("nsec")
 
   if (!isKey) {
-    // Click the Go button for new accounts
-    const goButton = page.getByRole("button", {name: "Go"})
-    await goButton.click()
+    await page
+      .getByRole("dialog")
+      .getByRole("button", {name: "Create profile", exact: true})
+      .click()
   }
   // For keys, auto-login triggers automatically - dialog will close
 
   // Wait for signup to complete
-  await expect(page.getByRole("heading", {name: "Sign up"})).not.toBeVisible({
+  await expect(
+    page.getByRole("heading", {name: "Create profile", exact: true})
+  ).not.toBeVisible({
     timeout: 10000,
   })
 
