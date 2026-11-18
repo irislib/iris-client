@@ -328,20 +328,15 @@ test("fresh shipped defaults route reading, graph sync and signed public posts t
     await relayWorker!.evaluate(
       () =>
         new Promise<string>((resolve) => {
+          // Chromium can queue this handshake behind the worker's startup sockets.
+          // Playwright's test timeout bounds the wait for the real connection.
           const socket = new WebSocket("wss://worker-loopback-control.invalid/")
-          const timer = setTimeout(() => {
-            socket.close()
-            resolve("timeout")
-          }, 3000)
           socket.onopen = () => {
-            clearTimeout(timer)
-            socket.close()
             resolve("open")
+            socket.close()
           }
-          socket.onerror = () => {
-            clearTimeout(timer)
-            resolve("error")
-          }
+          socket.onerror = () => resolve("error")
+          socket.onclose = () => resolve("closed")
         })
     )
   ).toBe("open")
