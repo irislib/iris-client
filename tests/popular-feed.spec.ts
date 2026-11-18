@@ -144,6 +144,9 @@ test("anonymous Popular loads posts from the default social graph", async ({
     )
     expect(publicKey).toBe("")
     await page.screenshot({path: testInfo.outputPath("anonymous-popular.png")})
+    // Popular adopts the new graph immediately; a mounted For You feed keeps
+    // its reading snapshot. Open the actual compact Popular post for sharing.
+    await popularWidget.getByText(post.content, {exact: true}).click()
     const share = page.getByRole("button", {name: "Share", exact: true}).first()
     const url = "https://iris.to/" + nip19.noteEncode(post.id)
     await share.click()
