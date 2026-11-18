@@ -39,6 +39,7 @@ export function ProfileSettings() {
 
 function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const navigate = useNavigate()
+  const canBackUpKey = useUserStore((state) => Boolean(state.privateKey))
   const aboutId = useId()
 
   const profileUpload = useFileUpload({
@@ -248,6 +249,15 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
         </div>
 
         <div className="space-y-6">
+          {canBackUpKey && (
+            <SettingsGroup title="This device">
+              <SettingsButton
+                label="Back up secret key"
+                onClick={() => navigate("/settings/keys")}
+                isLast
+              />
+            </SettingsGroup>
+          )}
           {loadError && (
             <div role="alert">
               <p>{loadError}</p>
