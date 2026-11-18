@@ -1,4 +1,5 @@
-import {useEffect} from "react"
+import LinkDevice from "@/shared/components/user/LinkDevice"
+import {useEffect, useState} from "react"
 import {useUserStore} from "@/stores/user"
 import {useDevicesStore} from "@/stores/devices"
 import {getDelegateManager, initDelegateManager} from "@/shared/services/PrivateChats"
@@ -6,7 +7,8 @@ import DeviceList from "./DeviceList"
 import RegisterDevice from "./RegisterDevice"
 import LinkDeviceInvite from "./LinkDeviceInvite"
 
-const DevicesTab = () => {
+const DevicesTab = ({allowPairing = false}: {allowPairing?: boolean}) => {
+  const [linking, setLinking] = useState(false)
   const publicKey = useUserStore((s) => s.publicKey)
   const {setIdentityPubkey, privateMessagingBlocked} = useDevicesStore()
 
@@ -35,10 +37,18 @@ const DevicesTab = () => {
     }
   }, [privateMessagingBlocked, publicKey, setIdentityPubkey])
 
+  if (!publicKey && !allowPairing) return <div className="p-4">Sign in to manage messaging devices.</div>
+
   if (!publicKey) {
     return (
-      <div className="p-4 text-center text-base-content/60">
-        Please log in to manage devices
+      <div className="p-4 text-center">
+        {linking ? (
+          <LinkDevice onBack={() => setLinking(false)} />
+        ) : (
+          <button className="btn" onClick={() => setLinking(true)}>
+            Link this device
+          </button>
+        )}
       </div>
     )
   }
