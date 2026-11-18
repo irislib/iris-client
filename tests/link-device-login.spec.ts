@@ -4,8 +4,7 @@ import {Invite} from "nostr-double-ratchet"
 test("login offers a browser extension and keeps device pairing in Devices", async ({
   page,
 }) => {
-  await page.goto("/")
-  await page.waitForLoadState("domcontentloaded")
+  await page.goto("/", {waitUntil: "domcontentloaded"})
 
   const signUpHeading = page.getByRole("heading", {name: "Sign up"})
   const signInHeading = page.getByRole("heading", {name: "Sign in"})
@@ -36,7 +35,7 @@ test("login offers a browser extension and keeps device pairing in Devices", asy
   await page.evaluate(() => localStorage.clear())
   await page.goto("/settings/devices")
   await expect(linkButton).toHaveCount(0)
-  await page.goto("/chats")
+  await page.goto("/chats", {waitUntil: "domcontentloaded"})
   await page.getByRole("link", {name: "Link a chat device"}).click()
   await expect(linkButton).toBeVisible({timeout: 10000})
   await linkButton.click()
