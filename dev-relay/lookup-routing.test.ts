@@ -1,6 +1,12 @@
 // @vitest-environment node
-import {afterEach, describe, expect, it} from "vitest"
-import {finalizeEvent, generateSecretKey, nip19} from "nostr-tools"
+import {afterEach, describe, expect, it, vi} from "vitest"
+import {
+  finalizeEvent,
+  generateSecretKey,
+  matchFilters,
+  nip19,
+  type Event,
+} from "nostr-tools"
 import {FipsPubsubWireCodec} from "nostr-pubsub"
 import {startNostrRelay} from "./nostr-relay"
 import NostrClient from "../src/lib/nostr"
@@ -24,6 +30,20 @@ function client(options: ConstructorParameters<typeof NostrClient>[0]) {
   const instance = new NostrClient(options)
   cleanups.push(() => instance.close())
   return instance
+}
+
+// Public relay hints use secure URLs. Serve this reserved example entirely in
+// memory while the client's configured relay runs over a real loopback socket.
+function publicRelay(instance: NostrClient, post: Event) {
+  const url = "wss://archive.example"
+  const start = instance.startSubscription.bind(instance)
+  vi.spyOn(instance, "startSubscription").mockImplementation(async (sub) => {
+    if (!sub.opts.relayUrls?.includes(url)) return start(sub)
+    const source = instance.pool.getRelay(url)
+    if (matchFilters(sub.filters, post)) sub.eventReceived(post, source)
+    sub.eoseReceived(source)
+  })
+  return url
 }
 
 describe("public lookups across incomplete relay coverage", () => {
@@ -131,7 +151,7 @@ describe("public lookups across incomplete relay coverage", () => {
   it("uses a post's relay hint alongside the saved relays", async () => {
     const post = signed(1, "Only on the hinted relay")
     const instance = client({explicitRelayUrls: [await relay()], enableRelayHints: true})
-    const hinted = await relay([post])
+    const hinted = publicRelay(instance, post)
     const sub = instance.subscribe({ids: [post.id]}, {relayHints: [hinted]})
     const events: string[] = []
     sub.on("event", (event) => events.push(event.id))
@@ -147,7 +167,7 @@ describe("public lookups across incomplete relay coverage", () => {
   it("ignores relay hints by default", async () => {
     const post = signed(1, "Only on the hinted relay")
     const instance = client({explicitRelayUrls: [await relay()]})
-    const hinted = await relay([post])
+    const hinted = publicRelay(instance, post)
     const sub = instance.subscribe({ids: [post.id]}, {relayHints: [hinted]})
     const events: string[] = []
     sub.on("event", (event) => events.push(event.id))
@@ -169,9 +189,9 @@ describe("public lookups across incomplete relay coverage", () => {
       },
       secret
     )
-    const hinted = await relay([post])
     const primary = await relay()
     const instance = client({explicitRelayUrls: [primary], enableOutboxModel: true})
+    const hinted = publicRelay(instance, post)
     const sub = instance.subscribe({kinds: [1], authors: [post.pubkey]})
     const events: string[] = []
     sub.on("event", (event) => events.push(event.id))
