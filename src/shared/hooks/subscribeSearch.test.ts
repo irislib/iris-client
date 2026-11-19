@@ -265,3 +265,173 @@ it("continues completed relay history while retaining the interrupted page for r
   expect(onEvent.mock.calls.some(([e]) => e.id === offline.url)).toBe(true)
   history.stop()
 })
+
+const historyNote = (nostr: NostrClient, id: string, created_at: number) =>
+  new AppEvent(nostr, {
+    id,
+    kind: 1,
+    pubkey: "a".repeat(64),
+    created_at,
+    content: "photo",
+    tags: [],
+  })
+
+it("pages a relay that filled its page without waiting for slower relays", async () => {
+  vi.useFakeTimers()
+  const nostr = new NostrClient()
+  const archive = new Relay("wss://archive.example/", undefined, nostr)
+  const onEvent = vi.fn()
+  const onProgress = vi.fn()
+  const requests: {relays?: string[]; until?: number}[] = []
+  nostr.transportPlugins.push({
+    name: "worker-transport",
+    onSubscribe(sub, [filter], opts) {
+      const relays = opts?.relayUrls
+      requests.push({relays, until: filter.until})
+      if (!relays) {
+        // The archive fills the page; another relay never answers it.
+        sub.eventReceived(historyNote(nostr, "first", 900), archive)
+        sub.eventReceived(historyNote(nostr, "second", 890), archive)
+        return
+      }
+      sub.eventReceived(historyNote(nostr, "older", 700), archive)
+      sub.eoseReceived(null, {
+        complete: true,
+        reason: "eose",
+        sources: [{id: archive.url, complete: true}],
+      })
+    },
+  })
+  const history = subscribeSearch(
+    nostr,
+    [{kinds: [1], until: 1000, limit: 2}],
+    onEvent,
+    () => !onEvent.mock.calls.some(([e]) => e.id === "older"),
+    onProgress
+  )
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests).toEqual([
+    {relays: undefined, until: 1000},
+    {relays: [archive.url], until: 890},
+  ])
+  expect(onProgress).toHaveBeenLastCalledWith(
+    expect.objectContaining({loading: false, canLoadMore: true})
+  )
+  history.stop()
+})
+
+it("keeps paging working relays while a failed page is retried", async () => {
+  vi.useFakeTimers()
+  const nostr = new NostrClient()
+  const archive = new Relay("wss://archive.example/", undefined, nostr)
+  const offline = "wss://offline.example/"
+  const onEvent = vi.fn()
+  const requests: {relays?: string[]; until?: number}[] = []
+  let wanted = 2
+  nostr.transportPlugins.push({
+    name: "worker-transport",
+    onSubscribe(sub, [filter], opts) {
+      const relays = opts?.relayUrls
+      requests.push({relays, until: filter.until})
+      // The retried page waits on the offline relay and never completes.
+      if (!relays && requests.length > 1) return
+      sub.eventReceived(
+        historyNote(nostr, `${filter.until}`, filter.until! - 100),
+        archive
+      )
+      sub.eoseReceived(null, {
+        complete: !!relays,
+        reason: relays ? "eose" : "timeout",
+        sources: relays
+          ? [{id: archive.url, complete: true}]
+          : [
+              {id: archive.url, complete: true},
+              {id: offline, complete: false},
+            ],
+      })
+    },
+  })
+  const history = subscribeSearch(
+    nostr,
+    [{kinds: [1], until: 1000}],
+    onEvent,
+    () => onEvent.mock.calls.length < wanted,
+    vi.fn()
+  )
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests).toEqual([
+    {relays: undefined, until: 1000},
+    {relays: [archive.url], until: 900},
+  ])
+  wanted = 4
+  history.loadMore()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests.slice(2)).toEqual([
+    {relays: undefined, until: 1000},
+    {relays: [archive.url], until: 800},
+    {relays: [archive.url], until: 700},
+  ])
+  history.stop()
+})
+
+it("pages a fast relay without waiting for a slow one", async () => {
+  vi.useFakeTimers()
+  const nostr = new NostrClient()
+  const fast = new Relay("wss://fast.example/", undefined, nostr)
+  const slow = new Relay("wss://slow.example/", undefined, nostr)
+  const onEvent = vi.fn()
+  const requests: {relays?: string[]; until?: number}[] = []
+  nostr.transportPlugins.push({
+    name: "worker-transport",
+    onSubscribe(sub, [filter], opts) {
+      const relays = opts?.relayUrls
+      requests.push({relays, until: filter.until})
+      if (!relays) {
+        sub.eventReceived(historyNote(nostr, "fast", 900), fast)
+        sub.eventReceived(historyNote(nostr, "slow", 950), slow)
+        sub.eoseReceived(null, {
+          complete: false,
+          reason: "timeout",
+          sources: [
+            {id: fast.url, complete: true},
+            {id: slow.url, complete: true},
+            {id: "wss://offline.example/", complete: false},
+          ],
+        })
+        return
+      }
+      const relay = relays[0] === fast.url ? fast : slow
+      const answer = () => {
+        sub.eventReceived(
+          historyNote(nostr, `${relay.url}${filter.until}`, filter.until! - 100),
+          relay
+        )
+        sub.eoseReceived(null, {
+          complete: true,
+          reason: "eose",
+          sources: [{id: relay.url, complete: true}],
+        })
+      }
+      if (relay === fast) return answer()
+      const timer = setTimeout(answer, 3000)
+      sub.once("close", () => clearTimeout(timer))
+    },
+  })
+  const history = subscribeSearch(
+    nostr,
+    [{kinds: [1], until: 1000}],
+    onEvent,
+    () => onEvent.mock.calls.length < 4,
+    vi.fn()
+  )
+  await vi.advanceTimersByTimeAsync(1)
+  expect(requests).toEqual([
+    {relays: undefined, until: 1000},
+    {relays: [fast.url], until: 900},
+    {relays: [slow.url], until: 950},
+    {relays: [fast.url], until: 800},
+  ])
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(onEvent.mock.calls.some(([e]) => e.id === `${slow.url}950`)).toBe(true)
+  history.stop()
+})

@@ -78,7 +78,7 @@ export default function useFeedEvents({
   )
   const searchResultsRef = useRef<AppEvent[]>([])
   const searchController = useRef<ReturnType<typeof subscribeSearch> | null>(null)
-  const loadHistoryRef = useRef<() => void>(() => {})
+  const loadHistoryRef = useRef<(retryIncomplete?: boolean) => void>(() => {})
   const [historyProgress, setHistoryProgress] = useState({
     loading: false,
     canLoadMore: true,
@@ -644,14 +644,16 @@ export default function useFeedEvents({
     let history: ReturnType<typeof subscribeSearch> | undefined
     let historyTarget = 0
     setHistoryProgress({loading: false, canLoadMore: true})
-    loadHistoryRef.current = () => {
+    loadHistoryRef.current = (retryIncomplete = false) => {
       // Keep the live/cache subscription open. Its displayed (or injected)
       // events cannot establish a complete relay-history boundary. On demand,
       // start bounded, isolated pages from the original query and account for
       // raw deliveries before visibility filtering and cross-source deduplication.
       historyTarget = Math.max(displayCountRef.current, eventsRef.current.size + 1)
       if (history) {
-        history.loadMore()
+        // Scrolling pages the relays that answered. Only an explicit request
+        // goes back to an interval that a relay failed to complete.
+        history.loadMore(retryIncomplete)
       } else {
         history = subscribeSearch(
           nostr(),
@@ -786,7 +788,7 @@ export default function useFeedEvents({
       }
       searchController.current.loadMore(retryIncomplete)
     } else {
-      loadHistoryRef.current()
+      loadHistoryRef.current(retryIncomplete)
     }
     return false
   }

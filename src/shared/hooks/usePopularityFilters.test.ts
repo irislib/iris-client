@@ -34,6 +34,9 @@ vi.mock("@/utils/socialGraph", () => ({
   getSocialGraph: graphMocks.getSocialGraph,
 }))
 
+// Author sampling has separate coverage with real graph data.
+vi.mock("@/utils/sparseDiscovery", () => ({selectSparseDiscoveryAuthors: () => []}))
+
 vi.mock("@/utils/visibility", () => ({
   getOrCreateAlgorithmicVisibilitySnapshot:
     visibilityMocks.getOrCreateAlgorithmicVisibilitySnapshot,

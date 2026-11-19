@@ -8,7 +8,7 @@ import {
 } from "nostr-pubsub"
 import type {EventFilter} from "@/lib/nostr"
 
-type RelayPage = {cursor: HistoryCursor; page: HistoryPage}
+type RelayPage = {cursor: HistoryCursor; page: HistoryPage; events: number}
 
 /** One app query, with the shared raw-history cursor for each actual relay.
  * Client visibility and cross-relay deduplication must happen after record(). */
@@ -25,8 +25,9 @@ export class SearchPageCursor {
     return this.filter
   }
 
-  record(event: NostrEvent, relay?: string, fromCache = false) {
-    if (fromCache || !relay || this.planned !== undefined) return
+  /** True once this relay has delivered a full page: it has no more to send for it. */
+  record(event: NostrEvent, relay?: string, fromCache = false): boolean {
+    if (fromCache || !relay || this.planned !== undefined) return false
     const source = relaySource(relay)
     let entry = this.relays.get(relay)
     const created = !entry
@@ -37,7 +38,7 @@ export class SearchPageCursor {
         this.filter.until!,
         Math.max(1600, this.filter.limit ?? 100)
       )
-      entry = {cursor, page: cursor.beginPage()!}
+      entry = {cursor, page: cursor.beginPage()!, events: 0}
       this.relays.set(relay, entry)
     }
     // The subscription/cache boundary already verified these wire events.
@@ -47,7 +48,9 @@ export class SearchPageCursor {
       source,
       priority: SOURCE_PRIORITY_RELAY,
     })
-    if (created && !accepted) this.relays.delete(relay)
+    if (accepted) entry.events++
+    else if (created) this.relays.delete(relay)
+    return entry.events >= (this.filter.limit ?? Infinity)
   }
 
   /** Continue a relay that finished even if the rest of the query timed out. */
