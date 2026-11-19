@@ -93,7 +93,9 @@ function HomeFeed() {
       .filter((feed): feed is FeedConfig => feed !== undefined)
   }, [allFeeds, enabledFeedIds])
 
-  const savedConfig = feedConfigs[activeFeed]
+  const selectedFeed = feedConfigs[activeFeed]
+  const savedConfig =
+    !myPubKey && !selectedFeed?.feedStrategy ? feedConfigs["for-you"] : selectedFeed
   const postRelevance = usePostSearchSettings(
     !!savedConfig?.aiSearch && !!savedConfig.filter?.search?.trim()
   )
@@ -222,9 +224,6 @@ function HomeFeed() {
           <NoFollows myPubKey={myPubKey} />
         )}
         {(() => {
-          if (!myPubKey && !activeFeedConfig?.feedStrategy)
-            return <AlgorithmicFeed type="popular" />
-
           if (activeFeedConfig?.feedStrategy)
             return (
               <AlgorithmicFeed

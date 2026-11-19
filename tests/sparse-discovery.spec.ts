@@ -22,18 +22,20 @@ for (const mode of [
   "one-follow",
   "zero-follow",
   "anonymous",
+  "anonymous-after-sign-out",
   "four-follows",
   "popular",
 ]) {
   test(`bounded discovery preserves originals for ${mode}`, async ({page}, testInfo) => {
+    const anonymous = mode === "anonymous" || mode === "anonymous-after-sign-out"
     await page.setViewportSize(
-      mode === "anonymous" ? {width: 390, height: 844} : {width: 1280, height: 900}
+      anonymous ? {width: 390, height: 844} : {width: 1280, height: 900}
     )
     const viewer = person(),
       friend = person(),
       authors = Array.from({length: 8}, person)
     const extraFollows = Array.from({length: 3}, person)
-    const fallback = mode === "zero-follow" || mode === "anonymous"
+    const fallback = mode === "zero-follow" || anonymous
     const follows = fallback
       ? []
       : [friend, ...(mode === "four-follows" ? extraFollows : [])]
@@ -209,9 +211,14 @@ for (const mode of [
             )
         },
         {
-          publicKey: mode === "anonymous" ? "" : viewer.pubkey,
+          publicKey: anonymous ? "" : viewer.pubkey,
           relay,
-          activeFeed: mode === "popular" ? "popular" : "",
+          activeFeed:
+            mode === "anonymous-after-sign-out"
+              ? "latest"
+              : mode === "popular"
+                ? "popular"
+                : "",
         }
       )
       if (mode === "four-follows") {
