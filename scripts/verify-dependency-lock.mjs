@@ -134,6 +134,15 @@ for (const [name, release] of Object.entries(releases)) {
   ) {
     throw new Error(`${name} lock entry is missing its verified release integrity`)
   }
+  if (name === "@fips/transport-webrtc") {
+    const version = entry.match(/^    version: (\S+)$/m)?.[1]
+    const selector = `${name}@${version}`
+    const hash = lockfile.split(`\n  '${selector}':\n    hash: `)[1]?.split("\n")[0]
+    if (manifest.pnpm?.patchedDependencies?.[selector] !== "patches/fips-transport-webrtc.patch" ||
+        !hash || !lockfile.includes(`\n  '${name}@${release.url}(patch_hash=${hash})':\n`)) {
+      throw new Error("WebRTC discovery must use the bounded advert replay patch for its installed version")
+    }
+  }
 }
 
 const corePackages = lockfile.split("\nsnapshots:")[0].match(/^  '@fips\/core@/gm) ?? []

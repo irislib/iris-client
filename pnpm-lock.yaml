@@ -28,7 +28,7 @@ overrides:
   '@hashtree/nostr-pubsub>@hashtree/nostr': https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.40/hashtree-nostr-0.2.7.tgz
 
 patchedDependencies:
-  '@fips/transport-webrtc@0.0.61':
+  '@fips/transport-webrtc@0.0.62':
     hash: uiqqroikqtr7fppdayzehujovy
     path: patches/fips-transport-webrtc.patch
   '@hashtree/fips-transport@0.5.2':

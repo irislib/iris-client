@@ -186,7 +186,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "@fips/transport-webrtc@0.0.61": "patches/fips-transport-webrtc.patch",
+      "@fips/transport-webrtc@0.0.62": "patches/fips-transport-webrtc.patch",
       "@hashtree/fips-transport@0.5.2": "patches/hashtree-fips-transport.patch",
       "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch"
     },
