@@ -72,7 +72,9 @@ function sample() {
     ...next,
     peers: next.peers.map((peer) => ({...peer, peerId: networkPeerId(peer.peerId)})),
     endpoints: readEndpoints?.() ?? [],
-    rates, history, status: "ready",
+    rates,
+    history,
+    status: "ready",
   })
 }
 

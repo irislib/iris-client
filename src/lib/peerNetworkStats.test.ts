@@ -84,12 +84,18 @@ describe("peer transport telemetry", () => {
     const ws = await transportFixture(stats, "websocket")
     stats.peer({remotePubkey: `02${peerId}`, remoteAddr: rtc.address, state: "connected"})
     stats.peer({remotePubkey: `03${peerId}`, remoteAddr: ws.address, state: "connected"})
-    const stop = observePeerNetwork({
-      getNetworkStats: () => stats.snapshot(),
-      node: {on: () => () => {}},
-    } as unknown as BrowserHashtreeFipsProvider, () => [])
+    const stop = observePeerNetwork(
+      {
+        getNetworkStats: () => stats.snapshot(),
+        node: {on: () => () => {}},
+      } as unknown as BrowserHashtreeFipsProvider,
+      () => []
+    )
     try {
-      expect(getPeerNetworkSnapshot().peers.map(peer => peer.peerId)).toEqual([peerId, peerId])
+      expect(getPeerNetworkSnapshot().peers.map((peer) => peer.peerId)).toEqual([
+        peerId,
+        peerId,
+      ])
     } finally {
       stop()
     }
