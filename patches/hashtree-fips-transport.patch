@@ -17,7 +17,7 @@ index d7a6638..a8c57b0 100644
      readonly webSocketTransport?: WebSocketTransport;
      stop(): Promise<void>;
 diff --git a/dist/browserProvider.js b/dist/browserProvider.js
-index 19ecbf5..2a79d38 100644
+index 3958d79..2a97bad 100644
 --- a/dist/browserProvider.js
 +++ b/dist/browserProvider.js
 @@ -1,3 +1,4 @@
@@ -39,33 +39,33 @@ index 19ecbf5..2a79d38 100644
          forwarding: options.forwarding ?? true,
          routingMode: 'reply_learned',
          logger: options.logger,
-@@ -78,6 +82,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
-         candidatePeerIds: () => [...adjacentPeers],
+@@ -86,6 +90,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
+         candidatePeerIds: listConnectedPeerIds,
      });
      const removePeerListener = node.on('peer', (data) => {
-+      networkStats.peer(data);
-         const peer = data;
-         if (!peer.remotePubkey)
-             return;
-@@ -94,6 +99,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
++        networkStats.peer(data);
+         const event = data;
+         const peerId = event.peerId ?? event.remotePubkey.slice(2).toLowerCase();
+         const path = `${event.remoteAddr.transport}:${event.remoteAddr.addr}`;
+@@ -102,6 +107,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          stopped = true;
          removePeerListener();
-         adjacentPeers.clear();
-+      networkStats.clearPeers();
+         paths.clear();
++        networkStats.clearPeers();
          provider.close();
          await node.stop();
      };
-@@ -110,6 +116,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
+@@ -118,6 +124,7 @@ async function createBrowserProvider(options, { relays, webSocketTransport }) {
          node,
          localPeerId: toHex(identity.publicKey),
-         listConnectedPeerIds: () => [...adjacentPeers],
-+      getNetworkStats: () => networkStats.snapshot(),
+         listConnectedPeerIds,
++        getNetworkStats: () => networkStats.snapshot(),
          webRtcTransport,
          webSocketTransport,
          stop,
 diff --git a/dist/browserStats.d.ts b/dist/browserStats.d.ts
 new file mode 100644
-index 0000000..fe3aedd
+index 0000000..96f8ce8
 --- /dev/null
 +++ b/dist/browserStats.d.ts
 @@ -0,0 +1,26 @@
@@ -89,7 +89,7 @@ index 0000000..fe3aedd
 +    private readonly peers;
 +    private readonly totals;
 +    private key;
-+    peer(event: PeerEvent): void;
++    peer(event: Omit<PeerEvent, 'peerId'> & { peerId?: string }): void;
 +    clearPeers(): void;
 +    snapshot(): BrowserNetworkSnapshot;
 +    private traffic;
@@ -97,10 +97,10 @@ index 0000000..fe3aedd
 +}
 diff --git a/dist/browserStats.js b/dist/browserStats.js
 new file mode 100644
-index 0000000..cc65d58
+index 0000000..8e3b872
 --- /dev/null
 +++ b/dist/browserStats.js
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,77 @@
 +/** FIPS packet bytes at the transport boundary, including control and forwarded
 + * traffic. Excludes carrier overhead and Nostr signalling. Totals last until stop. */
 +export class BrowserNetworkStats {
@@ -111,14 +111,15 @@ index 0000000..cc65d58
 +    }
 +    peer(event) {
 +        const key = this.key(event.remoteAddr);
++        const peerId = event.peerId ?? event.remotePubkey;
 +        if (event.state === 'disconnected') {
-+            this.peers.delete(key);
++            if (this.peers.get(key)?.peerId === peerId) this.peers.delete(key);
 +            return;
 +        }
-+        if (this.peers.get(key)?.peerId === event.remotePubkey)
++        if (this.peers.get(key)?.peerId === peerId)
 +            return;
 +        this.peers.set(key, {
-+            peerId: event.remotePubkey,
++            peerId,
 +            transport: event.remoteAddr.transport,
 +            address: event.remoteAddr.addr,
 +            bytesSent: 0,
@@ -178,7 +179,7 @@ index 0000000..cc65d58
 +    }
 +}
 diff --git a/src/browserProvider.ts b/src/browserProvider.ts
-index 9c0a7e9..f790b89 100644
+index 49a0147..4139706 100644
 --- a/src/browserProvider.ts
 +++ b/src/browserProvider.ts
 @@ -1,3 +1,5 @@
@@ -187,7 +188,7 @@ index 9c0a7e9..f790b89 100644
  import { FipsNostrPubsubClient, FipsNostrPubsubEventSource, openPublicPeerFeedSource, publicPeerSource, type FipsNostrPubsubClientOptions, type RuntimeSource } from 'nostr-pubsub';
  import { fromHex, toHex, type Hash, type Store } from '@hashtree/core';
  import {
-@@ -64,6 +66,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
+@@ -65,6 +67,7 @@ export interface BrowserHashtreeFipsProvider extends HashtreeWorkerP2PProvider {
    readonly node: FipsNode;
    readonly localPeerId: string;
    listConnectedPeerIds(): string[];
@@ -195,7 +196,7 @@ index 9c0a7e9..f790b89 100644
    readonly webRtcTransport: WebRtcTransport;
    readonly webSocketTransport?: WebSocketTransport;
    stop(): Promise<void>;
-@@ -123,9 +126,12 @@ async function createBrowserProvider(
+@@ -124,9 +127,12 @@ async function createBrowserProvider(
      allowIncomingPeer: options.allowIncomingPeer,
      logger: options.logger,
    });
@@ -209,36 +210,36 @@ index 9c0a7e9..f790b89 100644
      forwarding: options.forwarding ?? true,
      routingMode: 'reply_learned',
      logger: options.logger,
-@@ -142,6 +148,7 @@ async function createBrowserProvider(
-     candidatePeerIds: () => [...adjacentPeers],
+@@ -150,6 +156,7 @@ async function createBrowserProvider(
+     candidatePeerIds: listConnectedPeerIds,
    });
    const removePeerListener = node.on('peer', (data) => {
-+    networkStats.peer(data as Parameters<BrowserNetworkStats['peer']>[0]);
-     const peer = data as { remotePubkey?: string; state?: string };
-     if (!peer.remotePubkey) return;
-     if (peer.state === 'connected') adjacentPeers.add(peer.remotePubkey);
-@@ -155,6 +162,7 @@ async function createBrowserProvider(
++    networkStats.peer(data);
+     const event = data as PeerEvent & { peerId?: string };
+     const peerId = event.peerId ?? event.remotePubkey.slice(2).toLowerCase();
+     const path = `${event.remoteAddr.transport}:${event.remoteAddr.addr}`;
+@@ -164,6 +171,7 @@ async function createBrowserProvider(
      stopped = true;
      removePeerListener();
-     adjacentPeers.clear();
+     paths.clear();
 +    networkStats.clearPeers();
      provider.close();
      await node.stop();
    };
-@@ -170,6 +178,7 @@ async function createBrowserProvider(
+@@ -179,6 +187,7 @@ async function createBrowserProvider(
      node,
      localPeerId: toHex(identity.publicKey),
-     listConnectedPeerIds: () => [...adjacentPeers],
+     listConnectedPeerIds,
 +    getNetworkStats: () => networkStats.snapshot(),
      webRtcTransport,
      webSocketTransport,
      stop,
 diff --git a/src/browserStats.ts b/src/browserStats.ts
 new file mode 100644
-index 0000000..8d58ff5
+index 0000000..423ccba
 --- /dev/null
 +++ b/src/browserStats.ts
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,99 @@
 +import type { PeerEvent, Transport, TransportAddress } from '@fips/core';
 +
 +export interface TrafficTotals {
@@ -267,15 +268,16 @@ index 0000000..8d58ff5
 +    return `${address.transport}:${address.addr}`;
 +  }
 +
-+  peer(event: PeerEvent): void {
++  peer(event: Omit<PeerEvent, 'peerId'> & { peerId?: string }): void {
 +    const key = this.key(event.remoteAddr);
++    const peerId = event.peerId ?? event.remotePubkey;
 +    if (event.state === 'disconnected') {
-+      this.peers.delete(key);
++      if (this.peers.get(key)?.peerId === peerId) this.peers.delete(key);
 +      return;
 +    }
-+    if (this.peers.get(key)?.peerId === event.remotePubkey) return;
++    if (this.peers.get(key)?.peerId === peerId) return;
 +    this.peers.set(key, {
-+      peerId: event.remotePubkey,
++      peerId,
 +      transport: event.remoteAddr.transport,
 +      address: event.remoteAddr.addr,
 +      bytesSent: 0,

@@ -52,9 +52,9 @@ const releases = {
       "sha512-viUPl2JUtrfJENEWZPvaTtT5x73Pvj5EmHn7qjsTP5T01uOg0tDm7xJww3cf6x23LILi6drOh97ss0WWYq/KVA==",
   },
   "@hashtree/fips-transport": {
-    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.49/hashtree-fips-transport-0.5.2.tgz",
+    url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.52/hashtree-fips-transport-0.5.3.tgz",
     integrity:
-      "sha512-6rwv1WJVZ5gLYJs9mT/aejag6DCtKAfE5wIFaVGksk09XPSKHJGKdw/nejtYsZVWH9ik/0XBkmND6rOdQwKwXQ==",
+      "sha512-aCyAsJwA6uIePNYa7JJtkv/75xcFG/M11LB2llNAiS1qLOz1v3c681XkfHBRmeUqGWoBwyJMBHXmjvQB+vq/Mw==",
   },
   "@hashtree/dexie": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",
@@ -134,13 +134,17 @@ for (const [name, release] of Object.entries(releases)) {
   ) {
     throw new Error(`${name} lock entry is missing its verified release integrity`)
   }
-  if (name === "@fips/transport-webrtc") {
+  const transportPatch = {
+    "@fips/transport-webrtc": "patches/fips-transport-webrtc.patch",
+    "@hashtree/fips-transport": "patches/hashtree-fips-transport.patch",
+  }[name]
+  if (transportPatch) {
     const version = entry.match(/^    version: (\S+)$/m)?.[1]
     const selector = `${name}@${version}`
     const hash = lockfile.split(`\n  '${selector}':\n    hash: `)[1]?.split("\n")[0]
-    if (manifest.pnpm?.patchedDependencies?.[selector] !== "patches/fips-transport-webrtc.patch" ||
-        !hash || !lockfile.includes(`\n  '${name}@${release.url}(patch_hash=${hash})':\n`)) {
-      throw new Error("WebRTC discovery must use the bounded advert replay patch for its installed version")
+    if (manifest.pnpm?.patchedDependencies?.[selector] !== transportPatch ||
+        !hash || !lockfile.split("\nsnapshots:\n")[1].includes(`\n  '${name}@${release.url}(patch_hash=${hash})`)) {
+      throw new Error(`${name} must use its consumer patch for the installed version`)
     }
   }
 }
