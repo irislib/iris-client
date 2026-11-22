@@ -32,12 +32,10 @@ describe("bounded discovery subscription", () => {
     vi.useFakeTimers()
     callbacks = new Map()
     stop = vi.fn()
-    mocks.subscribe
-      .mockReset()
-      .mockImplementation(() => ({
-        on: (name: string, fn: (...args: any[]) => void) => callbacks.set(name, fn),
-        stop,
-      }))
+    mocks.subscribe.mockReset().mockImplementation(() => ({
+      on: (name: string, fn: (...args: any[]) => void) => callbacks.set(name, fn),
+      stop,
+    }))
     root = createRoot(document.createElement("div"))
   })
   afterEach(async () => {

@@ -1,4 +1,4 @@
-import { createAnonymousRelayDiscovery } from './anonymousRelayDiscovery';
+import {createAnonymousRelayDiscovery} from "./anonymousRelayDiscovery"
 import {
   createNostrRuntime,
   createPrivateRelayPublisher,

@@ -1,5 +1,4 @@
-import type {FilterHints} from "./query"
-import {planPostSearch} from "./query"
+import {type FilterHints, planPostSearch} from "./query"
 
 export type SearchModel = "auto" | "minilm" | "browser" | "ollama"
 export interface SearchSettings {

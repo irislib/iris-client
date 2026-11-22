@@ -84,11 +84,13 @@ async function withDistFixture<T>(run: () => Promise<T>): Promise<T> {
 
 describe("release site config", () => {
   beforeEach(() => {
-    vi.stubEnv("IRIS_NATIVE_RELEASE_GATE", path.resolve(__dirname, "../scripts/release-site.mjs"))
+    vi.stubEnv(
+      "IRIS_NATIVE_RELEASE_GATE",
+      path.resolve(__dirname, "../scripts/release-site.mjs")
+    )
     vi.stubEnv("HTREE_BIN", "htree")
   })
   afterEach(() => vi.unstubAllEnvs())
-
 
   it("uses a site tree name that does not collide with the git remote name", async () => {
     const {defaultSiteTreeName, parseArgs} = await importReleaseSiteModule()

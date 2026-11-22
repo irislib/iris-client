@@ -50,7 +50,10 @@ describe("Groups build", () => {
     const {runRelease} = await import("../scripts/release-groups.mjs")
     const runner = vi.fn().mockReturnValueOnce({status: 0}).mockReturnValue({status: 1})
     vi.stubEnv("HTREE_BIN", "htree")
-    vi.stubEnv("IRIS_NATIVE_RELEASE_GATE", fileURLToPath(new URL("../scripts/release-groups.mjs", import.meta.url)))
+    vi.stubEnv(
+      "IRIS_NATIVE_RELEASE_GATE",
+      fileURLToPath(new URL("../scripts/release-groups.mjs", import.meta.url))
+    )
     try {
       expect(() => runRelease({}, runner)).toThrow("failed")
     } finally {
@@ -74,13 +77,17 @@ describe("Groups build", () => {
     try {
       expect(() => runRelease({}, runner)).toThrow("failed")
       expect(calls.at(-1)).toEqual([
-        gate, "--dist", expect.stringMatching(/\/dist-groups$/),
-        "--tree", "iris-groups-site", "--htree", "htree",
+        gate,
+        "--dist",
+        expect.stringMatching(/\/dist-groups$/),
+        "--tree",
+        "iris-groups-site",
+        "--htree",
+        "htree",
       ])
       expect(calls.some((args) => args.includes("deploy"))).toBe(false)
     } finally {
       vi.unstubAllEnvs()
     }
   })
-
 })

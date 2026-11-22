@@ -1,6 +1,5 @@
 import type {BrowserSignerSession} from "@iris/identity/browserSigner"
-import type {Signer} from "@/lib/nostr"
-import {User} from "@/lib/nostr"
+import {type Signer, User} from "@/lib/nostr"
 import type {Event} from "nostr-tools"
 
 export function createRemoteSigner(session: BrowserSignerSession): Signer {

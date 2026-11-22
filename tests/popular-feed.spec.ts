@@ -117,7 +117,7 @@ test("anonymous Popular loads posts from the default social graph", async ({
       Object.defineProperty(navigator, "share", {
         value: sessionStorage.getItem("copyOnly")
           ? undefined
-          : async ({url}: ShareData) => {
+          : async ({url}: globalThis.ShareData) => {
               document.body.dataset.shared = url
             },
       })

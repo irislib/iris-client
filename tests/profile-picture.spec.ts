@@ -172,13 +172,23 @@ test("profile pictures can be added, replaced, and cleared across reloads", asyn
       ).toBeVisible()
       const custom = page.getByLabel("Custom fields (JSON)")
       const number = "9007199254740995"
-      const exact = '{"day":18,"id":'+number+',"fine":[1.00000000000000000009,1e-800]}'
-      await custom.fill((await custom.inputValue()).trimEnd().replace(/}$/, ',"birthday":'+exact+'}'))
-      await expect(page.getByText("After · "+exact,{exact:true})).toBeVisible()
+      const exact =
+        '{"day":18,"id":' + number + ',"fine":[1.00000000000000000009,1e-800]}'
+      await custom.fill(
+        (await custom.inputValue()).trimEnd().replace(/}$/, ',"birthday":' + exact + "}")
+      )
+      await expect(page.getByText("After · " + exact, {exact: true})).toBeVisible()
       await page.screenshot({path: testInfo.outputPath("custom-fields.png")})
-      await saveAndCheck({...initialProfile, picture: "", about, birthday: JSON.parse(exact)})
-      const signed = [...published.values()].sort((a,b) => b.created_at-a.created_at)[0]
-      expect(signed.content).toContain('"birthday":'+exact)
+      await saveAndCheck({
+        ...initialProfile,
+        picture: "",
+        about,
+        birthday: JSON.parse(exact),
+      })
+      const signed = [...published.values()].sort(
+        (a, b) => b.created_at - a.created_at
+      )[0]
+      expect(signed.content).toContain('"birthday":' + exact)
       await page.reload()
       await page.getByText("Custom fields and tags", {exact: true}).click()
       await expect(custom).toHaveValue(new RegExp(number))

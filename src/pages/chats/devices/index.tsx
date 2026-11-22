@@ -37,7 +37,8 @@ const DevicesTab = ({allowPairing = false}: {allowPairing?: boolean}) => {
     }
   }, [privateMessagingBlocked, publicKey, setIdentityPubkey])
 
-  if (!publicKey && !allowPairing) return <div className="p-4">Sign in to manage messaging devices.</div>
+  if (!publicKey && !allowPairing)
+    return <div className="p-4">Sign in to manage messaging devices.</div>
 
   if (!publicKey) {
     return (

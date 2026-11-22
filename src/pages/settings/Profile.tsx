@@ -72,7 +72,8 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
   const npubCashAddress = `${nip19.npubEncode(myPubKey)}@npub.cash`
 
   const initialCustom = useMemo(
-    () => customProfileFields(readRawProfileFields(currentSource?.event?.content ?? "{}")),
+    () =>
+      customProfileFields(readRawProfileFields(currentSource?.event?.content ?? "{}")),
     [currentSource]
   )
   let customPatch: Record<string, string | undefined> = {}
@@ -155,7 +156,9 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
     setSaveState("saving")
     setSaveError("")
     const savedEdits = {
-      ...Object.fromEntries(Object.entries(edits).map(([key, value]) => [key, JSON.stringify(value)])),
+      ...Object.fromEntries(
+        Object.entries(edits).map(([key, value]) => [key, JSON.stringify(value)])
+      ),
       ...customPatch,
     }
     const head = latest.current
@@ -444,7 +447,9 @@ function ProfileSettingsEditor({myPubKey}: {myPubKey: string}) {
                   {Object.entries(customPatch).map(([key, after]) => (
                     <div key={key}>
                       <dt className="font-medium">{key}</dt>
-                      <dd className="break-all">Before · {initialCustom[key] ?? "Absent"}</dd>
+                      <dd className="break-all">
+                        Before · {initialCustom[key] ?? "Absent"}
+                      </dd>
                       <dd className="break-all">After · {after ?? "Absent"}</dd>
                     </div>
                   ))}

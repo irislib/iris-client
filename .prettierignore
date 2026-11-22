@@ -8,3 +8,7 @@ pnpm-lock.yaml
 # Bundled NDK sources retain their upstream formatting.
 src/lib/ndk/
 src/lib/ndk-cache/
+
+# The dependency gate verifies the generated search model by its exact bytes.
+src/lib/post-search/model/search-tag-head.json
+src/lib/post-search/model/search-tokenizer.json
