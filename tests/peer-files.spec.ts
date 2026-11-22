@@ -7,6 +7,7 @@ import {
 } from "@playwright/test"
 import {signUp} from "./auth.setup"
 import {usingBuiltDist} from "./utils/built-dist"
+import {networkPeerId} from "../src/lib/peerNetworkStats"
 import {FipsNode, generateIdentity, identityFromSecretKey} from "@fips/core"
 import {WebSocketTransport} from "@fips/transport-websocket"
 import {FipsNostrPubsubClient} from "nostr-pubsub"
@@ -133,7 +134,7 @@ test("cached encrypted attachment is served across real browser peers without fi
           .localPeerId
     )
     await expect(
-      settings.getByTestId("nostr-endpoint").locator(`[title="${remote}"]`)
+      settings.getByTestId("nostr-endpoint").locator(`[title="${networkPeerId(remote)}"]`)
     ).toBeVisible()
     await expect
       .poll(async () =>
@@ -200,8 +201,10 @@ test("cached encrypted attachment is served across real browser peers without fi
         if (!runtime) throw new Error("Peer runtime unavailable after reload")
         const hash = Uint8Array.from(block.hashHex.match(/../g)!, byte => parseInt(byte, 16))
         const wasCached = await localBlocks.has(hash)
+        const {networkPeerId} = await import("/src/lib/peerNetworkStats.ts")
+        const sourceId = networkPeerId(sourcePeerId)
         const receivedBytes = () => runtime.provider.getNetworkStats().peers
-          .filter(peer => peer.peerId === sourcePeerId && peer.transport === "webrtc")
+          .filter(peer => networkPeerId(peer.peerId) === sourceId && peer.transport === "webrtc")
           .reduce((total, peer) => total + peer.bytesReceived, 0)
         const before = receivedBytes()
         const data = await runtime.provider.fetch(block.hashHex, sourcePeerId, 0)
@@ -299,12 +302,15 @@ test("a routed Nostr endpoint appears separately from its forwarding seed", asyn
     try {
       await instance.page.getByTestId("connectivity-indicator").first().click()
       const settings = instance.page.getByTestId("peer-network-settings")
+      const endpointId = networkPeerId(peerId)
       const endpoint = settings
         .getByTestId("nostr-endpoint")
-        .filter({has: instance.page.locator(`[title="${peerId}"]`)})
+        .filter({has: instance.page.locator(`[title="${endpointId}"]`)})
       await expect(endpoint).toContainText("Routed", {timeout: 30000})
       await expect(
-        settings.getByTestId("network-peer").locator(`[title="${peerId}"]`)
+        settings
+          .getByTestId("network-peer")
+          .locator(`[title="${peerId}"], [title="${endpointId}"]`)
       ).toHaveCount(0)
       await instance.page.evaluate(async () => {
         const {getPeerRuntime} = await import("/src/lib/peerRuntime.ts")
