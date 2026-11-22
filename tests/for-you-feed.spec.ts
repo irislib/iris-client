@@ -960,6 +960,9 @@ test("for you filters overmuted authors and unknown engagement actors", async ({
   // Keep recommendation events safely inside the subscription's inclusive
   // `until: now` window even when graph hydration completes within one second.
   const recommendationTime = Math.floor(Date.now() / 1000) - 1
+  // All target authors are two hops away. Keep the engagement targets outside
+  // the 48-hour discovery window so only a trusted reaction or repost can admit them.
+  const targetTime = recommendationTime - 3 * 24 * 60 * 60
   const hiddenContent = `overmuted recommendation ${unique}`
   const reactionControlContent = `visible reaction recommendation ${unique}`
   const repostControlContent = `visible repost recommendation ${unique}`
@@ -969,29 +972,35 @@ test("for you filters overmuted authors and unknown engagement actors", async ({
     kind: 1,
     content: hiddenContent,
     tags: [],
-    created_at: recommendationTime,
+    created_at: targetTime,
   })
   const controlNote = signEvent(controlAuthor, {
     kind: 1,
     content: reactionControlContent,
     tags: [],
-    created_at: recommendationTime,
+    created_at: targetTime,
   })
   const repostControlNote = signEvent(repostControlAuthor, {
     kind: 1,
     content: repostControlContent,
     tags: [],
-    created_at: recommendationTime,
+    created_at: targetTime,
   })
   const unknownReactionNote = signEvent(unknownReactionTargetAuthor, {
     kind: 1,
     content: unknownReactionContent,
     tags: [],
-    created_at: recommendationTime,
+    created_at: targetTime,
   })
   const unknownRepostNote = signEvent(unknownRepostTargetAuthor, {
     kind: 1,
     content: unknownRepostContent,
+    tags: [],
+    created_at: targetTime,
+  })
+  const discoveryNote = signEvent(unknownReactionTargetAuthor, {
+    kind: 1,
+    content: `recent original without engagement ${unique}`,
     tags: [],
     created_at: recommendationTime,
   })
@@ -1002,6 +1011,7 @@ test("for you filters overmuted authors and unknown engagement actors", async ({
     repostControlNote,
     unknownReactionNote,
     unknownRepostNote,
+    discoveryNote,
     signEvent(recommender, {
       kind: 7,
       content: "+",
@@ -1038,13 +1048,14 @@ test("for you filters overmuted authors and unknown engagement actors", async ({
 
   // The controls prove both real signal -> candidate -> post fetch paths ran;
   // absence alone could otherwise be a relay timing false positive.
-  const visibleFeedItems = page.locator('[data-testid="feed-item"]:visible')
+  const visibleFeedItems = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(
     visibleFeedItems.filter({hasText: reactionControlContent}).first()
   ).toBeVisible({timeout: 30000})
   await expect(
     visibleFeedItems.filter({hasText: repostControlContent}).first()
   ).toBeVisible()
+  await expect(visibleFeedItems.filter({hasText: discoveryNote.content})).toBeVisible()
   await expect(visibleFeedItems.filter({hasText: hiddenContent})).toHaveCount(0)
   await expect(visibleFeedItems.filter({hasText: unknownReactionContent})).toHaveCount(0)
   await expect(visibleFeedItems.filter({hasText: unknownRepostContent})).toHaveCount(0)
