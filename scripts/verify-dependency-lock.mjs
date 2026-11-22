@@ -17,19 +17,19 @@ const releases = {
       "sha512-w2N8AE2bL5h7H0tOuTONOTprHS4/SVCP93lyipA/mekk+RogF3fZFh+s2lxLEDvW5tSjIJcBdX1lguX7wD5+2g==",
   },
   "@fips/core": {
-    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-core-0.0.57.tgz",
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.63/fips-core-0.0.58.tgz",
     integrity:
-      "sha512-POUsLcusLEBc8gNXRrqP9FPYSUUbaxX3DzvtejEg6rNBaleVCPt3K445DUUj3p6J6vZDag+zolD4bZ9HFoxPHw==",
+      "sha512-UW0PHboZgifo806XxYYjNGgPsKYDMA59YQSvFD0j1k5lhAofX1Yfx+kH38mTYWeTNJQKSr7cMaWqM1Ue2pSV8g==",
   },
   "@fips/transport-webrtc": {
-    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-webrtc-0.0.61.tgz",
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.63/fips-transport-webrtc-0.0.62.tgz",
     integrity:
-      "sha512-/peMttxBn/uvNfZjMxNf4IRHCs1SawCnIhu6XrGnyMc093acToT7C8R480eCPkNqRq8Q+QTD3J7CE4bR6Tz0OA==",
+      "sha512-X4fGxJvosbK62DqW9Zp8mkzMmmH8grVMxKSbtsqgWRCHNIP1nBKQdvmjeYjVG3/KTTVTZXETRQFLSM9ZS2WW7A==",
   },
   "@fips/transport-websocket": {
-    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.62/fips-transport-websocket-0.0.15.tgz",
+    url: "https://github.com/mmalmi/fips-ts/releases/download/runtime-v0.0.63/fips-transport-websocket-0.0.16.tgz",
     integrity:
-      "sha512-lIY8SHl7ebkQnIHH+kW3Dlh/E1HU1QU0rCs5oB2SneGRm+7fZ6uy8L9FFoJ6/QGwuBERmEetvkZAfBD89EXJyQ==",
+      "sha512-2KUDBS9/UQ+g+vguCf5hSZBShFGZW9ffXCYXx8jQI9yL9Q8rj8mxd+bnOrv5qAVG8ymbqErI2oVCkyLkpT9cvw==",
   },
   "nostr-pubsub": {
     url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.38/nostr-pubsub-0.5.38.tgz",
