@@ -279,20 +279,20 @@ test("the result view follows submitted searches and survives a reload", async (
   await page.goto("/search/bicycle")
   const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
   await expect(page.getByRole("button", {name: "AI search", exact: true})).toHaveCount(0)
-  await expect(view).toHaveText("Show all")
+  await expect(view).toHaveAccessibleName("Show all")
   const filters = page.getByRole("button", {name: "Filters", exact: true})
   const filterPosition = () =>
     filters.evaluate((button: HTMLElement) => [button.offsetLeft, button.offsetTop])
   const before = await filterPosition()
   await view.focus()
   await view.press("Enter")
-  await expect(view).toHaveText("Show AI selected")
+  await expect(view).toHaveAccessibleName("Show AI selected")
   expect(await filterPosition()).toEqual(before)
   await page.getByRole("textbox", {name: "Search posts", exact: true}).fill("garden")
   await page.getByRole("textbox", {name: "Search posts", exact: true}).press("Enter")
   await expect(page).toHaveURL(/search\/garden$/)
   await page.reload()
-  await expect(view).toHaveText("Show AI selected")
+  await expect(view).toHaveAccessibleName("Show AI selected")
   await expect(
     page.getByRole("textbox", {name: "Search posts", exact: true})
   ).toHaveValue("garden")
@@ -303,7 +303,46 @@ test("the result view follows submitted searches and survives a reload", async (
   await page.goBack()
   await view.click()
   await page.reload()
-  await expect(view).toHaveText("Show all")
+  await expect(view).toHaveAccessibleName("Show all")
+})
+
+test("changing result views keeps the narrow toolbar stable with wider fonts", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({width: 320, height: 780})
+  await page.goto("/search/bicycle")
+  // Font metrics differ across platforms and user font preferences. Exercise
+  // a label wider than the previous fixed minimum even on macOS.
+  await page.addStyleTag({content: "body { font-family: monospace; }"})
+  const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
+  const filters = page.getByRole("button", {name: "Filters", exact: true})
+  const sort = page.getByRole("combobox", {name: "Sort posts"})
+  await expect(view).toHaveAccessibleName("Show all")
+  const positions = () =>
+    Promise.all(
+      [view, filters, sort].map((item) =>
+        item.evaluate((element: HTMLElement) => ({
+          x: element.offsetLeft,
+          y: element.offsetTop,
+          width: element.offsetWidth,
+          height: element.offsetHeight,
+        }))
+      )
+    )
+  const before = await positions()
+  await page.screenshot({path: testInfo.outputPath("result-view-wide-font-before.png")})
+  await view.press("Enter")
+  await expect(view).toHaveAccessibleName("Show AI selected")
+  await page.screenshot({path: testInfo.outputPath("result-view-wide-font-after.png")})
+  const after = await positions()
+  await testInfo.attach("toolbar-positions", {
+    body: JSON.stringify({before, after}),
+    contentType: "application/json",
+  })
+  expect(after).toEqual(before)
+  await view.press("Enter")
+  await expect(view).toHaveAccessibleName("Show all")
+  expect(await positions()).toEqual(before)
 })
 
 test("a feed remembers AI selection independently of search and other feeds", async ({
@@ -429,15 +468,15 @@ test("automatic search falls back to on-device discovery when the browser return
   await signUp(page, nip19.nsecEncode(viewer))
   await page.goto("/search/bicycle")
   const view = page.getByRole("button", {name: /^Show (all|AI selected)$/})
-  await expect(view).toHaveText("Show all")
+  await expect(view).toHaveAccessibleName("Show all")
   const rows = page.locator('#main-content [data-testid="feed-item"]:visible')
   await expect(rows.first()).toContainText(target, {timeout: 30000})
   await page.screenshot({path: testInfo.outputPath("semantic-post-search.png")})
   await view.click()
-  await expect(view).toHaveText("Show AI selected")
+  await expect(view).toHaveAccessibleName("Show AI selected")
   await expect(rows.filter({hasText: target})).toHaveCount(0)
   await page.reload()
-  await expect(view).toHaveText("Show AI selected")
+  await expect(view).toHaveAccessibleName("Show AI selected")
   await view.click()
   await expect(rows.first()).toContainText(target, {timeout: 30000})
 })
