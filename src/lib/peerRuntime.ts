@@ -16,7 +16,7 @@ import {getInjectedHtreeRelayUrl} from "@/utils/nativeHtree"
 import {irisMessagingSource} from "./irisMessagingSource"
 import {watchPublicPeerFeeds, latestPosts} from "./publicPeerFeeds"
 import {localBlocks} from "./fileStore"
-import {observePeerNetwork, setPeerNetworkStatus} from "./peerNetworkStats"
+import {networkPeerId, observePeerNetwork, setPeerNetworkStatus} from "./peerNetworkStats"
 const DEVICE_KEY = "iris-client:fips-device-secret"
 let pending: Promise<PeerRuntime | null> | undefined
 export interface PeerRuntime {
@@ -181,9 +181,11 @@ async function start(): Promise<PeerRuntime | null> {
     const stopObserving = observePeerNetwork(provider, () => {
       const endpoints = new Map<string, boolean>()
       for (const [local, read] of endpointReaders) {
-        const adjacent = new Set(local.listConnectedPeerIds())
-        for (const id of read())
+        const adjacent = new Set(local.listConnectedPeerIds().map(networkPeerId))
+        for (const address of read()) {
+          const id = networkPeerId(address)
           endpoints.set(id, adjacent.has(id) || endpoints.get(id) === true)
+        }
       }
       return Array.from(endpoints, ([id, direct]) => ({id, direct})).sort((a, b) =>
         a.id.localeCompare(b.id)

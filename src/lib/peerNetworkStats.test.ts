@@ -1,4 +1,6 @@
 import {describe, expect, it, vi} from "vitest"
+import {getPeerNetworkSnapshot, observePeerNetwork} from "./peerNetworkStats"
+import type {BrowserHashtreeFipsProvider} from "@hashtree/fips-transport/browser"
 import type {Transport, TransportContext} from "@fips/core"
 import {BrowserNetworkStats} from "../../node_modules/@hashtree/fips-transport/dist/browserStats.js"
 
@@ -73,6 +75,24 @@ describe("peer transport telemetry", () => {
     stats.clearPeers()
     expect(stats.snapshot().peers).toEqual([])
     expect(stats.snapshot().transports.websocket.bytesSent).toBe(70)
+  })
+
+  it("displays the same identity on opposite-parity seed and WebRTC paths", async () => {
+    const stats = new BrowserNetworkStats()
+    const peerId = "ab".repeat(32)
+    const rtc = await transportFixture(stats)
+    const ws = await transportFixture(stats, "websocket")
+    stats.peer({remotePubkey: `02${peerId}`, remoteAddr: rtc.address, state: "connected"})
+    stats.peer({remotePubkey: `03${peerId}`, remoteAddr: ws.address, state: "connected"})
+    const stop = observePeerNetwork({
+      getNetworkStats: () => stats.snapshot(),
+      node: {on: () => () => {}},
+    } as unknown as BrowserHashtreeFipsProvider, () => [])
+    try {
+      expect(getPeerNetworkSnapshot().peers.map(peer => peer.peerId)).toEqual([peerId, peerId])
+    } finally {
+      stop()
+    }
   })
 
   it("does not present unauthenticated transport traffic as a connected peer", async () => {

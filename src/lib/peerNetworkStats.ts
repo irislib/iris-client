@@ -25,6 +25,11 @@ let lastSampleAt = 0
 let timer: ReturnType<typeof setInterval> | undefined
 const listeners = new Set<() => void>()
 
+// Older providers expose the authenticated peer's compressed dial address.
+export function networkPeerId(address: string): string {
+  return /^(02|03)[0-9a-f]{64}$/i.test(address) ? address.slice(2).toLowerCase() : address
+}
+
 export const getPeerNetworkSnapshot = () => snapshot
 
 function publish(next: PeerNetworkSnapshot) {
@@ -63,7 +68,12 @@ function sample() {
     seconds > 0
       ? [...snapshot.history, {timestamp: now, ...total}].slice(-30)
       : snapshot.history
-  publish({...next, endpoints: readEndpoints?.() ?? [], rates, history, status: "ready"})
+  publish({
+    ...next,
+    peers: next.peers.map((peer) => ({...peer, peerId: networkPeerId(peer.peerId)})),
+    endpoints: readEndpoints?.() ?? [],
+    rates, history, status: "ready",
+  })
 }
 
 export function subscribePeerNetwork(listener: () => void) {
