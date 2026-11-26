@@ -32,9 +32,9 @@ const releases = {
       "sha512-2KUDBS9/UQ+g+vguCf5hSZBShFGZW9ffXCYXx8jQI9yL9Q8rj8mxd+bnOrv5qAVG8ymbqErI2oVCkyLkpT9cvw==",
   },
   "nostr-pubsub": {
-    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.41/nostr-pubsub-0.5.41.tgz",
+    url: "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.42/nostr-pubsub-0.5.42.tgz",
     integrity:
-      "sha512-nNBicaF8OX/theZABn59InRqdFwOQd7skySfJrwcdONOmXzeXH/S88qkv4i9oWnx0jASqmtv91O5eh+LVX1dwg==",
+      "sha512-kuEV8FVRU3zPtwTgG95JhztEkPBPV4wQ8Jv+pD6EHF/UfKS/3RpsB/q/+yd6ms9CM/obdbh6xNItOUrSvvBusw==",
   },
   "@hashtree/nostr": {
     url: "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.40/hashtree-nostr-0.2.7.tgz",
@@ -99,6 +99,8 @@ if (/\b(?:file|link):\.\.\//.test(lockfile)) {
   throw new Error("Lockfile must not resolve mutable sibling workspaces")
 }
 const verifiedHashtreeReleaseOverrides = {
+  "@hashtree/worker>nostr-pubsub": releases["nostr-pubsub"].url,
+  "@hashtree/nostr-pubsub>nostr-pubsub": releases["nostr-pubsub"].url,
   "@hashtree/fips-transport>nostr-pubsub": releases["nostr-pubsub"].url,
   "@hashtree/worker>@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-core-0.4.0.tgz",
   "@hashtree/worker>@hashtree/dexie": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-dexie-0.1.13.tgz",

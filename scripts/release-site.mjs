@@ -27,7 +27,9 @@ export const releaseProfile = {
   nativeReleaseGate: true,
   defaultWorkerName: "iris-client",
   defaultRoutes: [],
-  defaultDomains: ["iris.to"],
+  // Sites owns iris.to and forwards /old/ to this Worker through its binding.
+  // Updating the legacy client must not reclaim the launcher's custom domain.
+  defaultDomains: [],
   workerNameEnv: "CF_WORKER_NAME",
   pagesProjectEnv: "CF_PAGES_PROJECT",
   buildCommand: ["pnpm", "run", "build"],

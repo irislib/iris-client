@@ -156,6 +156,17 @@ describe("release site config", () => {
     expect(parsed.treeName).toBe("custom-site-tree")
   })
 
+  it("keeps the legacy Client release behind the Sites /old/ binding", async () => {
+    const {parseArgs, createReleasePlan} = await importReleaseSiteModule()
+    const options = parseArgs([])
+    expect(options.workerName).toBe("iris-client")
+    expect(options.domains).toEqual([])
+    expect(options.routes).toEqual([])
+    const deploy = createReleasePlan(options).steps.find((step) => step.id === "deploy")
+    expect(deploy?.command).not.toContain("--domain")
+    expect(deploy?.command).not.toContain("--route")
+  })
+
   it("runs the native publication gate before deploying to Cloudflare", async () => {
     const {runRelease} = await importReleaseSiteModule()
     let activeReleaseSteps = 0

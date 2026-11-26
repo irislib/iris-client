@@ -121,7 +121,7 @@
     "markdown-to-jsx": "^9.9.0",
     "minidenticons": "^4.2.1",
     "nostr-double-ratchet": "https://registry.npmjs.org/nostr-double-ratchet/-/nostr-double-ratchet-0.0.183.tgz",
-    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.41/nostr-pubsub-0.5.41.tgz",
+    "nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.42/nostr-pubsub-0.5.42.tgz",
     "nostr-social-graph": "https://github.com/mmalmi/nostr-social-graph/releases/download/v4.2.5/nostr-social-graph-4.2.5.tgz",
     "nostr-tools": "^2.24.1",
     "nostr-wasm": "^0.1.0",
@@ -187,11 +187,10 @@
   "pnpm": {
     "patchedDependencies": {
       "@fips/transport-webrtc@0.0.62": "patches/fips-transport-webrtc.patch",
-      "@hashtree/fips-transport@0.5.3": "patches/hashtree-fips-transport.patch",
-      "nostr-pubsub@0.5.20": "patches/nostr-pubsub.patch"
+      "@hashtree/fips-transport@0.5.3": "patches/hashtree-fips-transport.patch"
     },
     "overrides": {
-      "@hashtree/fips-transport>nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.41/nostr-pubsub-0.5.41.tgz",
+      "@hashtree/fips-transport>nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.42/nostr-pubsub-0.5.42.tgz",
       "dexie": "$dexie",
       "@fips/tcp": "https://github.com/mmalmi/fips-tcp/releases/download/fips-tcp-ts-v0.2.6/fips-tcp-0.2.6.tgz",
       "brace-expansion@>=1.0.0 <1.1.21": "1.1.21",
@@ -211,7 +210,9 @@
       "@hashtree/nostr>@hashtree/collection": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-collection-0.2.11.tgz",
       "@hashtree/nostr>@hashtree/core": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-core-0.4.0.tgz",
       "@hashtree/nostr>@hashtree/index": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.27/hashtree-index-0.1.15.tgz",
-      "@hashtree/nostr-pubsub>@hashtree/nostr": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.40/hashtree-nostr-0.2.7.tgz"
+      "@hashtree/nostr-pubsub>@hashtree/nostr": "https://github.com/mmalmi/hashtree/releases/download/hashtree-ts-runtime-v0.5.40/hashtree-nostr-0.2.7.tgz",
+      "@hashtree/worker>nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.42/nostr-pubsub-0.5.42.tgz",
+      "@hashtree/nostr-pubsub>nostr-pubsub": "https://github.com/mmalmi/nostr-pubsub/releases/download/nostr-pubsub-ts-v0.5.42/nostr-pubsub-0.5.42.tgz"
     }
   }
 }
